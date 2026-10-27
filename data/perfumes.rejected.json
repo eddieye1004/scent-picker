@@ -1,0 +1,168 @@
+{
+  "count": 92,
+  "reasons": {
+    "missing_pyramid": 92
+  },
+  "sample": [
+    {
+      "id": "ysl-libre",
+      "name": "Libre",
+      "house": "Yves Saint Laurent",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "tom-ford-oud-wood",
+      "name": "Oud Wood",
+      "house": "Tom Ford",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "le-labo-santal-33",
+      "name": "Santal 33",
+      "house": "Le Labo",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "dior-jadore",
+      "name": "J'adore",
+      "house": "Dior",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "initio-oud-for-greatness",
+      "name": "Oud for Greatness",
+      "house": "Initio Parfums Prives",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "ysl-black-opium",
+      "name": "Black Opium",
+      "house": "Yves Saint Laurent",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "tom-ford-tobacco-vanille",
+      "name": "Tobacco Vanille",
+      "house": "Tom Ford",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "le-labo-another-13",
+      "name": "Another 13",
+      "house": "Le Labo",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "armani-acqua-di-gio",
+      "name": "Acqua di Giò",
+      "house": "Giorgio Armani",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "prada-paradoxe",
+      "name": "Paradoxe",
+      "house": "Prada",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "initio-side-effect",
+      "name": "Side Effect",
+      "house": "Initio Parfums Prives",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "guerlain-lheure-bleue",
+      "name": "L'Heure Bleue",
+      "house": "Guerlain",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "tom-ford-black-orchid",
+      "name": "Black Orchid",
+      "house": "Tom Ford",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "hermes-twilly-dhermes",
+      "name": "Twilly d'Hermès",
+      "house": "Hermès",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "kayali-vanilla-28",
+      "name": "Vanilla 28",
+      "house": "Kayali",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "prada-lhomme-prada",
+      "name": "L'Homme Prada",
+      "house": "Prada",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "initio-atomic-rose",
+      "name": "Atomic Rose",
+      "house": "Initio Parfums Prives",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "valentino-donna-born-in-roma",
+      "name": "Donna Born in Roma",
+      "house": "Valentino",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "kilian-good-girl-gone-bad",
+      "name": "Good Girl Gone Bad",
+      "house": "Kilian Paris",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
+      "id": "tom-ford-lost-cherry",
+      "name": "Lost Cherry",
+      "house": "Tom Ford",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    }
+  ]
+}

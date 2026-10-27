@@ -1,0 +1,857 @@
+{
+  "version": "1.0.0",
+  "authored": "2026-10-28",
+  "note": "本文件为原创编辑资产（家族/子家族划分与情绪映射为作者整理），不含任何第三方站点的描述性文字。香调名词本身属于事实性信息。 | 2026-10-28 补 notesZh：情绪锚点香调的中文名，供理由文案回显。",
+  "families": [
+    {
+      "id": "citrus",
+      "zh": "柑橘调",
+      "en": "Citrus / Hesperidic",
+      "oneLine": "明亮、干净、像刚剥开的果皮。最不容易踩雷，也最不持久。",
+      "beginnerFriendly": 5,
+      "subfamilies": [
+        {
+          "id": "cologne",
+          "zh": "古龙水型",
+          "en": "Cologne",
+          "desc": "柑橘+草本+极淡木质，层次浅、挥发快。"
+        },
+        {
+          "id": "aromatic-citrus",
+          "zh": "芳香柑橘",
+          "en": "Aromatic Citrus",
+          "desc": "柑橘叠加薰衣草/迷迭香，带一点皂感。"
+        },
+        {
+          "id": "citrus-floral",
+          "zh": "柑橘花香",
+          "en": "Citrus Floral",
+          "desc": "柑橘打头，中调转白花或橙花。"
+        },
+        {
+          "id": "green-citrus",
+          "zh": "青绿柑橘",
+          "en": "Green Citrus",
+          "desc": "带叶感、苦橙叶、白松香，偏冷。"
+        }
+      ]
+    },
+    {
+      "id": "floral",
+      "zh": "花香调",
+      "en": "Floral",
+      "oneLine": "从一朵花到一整束花。范围最广，也最容易买错方向。",
+      "beginnerFriendly": 3,
+      "subfamilies": [
+        {
+          "id": "white-floral",
+          "zh": "白花",
+          "en": "White Floral",
+          "desc": "茉莉、晚香玉、栀子。浓郁、有存在感、易晕香。"
+        },
+        {
+          "id": "rose",
+          "zh": "玫瑰",
+          "en": "Rose",
+          "desc": "从清晨露水玫瑰到暗红丝绒玫瑰，跨度极大。"
+        },
+        {
+          "id": "green-floral",
+          "zh": "绿叶花香",
+          "en": "Green Floral",
+          "desc": "风信子、铃兰、紫罗兰叶，清透偏冷。"
+        },
+        {
+          "id": "fruity-floral",
+          "zh": "果香花香",
+          "en": "Fruity Floral",
+          "desc": "桃、荔枝、黑加仑叠花，甜而不腻。"
+        },
+        {
+          "id": "powdery-floral",
+          "zh": "粉感花香",
+          "en": "Powdery Floral",
+          "desc": "鸢尾、紫罗兰、天芥菜，带粉笔/婴儿粉质感。"
+        },
+        {
+          "id": "yellow-floral",
+          "zh": "黄花",
+          "en": "Yellow Floral",
+          "desc": "依兰、含羞草、洋甘菊，暖而带蜜感。"
+        },
+        {
+          "id": "soliflore",
+          "zh": "单一花",
+          "en": "Soliflore",
+          "desc": "只做一种花，最容易建立判断力。"
+        }
+      ]
+    },
+    {
+      "id": "woody",
+      "zh": "木质调",
+      "en": "Woody",
+      "oneLine": "干、稳、有骨架。男香和中性香的主战场。",
+      "beginnerFriendly": 4,
+      "subfamilies": [
+        {
+          "id": "dry-woody",
+          "zh": "干燥木质",
+          "en": "Dry Woody",
+          "desc": "雪松、愈创木，像铅笔屑和干燥木箱。"
+        },
+        {
+          "id": "sandalwood",
+          "zh": "檀木",
+          "en": "Sandalwood",
+          "desc": "奶感、圆润、微暖，越贴肤越舒服。"
+        },
+        {
+          "id": "vetiver",
+          "zh": "香根草",
+          "en": "Vetiver",
+          "desc": "干草、土壤、微苦。两极分化严重。"
+        },
+        {
+          "id": "mossy",
+          "zh": "苔藓木质",
+          "en": "Mossy / Chypre",
+          "desc": "橡苔+柑橘，复古、有厚度。"
+        },
+        {
+          "id": "oud",
+          "zh": "乌木",
+          "en": "Oud",
+          "desc": "树脂感、动物感、药感。门槛最高。"
+        },
+        {
+          "id": "woody-aromatic",
+          "zh": "芳香木质",
+          "en": "Woody Aromatic",
+          "desc": "薰衣草/鼠尾草+木质，干净利落。"
+        }
+      ]
+    },
+    {
+      "id": "amber",
+      "zh": "东方琥珀调",
+      "en": "Amber / Oriental",
+      "oneLine": "暖、稠、有分量。冬天和夜晚最出彩，夏天容易闷。",
+      "beginnerFriendly": 2,
+      "subfamilies": [
+        {
+          "id": "spicy-amber",
+          "zh": "辛香琥珀",
+          "en": "Spicy Amber",
+          "desc": "肉桂、丁香、豆蔻，暖而带刺。"
+        },
+        {
+          "id": "vanilla-amber",
+          "zh": "香草琥珀",
+          "en": "Vanilla Amber",
+          "desc": "香草+安息香+劳丹脂，甜暖厚。"
+        },
+        {
+          "id": "resinous",
+          "zh": "树脂",
+          "en": "Resinous",
+          "desc": "乳香、没药、安息香，教堂感。"
+        },
+        {
+          "id": "incense",
+          "zh": "焚香",
+          "en": "Incense",
+          "desc": "烟熏、灰烬、干燥，冷调焚香与暖调焚香差别很大。"
+        },
+        {
+          "id": "leather",
+          "zh": "皮革",
+          "en": "Leather",
+          "desc": "桦木焦油、藏红花，硬朗、有攻击性。"
+        }
+      ]
+    },
+    {
+      "id": "fresh",
+      "zh": "清新调",
+      "en": "Fresh",
+      "oneLine": "水、空气、草地、刚洗完澡。销量最大，辨识度最低。",
+      "beginnerFriendly": 5,
+      "subfamilies": [
+        {
+          "id": "aquatic",
+          "zh": "水生",
+          "en": "Aquatic",
+          "desc": "西瓜酮类，海水/泳池感。有人闻成黄瓜。"
+        },
+        {
+          "id": "marine",
+          "zh": "海洋",
+          "en": "Marine",
+          "desc": "盐感、海风、湿石头。"
+        },
+        {
+          "id": "green",
+          "zh": "绿意",
+          "en": "Green",
+          "desc": "割草、番茄叶、无花果叶。生青。"
+        },
+        {
+          "id": "fougere",
+          "zh": "馥奇",
+          "en": "Fougère",
+          "desc": "薰衣草+香豆素+苔藓。剃须膏/理发店感。"
+        },
+        {
+          "id": "tea",
+          "zh": "茶香",
+          "en": "Tea",
+          "desc": "绿茶、红茶、乌龙。安静、低攻击性。"
+        }
+      ]
+    },
+    {
+      "id": "gourmand",
+      "zh": "美食调",
+      "en": "Gourmand",
+      "oneLine": "像甜点。喜欢的人极喜欢，讨厌的人觉得像糖浆。",
+      "beginnerFriendly": 3,
+      "subfamilies": [
+        {
+          "id": "vanilla-gourmand",
+          "zh": "香草甜",
+          "en": "Vanilla Gourmand",
+          "desc": "香草+糖+零陵香豆。"
+        },
+        {
+          "id": "coffee-cocoa",
+          "zh": "咖啡可可",
+          "en": "Coffee / Cocoa",
+          "desc": "烘焙感、微苦，比纯甜成熟。"
+        },
+        {
+          "id": "fruity-gourmand",
+          "zh": "果味甜",
+          "en": "Fruity Gourmand",
+          "desc": "莓果、焦糖水果、棉花糖。"
+        },
+        {
+          "id": "nutty",
+          "zh": "坚果杏仁",
+          "en": "Nutty",
+          "desc": "杏仁、榛子、椰奶。奶香路线。"
+        },
+        {
+          "id": "boozy",
+          "zh": "酒香",
+          "en": "Boozy",
+          "desc": "朗姆、白兰地、香槟。夜晚属性强。"
+        }
+      ]
+    }
+  ],
+  "emotionMap": [
+    {
+      "id": "cold",
+      "zh": "清冷",
+      "desc": "不想被人闻到，想被靠近才闻到",
+      "families": {
+        "woody": 0.9,
+        "fresh": 0.8,
+        "citrus": 0.7,
+        "floral": 0.4,
+        "amber": 0.3,
+        "gourmand": 0.1
+      },
+      "notes": [
+        "iris",
+        "violet",
+        "cypress",
+        "vetiver",
+        "incense"
+      ],
+      "notesZh": {
+        "iris": "鸢尾",
+        "violet": "紫罗兰",
+        "cypress": "柏树",
+        "vetiver": "香根草",
+        "incense": "焚香"
+      }
+    },
+    {
+      "id": "warm",
+      "zh": "温暖",
+      "desc": "像晒太阳、像羊绒衫",
+      "families": {
+        "amber": 0.9,
+        "gourmand": 0.7,
+        "floral": 0.6,
+        "woody": 0.6,
+        "citrus": 0.3,
+        "fresh": 0.2
+      },
+      "notes": [
+        "amber",
+        "sandalwood",
+        "tonka",
+        "vanilla",
+        "benzoin"
+      ],
+      "notesZh": {
+        "amber": "琥珀",
+        "sandalwood": "檀木",
+        "tonka": "零陵香豆",
+        "vanilla": "香草",
+        "benzoin": "安息香"
+      }
+    },
+    {
+      "id": "clean",
+      "zh": "干净",
+      "desc": "刚洗完澡、白衬衫、皂感",
+      "families": {
+        "fresh": 0.95,
+        "citrus": 0.8,
+        "floral": 0.5,
+        "woody": 0.4,
+        "amber": 0.1,
+        "gourmand": 0.1
+      },
+      "notes": [
+        "musk",
+        "aldehydes",
+        "neroli",
+        "lavender",
+        "soap"
+      ],
+      "notesZh": {
+        "musk": "麝香",
+        "aldehydes": "醛香",
+        "neroli": "橙花",
+        "lavender": "薰衣草",
+        "soap": "皂感"
+      }
+    },
+    {
+      "id": "mysterious",
+      "zh": "神秘",
+      "desc": "有故事感，不透明",
+      "families": {
+        "amber": 0.95,
+        "woody": 0.8,
+        "floral": 0.5,
+        "fresh": 0.2,
+        "citrus": 0.2,
+        "gourmand": 0.4
+      },
+      "notes": [
+        "oud",
+        "leather",
+        "incense",
+        "saffron",
+        "patchouli"
+      ],
+      "notesZh": {
+        "oud": "乌木",
+        "leather": "皮革",
+        "incense": "焚香",
+        "saffron": "藏红花",
+        "patchouli": "广藿香"
+      }
+    },
+    {
+      "id": "bright",
+      "zh": "明亮",
+      "desc": "有精神、想被看见",
+      "families": {
+        "citrus": 0.95,
+        "fresh": 0.8,
+        "floral": 0.7,
+        "gourmand": 0.3,
+        "woody": 0.3,
+        "amber": 0.2
+      },
+      "notes": [
+        "bergamot",
+        "lemon",
+        "orange blossom",
+        "grapefruit",
+        "peony"
+      ],
+      "notesZh": {
+        "bergamot": "佛手柑",
+        "lemon": "柠檬",
+        "orange blossom": "橙花",
+        "grapefruit": "葡萄柚",
+        "peony": "牡丹"
+      }
+    },
+    {
+      "id": "lazy",
+      "zh": "慵懒",
+      "desc": "贴肤、柔和、不主动",
+      "families": {
+        "woody": 0.8,
+        "gourmand": 0.7,
+        "fresh": 0.5,
+        "floral": 0.6,
+        "amber": 0.5,
+        "citrus": 0.4
+      },
+      "notes": [
+        "musk",
+        "sandalwood",
+        "fig",
+        "coconut",
+        "tonka"
+      ],
+      "notesZh": {
+        "musk": "麝香",
+        "sandalwood": "檀木",
+        "fig": "无花果",
+        "coconut": "椰子",
+        "tonka": "零陵香豆"
+      }
+    }
+  ],
+  "occasionMap": [
+    {
+      "id": "commute",
+      "zh": "上班/上课",
+      "desc": "要耐闻、不打扰同事、能撑一整天",
+      "families": {
+        "citrus": 0.8,
+        "fresh": 0.9,
+        "woody": 0.8,
+        "floral": 0.5,
+        "amber": 0.3,
+        "gourmand": 0.3
+      },
+      "sillageMax": 3,
+      "longevityMin": 3
+    },
+    {
+      "id": "date",
+      "zh": "约会",
+      "desc": "要有记忆点，距离近才闻得到",
+      "families": {
+        "floral": 0.9,
+        "amber": 0.8,
+        "gourmand": 0.8,
+        "woody": 0.6,
+        "citrus": 0.3,
+        "fresh": 0.3
+      },
+      "sillageMax": 4,
+      "longevityMin": 3
+    },
+    {
+      "id": "daily",
+      "zh": "日常/居家",
+      "desc": "自己舒服优先，浓度低一点",
+      "families": {
+        "fresh": 0.85,
+        "citrus": 0.8,
+        "floral": 0.7,
+        "woody": 0.7,
+        "gourmand": 0.5,
+        "amber": 0.4
+      },
+      "sillageMax": 3,
+      "longevityMin": 2
+    },
+    {
+      "id": "formal",
+      "zh": "正式场合",
+      "desc": "要体面、有分量、不轻浮",
+      "families": {
+        "woody": 0.9,
+        "amber": 0.85,
+        "floral": 0.7,
+        "citrus": 0.4,
+        "fresh": 0.4,
+        "gourmand": 0.3
+      },
+      "sillageMax": 4,
+      "longevityMin": 4
+    },
+    {
+      "id": "outdoor",
+      "zh": "运动/户外",
+      "desc": "清爽、出汗也不难闻、补喷无所谓",
+      "families": {
+        "fresh": 0.95,
+        "citrus": 0.9,
+        "woody": 0.4,
+        "floral": 0.3,
+        "gourmand": 0.1,
+        "amber": 0.1
+      },
+      "sillageMax": 3,
+      "longevityMin": 2
+    }
+  ],
+  "noteIndex": {
+    "note": "香调名词 → 所属家族/子家族提示。用于把用户勾选的『喜欢的味道』翻译成家族权重。",
+    "entries": [
+      {
+        "zh": "佛手柑",
+        "en": "bergamot",
+        "family": "citrus",
+        "subfamily": "aromatic-citrus"
+      },
+      {
+        "zh": "柠檬",
+        "en": "lemon",
+        "family": "citrus",
+        "subfamily": "cologne"
+      },
+      {
+        "zh": "葡萄柚",
+        "en": "grapefruit",
+        "family": "citrus",
+        "subfamily": "green-citrus"
+      },
+      {
+        "zh": "橙花",
+        "en": "neroli / orange blossom",
+        "family": "citrus",
+        "subfamily": "citrus-floral"
+      },
+      {
+        "zh": "苦橙叶",
+        "en": "petitgrain",
+        "family": "citrus",
+        "subfamily": "green-citrus"
+      },
+      {
+        "zh": "茉莉",
+        "en": "jasmine",
+        "family": "floral",
+        "subfamily": "white-floral"
+      },
+      {
+        "zh": "晚香玉",
+        "en": "tuberose",
+        "family": "floral",
+        "subfamily": "white-floral"
+      },
+      {
+        "zh": "玫瑰",
+        "en": "rose",
+        "family": "floral",
+        "subfamily": "rose"
+      },
+      {
+        "zh": "鸢尾",
+        "en": "iris",
+        "family": "floral",
+        "subfamily": "powdery-floral"
+      },
+      {
+        "zh": "紫罗兰",
+        "en": "violet",
+        "family": "floral",
+        "subfamily": "powdery-floral"
+      },
+      {
+        "zh": "铃兰",
+        "en": "lily of the valley",
+        "family": "floral",
+        "subfamily": "green-floral"
+      },
+      {
+        "zh": "牡丹",
+        "en": "peony",
+        "family": "floral",
+        "subfamily": "fruity-floral"
+      },
+      {
+        "zh": "依兰",
+        "en": "ylang-ylang",
+        "family": "floral",
+        "subfamily": "yellow-floral"
+      },
+      {
+        "zh": "雪松",
+        "en": "cedar",
+        "family": "woody",
+        "subfamily": "dry-woody"
+      },
+      {
+        "zh": "檀木",
+        "en": "sandalwood",
+        "family": "woody",
+        "subfamily": "sandalwood"
+      },
+      {
+        "zh": "香根草",
+        "en": "vetiver",
+        "family": "woody",
+        "subfamily": "vetiver"
+      },
+      {
+        "zh": "广藿香",
+        "en": "patchouli",
+        "family": "woody",
+        "subfamily": "mossy"
+      },
+      {
+        "zh": "乌木",
+        "en": "oud",
+        "family": "woody",
+        "subfamily": "oud"
+      },
+      {
+        "zh": "橡苔",
+        "en": "oakmoss",
+        "family": "woody",
+        "subfamily": "mossy"
+      },
+      {
+        "zh": "琥珀",
+        "en": "amber",
+        "family": "amber",
+        "subfamily": "vanilla-amber"
+      },
+      {
+        "zh": "乳香",
+        "en": "frankincense",
+        "family": "amber",
+        "subfamily": "resinous"
+      },
+      {
+        "zh": "没药",
+        "en": "myrrh",
+        "family": "amber",
+        "subfamily": "resinous"
+      },
+      {
+        "zh": "焚香",
+        "en": "incense",
+        "family": "amber",
+        "subfamily": "incense"
+      },
+      {
+        "zh": "皮革",
+        "en": "leather",
+        "family": "amber",
+        "subfamily": "leather"
+      },
+      {
+        "zh": "藏红花",
+        "en": "saffron",
+        "family": "amber",
+        "subfamily": "spicy-amber"
+      },
+      {
+        "zh": "肉桂",
+        "en": "cinnamon",
+        "family": "amber",
+        "subfamily": "spicy-amber"
+      },
+      {
+        "zh": "香草",
+        "en": "vanilla",
+        "family": "gourmand",
+        "subfamily": "vanilla-gourmand"
+      },
+      {
+        "zh": "零陵香豆",
+        "en": "tonka bean",
+        "family": "gourmand",
+        "subfamily": "vanilla-gourmand"
+      },
+      {
+        "zh": "咖啡",
+        "en": "coffee",
+        "family": "gourmand",
+        "subfamily": "coffee-cocoa"
+      },
+      {
+        "zh": "可可",
+        "en": "cocoa",
+        "family": "gourmand",
+        "subfamily": "coffee-cocoa"
+      },
+      {
+        "zh": "杏仁",
+        "en": "almond",
+        "family": "gourmand",
+        "subfamily": "nutty"
+      },
+      {
+        "zh": "椰子",
+        "en": "coconut",
+        "family": "gourmand",
+        "subfamily": "nutty"
+      },
+      {
+        "zh": "朗姆酒",
+        "en": "rum",
+        "family": "gourmand",
+        "subfamily": "boozy"
+      },
+      {
+        "zh": "麝香",
+        "en": "musk",
+        "family": "fresh",
+        "subfamily": "aquatic"
+      },
+      {
+        "zh": "海水",
+        "en": "marine notes",
+        "family": "fresh",
+        "subfamily": "marine"
+      },
+      {
+        "zh": "薰衣草",
+        "en": "lavender",
+        "family": "fresh",
+        "subfamily": "fougere"
+      },
+      {
+        "zh": "鼠尾草",
+        "en": "sage",
+        "family": "fresh",
+        "subfamily": "fougere"
+      },
+      {
+        "zh": "绿茶",
+        "en": "green tea",
+        "family": "fresh",
+        "subfamily": "tea"
+      },
+      {
+        "zh": "无花果叶",
+        "en": "fig leaf",
+        "family": "fresh",
+        "subfamily": "green"
+      },
+      {
+        "zh": "醛",
+        "en": "aldehydes",
+        "family": "floral",
+        "subfamily": "powdery-floral"
+      }
+    ]
+  },
+  "sourceFamilyMap": {
+    "note": "数据源 Scento 使用 14 个家族命名，与面向用户的 6 大分类不同名。此处为人工映射表，weight 表示该源家族落在目标家族上的权重（主/次）。",
+    "entries": [
+      {
+        "source": "Sunlit Citrus",
+        "targets": {
+          "citrus": 1,
+          "fresh": 0.3
+        }
+      },
+      {
+        "source": "Orchard Fruit",
+        "targets": {
+          "floral": 0.7,
+          "gourmand": 0.5,
+          "citrus": 0.3
+        }
+      },
+      {
+        "source": "Green Leaf",
+        "targets": {
+          "fresh": 1,
+          "floral": 0.4
+        }
+      },
+      {
+        "source": "Salt & Mineral",
+        "targets": {
+          "fresh": 1
+        }
+      },
+      {
+        "source": "White Bloom",
+        "targets": {
+          "floral": 1
+        }
+      },
+      {
+        "source": "Petal Garden",
+        "targets": {
+          "floral": 1
+        }
+      },
+      {
+        "source": "Powder Veil",
+        "targets": {
+          "floral": 0.9,
+          "amber": 0.2
+        }
+      },
+      {
+        "source": "Wood & Root",
+        "targets": {
+          "woody": 1,
+          "fresh": 0.2
+        }
+      },
+      {
+        "source": "Oud Court",
+        "targets": {
+          "woody": 0.9,
+          "amber": 0.5
+        }
+      },
+      {
+        "source": "Smoke & Leather",
+        "targets": {
+          "amber": 0.9,
+          "woody": 0.4
+        }
+      },
+      {
+        "source": "Amber & Resin",
+        "targets": {
+          "amber": 1
+        }
+      },
+      {
+        "source": "Spice Route",
+        "targets": {
+          "amber": 0.8,
+          "woody": 0.4
+        }
+      },
+      {
+        "source": "Velvet Sweet",
+        "targets": {
+          "gourmand": 1,
+          "amber": 0.3
+        }
+      },
+      {
+        "source": "Skin Musk",
+        "targets": {
+          "fresh": 0.8,
+          "woody": 0.3
+        }
+      }
+    ]
+  },
+  "concentrationLongevity": {
+    "note": "推断值，非数据源字段。数据源不含持香时长与扩散度，此处按浓度给出保守估计，UI 必须标注『推断』。",
+    "map": {
+      "extrait": 5,
+      "parfum": 5,
+      "elixir": 5,
+      "eau-de-parfum": 4,
+      "eau-de-toilette": 3,
+      "eau-de-cologne": 2
+    },
+    "labels": {
+      "1": "极短（<1h）",
+      "2": "短（1-3h）",
+      "3": "中（3-5h）",
+      "4": "长（5-8h）",
+      "5": "很长（8h+）"
+    }
+  }
+}

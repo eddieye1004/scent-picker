@@ -1,0 +1,25 @@
+# 零依赖项目，理论上不该有 node_modules
+node_modules/
+
+# 系统垃圾文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 日志与临时产物
+*.log
+npm-debug.log*
+.cache/
+tmp/
+*.tmp
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*~
+
+# 注意：data/source/perfumes.upstream.jsonl 是刻意入库的
+# 它是上游 CC BY 4.0 发布的 perfumes.jsonl 原件（1.1 MB，blob sha 8c745960...）
+# 入库原因是让 build-data.js 无需联网即可复现，且许可允许再分发
+# 详见 docs/COMPLIANCE.md
