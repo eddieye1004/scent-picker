@@ -65,6 +65,11 @@ const PAIRS = [
   ['--danger on --bg', 'danger', 'bg', '.reasons li.warn'],
   ['--bg on --accent', 'bg', 'accent', '.btn 主按钮 / .chip 选中'],
   ['--bg on --danger', 'bg', 'danger', '.chip.neg 选中'],
+  // 盘心选定态翻成实心墨块，文字全部反白。这三个是写死的十六进制，
+  // 不走变量——它们在别处不会被复用，进 VARS 反而让人以为可以随便改。
+  ['白 on 墨 --hub-on-ink', '#ffffff', 'ink', '.disc-hub.is-picked .hub-zh'],
+  ['#a8a8a8 on 墨', '#a8a8a8', 'ink', '.disc-hub.is-picked .hub-kicker'],
+  ['#c9c9c9 on 墨', '#c9c9c9', 'ink', '.disc-hub.is-picked .hub-desc'],
 ];
 
 /* ---------- 跑 ---------- */
@@ -72,8 +77,10 @@ let pass = 0;
 const fails = [];
 
 for (const [label, fgk, bgk, where] of PAIRS) {
-  const fg = VARS[fgk];
-  const bg = VARS[bgk];
+  // 允许直接写字面量十六进制（用于反白文字这类不复用的色）。以 # 开头的当色值本身。
+  const pick = (k) => (k.startsWith('#') ? k : VARS[k]);
+  const fg = pick(fgk);
+  const bg = pick(bgk);
   if (!fg || !bg) {
     fails.push(`${label} :: CSS 变量缺失（${fgk}=${fg} ${bgk}=${bg}）`);
     continue;
@@ -212,7 +219,9 @@ else fails.push(`触控目标偏小: ${touchBad.join(' / ')}`);
 /* ---------- 输出 ---------- */
 console.log('===== 无障碍测试（对比度 / 字号 / 焦点 / 触控）=====');
 for (const [label, fgk, bgk] of PAIRS) {
-  const r = ratio(VARS[fgk] || '#000000', VARS[bgk] || '#ffffff');
+  // 与判定循环用同一个 pick()，否则字面量十六进制的三行会显示成假的 ✗ 1.09
+  const pick = (k) => (k.startsWith('#') ? k : VARS[k]);
+  const r = ratio(pick(fgk) || '#000000', pick(bgk) || '#ffffff');
   console.log(`  ${r >= 4.5 ? '✓' : '✗'} ${label.padEnd(26)} ${r.toFixed(2)}`);
 }
 console.log(`  ${SMALL.length === 0 ? '✓' : '✗'} 字号全部 >= 12px`);
