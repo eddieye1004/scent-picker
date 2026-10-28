@@ -39,10 +39,12 @@
 
 | 项 | 桌面（≥621px） | ≤620px | ≤620px 且高 ≤700px | ≥621px 且高 ≤740px |
 |---|---|---|---|---|
-| 尺寸 | `34%` | `38%` | `40%` | `34%` |
+| 尺寸 | **`42.7%`** | **`42.7%`** | **`42.7%`** | **`42.7%`** |
 | 圆角 | `0` | `0` | `0` | `0` |
 | 边框 | `1px solid --edge` + `border-top: 2px solid --ink` | 同左 | 同左 | 同左 |
-| 底色 | `--bg-2` `#f5f5f5` | 同左 | 同左 | 同左 |
+| 底色 · 未选定 | `--bg-2` `#f5f5f5` | 同左 | 同左 | 同左 |
+| 底色 · 悬停 | `--bg` `#ffffff` | 同左 | 同左 | 同左 |
+| 底色 · 已选定 | **`--ink` `#0e0e0e`（实心墨）** | 同左 | 同左 | 同左 |
 | 阴影 | `none` | `none` | `none` | `none` |
 | 内边距 | `14px 16px` | `10px 12px` | `8px 10px` | `8px 10px` |
 | 行间距 | `gap: 5px` | `4px` | `4px` | `3px` |
@@ -50,13 +52,21 @@
 | `hub-zh` | `22px / 700 / lh 1.1` | `17px` | `16px` | `18px` |
 | `hub-desc` | `12px / lh 1.4 / max-h 34px` | `12px / 1.3 / 32px` | 隐藏 | `12px / 1.2 / 15px` |
 
+**尺寸在所有断点都是 42.7%，不给窄屏另设比例。** 早期窄屏放大到 42%、桌面 34%，结果桌面「角顶内弧」、手机「浮在中间」——同一组件在两种设备读成两种东西。42.7% 的来历见下。
+
 ### 为什么这么改
 
 **去掉双层框。** 第一版用 `border` + `outline: 1px solid var(--ink); outline-offset: -5px` 做"外浅内重"两层。截图看下来读成**印刷套印不准**，不是层次 —— 两条线离太近时人眼会当成一条线的错位。改用**上边 2px 墨色 + 其余三边 1px 浅灰**的不对称边框，这是报刊栏线的做法：头部重、容器轻，一眼分出主次，不引入任何拟物质感。
 
 **加四角角标。** 圆盘是角度构成的图形，方块是直角构成的。四角 8px 的 L 形短线让两者在同一张图上读成**一套制图符号**，而不是"一个网页框坐在一个圆里"。角标用 8 段 `linear-gradient` 拼（`::before`/`::after` 只能画两个角）。
 
-**rIn 从 138 改 146。** `146/480 = 30.42%`，容得下 42% 盘心（方角 29.70%），留 0.72% 余量；桌面 34% 盘心（方角 24.04%）余量 6.4% ≈ 32px —— **这个空隙就是"不贴脸"的全部来源**。
+**盘心取内接正方形，尺寸 42.7%。** 先量中心：`dx=0 dy=0`，盘心与圆盘本来就同心，「看起来偏上」是构图误判。真问题是体量：盘心 34%、内弧 `rIn=146/480=30.42%`，两者之间留了一圈 39px 白 —— 方块悬在空白里，像贴在圆盘上的一张卡片。
+
+改法是把盘心边长直接取到内弧的内接正方形：`rIn × √2 = 30.42% × 1.41421 = 43.0%`，实测取 **42.7%**（留 0.3% 防亚像素舍入把角标顶出弧外）。四角正好顶到内弧，方与圆咬合成一个整体。
+
+配套把 `rIn` 从 138 改 146：`146/480 = 30.42%`，容得下 42.7% 的方角（29.70%），留 0.72% 余量。
+
+**「单薄」的真解是压黑，不是加装饰。** 三行字居中时，215px 的框里只占中间 73px，上下各空 57px —— 那是「空」不是「留白」。先改 `justify-content: space-between` 分带，只是把空白换了位置。最终做法是**已选定态整块翻成实心墨**（`background: var(--ink)`，白字 19.30、kicker `#a8a8a8` 8.12、说明 `#c9c9c9` 11.66）。理由不是字不够大，是体量对不上 —— 浅色方块压不住 504px 的圆盘。瑞士海报表达「确定」的惯用手法就是压黑（Müller-Brockmann 苏黎世音乐厅系列）。
 
 ```css
 .disc-hub {
@@ -87,11 +97,23 @@
 }
 .disc-hub.is-hover { border-color: var(--ink); background: var(--bg); }
 .disc-hub.is-hover::before { opacity: 1; }
+
+/* 已选定：整块压墨。悬停只是预览，不压黑 —— 所以用两个独立的类。 */
+.disc-hub.is-picked {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.disc-hub.is-picked::before { opacity: .8; }
+.disc-hub.is-picked .hub-kicker { color: #a8a8a8; }
+.disc-hub.is-picked .hub-zh     { color: #ffffff; }
+.disc-hub.is-picked .hub-desc   { color: #c9c9c9; }
 ```
 
 ### 两个吞掉一轮时间的坑
 
 **坑一：百分比 padding 按父容器宽度算。** `.disc-hub` 是绝对定位，`padding: 14% 12%` 里的 14% 相对 `.disc` 的 504px = 上下各 70px，把 122px 的盘心直接撑爆（实测 `scrollHeight 138 > clientHeight 120`）。CSS 看起来是"相对自己留白"，实际相对父级。全部改 px。
+
+**坑三（测量陷阱，不是代码 bug）：`transition` 存在时读不到终值。** `classList.add('is-picked')` 后立刻读 `getComputedStyle(hub).backgroundColor`，拿到的是过渡**起始**值（一直读到 `rgb(245,245,245)`，误判成 CSS 没生效）。必须等过渡结束再读：`await new Promise(r => setTimeout(r, 300))`。这一条浪费了三轮排查。
 
 **坑二：`-webkit-line-clamp` 让说明文字凭空消失。** 它要配 `display: -webkit-box`，而 `-webkit-box` 作为 flex 子项时 `clientHeight = 0`。改用 `flex: none` + `max-height` —— `flex: none` 不能省，flex 子项默认可收缩，内容超高会被压成 0 高，而 CSS 里完全看不出问题。
 
@@ -227,6 +249,35 @@ const endDrag = () => {
 .disc-hub.is-swap .hub-desc { animation: hub-swap 180ms cubic-bezier(.2,0,.2,1) both; }
 ```
 
+### 盘心三态：文案与类名
+
+| 态 | 类名 | kicker | 主标题 | 底色 | 触发 |
+|---|---|---|---|---|---|
+| 空态 | `.is-idle` | `当前选择` | `还没选` | `--bg-2` 浅灰 | 进步骤时 `selectedId === null` |
+| 悬停 | `.is-hover` | `正在看` | 该项名称 | `--bg` 白 | `mouseenter` / `focus` |
+| 已选定 | `.is-picked` | `已选定` | 该项名称 | `--ink` 实心墨 | `click` / 回退到已选项 |
+
+```js
+const IDLE_KICK = '当前选择';   // 原「尚未选择」与下面「还没选」叠成两句同义话，删一层
+const HOVER_KICK = '正在看';
+const PICK_KICK  = '已选定';
+const IDLE_DESC = narrow ? '点任意扇区' : '点扇区，或把指针移上去';
+```
+
+`IDLE_DESC` 从「点任意扇区，或先把指针移上去看看」收短到 11 字：16 字在 183px 的可用宽里会折出孤字行。
+
+**`kind` 必须默认 `'pick'`。** `mouseleave` / `blur` 调 `showInHub(cur || null)` 时不传 `kind`，默认成 `undefined` 会让墨块退回浅色 —— 看起来像选择被取消了：
+
+```js
+function showInHub(it, kind = 'pick') {
+  hub.classList.toggle('is-idle', !it);
+  hub.classList.toggle('is-picked', !!it && kind === 'pick');   // 悬停只是预览，不压黑
+  // ...
+}
+```
+
+`changed` 比较要连 kicker 一起比，否则「空态 → 悬停同一项」时主标题没变、不触发换字动画，但 kicker 已经该变了。
+
 ```js
 const changed = hubZh.textContent !== nextZh;
 // …写完文字…
@@ -274,8 +325,8 @@ function setBusy(btn, text) {
 |---|---|---|---|
 | `prefers-reduced-motion: reduce` | 系统设置 | **完全不接管拖拽/惯性**（JS 层直接不进分支）；CSS 全局动效 0.001ms | 点选、键盘、盘心换字（内容仍更新） |
 | `pointer: coarse` | 触屏 | **不启用拖拽**（见下方理由） | 点选、`touch-action: pan-y` 保证能滑页 |
-| `max-width: 620px` | 手机 | 盘心 42%→38%、`hub-zh` 22→17px、隐藏英文副标、角标内缩 3→2px、空态文案截短 | 触控 56×44 下限、圆盘可点 |
-| `max-height: 700px` + 宽 ≤620px | iPhone SE | 圆盘压到 `min(86vw,320px)`、盘心 40%、**隐藏 `hub-desc`** | 中文主标签、角标 |
+| `max-width: 620px` | 手机 | `hub-zh` 22→17px、隐藏英文副标、角标内缩 3→2px、空态文案截短、内边距 14→10px | **盘心比例仍是 42.7%**（不降）、触控 56×44 下限、圆盘可点 |
+| `max-height: 700px` + 宽 ≤620px | iPhone SE | 圆盘压到 `min(86vw,320px)`、`hub-zh` 16px、**隐藏 `hub-desc`** | **盘心比例仍是 42.7%**、中文主标签、角标 |
 | `min-width: 621px` + `height ≤1000/820/740px` | 笔记本 | 圆盘 `62vh → 56/54/50vh`、盘心内边距 14→8px | 全部内容 |
 
 ### 为什么触屏不启用拖拽
@@ -312,11 +363,11 @@ Android小屏 -5.9  iPhone5 -1.3        平板 -24.5
 
 | 优先级 | 问题 | 原因 | 改法 | 涉及文件 |
 |---|---|---|---|---|
-| **P0** | 盘心方框伸出圆盘轮廓（≤620px 时 +3.2px） | 盘心 42% 时方角 29.70% > 内弧 28.75% | 盘心降到 38%，`DISC.rIn` 138→146 | `app.js:104`、`styles.css` `.disc-hub` |
+| **P0** | 盘心方框伸出圆盘轮廓（≤620px 时 +3.2px） | 盘心 42% 时方角 29.70% > 内弧 28.75% | `DISC.rIn` 138→146；盘心统一取内接正方形 42.7%，删掉窄屏 38%/40% 的覆盖 | `app.js:104`、`styles.css` `.disc-hub` |
 | **P0** | 盘心说明文字在 1280×720 消失 | `-webkit-box` 作 flex 子项高度塌成 0 | `flex: none` + `max-height` | `styles.css` `.hub-desc` |
 | **P0** | 盘心内容被撑爆（scrollH 138 > 120） | 百分比 padding 按父容器宽度算 | 全部改 px（4 档） | `styles.css` `.disc-hub` 各断点 |
 | **P0** | 生成中按钮无反馈、可连点 | `onclick: finish` 无禁用 | `setBusy()` + `.is-busy` | `app.js` `finish()`、`styles.css` `.btn` |
-| **P1** | 盘心「单薄」，像占位符 | 2px 圆角 + 无阴影 + 单根浅灰线 | 不对称边框（上 2px 墨）+ 四角角标 + 悬停三通道 | `styles.css` `.disc-hub` |
+| **P1** | 盘心「单薄」，像占位符 | 浅色方块体量压不住 504px 圆盘；三行字居中只占中间 73px，上下各空 57px | 不对称边框（上 2px 墨）+ 四角角标 + `space-between` 分带 + **已选定态整块压墨** + 悬停三通道 | `styles.css` `.disc-hub`、`app.js` `showInHub()` |
 | **P1** | 圆盘不能拖拽旋转 | `app.js` 零 pointer 事件 | `--disc-rot` 单变量驱动 + 标签反向抵消 | `app.js` `buildDisc()`、`styles.css` `.disc-rot` |
 | **P1** | 松手无惯性、无吸附 | — | 两段式：`×0.94` 衰减 → `×0.22` 收进 60° 整数倍 | `app.js` `settle()` |
 | **P1** | 扇区没有按下态 | `:active` 只出现在 `.btn` | `:active` 转 `--bg-3`，`transition: none` | `styles.css` `.sector-g` |
@@ -333,8 +384,8 @@ Android小屏 -5.9  iPhone5 -1.3        平板 -24.5
 
 ```
 test-scoring     106 PASS / 0 FAIL
-test-render       43 PASS / 0 FAIL   （新增 4 项：可旋转层结构 + 盘心不在旋转层内）
-test-contrast     25 PASS / 0 FAIL
+test-render       45 PASS / 0 FAIL   （+4 可旋转层结构、盘心不在旋转层内；+2 内接正方形 42–43%、角落角标存在）
+test-contrast     28 PASS / 0 FAIL   （+3 反白：白 on 墨 19.30 / #a8a8a8 8.12 / #c9c9c9 11.66）
 test-compliance   10 PASS / 0 FAIL
 qa-data           ✓
 impeccable detect --json styles.css → []
@@ -351,4 +402,13 @@ impeccable detect --json styles.css → []
 ⑥ 生成中   按钮文案「正在比对…」、disabled=true、bg rgb(14,14,14)、cursor progress
 ⑦ 结果     3 张卡正常渲染
 ⑧ 盘心     六档视口 cornerOverInner 全负、hubScrollOverflow 全 false
+```
+
+盘心三态实测（1440×900，等过渡结束 300ms 后读值）：
+
+```
+空态    cls="disc-hub is-idle"                kick="当前选择" zh="还没选" bg=rgb(245,245,245)
+悬停    cls="disc-hub is-swap is-hover"       kick="正在看"   zh="清冷"   bg=rgb(255,255,255)
+已选定  cls="disc-hub is-picked is-swap"      kick="已选定"   bg=rgb(14,14,14)
+        zh=rgb(255,255,255)  kick=rgb(168,168,168)  desc=rgb(201,201,201)
 ```

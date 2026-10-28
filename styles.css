@@ -435,7 +435,6 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 5px;
   /* 内边距必须用 px，不能用百分比。
      绝对定位元素的百分比 padding 是按**父容器的宽度**算的（这里是 .disc 的 504px），
@@ -444,6 +443,10 @@ body {
   padding: 14px 16px;
   text-align: center;
   pointer-events: none;
+  /* 内容分带：kicker 贴上、主标题居中、说明贴下。
+     三行居中时 215px 的框里只占中间 73px，上下各空 57px —— 那是"空"不是"留白"。
+     分带之后同三条文字撑满整个框高，框的大小和内容的体量对得上。 */
+  justify-content: space-between;
   transition: border-color 180ms cubic-bezier(.4,0,.2,1),
               background-color 180ms cubic-bezier(.4,0,.2,1);
 }
@@ -477,6 +480,31 @@ body {
   background: var(--bg);
 }
 .disc-hub.is-hover::before { opacity: 1; }
+
+/* 已选定：整个方块翻成实心墨块，文字反白。
+   为什么不是加粗字号：这块 215px 的方框里只有一个 22px 的词，问题不是字不够大，
+   是「体量对不上」——浅色方块压不住 504px 的圆盘，看起来像一张便签。
+   瑞士海报里表达"确定"的惯用手段就是把色块整个压黑（Müller-Brockmann 的苏黎世音乐厅
+   系列就是这个手法），比放大文字有效，也不引入任何阴影或渐变。
+   反白后对比度：白字 19.30、#a8a8a8 次级文字 8.12，都远高于 4.5。 */
+.disc-hub.is-picked {
+  background: var(--ink);
+  border-color: var(--ink);
+  border-top-color: var(--ink);
+}
+.disc-hub.is-picked::before { opacity: .9; background:
+    linear-gradient(#c9c9c9, #c9c9c9) left top / 8px 1px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) left top / 1px 8px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) right top / 8px 1px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) right top / 1px 8px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) left bottom / 8px 1px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) left bottom / 1px 8px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) right bottom / 8px 1px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) right bottom / 1px 8px no-repeat; }
+.disc-hub.is-picked .hub-kicker { color: #a8a8a8; }
+.disc-hub.is-picked .hub-zh { color: #ffffff; }
+.disc-hub.is-picked .hub-desc { color: #c9c9c9; }
+.disc-hub.is-picked.is-idle .hub-zh { color: #ffffff; }
 .disc-hub .hub-kicker {
   font-size: 12px;
   letter-spacing: 0.1em;

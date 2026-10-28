@@ -173,6 +173,19 @@ ok('扇区是真实 button', appRoot.querySelectorAll('button.disc-sector').leng
   `实际 ${appRoot.querySelectorAll('button.disc-sector').length}`);
 ok('圆盘有 radiogroup 语义', appRoot.querySelectorAll('[role="radiogroup"]').length === 1);
 ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null);
+// 盘心是内接正方形：边长 = 内弧半径 × √2。这条守的是「方与圆咬合」这个视觉决定，
+// 缩回「内圆中间一小块」四周就会留一圈白，读起来像贴在圆盘上的卡片。
+{
+  const hubPct = (() => {
+    const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const m = css.match(/\.disc-hub\s*\{[^}]*?width:\s*([\d.]+)%/);
+    return m ? parseFloat(m[1]) : NaN;
+  })();
+  // rIn = 146/480 = 30.417%，内接正方形 = 30.417 × 1.41421 = 43.02%，留 0.3% 余量 → 42.7%
+  ok('盘心取内接正方形（42–43%）', hubPct >= 42 && hubPct <= 43, `实际 ${hubPct}%`);
+  ok('盘心有角落角标', /\.disc-hub::before[\s\S]{0,400}?linear-gradient/.test(
+    fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')));
+}
 // 圆盘外面包了一层可旋转容器：SVG 与标签都在里面，旋转才能带着它们一起转。
 // 这里走 parentNode 链判断，不用后代选择器 —— 测试桩的 querySelectorAll
 // 只支持 tag / .class / [attr] 与它们的直接组合，不支持后代选择器。

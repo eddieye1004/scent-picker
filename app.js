@@ -196,13 +196,16 @@ function buildDisc(items, cfg) {
   rot.appendChild(svg);
 
   /* --- 盘心：默认空态，指针移上去就换成那一条的说明 --- */
-  // kicker 要跟着状态走：悬停时写「当前选择」是错的——那时还没选。
-  const IDLE_KICK = '尚未选择';
+  // 三态的 kicker 要走同一句法：都是「当前这一格的语义」，只是时态不同。
+  // 空态曾写「尚未选择」，跟下面那行「还没选」叠成两句同义话，盘心读起来啰嗦。
+  const IDLE_KICK = '当前选择';
   const HOVER_KICK = '正在看';
-  const PICK_KICK = '当前选择';
-  // 空态文案分长短路：手机盘心只有 130px，长句会挤成三行贴到边框。
+  const PICK_KICK = '已选定';
+  // 空态文案分长短路：手机盘心只有 146px，长句会挤成三行贴到边框。
+  // 桌面 215px 宽（42.7% × 504 − 32 padding ≈ 183px），12px 中文每行约 15 字，
+  // 原来的「点任意扇区，或先把指针移上去看看」16 字会折出孤字行，收短到 11 字。
   const narrow = window.matchMedia?.('(max-width: 620px)').matches;
-  const IDLE_DESC = narrow ? '点任意扇区' : '点任意扇区，或先把指针移上去看看';
+  const IDLE_DESC = narrow ? '点任意扇区' : '点扇区，或把指针移上去';
 
   const hubKicker = el('div', { class: 'hub-kicker' }, IDLE_KICK);
   const hubZh = el('div', { class: 'hub-zh' }, '还没选');
@@ -210,21 +213,22 @@ function buildDisc(items, cfg) {
   const hub = el('div', { class: 'disc-hub is-idle' }, hubKicker, hubZh, hubDesc);
   root.appendChild(hub);
 
-  const showInHub = (it, kind) => {
+  // kind 默认 'pick'：mouseleave / blur 时恢复盘心，那时既没"正在看"也不是空态，
+  // 而是回到"已经选了什么"。若默认 undefined，移开鼠标会让墨块退回浅色，
+  // 看起来像选择被取消了。
+  const showInHub = (it, kind = 'pick') => {
     const nextZh = it ? it.zh : '还没选';
     const nextDesc = it ? it.desc : IDLE_DESC;
-    const changed = hubZh.textContent !== nextZh;
-    if (it) {
-      hub.classList.remove('is-idle');
-      hubKicker.textContent = kind === 'hover' ? HOVER_KICK : PICK_KICK;
-      hubZh.textContent = nextZh;
-      hubDesc.textContent = nextDesc;
-    } else {
-      hub.classList.add('is-idle');
-      hubKicker.textContent = IDLE_KICK;
-      hubZh.textContent = nextZh;
-      hubDesc.textContent = nextDesc;
-    }
+    // 文案比较要连 kicker 一起比：只比主标题会让「空→悬停同一项」不触发动画。
+    const nextKick = it ? (kind === 'hover' ? HOVER_KICK : PICK_KICK) : IDLE_KICK;
+    const changed = hubZh.textContent !== nextZh || hubKicker.textContent !== nextKick;
+    // 三态靠两个类组合：is-idle（没选）/ is-picked（已选定，翻墨块）/ 都没有（悬停预览）。
+    // 悬停只是预览，不该把方块压黑——那会让人以为已经选定。
+    hub.classList.toggle('is-idle', !it);
+    hub.classList.toggle('is-picked', !!it && kind === 'pick');
+    hubKicker.textContent = nextKick;
+    hubZh.textContent = nextZh;
+    hubDesc.textContent = nextDesc;
     // 只有文字真的换了才放动画：鼠标在同一条上反复进出不该一直闪。
     // is-swap 先移除再加，强制浏览器重新触发 keyframes（连续两次同值不会重播）。
     if (changed) {
