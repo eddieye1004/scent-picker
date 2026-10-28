@@ -222,17 +222,33 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
     return { perfume: p, ...r };
   }).sort((a, b) => b.score - a.score);
 
-  // 多样性：同一源家族的不要占满前三
+  // 多样性：同一源家族、同一品牌都不许占满前三。
+  // 只按家族去重不够——Byredo 有 9 瓶分散在 4 个家族，仍会霸占三席，
+  // 对一个"还没入门、想对比着闻"的用户来说，三瓶同品牌等于没给选择。
   const picked = [];
   const seenFamily = new Set();
+  const seenBrand = new Set();
   for (const s of scored) {
-    const fam = s.perfume.familySource;
-    if (seenFamily.has(fam) && picked.length < topN) continue;
-    seenFamily.add(fam);
-    picked.push(s);
     if (picked.length >= topN) break;
+    const fam = s.perfume.familySource;
+    const brand = s.perfume.brand;
+    if (seenFamily.has(fam) || seenBrand.has(brand)) continue;
+    seenFamily.add(fam);
+    seenBrand.add(brand);
+    picked.push(s);
   }
-  // 兜底：如果多样性过滤后不够，放宽
+  // 第一轮放宽：允许同家族，但仍不许同品牌
+  if (picked.length < topN) {
+    const brandsNow = new Set(picked.map((s) => s.perfume.brand));
+    for (const s of scored) {
+      if (picked.length >= topN) break;
+      if (picked.includes(s)) continue;
+      if (brandsNow.has(s.perfume.brand)) continue;
+      brandsNow.add(s.perfume.brand);
+      picked.push(s);
+    }
+  }
+  // 最后一轮：样本太小时彻底放宽，保证一定凑够 topN
   for (const s of scored) {
     if (picked.length >= topN) break;
     if (!picked.includes(s)) picked.push(s);

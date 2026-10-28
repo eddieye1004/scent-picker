@@ -113,6 +113,24 @@ gh api -X POST repos/<用户名>/scent-picker/pages \
 | 页脚有 Scento 署名 | 见 "数据署名 Scento — ..." | **不要跳过这条**，是 CC BY 4.0 的许可义务 |
 | 手机宽度下不塌 | 375px 宽能正常用 | CSS 有写响应式，需实测确认 |
 
+### 上表可自动化的部分：tools/visual-audit.html
+
+前五项里"问卷加载 / 走完四步 / 三调齐全 / 页脚署名"以及"手机宽度不塌"，
+可以用本机 Edge 无头模式自动核，不用人肉点：
+
+```powershell
+node server.js 8123
+# 三档视口各跑一遍；报告在 <pre id="report"> 里，找 FAIL / WARN
+& "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --headless=new --disable-gpu --no-sandbox `
+  --user-data-dir="$env:TEMP\edge-audit" --virtual-time-budget=12000 --window-size=390,1200 `
+  --dump-dom "http://127.0.0.1:8123/tools/visual-audit.html" | Select-String "FAIL","AUDIT_ERROR"
+```
+
+无输出 = 通过。它自动点完四步问卷，逐项检查：横向溢出、元素越界、
+字号 <12px、触控目标 <44px（行内链接按 24px 下限）。
+实测覆盖 1280 / 768 / 390 三档全绿才提交。
+**它不覆盖**：hover/focus 观感、触屏手感、真机字体 —— 那三项仍然人工。
+
 ### 缓存问题
 
 Pages 有 CDN 缓存，改了代码重新推送后**可能几分钟才生效**。强制刷新：
@@ -124,22 +142,30 @@ Pages 有 CDN 缓存，改了代码重新推送后**可能几分钟才生效**�
 
 ---
 
-## 五、路径问题（这是 Pages 上最常见的失败原因）
+## 五、数据路径怎么解析（Pages 上最常见的失败原因）
 
-本地 `node server.js` 时页面在 `http://localhost:8080/`，fetch 的是 `./data/perfumes.json`。
-Pages 上页面在 `https://user.github.io/scent-picker/`，fetch 的仍是 `./data/perfumes.json` → 解析为 `https://user.github.io/scent-picker/data/perfumes.json`。
-
-**只要入口在仓库根目录，这个相对路径在两边都对。**
-
-如果将来把站点放进子路径（比如 `docs/`），或者换成 `username.github.io/scent-picker` 这种项目页以外的形式，才需要改：
+`app.js` 里读数据用的是**模块基址**，不是页面基址：
 
 ```js
-// app.js 里如果出现硬编码的绝对路径，改成相对
-// 错误：fetch('/data/perfumes.json')
-// 正确：fetch('./data/perfumes.json')
+const base = new URL('./', import.meta.url);          // app.js 所在目录
+fetch(new URL('data/perfumes.json', base));          // → <app.js 同级>/data/perfumes.json
 ```
 
-**当前代码已检查过，无绝对路径。** 但如果你自己加了新文件，注意这一点。
+为什么不用 `fetch('./data/…')`：那串相对路径是相对**当前页面**解析的。
+核查页 `tools/visual-audit.html` 引入 `../app.js` 时，页面在 `/tools/` 下，
+`./data/` 会错解析成 `/tools/data/` → 404（本项目实测踩过）。
+改成以 `import.meta.url`（app.js 自身位置）为基，页面放哪都不影响。
+
+三处入口实测都正确：
+
+| 场景 | app.js 的 URL | 数据解析到 | 结果 |
+|---|---|---|---|
+| 本地 `node server.js`，开 `/` | `http://localhost:8123/app.js` | `…/data/perfumes.json` | ✓ |
+| Pages 项目子路径 `/scent-picker/` | `…/scent-picker/app.js` | `…/scent-picker/data/perfumes.json` | ✓ |
+| 核查页 `/tools/visual-audit.html` | 仍 `…/app.js`（`../app.js`） | `…/data/perfumes.json` | ✓ |
+
+**前提仍是入口在仓库根**（`index.html`、`app.js`、`data/` 同级）。
+若把站点搬进 `docs/` 子目录，`app.js` 和 `data/` 要一起搬，保持同级关系。
 
 ---
 

@@ -107,9 +107,18 @@ globalThis.document = {
 globalThis.window = { scrollTo() {}, addEventListener() {} };
 globalThis.performance = { now: () => Date.now() };
 
-/* fetch 桩：直接读本地文件 */
+/* fetch 桩：直接读本地文件。
+   app.js 现在传的是 URL 对象（new URL('data/…', import.meta.url)），
+   桩必须两种都吃 —— 只按字符串处理会让 boot() 拿到非法路径、静默失败。 */
 globalThis.fetch = async (url) => {
-  const p = path.join(ROOT, url.replace(/^\.\//, '').replace(/^\//, ''));
+  let rel;
+  if (url instanceof URL) {
+    // file:// URL 的 pathname 在 Windows 上带前导斜杠（/C:/...），要先剥掉
+    rel = decodeURIComponent(url.pathname).replace(/^\/(?=[A-Za-z]:)/, '').replace(/\//g, path.sep);
+  } else {
+    rel = String(url).replace(/^\.\//, '').replace(/^\//, '').replace(/\//g, path.sep);
+  }
+  const p = path.isAbsolute(rel) ? rel : path.join(ROOT, rel);
   const txt = fs.readFileSync(p, 'utf8');
   return { ok: true, status: 200, json: async () => JSON.parse(txt) };
 };

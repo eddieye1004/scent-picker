@@ -478,12 +478,16 @@ function render() {
 /* ---------- 启动 ---------- */
 async function boot() {
   try {
+    // 以本模块的位置解析数据路径，而不是以页面位置。
+    // 相对 fetch('./data/…') 会随【页面】所在目录变 —— 核查页放在 /tools/
+    // 下时会错找 /tools/data/ 而 404（实测踩过）。以 import.meta.url 为基就没这问题。
+    const base = new URL('./', import.meta.url);
     const [d, t] = await Promise.all([
-      fetch('./data/perfumes.json').then((r) => {
+      fetch(new URL('data/perfumes.json', base)).then((r) => {
         if (!r.ok) throw new Error(`perfumes.json HTTP ${r.status}`);
         return r.json();
       }),
-      fetch('./data/taxonomy.json').then((r) => {
+      fetch(new URL('data/taxonomy.json', base)).then((r) => {
         if (!r.ok) throw new Error(`taxonomy.json HTTP ${r.status}`);
         return r.json();
       }),

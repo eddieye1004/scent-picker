@@ -91,14 +91,17 @@ scent-picker/
 ├── scripts/
 │   ├── build-data.js       数据管线（纯本地，不联网）
 │   ├── lib/qa-checks.mjs   ← 体检断言（供正向+负向测试共用）
-│   ├── test-scoring.mjs    105 项引擎测试
+│   ├── test-scoring.mjs    106 项引擎测试
 │   ├── test-render.mjs     25 项 DOM 渲染流程测试
+│   ├── test-contrast.mjs   18 项无障碍守门（对比度/字号/焦点环/触控尺寸）
 │   ├── qa-data.mjs         数据体检
 │   └── test-compliance.mjs 10 项负向测试（证明断言有效）
-└── docs/
-    ├── DECISIONS.md        11 条已确认决策及其理由
-    ├── COMPLIANCE.md       数据许可与合规边界（含证据链）
-    └── DEPLOY.md           GitHub Pages 部署步骤
+├── docs/
+│   ├── DECISIONS.md        11 条已确认决策及其理由
+│   ├── COMPLIANCE.md       数据许可与合规边界（含证据链）
+│   └── DEPLOY.md           GitHub Pages 部署步骤
+└── tools/
+    └── visual-audit.html   渲染核查页（自动点完四步，三档视口量尺寸）
 ```
 
 ---
@@ -120,7 +123,7 @@ scent-picker/
 
 **为什么要"情绪锚点"这一层**：只用家族会翻车。实测发现"清冷 + 约会"会把 Creed Aventus 排第一——它在源站被标成以花香为主的 Orchard Fruit，家族层面看着没问题，但"清冷"要的是鸢尾那种冷感。加了锚点香调层之后，第一位变成 Byredo Gypsy Water（含鸢尾 + 焚香），才符合语义。
 
-排名还做**源家族去重**：前三名不会全是同一个源家族，方便你对比着闻。
+排名还做**源家族 + 品牌双重去重**：前三名既不会全是同一个源家族，也不会全是同一个牌子。只按家族去重拦不住 Byredo——它有 9 瓶、横跨 4 个家族，实测点选"佛手柑"时会三席全是 Byredo（见 `docs/DECISIONS.md` D09）。
 
 ---
 
@@ -182,31 +185,37 @@ node scripts/qa-data.mjs
 ## 测试
 
 ```bash
-node scripts/test-scoring.mjs      # 105 项：全组合出结果、幂等、讨厌香调生效、多样性、单调性
+node scripts/test-scoring.mjs      # 106 项：全组合出结果、幂等、讨厌香调生效、品牌+家族双重多样性、单调性
 node scripts/test-render.mjs       # 25 项：四步流程走通、结果页三调与理由齐全、无 NaN
+node scripts/test-contrast.mjs     # 18 项：对比度 ≥4.5、字号 ≥12px、焦点环、触控目标 ≥44px
 node scripts/qa-data.mjs           # 数据体检：结构、唯一性、权重、家族覆盖、可溯源 + 5 项合规断言
 node scripts/test-compliance.mjs   # 10 项：证明上面那些断言真的会失败
 ```
 
-四套全绿才允许提交。
+五套全绿才允许提交。
 
-### 为什么有第四套
+### 为什么有第五套（test-compliance）
 
-前三套都是"验证事情是对的"。第四套验证的是**"验证本身有效"** —— 它往内存里的数据副本注入 9 种违规（塞 description、删 attribution、清空三调、改上游行数、造 id 重复、单一品牌垄断……），确认 `qa-data` 的每条断言都能真的报错。
+前四套都是"验证事情是对的"。第五套验证的是**"验证本身有效"** —— 它往内存里的数据副本注入 9 种违规（塞 description、删 attribution、清空三调、改上游行数、造 id 重复、单一品牌垄断……），确认 `qa-data` 的每条断言都能真的报错。
 
 一个从不失败的测试等于没有测试。这套跑完还会用未篡改的基线再跑一遍，确认断言没有**假阳性**（没病说有病）。
 
+`test-contrast.mjs` 里的触控断言同样配了变异测试：删掉 `.chip` 的 `min-height: 44px` 会立刻报 `香调标签(.chip) = 未声明px < 44px`。
+
 **注意它不写盘**：全程在内存副本上操作。第一版试过用子进程 + 临时改文件，在本机沙箱下 `stdio:'pipe'` 被拒、拿不到子进程输出，测试变成静默失败 —— 差点以为断言是好的。
 
-### `test-render.mjs` 的特别说明
+### `test-render.mjs` 与真机视觉核查的分工
 
-本机沙箱不允许启动无头浏览器（Chromium 的 mojo 通道被拒），所以没法截图验证。退一步实现了一个够用的 DOM 桩，让 `app.js` 真的跑一遍完整流程再断言。它证明逻辑与文案正确，**不证明 CSS 视觉表现**——这部分需要你人工看一遍。
+DOM 桩证明逻辑与文案正确，不证明渲染尺寸。渲染层面的核查用的是**本机 Edge 无头模式**（puppeteer 自带的 Chromium 被沙箱拦，直接 `spawnSync` 调 msedge.exe 可行）：自动点完四步、在 1280/768/390 三档视口下逐元素量 `getBoundingClientRect`，实测修掉了三个问题——滑块命中区只有 2px、`.chip` 39px、`.btn` 37px。核查命令见 `docs/DEPLOY.md`。
+
+**静态截图仍覆盖不到的**：hover/focus 的真实观感、触屏手感、iOS Safari 上的字体渲染。这三项需要你人工过一遍。
 
 ---
 
 ## 下一步
 
-- [ ] 人工在真实浏览器里看一遍四个步骤的视觉效果
+- [x] 无障碍修复（对比度、字号、焦点环、触控尺寸）+ 三档视口渲染核查 —— 2026-10-28 完成
+- [ ] 你人工过一遍 hover/focus 观感与触屏手感（自动化覆盖不到的那三项）
 - [ ] 扩充数据到 500 瓶（补上更多平价品牌）
 - [ ] 加"对比两瓶"视图
 - [ ] 用真实用户测试反推权重是否需要调整

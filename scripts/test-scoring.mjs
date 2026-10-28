@@ -90,6 +90,23 @@ for (const f of TAX.families) {
   check(`T10 ${f.zh} 可达≥8瓶`, reach[f.id] >= 8, `实际${reach[f.id]}`);
 }
 
+/* T11 多样性：全组合下三瓶不得同品牌
+ * 起因：Byredo 在 200 瓶样本里有 9 瓶、横跨 4 个源家族，只按家族去重时
+ * 「清冷/约会」这一组会连出 Gypsy Water + Bal d'Afrique + Sunday Cologne，
+ * 三瓶同一个牌子。对"还没入门、想对比着闻"的用户来说等于没给选择。 */
+let dupBrand = [];
+for (const emotion of emotions) {
+  for (const occasion of occasions) {
+    const r = recommend({ emotion, occasion, intensity: 2 }, perfumes, TAX);
+    const brands = r.results.map((x) => x.perfume.brand);
+    if (new Set(brands).size < brands.length) {
+      dupBrand.push(`${emotion}/${occasion} -> ${brands.join(' + ')}`);
+    }
+  }
+}
+check('T11 全组合三瓶不同品牌', dupBrand.length === 0,
+  dupBrand.slice(0, 3).join(' ; '));
+
 /* 输出 */
 console.log('\n===== 测试结果 =====');
 console.log(`PASS ${pass}   FAIL ${failures.length}`);
