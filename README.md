@@ -24,12 +24,16 @@
 
 ## 核心用户流程
 
+前两步是**环形圆盘**（仪表盘交互），后两步是滑杆与香调标签。
+
 | 步 | 问题 | 为什么这么问 |
 |---|---|---|
 | 1 | 你想被别人闻成什么感觉？（清冷 / 温暖 / 干净 / 神秘 / 明亮 / 慵懒） | 绕过"香调术语"，直接问感受。新手唯一真正能回答的问题 |
 | 2 | 主要在哪里用？（上班上课 / 约会 / 日常居家 / 正式场合 / 运动户外） | 同一瓶香在办公室和约会里表现完全不同，场合决定了扩散与浓度的上限 |
 | 3 | 希望它有多浓？（1–5 滑块） | 把抽象的"浓度"翻译成"多远能闻到、能留多久" |
 | 4 | 有没有喜欢 / 受不了的味道？（可跳过，39 个香调） | **点名"讨厌"比点名"喜欢"更有用** —— 排除比加分更准 |
+
+圆盘不是纯 SVG：扇形用 SVG 画，可点区域是盖在上面的真实 `<button>`，所以触控目标 >= 44px、键盘 Tab 进得去、方向键能在扇区间漫游。盘心实时显示当前指向那一项的说明。
 
 出结果：3 瓶具体香水，每瓶含
 
@@ -92,12 +96,12 @@ scent-picker/
 │   ├── build-data.js       数据管线（纯本地，不联网）
 │   ├── lib/qa-checks.mjs   ← 体检断言（供正向+负向测试共用）
 │   ├── test-scoring.mjs    106 项引擎测试
-│   ├── test-render.mjs     25 项 DOM 渲染流程测试
-│   ├── test-contrast.mjs   18 项无障碍守门（对比度/字号/焦点环/触控尺寸）
+│   ├── test-render.mjs     37 项 DOM 渲染流程测试（含圆盘几何与语义）
+│   ├── test-contrast.mjs   25 项无障碍守门（文字对比度/控件边界/字号/焦点环/触控尺寸）
 │   ├── qa-data.mjs         数据体检
 │   └── test-compliance.mjs 10 项负向测试（证明断言有效）
 ├── docs/
-│   ├── DECISIONS.md        11 条已确认决策及其理由
+│   ├── DECISIONS.md        15 条已确认决策及其理由
 │   ├── COMPLIANCE.md       数据许可与合规边界（含证据链）
 │   └── DEPLOY.md           GitHub Pages 部署步骤
 └── tools/
@@ -186,8 +190,8 @@ node scripts/qa-data.mjs
 
 ```bash
 node scripts/test-scoring.mjs      # 106 项：全组合出结果、幂等、讨厌香调生效、品牌+家族双重多样性、单调性
-node scripts/test-render.mjs       # 25 项：四步流程走通、结果页三调与理由齐全、无 NaN
-node scripts/test-contrast.mjs     # 18 项：对比度 ≥4.5、字号 ≥12px、焦点环、触控目标 ≥44px
+node scripts/test-render.mjs       # 37 项：四步流程走通、圆盘 6/5 扇区与 radiogroup 语义、结果页三调与理由齐全、无 NaN
+node scripts/test-contrast.mjs     # 25 项：文字对比度 ≥4.5、控件边界 ≥3、字号 ≥12px、焦点环、触控目标 ≥44px
 node scripts/qa-data.mjs           # 数据体检：结构、唯一性、权重、家族覆盖、可溯源 + 5 项合规断言
 node scripts/test-compliance.mjs   # 10 项：证明上面那些断言真的会失败
 ```

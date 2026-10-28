@@ -58,7 +58,12 @@ class TNode {
     this.children = [];
     this._text = String(v).replace(/<[^>]*>/g, '') || null;
   }
-  setAttribute(k, v) { this.attrs[k] = String(v); }
+  setAttribute(k, v) {
+    this.attrs[k] = String(v);
+    // 真实 DOM 里 setAttribute('class', …) 会同步 classList。
+    // 圆盘的 SVG 扇形是用 setAttribute 设 class 的，不同步就一条都查不到。
+    if (k === 'class') this.className = String(v);
+  }
   getAttribute(k) { return this.attrs[k] ?? null; }
   removeAttribute(k) { delete this.attrs[k]; }
   appendChild(n) {
@@ -75,13 +80,25 @@ class TNode {
   focus() {}
   querySelectorAll(sel) {
     const out = [];
-    const want = sel.replace(/^[.#]/, '');
+    // 支持三种写法：.class / tag / tag.class / [attr="v"] / .a.b
+    // 圆盘用到了 .disc-sector、button.disc-sector、[role="radiogroup"]、.disc-hub.is-idle，
+    // 简化桩只认单 class 的话，这些断言会全部假失败。
+    const attrM = sel.match(/^\[([\w-]+)(?:=["']?([^"'\]]*)["']?)?\]$/);
     const isClass = sel.startsWith('.');
+    const parts = sel.split('.').filter(Boolean);
+    const tagPart = sel.startsWith('.') || sel.startsWith('[') ? null : parts[0];
+    const classes = sel.startsWith('.') || sel.startsWith('[') ? parts : parts.slice(1);
+
     const walk = (n) => {
       if (typeof n === 'string') return;
-      const hit = isClass
-        ? n.classList.contains(want)
-        : n.tagName.toLowerCase() === want.toLowerCase();
+      let hit = false;
+      if (attrM) {
+        const got = n.attrs[attrM[1]];
+        hit = got != null && (attrM[2] == null || String(got) === attrM[2]);
+      } else {
+        hit = (!tagPart || n.tagName.toLowerCase() === tagPart.toLowerCase())
+          && classes.every((c) => n.classList.contains(c));
+      }
       if (hit) out.push(n);
       n.children.forEach(walk);
     };
@@ -97,6 +114,9 @@ const appRoot = new TNode('main', { id: 'app' });
 globalThis.document = {
   _nodes: { '#app': appRoot },
   createElement: (t) => new TNode(t),
+  // 圆盘用 SVG 画扇形，必须有 createElementNS —— 少了它 svgEl() 直接抛错，
+  // 而 boot() 的 try/catch 会把它吞成"加载失败"，测试只会看到首屏空白。
+  createElementNS: (ns, t) => new TNode(t),
   createTextNode: (t) => String(t),
   addEventListener: (ev, fn) => { globalThis.document._domReady = fn; },
   querySelector: (sel) => {
@@ -144,23 +164,30 @@ const getStepText = () => appRoot.textContent;
 
 /* 断言：首屏 */
 ok('首屏标题', getStepText().includes('从零开始，找到第一瓶香水'), getStepText().slice(0, 120));
-ok('首屏四个情绪选项', appRoot.querySelectorAll('.opt').length === 6,
-  `实际 ${appRoot.querySelectorAll('.opt').length}`);
+ok('首屏圆盘 6 个扇区', appRoot.querySelectorAll('.disc-sector').length === 6,
+  `实际 ${appRoot.querySelectorAll('.disc-sector').length}`);
+ok('圆盘画了 6 块扇形', appRoot.querySelectorAll('.sector-shape').length === 6,
+  `实际 ${appRoot.querySelectorAll('.sector-shape').length}`);
+// 圆盘不是"看起来能点"的 SVG：命中区必须是真实 button，且键盘能进得去
+ok('扇区是真实 button', appRoot.querySelectorAll('button.disc-sector').length === 6,
+  `实际 ${appRoot.querySelectorAll('button.disc-sector').length}`);
+ok('圆盘有 radiogroup 语义', appRoot.querySelectorAll('[role="radiogroup"]').length === 1);
+ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null);
 ok('进度条存在', appRoot.querySelectorAll('.progress').length === 1);
 ok('页脚有许可声明', getStepText().includes('CC BY 4.0'));
 
-/* 点第一个情绪（清冷） */
-const opts1 = appRoot.querySelectorAll('.opt');
+/* 点第一个扇区（清冷） */
+const opts1 = appRoot.querySelectorAll('.disc-sector');
 opts1[0].dispatch('click');
-await new Promise((r) => setTimeout(r, 300));
+await new Promise((r) => setTimeout(r, 500));
 
 ok('进入第 2 步（场合）', getStepText().includes('主要在哪里用'), getStepText().slice(0, 100));
-const opts2 = appRoot.querySelectorAll('.opt');
-ok('场合 5 个选项', opts2.length === 5, `实际 ${opts2.length}`);
+const opts2 = appRoot.querySelectorAll('.disc-sector');
+ok('场合圆盘 5 个扇区', opts2.length === 5, `实际 ${opts2.length}`);
 
 /* 选「上班/上课」= 索引 1 */
 opts2[1].dispatch('click');
-await new Promise((r) => setTimeout(r, 300));
+await new Promise((r) => setTimeout(r, 500));
 
 ok('进入第 3 步（浓度）', getStepText().includes('希望它有多'), getStepText().slice(0, 100));
 const slider = appRoot.querySelector('input');

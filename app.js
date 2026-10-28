@@ -89,68 +89,229 @@ const STEPS = [
   },
 ];
 
-/* ---------- 第 1 步：情绪 ---------- */
+/* ---------- 圆盘选择器（第 1、2 步共用）----------
+   形状用 SVG 画（扇形 + 装饰环），但"可点"的部分是绝对定位的真实 button。
+   没有把交互交给 SVG：在 480×480 的坐标系里做命中测试，既拿不到浏览器的
+   44px 触控保护，键盘 Tab 也进不去 —— 那样只剩"看起来能点"。
+   盘心显示当前指向项的说明，指针移上去就先读一遍，再决定点不点。 */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const DISC = { vb: 480, cx: 240, cy: 240, rOut: 230, rIn: 104, gapDeg: 1.6 };
+
+function polar(r, deg) {
+  const rad = (deg * Math.PI) / 180;
+  return [DISC.cx + r * Math.cos(rad), DISC.cy + r * Math.sin(rad)];
+}
+
+/** 环形扇区的 path。外弧顺时针、内弧逆时针，一次成闭合面。 */
+function annulusPath(rOut, rIn, a0, a1) {
+  const [x0o, y0o] = polar(rOut, a0);
+  const [x1o, y1o] = polar(rOut, a1);
+  const [x1i, y1i] = polar(rIn, a1);
+  const [x0i, y0i] = polar(rIn, a0);
+  const large = a1 - a0 > 180 ? 1 : 0;
+  return `M ${x0o.toFixed(2)} ${y0o.toFixed(2)}`
+    + ` A ${rOut} ${rOut} 0 ${large} 1 ${x1o.toFixed(2)} ${y1o.toFixed(2)}`
+    + ` L ${x1i.toFixed(2)} ${y1i.toFixed(2)}`
+    + ` A ${rIn} ${rIn} 0 ${large} 0 ${x0i.toFixed(2)} ${y0i.toFixed(2)} Z`;
+}
+
+function svgEl(tag, attrs) {
+  const n = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  return n;
+}
+
+/**
+ * @param {Array<{id:string, zh:string, desc:string}>} items
+ * @param {{label:string, selectedId:string|null, onPick:(item)=>void}} cfg
+ */
+function buildDisc(items, cfg) {
+  const { label, selectedId, onPick } = cfg;
+  const n = items.length;
+  const stepDeg = 360 / n;
+  const half = stepDeg / 2;
+  // 第一个扇区正对 12 点，读起来像仪表盘而不是随机起始角
+  const startBase = -90 - half;
+
+  const root = el('div', { class: 'disc', role: 'radiogroup', 'aria-label': label });
+
+  /* --- SVG：扇形 + 装饰环 --- */
+  const svg = svgEl('svg', {
+    class: 'disc-svg',
+    viewBox: `0 0 ${DISC.vb} ${DISC.vb}`,
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+
+  svg.appendChild(svgEl('circle', {
+    class: 'ring-thin', cx: DISC.cx, cy: DISC.cy, r: DISC.rOut + 6,
+  }));
+  svg.appendChild(svgEl('circle', {
+    class: 'ring-accent', cx: DISC.cx, cy: DISC.cy, r: DISC.rIn - 9,
+  }));
+  // 缓慢旋转的弧：纯装饰，给"机器在运行"的暗示，不影响任何命中
+  svg.appendChild(svgEl('circle', {
+    class: 'ring-spin', cx: DISC.cx, cy: DISC.cy, r: DISC.rOut - 3,
+  }));
+
+  const groups = [];
+  items.forEach((it, i) => {
+    const a0 = startBase + i * stepDeg + DISC.gapDeg;
+    const a1 = startBase + (i + 1) * stepDeg - DISC.gapDeg;
+    const g = svgEl('g', { class: 'sector-g' });
+    g.appendChild(svgEl('path', { class: 'sector-shape', d: annulusPath(DISC.rOut, DISC.rIn, a0, a1) }));
+    svg.appendChild(g);
+    groups.push(g);
+  });
+  root.appendChild(svg);
+
+  /* --- 盘心：默认空态，指针移上去就换成那一条的说明 --- */
+  const hubKicker = el('div', { class: 'hub-kicker' }, '当前选择');
+  const hubZh = el('div', { class: 'hub-zh' }, '还没选');
+  const hubDesc = el('div', { class: 'hub-desc' }, '点任意扇区，或先把指针移上去看看');
+  const hub = el('div', { class: 'disc-hub is-idle' }, hubKicker, hubZh, hubDesc);
+  root.appendChild(hub);
+
+  const showInHub = (it) => {
+    if (it) {
+      hub.classList.remove('is-idle');
+      hubZh.textContent = it.zh;
+      hubDesc.textContent = it.desc;
+    } else {
+      hub.classList.add('is-idle');
+      hubZh.textContent = '还没选';
+      hubDesc.textContent = '点任意扇区，或先把指针移上去看看';
+    }
+  };
+
+  /* --- 扇区按钮：真实 button，键盘可达，触控 44px --- */
+  const buttons = [];
+  // 记录当前已选项，供 mouseleave / blur 回退盘心
+  const pick = { current: selectedId };
+  const setOn = (idx) => {
+    buttons.forEach((b, j) => {
+      const on = j === idx;
+      b.setAttribute('aria-checked', String(on));
+      // 选中项接管 tabindex=0，Tab 回到圆盘时焦点直接落在已选项上
+      if (typeof idx === 'number') b.setAttribute('tabindex', on ? '0' : '-1');
+      groups[j].classList.toggle('is-on', on);
+    });
+  };
+
+  items.forEach((it, i) => {
+    const midDeg = startBase + (i + 0.5) * stepDeg;
+    // 标签落在外弧与内弧的正中间，避免贴边被裁
+    const midR = (DISC.rIn + DISC.rOut) / 2;
+    const [lx, ly] = polar(midR, midDeg);
+    const left = (lx / DISC.vb) * 100;
+    const top = (ly / DISC.vb) * 100;
+
+    const btn = el('button', {
+      class: 'disc-sector',
+      type: 'button',
+      role: 'radio',
+      'aria-checked': String(selectedId === it.id),
+      tabindex: selectedId === it.id || (selectedId === null && i === 0) ? '0' : '-1',
+      style: `left:${left.toFixed(2)}%;top:${top.toFixed(2)}%`,
+      onclick: () => {
+        pick.current = it.id;
+        setOn(i);
+        showInHub(it);
+        groups.forEach((g, j) => g.classList.toggle('is-hot', j === i));
+        onPick(it);
+      },
+      onmouseenter: () => showInHub(it),
+      onmouseleave: () => {
+        const cur = items.find((x) => x.id === pick.current);
+        showInHub(cur || null);
+        groups.forEach((g, j) => g.classList.toggle('is-hot', items[j].id === pick.current));
+      },
+      onfocus: () => showInHub(it),
+      onblur: () => {
+        const cur = items.find((x) => x.id === pick.current);
+        showInHub(cur || null);
+      },
+    },
+      el('span', { class: 'zh' }, it.zh),
+      el('span', { class: 'en' }, it.id.toUpperCase())
+    );
+
+    // 方向键在扇区之间移动 —— 圆盘用 Tab 一个个过太慢
+    btn.addEventListener('keydown', (ev) => {
+      let d = 0;
+      if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') d = 1;
+      else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') d = -1;
+      else return;
+      ev.preventDefault();
+      const to = (i + d + n) % n;
+      // roving tabindex：移动焦点时同步把 tabindex=0 搬过去，
+      // 否则 Tab 离开圆盘再回来，焦点会跳回第 0 项而不是你刚才停留的位置。
+      buttons.forEach((b, j) => b.setAttribute('tabindex', j === to ? '0' : '-1'));
+      buttons[to].focus();
+    });
+
+    root.appendChild(btn);
+    buttons.push(btn);
+  });
+
+  // 把选择结果记进 pick.current，供 mouseleave / blur 回退盘心
+  pick.current = selectedId;
+
+  if (selectedId) {
+    const idx = items.findIndex((x) => x.id === selectedId);
+    if (idx >= 0) {
+      groups[idx].classList.add('is-on');
+      showInHub(items[idx]);
+    }
+  }
+
+  return root;
+}
+
+/* ---------- 第 1 步：情绪（圆盘）---------- */
 function renderEmotion() {
   const wrap = el('div', { class: 'fade-in' });
-  wrap.append(
+
+  const lead = el('div', { class: 'stage-lead' },
     el('div', { class: 'q-kicker' }, STEPS[0].kicker),
     el('h2', { class: 'q-title' }, STEPS[0].title),
     el('p', { class: 'q-help' }, STEPS[0].help)
   );
+  wrap.appendChild(lead);
 
-  const box = el('div', { class: 'options' });
-  TAX.emotionMap.forEach((e, i) => {
-    const b = el('button', {
-      class: 'opt',
-      type: 'button',
-      'aria-pressed': String(state.answers.emotion === e.id),
-      onclick: () => {
-        state.answers.emotion = e.id;
-        box.querySelectorAll('.opt').forEach((x) => x.setAttribute('aria-pressed', 'false'));
-        b.setAttribute('aria-pressed', 'true');
-        setTimeout(next, 180);
-      },
+  wrap.appendChild(buildDisc(TAX.emotionMap, {
+    label: '想被闻成什么感觉',
+    selectedId: state.answers.emotion,
+    onPick: (e) => {
+      state.answers.emotion = e.id;
+      setTimeout(next, 320);   // 留一点时间让高亮动画走完再切题
     },
-      el('span', { class: 'num' }, String(i + 1).padStart(2, '0')),
-      el('span', { class: 'label' }, e.zh, el('span', { class: 'desc' }, e.desc)),
-      el('span', { class: 'tick' }, '选它 →')
-    );
-    box.appendChild(b);
-  });
-  wrap.appendChild(box);
+  }));
+
   wrap.appendChild(navBar('emotion'));
   return wrap;
 }
 
-/* ---------- 第 2 步：场合 ---------- */
+/* ---------- 第 2 步：场合（同一个圆盘，5 个扇区）---------- */
 function renderOccasion() {
   const wrap = el('div', { class: 'fade-in' });
-  wrap.append(
+
+  const lead = el('div', { class: 'stage-lead' },
     el('div', { class: 'q-kicker' }, STEPS[1].kicker),
     el('h2', { class: 'q-title' }, STEPS[1].title),
     el('p', { class: 'q-help' }, STEPS[1].help)
   );
+  wrap.appendChild(lead);
 
-  const box = el('div', { class: 'options' });
-  TAX.occasionMap.forEach((o, i) => {
-    const b = el('button', {
-      class: 'opt',
-      type: 'button',
-      'aria-pressed': String(state.answers.occasion === o.id),
-      onclick: () => {
-        state.answers.occasion = o.id;
-        box.querySelectorAll('.opt').forEach((x) => x.setAttribute('aria-pressed', 'false'));
-        b.setAttribute('aria-pressed', 'true');
-        setTimeout(next, 180);
-      },
+  wrap.appendChild(buildDisc(TAX.occasionMap, {
+    label: '主要使用场合',
+    selectedId: state.answers.occasion,
+    onPick: (o) => {
+      state.answers.occasion = o.id;
+      setTimeout(next, 320);
     },
-      el('span', { class: 'num' }, String(i + 1).padStart(2, '0')),
-      el('span', { class: 'label' }, o.zh, el('span', { class: 'desc' }, o.desc)),
-      el('span', { class: 'tick' }, '选它 →')
-    );
-    box.appendChild(b);
-  });
-  wrap.appendChild(box);
+  }));
+
   wrap.appendChild(navBar('occasion'));
   return wrap;
 }
@@ -524,7 +685,7 @@ function render() {
   }
   app.appendChild(renderFooter());
 
-  const first = app.querySelector('.opt, input[type="range"], .chip');
+  const first = app.querySelector('.disc-sector, .opt, input[type="range"], .chip');
   if (first && state.step < STEPS.length) first.focus({ preventScroll: true });
 }
 

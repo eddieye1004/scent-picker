@@ -1,29 +1,40 @@
-/* ===== 零基础香水选择器 =====
-   设计取向：不用卡片堆砌的"科技风"，走香水柜台的气味——纸、玻璃、琥珀光。
-   底色偏暖白（纸），墨色文字，唯一强调色是琥珀（#a86b32）。
-   全部原生 CSS，无框架，无外部字体（离线可用）。
+/* ===== 零基础香水选择器 · HUD =====
+   设计取向：深空黑底 + 青蓝色光路，像座舱仪表/全息操作盘。
+   唯一强调色是青（--accent），警告用暖橙（--warn），否定用珊瑚红（--danger）。
+
+   全部原生 CSS，无框架，无外部字体，离线可用。
+
+   ⚠️ 三条硬约束由 scripts/test-contrast.mjs 强制，改色会直接测试失败：
+     1. 下面 PAIRS 里列过的每组前景/背景 >= 4.5:1（WCAG AA 正文）
+     2. 任何字体不小于 12px
+     3. .btn / .chip / .disc-sector / input[type=range] 都声明 min-height:44px
 */
 
 :root {
-  /* 文字色全部按 WCAG AA ≥4.5:1 反解得出，不是凭眼感挑的。
-     约束取最难的底色 --amber-wash (#f0e3d2)——.opt:hover 就是它，
-     连 hover 态里的小字也一起合格。scripts/test-contrast.mjs 会重算，
-     谁改色导致跌破 4.5 都会测试失败。 */
-  --paper: #f6f2ea;
-  --paper-2: #efe9dd;
-  --ink: #1c1917;        /* 13.84 : 1 on amber-wash */
-  --ink-2: #57534e;      /*  6.04 : 1 */
-  --ink-3: #6b665f;      /*  4.50 : 1 ← 原 #8c857c 仅 3.26，最小字不合格 */
-  --line: #ddd5c7;
-  --amber: #8e5b2a;      /*  4.52 : 1 ← 原 #a86b32 仅 3.91，最小字不合格 */
-  --amber-soft: #c99a63; /* 仅用于 1px 描边，不承载文字 */
-  --amber-wash: #f0e3d2;
-  --rose: #92555d;       /*  4.52 : 1 */
-  --ok: #4a6b4f;
+  /* —— 底 —— */
+  --bg:      #070b11;   /* 页面底 */
+  --bg-2:    #0c1420;   /* 面板/条目底 */
+  --bg-3:    #132033;   /* hover / 选中底 */
+  --line:    #21324a;   /* 纯装饰分隔线（不承载文字，也不做控件边界） */
+  /* 可交互控件的边界色。--line 只有 1.52 : 1，用它画按钮边框等于没画，
+     WCAG 1.4.11 要求 UI 组件边界 >= 3 : 1，实测 #42688f = 3.39 : 1 才达标。 */
+  --edge:    #42688f;
 
-  --step: 1;
-  --radius: 3px;
-  --maxw: 720px;
+  /* —— 文字（全部按 WCAG 反解，见 test-contrast）—— */
+  --ink:     #e8eef6;   /* 16.93 : 1 on --bg */
+  --ink-2:   #a8b6c8;   /*  9.57 : 1 on --bg */
+  --ink-3:   #8595a8;   /*  6.44 : 1 on --bg / 6.04 on --bg-2 / 5.35 on --bg-3 */
+
+  /* —— 强调 —— */
+  --accent:      #5ad6e8;  /* 11.47 : 1 on --bg */
+  --accent-soft: #2b6b78;  /* 仅 1px 描边与光晕，不承载文字 */
+  --warn:        #f0b969;  /* 11.13 : 1 */
+  --danger:      #ff8f9e;  /*  9.09 : 1 */
+  --ok:          #7ee0a8;
+
+  --radius: 2px;
+  --maxw: 760px;
+  --discw: 560px;
 }
 
 * { box-sizing: border-box; }
@@ -31,25 +42,28 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--paper);
+  background: var(--bg);
   color: var(--ink);
-  font-family: -apple-system, "PingFang SC", "Hiragino Sans GB",
+  font-family: "Inter", -apple-system, "PingFang SC", "Hiragino Sans GB",
                "Microsoft YaHei", "Source Han Sans SC", sans-serif;
   font-size: 16px;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
 }
 
-/* 纸张纤维感：极淡的点阵，不抢内容 */
+/* HUD 底纹：细网格 + 中心径向辉光。不用图片，纯渐变。 */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: .5;
-  background-image: radial-gradient(var(--line) 0.5px, transparent 0.5px);
-  background-size: 4px 4px;
   z-index: 0;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 38%, rgba(90, 214, 232, .07), transparent 70%),
+    linear-gradient(rgba(33, 50, 74, .35) 1px, transparent 1px) 0 0 / 100% 44px,
+    linear-gradient(90deg, rgba(33, 50, 74, .35) 1px, transparent 1px) 0 0 / 44px 100%;
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, #000 30%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, #000 30%, transparent 100%);
 }
 
 #app {
@@ -57,31 +71,41 @@ body::before {
   z-index: 1;
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: 48px 24px 96px;
+  padding: 40px 24px 88px;
 }
+#app.wide { --maxw: 900px; }
 
 /* ---------- 头部 ---------- */
 .masthead {
-  border-bottom: 1px solid var(--ink);
-  padding-bottom: 18px;
-  margin-bottom: 40px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+  margin-bottom: 30px;
+  position: relative;
+}
+/* 左上角定位角标，纯装饰 */
+.masthead::before {
+  content: "";
+  position: absolute;
+  left: -12px; top: -8px;
+  width: 10px; height: 10px;
+  border-left: 1px solid var(--accent-soft);
+  border-top: 1px solid var(--accent-soft);
 }
 .masthead h1 {
-  font-size: 27px;
+  font-size: 26px;
   line-height: 1.3;
   margin: 0 0 6px;
-  letter-spacing: -.4px;
+  letter-spacing: -.3px;
   font-weight: 600;
 }
 .masthead .lede {
   color: var(--ink-2);
-  font-size: 14.5px;
+  font-size: 14px;
   margin: 0;
 }
 .masthead .lede em {
   font-style: normal;
-  color: var(--amber);
-  border-bottom: 1px solid var(--amber-soft);
+  color: var(--accent);
 }
 
 /* ---------- 进度 ---------- */
@@ -95,16 +119,19 @@ body::before {
   height: 2px;
   flex: 1;
   background: var(--line);
-  transition: background .3s;
+  transition: background .3s, box-shadow .3s;
 }
-.progress i.done { background: var(--amber); }
-.progress i.now  { background: var(--ink); }
+.progress i.done { background: var(--accent-soft); }
+.progress i.now  {
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(90, 214, 232, .8);
+}
 .progress-meta {
   font-size: 12px;
   color: var(--ink-3);
-  letter-spacing: .5px;
+  letter-spacing: .8px;
   text-transform: uppercase;
-  margin-bottom: 34px;
+  margin-bottom: 28px;
   display: flex;
   justify-content: space-between;
 }
@@ -112,27 +139,189 @@ body::before {
 /* ---------- 问题区 ---------- */
 .q-kicker {
   font-size: 12px;
-  letter-spacing: 1.4px;
+  letter-spacing: 1.6px;
   text-transform: uppercase;
-  color: var(--amber);
-  margin-bottom: 10px;
+  color: var(--accent);
+  margin-bottom: 9px;
 }
 .q-title {
-  font-size: 23px;
+  font-size: 22px;
   line-height: 1.35;
-  margin: 0 0 10px;
+  margin: 0 0 9px;
   font-weight: 600;
-  letter-spacing: -.3px;
+  letter-spacing: -.2px;
 }
 .q-help {
   color: var(--ink-2);
   font-size: 14px;
-  margin: 0 0 28px;
-  padding-left: 13px;
-  border-left: 2px solid var(--amber-soft);
+  margin: 0 0 26px;
+  padding-left: 12px;
+  border-left: 2px solid var(--accent-soft);
 }
 
-/* 选项：不做成圆角卡片，做成带编号的条目，像目录 */
+/* ---------- 第 1 步：圆盘舞台 ---------- */
+.stage-lead {
+  text-align: center;
+  margin-bottom: 4px;
+}
+.stage-lead .q-kicker { text-align: center; }
+.stage-lead .q-title {
+  font-size: 24px;
+  margin-bottom: 6px;
+}
+.stage-lead .q-help {
+  display: inline-block;
+  text-align: center;
+  border-left: none;
+  padding-left: 0;
+  margin-bottom: 10px;
+  font-size: 13.5px;
+}
+
+.disc {
+  position: relative;
+  width: min(88vw, var(--discw));
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  touch-action: manipulation;
+}
+.disc-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.disc-svg .sector-shape {
+  fill: var(--bg-2);
+  stroke: var(--edge);
+  stroke-width: 1;
+  transition: fill .22s, stroke .22s;
+}
+.disc-svg .sector-g {
+  transform-origin: 240px 240px;
+  transition: transform .22s ease;
+  cursor: pointer;
+}
+.disc-svg .sector-g:hover,
+.disc-svg .sector-g.is-hot {
+  transform: scale(1.035);
+}
+.disc-svg .sector-g:hover .sector-shape,
+.disc-svg .sector-g.is-hot .sector-shape {
+  fill: var(--bg-3);
+  stroke: var(--accent-soft);
+}.disc-svg .sector-g.is-on .sector-shape {
+  fill: rgba(90, 214, 232, .13);
+  stroke: var(--accent);
+  filter: drop-shadow(0 0 10px rgba(90, 214, 232, .55));
+}
+.disc-svg .sector-tick { stroke: var(--line); stroke-width: 1; }
+.disc-svg .ring-thin {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.disc-svg .ring-accent {
+  fill: none;
+  stroke: var(--accent-soft);
+  stroke-width: 1;
+  stroke-dasharray: 2 7;
+}
+.disc-svg .ring-spin {
+  fill: none;
+  stroke: rgba(90, 214, 232, .45);
+  stroke-width: 1;
+  stroke-dasharray: 40 200;
+  animation: spin 14s linear infinite;
+  transform-origin: 240px 240px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 扇区标签：真实 button，键盘可 Tab / 方向键切换 */
+.disc-sector {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 56px;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: .5px;
+  cursor: pointer;
+  transition: color .18s, border-color .18s, background .18s;
+}
+.disc-sector:hover { color: var(--ink); border-color: var(--accent-soft); }
+.disc-sector[aria-checked="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(90, 214, 232, .09);
+  text-shadow: 0 0 12px rgba(90, 214, 232, .6);
+}
+.disc-sector:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.disc-sector .en {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  font-weight: 400;
+}
+.disc-sector[aria-checked="true"] .en { color: var(--accent); }
+
+/* 盘心：显示当前选择 */
+.disc-hub {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 34%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  border: 1px solid var(--accent-soft);
+  background: radial-gradient(circle at 50% 45%, rgba(90, 214, 232, .10), var(--bg) 72%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8%;
+  pointer-events: none;
+}
+.disc-hub .hub-kicker {
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 3px;
+}
+.disc-hub .hub-zh {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--accent);
+  line-height: 1.25;
+}
+.disc-hub .hub-desc {
+  font-size: 12px;
+  color: var(--ink-2);
+  line-height: 1.45;
+  margin-top: 4px;
+}
+.disc-hub.is-idle .hub-zh { color: var(--ink-2); font-weight: 500; }
+
+/* ---------- 通用选项条目（第 2 步）---------- */
 .options { display: flex; flex-direction: column; gap: 2px; }
 
 .opt {
@@ -140,20 +329,25 @@ body::before {
   grid-template-columns: 34px 1fr auto;
   gap: 14px;
   align-items: baseline;
-  padding: 14px 12px 14px 0;
-  border: none;
+  padding: 14px 12px 14px 12px;
+  border: 1px solid transparent;
   border-top: 1px solid var(--line);
   background: transparent;
   text-align: left;
   color: inherit;
   font: inherit;
   cursor: pointer;
-  transition: background .15s, padding-left .15s;
+  transition: background .15s, border-color .15s, padding-left .15s;
   border-radius: 0;
+  min-height: 44px;
 }
 .opt:last-child { border-bottom: 1px solid var(--line); }
-.opt:hover { background: var(--amber-wash); padding-left: 10px; }
-.opt:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.opt:hover {
+  background: var(--bg-3);
+  border-color: var(--accent-soft);
+  padding-left: 16px;
+}
+.opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .opt .num {
   font-variant-numeric: tabular-nums;
@@ -162,10 +356,7 @@ body::before {
   letter-spacing: .5px;
   padding-top: 3px;
 }
-.opt .label {
-  font-size: 16.5px;
-  font-weight: 500;
-}
+.opt .label { font-size: 16px; font-weight: 500; }
 .opt .desc {
   display: block;
   font-size: 13px;
@@ -176,18 +367,19 @@ body::before {
 }
 .opt .tick {
   font-size: 12px;
-  color: var(--amber);
+  color: var(--accent);
   opacity: 0;
   transition: opacity .15s;
   padding-top: 3px;
 }
 .opt:hover .tick { opacity: 1; }
 .opt[aria-pressed="true"] {
-  background: var(--amber-wash);
-  padding-left: 10px;
+  background: rgba(90, 214, 232, .08);
+  border-color: var(--accent);
+  padding-left: 16px;
 }
 .opt[aria-pressed="true"] .tick { opacity: 1; }
-.opt[aria-pressed="true"] .num { color: var(--amber); }
+.opt[aria-pressed="true"] .num { color: var(--accent); }
 
 /* ---------- 滑块 ---------- */
 .scale { padding: 8px 0 4px; }
@@ -195,19 +387,15 @@ body::before {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  /* 元素盒子做成 44px 高：滑块的"轨道只有 2px"是视觉，不是命中区域。
-     如果只给 height:2px，浏览器拿到的可点高度就是 2px —— 触屏上几乎点不中
-     （实测 481px 视口下 input 的可点高度 = 2px）。
-     轨道改用居中的 2px 背景线性渐变画出来，视觉一模一样，命中区变成 44px。 */
+  /* 元素盒子 44px 高：轨道只有 2px 是视觉，不是命中区。
+     只写 height:2px 会让触屏可点高度真的变成 2px。 */
   height: 44px;
   background: linear-gradient(var(--line), var(--line)) center / 100% 2px no-repeat;
-  /* 这里原本是 outline:none，会把滑块获得键盘焦点时的指示一起干掉。
-     去掉，改由下面的 :focus-visible 提供清晰焦点环。 */
   margin: 6px 0 4px;
   padding: 0;
 }
 .scale input[type="range"]:focus-visible {
-  outline: 2px solid var(--amber);
+  outline: 2px solid var(--accent);
   outline-offset: 6px;
   border-radius: 999px;
 }
@@ -216,23 +404,23 @@ body::before {
   appearance: none;
   width: 18px; height: 18px;
   border-radius: 50%;
-  background: var(--amber);
-  border: 3px solid var(--paper);
-  box-shadow: 0 0 0 1px var(--amber);
+  background: var(--accent);
+  border: 3px solid var(--bg);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 12px rgba(90, 214, 232, .7);
   cursor: pointer;
 }
 .scale input[type="range"]::-moz-range-thumb {
   width: 14px; height: 14px;
   border-radius: 50%;
-  background: var(--amber);
-  border: 3px solid var(--paper);
-  box-shadow: 0 0 0 1px var(--amber);
+  background: var(--accent);
+  border: 3px solid var(--bg);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 12px rgba(90, 214, 232, .7);
   cursor: pointer;
 }
 .scale-ends {
   display: flex;
   justify-content: space-between;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--ink-3);
 }
 .scale-read {
@@ -241,8 +429,8 @@ body::before {
   font-size: 15px;
   min-height: 26px;
 }
-.scale-read b { color: var(--amber); font-weight: 600; }
-.scale-read span { color: var(--ink-2); font-size: 13.5px; }
+.scale-read b { color: var(--accent); font-weight: 600; }
+.scale-read span { color: var(--ink-2); font-size: 13px; }
 
 /* ---------- 香调多选 chips ---------- */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -250,8 +438,6 @@ body::before {
   font: inherit;
   font-size: 14px;
   padding: 7px 14px;
-  /* 实测 39px 高，低于触屏可点下限 44px。用 min-height 抬到 44，
-     内边距保持不变，视觉上只是略高一点。 */
   min-height: 44px;
   display: inline-flex;
   align-items: center;
@@ -262,31 +448,30 @@ body::before {
   cursor: pointer;
   transition: all .15s;
 }
-.chip:hover { border-color: var(--amber-soft); color: var(--ink); }
-.chip:focus-visible {
-  outline: 2px solid var(--amber);
-  outline-offset: 2px;
-}
+.chip:hover { border-color: var(--accent-soft); color: var(--ink); background: var(--bg-3); }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .chip[aria-pressed="true"] {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--paper);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 500;
 }
 .chip[aria-pressed="true"].neg {
-  background: var(--rose);
-  border-color: var(--rose);
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--bg);
 }
 .chips-label {
   font-size: 12px;
   letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--ink-3);
-  margin: 26px 0 10px;
+  margin: 24px 0 10px;
 }
 
 /* ---------- 底部动作 ---------- */
 .actions {
-  margin-top: 40px;
+  margin-top: 36px;
   display: flex;
   gap: 12px;
   align-items: center;
@@ -295,55 +480,54 @@ body::before {
   font: inherit;
   font-size: 15px;
   padding: 11px 22px;
-  /* 实测 37px 高，低于触屏可点下限。min-height 抬到 44，内边距与字号不动。 */
   min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius);
-  border: 1px solid var(--ink);
-  background: var(--ink);
-  color: var(--paper);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 500;
   cursor: pointer;
-  transition: opacity .15s, transform .1s;
+  transition: box-shadow .15s, transform .1s, opacity .15s;
 }
-.btn:hover { opacity: .85; }
+.btn:hover { box-shadow: 0 0 18px rgba(90, 214, 232, .45); }
 .btn:active { transform: translateY(1px); }
-.btn:focus-visible {
-  outline: 2px solid var(--amber);
-  outline-offset: 3px;
-}
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .btn.ghost {
   background: transparent;
   color: var(--ink-2);
   border-color: var(--line);
+  font-weight: 400;
 }
-.btn.ghost:hover { border-color: var(--ink-3); color: var(--ink); }
+.btn.ghost:hover {
+  border-color: var(--accent-soft);
+  color: var(--ink);
+  box-shadow: none;
+}
 .btn:disabled { opacity: .3; cursor: not-allowed; }
 .spacer { flex: 1; }
-.hint {
-  font-size: 12.5px;
-  color: var(--ink-3);
-}
+.hint { font-size: 12px; color: var(--ink-3); }
 
 /* ---------- 结果 ---------- */
 .result-head {
-  border-bottom: 1px solid var(--ink);
-  padding-bottom: 20px;
-  margin-bottom: 32px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 18px;
+  margin-bottom: 28px;
 }
 .result-head .eyebrow {
   font-size: 12px;
-  letter-spacing: 1.4px;
+  letter-spacing: 1.6px;
   text-transform: uppercase;
-  color: var(--amber);
-  margin-bottom: 8px;
+  color: var(--accent);
+  margin-bottom: 7px;
 }
 .result-head h2 {
-  font-size: 24px;
-  margin: 0 0 8px;
+  font-size: 23px;
+  margin: 0 0 7px;
   font-weight: 600;
-  letter-spacing: -.3px;
+  letter-spacing: -.2px;
 }
 .result-head p {
   margin: 0;
@@ -352,19 +536,31 @@ body::before {
 }
 .result-head .profile-line {
   display: inline-block;
-  margin-top: 14px;
-  font-size: 12.5px;
+  margin-top: 13px;
+  font-size: 12px;
   color: var(--ink-2);
-  background: var(--amber-wash);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
   padding: 5px 11px;
   border-radius: 2px;
 }
 
 article.pick {
-  border-top: 1px solid var(--line);
-  padding: 30px 0 26px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--bg-2), transparent);
+  padding: 24px 22px 20px;
+  margin-bottom: 18px;
+  position: relative;
 }
-article.pick:last-of-type { border-bottom: 1px solid var(--line); }
+/* 卡片左上角一个小切角，HUD 标记 */
+article.pick::before {
+  content: "";
+  position: absolute;
+  left: -1px; top: -1px;
+  width: 14px; height: 14px;
+  border-left: 1px solid var(--accent);
+  border-top: 1px solid var(--accent);
+}
 
 .pick-rank {
   display: flex;
@@ -375,7 +571,7 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
 .pick-rank .n {
   font-size: 12px;
   letter-spacing: 1.5px;
-  color: var(--amber);
+  color: var(--accent);
   font-variant-numeric: tabular-nums;
   text-transform: uppercase;
 }
@@ -385,7 +581,7 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
   font-variant-numeric: tabular-nums;
 }
 .pick h3 {
-  font-size: 21px;
+  font-size: 20px;
   margin: 0 0 2px;
   font-weight: 600;
   letter-spacing: -.2px;
@@ -393,16 +589,16 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
 .pick .meta {
   font-size: 13px;
   color: var(--ink-3);
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 .pick .meta .dot { margin: 0 6px; }
 
-/* 三调表：香水柜台卡片的骨架 */
+/* 三调表 */
 .pyramid {
   display: grid;
-  grid-template-columns: 62px 1fr;
+  grid-template-columns: 58px 1fr;
   gap: 0;
-  margin: 0 0 20px;
+  margin: 0 0 18px;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
@@ -415,29 +611,26 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
 .pyramid dt:last-of-type, .pyramid dd:last-of-type { border-bottom: none; }
 .pyramid dt {
   color: var(--ink-3);
-  font-size: 12.5px;
+  font-size: 12px;
   letter-spacing: .3px;
   padding-top: 11px;
 }
 .pyramid dd { color: var(--ink); }
-.pyramid dd span {
-  color: var(--ink-2);
-  font-size: 12.5px;
-}
+.pyramid dd span { color: var(--ink-3); font-size: 12px; }
 
-/* 理由：编号列表，不用子弹 */
+/* 理由 */
 .reasons {
   list-style: none;
   counter-reset: r;
   padding: 0;
-  margin: 0 0 18px;
+  margin: 0 0 16px;
 }
 .reasons li {
   counter-increment: r;
   position: relative;
   padding-left: 30px;
   margin-bottom: 9px;
-  font-size: 14.5px;
+  font-size: 14px;
   color: var(--ink);
 }
 .reasons li::before {
@@ -446,19 +639,19 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
   left: 0;
   top: 1px;
   font-size: 12px;
-  color: var(--amber);
+  color: var(--accent);
   letter-spacing: .5px;
   font-variant-numeric: tabular-nums;
 }
-.reasons li.warn { color: var(--rose); }
-.reasons li.warn::before { color: var(--rose); }
+.reasons li.warn { color: var(--danger); }
+.reasons li.warn::before { color: var(--danger); }
 
 .pick-foot {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 18px;
+  gap: 8px 16px;
   align-items: center;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--ink-3);
   padding-top: 4px;
 }
@@ -466,15 +659,12 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
   color: var(--ink-2);
   text-decoration: none;
   border-bottom: 1px solid var(--line);
-  /* 实测这行文字只有 22px 高。文字链接的下划线就是它的视觉边界，
-     但可点区域不该止于此 —— 上下各补 11px 内边距到 44px，
-     不改变行间距外观（行高由父级 flex 对齐承担）。 */
   display: inline-flex;
   align-items: center;
   min-height: 44px;
   padding: 0 2px;
 }
-.pick-foot a:hover { color: var(--amber); border-color: var(--amber-soft); }
+.pick-foot a:hover { color: var(--accent); border-color: var(--accent-soft); }
 .tag {
   display: inline-block;
   padding: 2px 8px;
@@ -486,16 +676,15 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
 
 /* ---------- 页脚 ---------- */
 footer.foot {
-  margin-top: 56px;
-  padding-top: 20px;
+  margin-top: 52px;
+  padding-top: 18px;
   border-top: 1px solid var(--line);
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--ink-3);
   line-height: 1.75;
 }
-/* 页脚里的链接是独立可点目标（不是正文行内链接），实测只有 16px 高。
-   补到 24px —— WCAG 2.5.8 的下限；不抬到 44 是因为它们跟在长句里，
-   44px 会把页脚行距撑散，破坏可读性。这是刻意的取舍，不是漏改。 */
+/* 页脚链接跟在长句里，抬到 24px（WCAG 2.5.8 下限）而不是 44px，
+   否则会把页脚行距撑散。刻意取舍，不是漏改。 */
 footer.foot a {
   color: var(--ink-2);
   display: inline-block;
@@ -504,7 +693,7 @@ footer.foot a {
 }
 footer.foot strong { color: var(--ink-2); font-weight: 500; }
 
-/* ---------- 动效：进入时不弹跳，只做位移 ---------- */
+/* ---------- 动效 ---------- */
 .fade-in { animation: fade .35s ease both; }
 @keyframes fade {
   from { opacity: 0; transform: translateY(6px); }
@@ -512,16 +701,23 @@ footer.foot strong { color: var(--ink-2); font-weight: 500; }
 }
 @media (prefers-reduced-motion: reduce) {
   .fade-in { animation: none; }
+  .disc-svg .ring-spin { animation: none; }
+  .disc-svg .sector-g { transition: none; }
   * { transition: none !important; }
 }
 
 /* ---------- 窄屏 ---------- */
-@media (max-width: 560px) {
-  #app { padding: 30px 18px 64px; }
-  .masthead h1 { font-size: 22px; }
-  .q-title { font-size: 20px; }
-  .pick h3 { font-size: 19px; }
+@media (max-width: 620px) {
+  #app { padding: 26px 16px 60px; }
+  .masthead h1 { font-size: 21px; }
+  .q-title { font-size: 19px; }
+  .stage-lead .q-title { font-size: 20px; }
+  .pick h3 { font-size: 18px; }
   .opt { grid-template-columns: 26px 1fr; }
   .opt .tick { display: none; }
-  .pyramid { grid-template-columns: 52px 1fr; }
+  .pyramid { grid-template-columns: 50px 1fr; }
+  .disc { width: min(92vw, 420px); }
+  .disc-sector { font-size: 13px; min-width: 48px; padding: 4px 6px; }
+  .disc-sector .en { display: none; }
+  article.pick { padding: 20px 16px 16px; }
 }
