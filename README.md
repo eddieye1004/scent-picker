@@ -71,7 +71,7 @@ npx serve .
 | 数据 | 两个 JSON 文件，前端直接 fetch | 400 瓶的量级不值得上数据库 |
 | 服务器 | `node:http` 内置模块 | 30 行，能看懂 |
 | 测试 | 五个 Node 脚本，零测试框架 | 直接 `node scripts/xxx.mjs` 就能跑 |
-| 视觉 | 手写 CSS，宣纸底 + 朱砂强调 | 纸纹用内联 SVG `feTurbulence` 生成，不引外部图片、不联网 |
+| 视觉 | 手写 CSS，瑞士国际主义排版（白底 + 墨黑 + 单一朱红强调） | 层级只靠字号、字重、留白和一根 8px 墨线，不靠阴影、渐变、圆角。**零装饰是刻意的**：上两版试过深空 HUD 和宣纸纹，两者的"设计感"都来自贴图而不是结构 |
 
 **为什么不用大模型做推荐**：模型给不出稳定结果——同一个问题问两次可能给两瓶不同的香，而且它无法保证"这瓶确实有佛手柑"。规则引擎的每一条理由都能复算，这是这个项目的立身之本。
 
@@ -83,7 +83,7 @@ npx serve .
 scent-picker/
 ├── index.html              单页入口
 ├── app.js                  问卷流程 + 结果渲染（约 400 行）
-├── styles.css              纸感排版，无框架
+├── styles.css              瑞士极简排版，无框架
 ├── server.js               零依赖静态服务器
 ├── src/
 │   └── scoring.js          ★ 核心：可解释的规则打分引擎
@@ -102,7 +102,7 @@ scent-picker/
 │   ├── qa-data.mjs         数据体检
 │   └── test-compliance.mjs 10 项负向测试（证明断言有效）
 ├── docs/
-│   ├── DECISIONS.md        21 条已确认决策及其理由
+│   ├── DECISIONS.md        24 条已确认决策及其理由
 │   ├── COMPLIANCE.md       数据许可与合规边界（含证据链）
 │   └── DEPLOY.md           GitHub Pages 部署步骤
 └── tools/

@@ -1,9 +1,15 @@
-/* ===== 零基础香水选择器 · 天工造物 =====
-   设计取向：宣纸底、墨字、朱砂印、宋体为骨。取《天工开物》的物质感——
-   纸是有纤维的，字是刻出来的，颜色来自矿物与植物染料，不是屏幕光。
+/* ===== 零基础香水选择器 · Swiss / International Typographic Style =====
+   设计取向：白纸、墨字、单一朱红。取瑞士国际主义排版的做法——
+   层级只靠字重、字号、留白和一条 hairline 建立，不靠阴影、圆角、渐变、装饰图形。
+
+   三条不可让步的规则，改样式前先读：
+   1. 零圆角、零阴影。需要分隔就画 1px 实线，不用卡片投影，也不用背景色块堆叠。
+   2. 主栏左对齐、贴栅格线。唯一的居中场景是圆盘那一屏（它是整页的图形重心）。
+   3. 只有一个强调色（朱红），只用于「当前状态」：选中、进行中、可点。
+      不拿它装饰，不画图标，不分区块。
 
    全部原生 CSS，无框架，无外部字体，离线可用。
-   纸纹是一段内联 SVG feTurbulence，不联网、不引外部图片。
+   对比度全部实测，见 scripts/test-contrast.mjs 的 14 组 PAIRS。
 
    ⚠️ 四条硬约束由 scripts/test-contrast.mjs 强制，改色会直接测试失败：
      1. PAIRS 里每组前景/背景 >= 4.5:1（WCAG AA 正文）
@@ -14,221 +20,257 @@
 
 :root {
   /* —— 纸 —— */
-  --bg:      #f4ece0;   /* 宣纸底（生宣偏暖） */
-  --bg-2:    #ebe1d3;   /* 压深一层：面板、盘心、条目底 */
-  --bg-3:    #e0d4c3;   /* 再深一层：hover / 选中底 */
-  --line:    #ddd2c0;   /* 界格与分隔线。纯装饰，不承载文字也不做控件边界（1.28:1） */
-  /* 可交互控件的边界色。--line 只有 1.28:1，画按钮边框等于没画；
-     WCAG 1.4.11 要求 >= 3:1，实测 #82705a 在三层纸底上都达标（4.06 / 3.68 / 3.26）。 */
-  --edge:    #82705a;
+  --bg:      #ffffff;   /* 白纸。Swiss 的底就是白，不加任何质感层 */
+  --bg-2:    #f5f5f5;   /* 中性浅灰：hover 底、盘心底 */
+  --bg-3:    #e8e8e8;   /* 再深一层：未完成的进度条、禁用底 */
+  --line:    #d9d9d9;   /* 分隔线。纯装饰，不承载文字也不做控件边界（1.41:1） */
+  /* 可交互控件的边界色。--line 只有 1.41:1，画按钮边框等于没画；
+     WCAG 1.4.11 要求 >= 3:1，实测 #767676 在白底 4.54 / 浅灰底 4.17，达标。 */
+  --edge:    #767676;
 
   /* —— 墨（全部按 WCAG 反解，见 test-contrast）—— */
-  --ink:     #211e19;   /* 14.17 : 1 on --bg（松烟墨） */
-  --ink-2:   #4d463c;   /*  7.94 : 1 on --bg（淡墨，正文次级） */
-  --ink-3:   #615a4e;   /*  5.82 on --bg / 5.27 on --bg-2 / 4.67 on --bg-3（三者全过） */
+  --ink:     #0e0e0e;   /* 19.30 : 1 on --bg */
+  --ink-2:   #3d3d3d;   /* 10.86 : 1 on --bg（正文次级） */
+  --ink-3:   #616161;   /* 6.19 on --bg / 5.68 on --bg-2 / 5.05 on --bg-3（三者全过） */
 
-  /* —— 色（矿物与植物染料）—— */
-  --accent:      #8c3a2c;  /* 朱砂。6.50 : 1 on --bg，白字压其上 7.62 */
-  --accent-soft: #8a7a63;  /* 仅 1px 描边与浅晕，不承载文字。3.55 : 1 on --bg */
-  --warn:        #755616;  /* 赭石。5.78 on --bg */
-  --danger:      #93291f;  /* 胭脂。6.95 on --bg */
-  --ok:          #435c42;  /* 苍绿。6.29 on --bg */
+  /* —— 色 —— */
+  --accent:      #b3261e;  /* 朱红。6.54 : 1 on --bg，白字压其上 6.54 */
+  --accent-soft: #8f8f8f;  /* 仅 1px 描边，不承载文字。3.23 : 1 on --bg */
+  --warn:        #8a5a00;  /* 5.93 on --bg */
+  --danger:      #a4262c;  /* 7.26 on --bg */
+  --ok:          #2f5d3a;
 
   /* —— 字体 ——
-     中文标题走宋体（本机已装 Noto Serif SC / Source Han Serif SC），
-     正文走黑体保证小字号可读——宋体在 14px 以下的横画会糊成一片。
-     西文与数字同用衬线，气质统一；等宽只给编号。 */
-  --font-display: "Noto Serif SC", "Source Han Serif SC", "Songti SC",
-                  "SimSun", Georgia, "Times New Roman", serif;
-  --font-body:    "Noto Sans SC", -apple-system, "PingFang SC",
-                  "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --font-mono:    ui-monospace, "Cascadia Mono", Consolas, monospace;
+     Swiss 的层级靠尺寸和字重，不靠换字体。标题与正文同一族无衬线，
+     中文走系统黑体（宋体在 14px 以下横画会糊）。
+     等宽只给编号、规格表、英文副标——那是「技术参数」的语气。 */
+  --font-body: "Inter", "Helvetica Neue", Helvetica, -apple-system,
+               "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+               "Source Han Sans SC", Arial, sans-serif;
+  --font-display: var(--font-body);
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
 
-  --radius: 4px;
-  --maxw: 760px;
-  --discw: 560px;
+  --radius: 0px;
+  --maxw: 720px;
+  --discw: 520px;
 }
 
 * { box-sizing: border-box; }
 
-html, body {
+html { -webkit-text-size-adjust: 100%; }
+
+body {
   margin: 0;
   padding: 0;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 16px;
-  line-height: 1.65;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* 负字距是 Swiss 的特征，不是随手加的 */
+  letter-spacing: -0.011em;
 }
 
-/* 纸纹：内联 SVG 的分形噪声，相当于把纤维压进纸里。
-   没有它，整页就是一块纯色块；有了它，纸才有"物"的感觉。
-   刻意不用网格线——网格是蓝图语言，不是造纸语言。 */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: .5;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23p)' opacity='.055'/%3E%3C/svg%3E");
-}
-/* 纸上的一层极淡色晕，模拟纸张受潮与染色的不均。
-   三个椭圆不同色相（朱砂 / 靛 / 赭），互相压得很淡，只做呼吸感。 */
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background:
-    radial-gradient(ellipse 62% 42% at 16% 6%, rgba(140, 58, 44, .045), transparent 62%),
-    radial-gradient(ellipse 54% 46% at 84% 16%, rgba(51, 70, 92, .038), transparent 64%),
-    radial-gradient(ellipse 72% 48% at 46% 102%, rgba(122, 90, 23, .04), transparent 66%);
-}
+/* 纸纹与色晕全部去掉：那层 feTurbulence 噪点加三团径向色晕，
+   正是上一版「AI 味」的来源之一。Swiss 的底就是白纸。 */
 
 #app {
-  position: relative;
-  z-index: 1;
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: 44px 24px 88px;
+  padding: 56px 24px 96px;
+  position: relative;
 }
 #app.wide { --maxw: 900px; }
 
-/* ---------- 头部 ---------- */
+@media (min-width: 1000px) {
+  #app { padding: 72px 32px 120px; }
+}
+
+/* ---------- 头部 ----------
+   Swiss 的抬头是一条顶部粗线加左对齐的大标题。
+   不用居中主视觉，不加印章，不画装饰弧。 */
 .masthead {
-  border-bottom: 1px solid var(--edge);
-  padding-bottom: 18px;
-  margin-bottom: 32px;
-  position: relative;
-}
-/* 双线：古籍版框常见「外粗内细」两道线，比单线有分量。
-   第二条线用 ::after 画在下方 3px，纯装饰。 */
-.masthead::after {
-  content: "";
-  position: absolute;
-  left: 0; right: 0; bottom: -4px;
-  height: 1px;
-  background: var(--line);
-}
-/* 标题左侧一枚朱砂小方，像书页起首的印记。纯装饰，不是图标。 */
-.masthead::before {
-  content: "";
-  position: absolute;
-  left: -14px; top: 9px;
-  width: 5px; height: 22px;
-  background: var(--accent);
-  border-radius: 1px;
+  border-top: 8px solid var(--ink);
+  padding-top: 20px;
+  margin-bottom: 40px;
 }
 .masthead h1 {
+  margin: 0;
   font-family: var(--font-display);
-  font-size: 26px;
-  line-height: 1.35;
-  margin: 0 0 8px;
-  letter-spacing: .5px;
-  font-weight: 600;
-}
-/* 印章：右上角一方朱砂，白字压其内。
-   字是竖排的（writing-mode），像真的钤印，不是横排标签。
-   位置用 absolute 挂上去，不参与标题的流式布局。 */
-.masthead .seal {
-  position: absolute;
-  right: 2px;
-  top: 2px;
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent);
-  color: var(--bg);
-  font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.05;
-  letter-spacing: 0;
-  border-radius: 2px;
-  writing-mode: vertical-rl;
-  text-orientation: upright;
-  /* 印泥不会均匀：一点内阴影让边缘比中心深 */
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .16);
-  user-select: none;
+  font-size: 44px;
+  line-height: 1.04;
+  font-weight: 700;
+  letter-spacing: -0.032em;
+  max-width: 15em;
 }
 .masthead .lede {
+  margin: 14px 0 0;
   color: var(--ink-2);
-  font-size: 14px;
-  margin: 0;
-  padding-right: 48px;   /* 给印章让位，避免长句压到印上 */
+  font-size: 16px;
+  line-height: 1.5;
+  max-width: 34em;
 }
 .masthead .lede em {
   font-style: normal;
   color: var(--accent);
-  border-bottom: 1px solid var(--accent-soft);
-  padding-bottom: 1px;
+}
+/* 印章元素结构上还在（app.js 会渲染），Swiss 版不用它。
+   留 display:none 而不是删 DOM，是因为删了日后想回去得改 JS。 */
+.masthead .seal { display: none; }
+
+@media (max-width: 620px) {
+  .masthead { border-top-width: 6px; padding-top: 14px; margin-bottom: 28px; }
+  .masthead h1 { font-size: 28px; letter-spacing: -0.024em; }
+  .masthead .lede { font-size: 15px; margin-top: 10px; }
 }
 
-/* ---------- 进度：四道短横，像书页上的划线 ---------- */
+/* ---------- 进度 ----------
+   四段等宽细条 + 下面一行小字。信息图表就长这样：
+   没有圆点、没有勾、没有动画。 */
 .progress {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   margin-bottom: 10px;
 }
 .progress i {
   display: block;
-  height: 2px;
-  flex: 1;
-  background: var(--line);
-  transition: background .3s;
+  height: 3px;
+  background: var(--bg-3);
+  transition: background-color 160ms linear;
 }
-.progress i.done { background: var(--edge); }
+.progress i.done { background: var(--ink-3); }
 .progress i.now  { background: var(--accent); }
 .progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
   font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--ink-3);
-  letter-spacing: .3px;
-  margin-bottom: 26px;
+  font-weight: 500;
+  margin-bottom: 36px;
 }
-.progress-meta b { color: var(--ink-2); font-weight: 500; }
+.progress-meta b { color: var(--ink-2); font-weight: 600; }
+
+@media (max-width: 620px) {
+  .progress-meta { margin-bottom: 24px; }
+}
 
 /* ---------- 问题区 ---------- */
 .q-kicker {
-  font-family: var(--font-display);
   font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--accent);
-  letter-spacing: 1.2px;
+  font-weight: 600;
   margin-bottom: 10px;
 }
 .q-title {
-  font-family: var(--font-display);
-  font-size: 26px;
-  line-height: 1.3;
-  margin: 0 0 8px;
-  font-weight: 600;
-  letter-spacing: .3px;
+  margin: 0 0 10px;
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.028em;
 }
 .q-help {
+  margin: 0 0 32px;
   color: var(--ink-2);
-  font-size: 14px;
-  margin: 0 0 28px;
-  line-height: 1.6;
+  font-size: 16px;
+  line-height: 1.5;
+  max-width: 36em;
 }
 
-/* 圆盘页面用居中排版：问题在盘上方居中，视线自然落到盘心 */
+@media (max-width: 620px) {
+  .q-title { font-size: 24px; letter-spacing: -0.02em; }
+  .q-help { font-size: 15px; margin-bottom: 22px; }
+}
+
+/* 圆盘那一屏：Swiss 一般不居中，但圆盘是整页的图形重心，
+   标题跟着它居中才不别扭。这里只用 text-align，不加装饰。 */
 .stage-lead {
   text-align: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
-.stage-lead .q-title { margin-bottom: 6px; }
-.stage-lead .q-help { margin-bottom: 1px; }
+.stage-lead .q-title { margin-bottom: 8px; }
+.stage-lead .q-help {
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 0;
+  max-width: 30em;
+}
 
-/* ---------- 轮盘 ---------- */
+/* ---------- 圆盘 ----------
+   形状仍是 SVG，命中区仍是真实 button（见 docs/DECISIONS.md D14）。
+   这一版只换外观：去掉辉光、虚线、旋转环、渐变和放大效果。
+   扇区之间靠留白与 --edge 实线分隔，选中态靠「填黑反白」。 */
 .disc {
   position: relative;
-  width: min(88vw, 62vh, var(--discw));
+  width: min(88vw, var(--discw));
+  max-width: 100%;
   aspect-ratio: 1 / 1;
-  margin: 0 auto;
+  margin: 28px auto 0;
+}
+
+/* 桌面端必须让圆盘受视口高度约束。
+   实测过：只按宽度算 520px 时，1366×768 / 1440×900 / 1280×800 三种笔记本上
+   圆盘底部都落在 963px，全部要滚动才能看全。62vh 是量出来的——
+   抬头 + 进度 + 问题区在紧凑模式下约占 300px，留 30px 余量。 */
+@media (min-width: 621px) {
+  .disc { width: min(88vw, var(--discw), 62vh); }
+}
+
+/* 中矮屏（≤1000px 高，含 MacBook Air 15 的 982、1440×900、1536×864）：
+   抬头与问题区一起收紧，把纵向空间还给圆盘。
+   这些值不是猜的，是逐档测到「圆盘 + 提示语都在首屏内」之后定下来的。 */
+@media (min-width: 621px) and (max-height: 1000px) {
+  #app { padding-top: 30px; }
+  .masthead { padding-top: 12px; margin-bottom: 18px; }
+  .masthead h1 { font-size: 32px; }
+  .masthead .lede { font-size: 15px; margin-top: 8px; }
+  .progress-meta { margin-bottom: 16px; }
+  .stage-lead .q-kicker { margin-bottom: 6px; }
+  .stage-lead .q-title { font-size: 26px; margin-bottom: 8px; }
+  .stage-lead .q-help { font-size: 15px; }
+  /* 62vh 在这一档被 --discw 520 顶住了，实际没生效；56vh 才真的把圆盘压下去。
+     压下去之后还要再收 action 条，否则提示语会掉出首屏（实测 900 高时差 19px）。 */
+  .disc { width: min(88vw, var(--discw), 56vh); margin-top: 6px; }
+  .actions { margin-top: 8px; padding-top: 10px; }
+  footer.foot { margin-top: 32px; }
+}
+
+/* 更矮的笔记本（≤820px 高，覆盖 1366×768 与 1280×800）：
+   62vh 这一档在这个高度上还是差 30–50px，要再压一次。
+   同时把抬头压到最小可读尺寸，把省下来的全给圆盘。 */
+@media (min-width: 621px) and (max-height: 820px) {
+  #app { padding-top: 24px; }
+  .masthead { padding-top: 10px; margin-bottom: 16px; }
+  .masthead h1 { font-size: 28px; }
+  .masthead .lede { font-size: 14px; margin-top: 8px; }
+  .progress-meta { margin-bottom: 14px; }
+  .stage-lead .q-kicker { margin-bottom: 6px; }
+  .stage-lead .q-title { font-size: 22px; margin-bottom: 6px; }
+  .stage-lead .q-help { font-size: 14px; }
+  .disc { width: min(88vw, var(--discw), 54vh); margin-top: 8px; }
+  .actions { margin-top: 16px; padding-top: 14px; }
+  footer.foot { margin-top: 28px; }
+}
+
+/* 极矮屏（≤740px 高，如 1280×720）：圆盘再让 4vh，提示语才不掉出去。 */
+@media (min-width: 621px) and (max-height: 740px) {
+  #app { padding-top: 20px; }
+  .masthead { padding-top: 8px; margin-bottom: 12px; }
+  .masthead h1 { font-size: 26px; }
+  .masthead .lede { font-size: 13px; margin-top: 6px; }
+  .progress-meta { margin-bottom: 10px; }
+  .stage-lead .q-title { font-size: 20px; margin-bottom: 4px; }
+  .stage-lead .q-help { font-size: 13px; }
+  .disc { width: min(88vw, var(--discw), 50vh); margin-top: 4px; }
+  .actions { margin-top: 10px; padding-top: 10px; }
+  footer.foot { margin-top: 24px; }
 }
 .disc-svg {
   width: 100%;
@@ -237,83 +279,38 @@ body::after {
   overflow: visible;
 }
 
-/* 扇区：纸上一圈刻出来的界格。默认几乎与纸同色，靠 --edge 描边显形。 */
 .disc-svg .sector-shape {
-  fill: rgba(235, 225, 211, .55);
+  fill: var(--bg);
   stroke: var(--edge);
   stroke-width: 1;
-  transition: fill .22s, stroke .22s, stroke-width .22s;
+  transition: fill 140ms linear, stroke 140ms linear;
 }
-.disc-svg .sector-g {
-  transform-origin: 240px 240px;
-  transition: transform .22s ease;
-  cursor: pointer;
-}
-/* 指针移上去：纸背透出更深的底色，像手指按在纸上 */
-.disc-svg .sector-g:hover,
-.disc-svg .sector-g.is-hot {
-  transform: scale(1.028);
-}
+.disc-svg .sector-g { cursor: pointer; }
+
+/* hover：只把描边加深、填充转浅灰。不放大 —— 放大是拟物语言。 */
 .disc-svg .sector-g:hover .sector-shape,
 .disc-svg .sector-g.is-hot .sector-shape {
-  fill: var(--bg-3);
-  stroke: var(--ink-2);
+  fill: var(--bg-2);
+  stroke: var(--ink);
 }
 
-/* 选中：填一层极淡的朱砂，描边换成朱砂实线。
-   不用发光——印章不发光，它是有厚度的颜色。 */
+/* 选中：墨色实心。扇区上的文字同时转白（见 .disc-sector[aria-checked]）。
+   反差是最强的状态信号，不需要发光。 */
 .disc-svg .sector-g.is-on .sector-shape {
-  fill: rgba(140, 58, 44, .11);
-  stroke: var(--accent);
-  stroke-width: 1.6;
+  fill: var(--ink);
+  stroke: var(--ink);
 }
 
-.disc-svg .sector-tick { stroke: var(--line); stroke-width: 1; }
+/* 装饰环全部取消：ring-thin / ring-accent / ring-spin / ring-tick
+   在 Swiss 里都属于装饰性元素，一个不留。
+   显式关闭而不是删规则，方便日后回滚。 */
+.disc-svg .ring-thin,
+.disc-svg .ring-accent,
+.disc-svg .ring-spin,
+.disc-svg .ring-tick { display: none; }
 
-/* 内圈细线：罗盘的盘沿 */
-.disc-svg .ring-thin {
-  fill: none;
-  stroke: var(--edge);
-  stroke-width: 1;
-  opacity: .55;
-}
-/* 内圈分度刻线：36 道短划，每 3 道加长加粗。
-   用 --edge 而不是 --line —— 刻线紧挨盘心，会被当成"这里划分了区域"的结构线读，
-   跟 --line 那种纯装饰分隔线不是一回事。 */
-.disc-svg .ring-tick {
-  stroke: var(--edge);
-  stroke-width: 1;
-  opacity: .5;
-  stroke-linecap: round;
-}
-.disc-svg .ring-tick.is-major {
-  stroke-width: 1.4;
-  opacity: .78;
-}
-
-/* 内圈刻度环：一圈细密点，像罗盘刻线 */
-.disc-svg .ring-accent {
-  fill: none;
-  stroke: var(--edge);
-  stroke-width: 1;
-  stroke-dasharray: 1 6;
-  opacity: .7;
-}
-/* 最外一道弧：转得很慢，像浑天仪的环。
-   只做"这是个可以转的东西"的暗示，不喧宾夺主。 */
-.disc-svg .ring-spin {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 1;
-  stroke-dasharray: 56 400;
-  opacity: .38;
-  animation: spin 90s linear infinite;
-  transform-origin: 240px 240px;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* 扇区标签：真实 button，键盘可 Tab / 方向键切换。
-   中文用宋体，字号跟着扇区走；下面的西文是款识，弱到几乎只是纹理。 */
+/* 扇区文字按钮：透明底，只承载标签。
+   min-width / min-height 是触控下限，不能少于 44（test-contrast 会拦）。 */
 .disc-sector {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -321,91 +318,109 @@ body::after {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0;
+  gap: 1px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  padding: 6px 8px;
   min-width: 56px;
   min-height: 44px;
-  padding: 6px 8px;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--ink-2);
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: .8px;
   cursor: pointer;
-  transition: color .18s, border-color .18s, background .18s;
-}
-.disc-sector:hover { color: var(--ink); border-color: var(--edge); }
-.disc-sector[aria-checked="true"] {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: rgba(140, 58, 44, .06);
-}
-.disc-sector:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
+  transition: color 140ms linear;
 }
 .disc-sector .en {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   font-size: 12px;
-  font-style: italic;
-  letter-spacing: .2px;
-  color: var(--ink-3);
   font-weight: 400;
-  opacity: .8;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  transition: color 140ms linear;
 }
-.disc-sector[aria-checked="true"] .en { color: var(--accent); opacity: 1; }
+/* 选中扇区上的文字反白：--bg 纯白压在 --ink #0e0e0e 上是 19.30，远超标准。
+   Swiss 里唯一允许的反白场景。 */
+.disc-sector[aria-checked="true"] { color: var(--bg); }
+.disc-sector[aria-checked="true"] .en { color: var(--bg-3); }
 
-/* 盘心：一块压深的纸，像罗盘中央的天池 */
+.disc-sector:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* 盘心：一块白方块压在圆心，1px 墨线描边。不圆、不发光、不加渐变。 */
 .disc-hub {
   position: absolute;
-  left: 50%; top: 50%;
+  left: 50%;
+  top: 50%;
   transform: translate(-50%, -50%);
   width: 34%;
-  aspect-ratio: 1 / 1;
-  border-radius: 50%;
-  border: 1px solid var(--edge);
-  background: var(--bg-2);
+  height: 34%;
+  border-radius: 0;
+  border: 1px solid var(--ink);
+  background: var(--bg);
+  background-image: none;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  padding: 9%;
   text-align: center;
-  padding: 8%;
   pointer-events: none;
 }
 .disc-hub .hub-kicker {
   font-size: 12px;
-  letter-spacing: .8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--ink-3);
-  margin-bottom: 4px;
+  font-weight: 500;
 }
 .disc-hub .hub-zh {
-  font-family: var(--font-display);
   font-size: 20px;
-  font-weight: 600;
-  letter-spacing: 1px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   color: var(--accent);
-  line-height: 1.3;
 }
 .disc-hub .hub-desc {
   font-size: 12px;
-  color: var(--ink-2);
-  line-height: 1.45;
-  margin-top: 5px;
+  line-height: 1.34;
+  color: var(--ink-3);
 }
-.disc-hub.is-idle .hub-zh { color: var(--ink-2); font-weight: 500; }
+.disc-hub.is-idle .hub-zh { color: var(--ink-3); }
 
-/* ---------- 通用选项条目（第 2 步的备用形态）---------- */
-.options { display: flex; flex-direction: column; gap: 2px; }
+@media (max-width: 620px) {
+  .disc { width: min(92vw, 380px); margin-top: 18px; }
+  .disc-sector { font-size: 14px; padding: 5px 6px; }
+  /* 窄屏隐藏英文副标：380px 直径的圆里两行字会撞在一起 */
+  .disc-sector .en { display: none; }
+  .disc-hub { width: 42%; height: 42%; padding: 6%; gap: 4px; }
+  .disc-hub .hub-zh { font-size: 17px; }
+  .disc-hub .hub-desc { font-size: 12px; line-height: 1.28; }
+}
 
+/* 矮屏（iPhone SE 竖屏 667px）：圆盘再压一档，保证首屏看到完整圆盘 */
+@media (max-width: 620px) and (max-height: 700px) {
+  .disc { width: min(86vw, 320px); margin-top: 12px; }
+  .disc-hub .hub-desc { display: none; }
+}
+
+/* ---------- 通用选项条目（第 2 步的备用形态）----------
+   Swiss 的列表项之间只有一条线，hover 只换底色不位移。 */
+.options { display: flex; flex-direction: column; }
 .opt {
   display: grid;
   grid-template-columns: 34px 1fr auto;
   gap: 14px;
   align-items: baseline;
-  padding: 14px 12px 14px 12px;
+  padding: 14px 12px;
   border: 1px solid transparent;
   border-top: 1px solid var(--line);
   background: transparent;
@@ -413,16 +428,12 @@ body::after {
   color: inherit;
   font: inherit;
   cursor: pointer;
-  transition: background .15s, border-color .15s, padding-left .15s;
+  transition: background-color 140ms linear, border-color 140ms linear;
   border-radius: 0;
   min-height: 44px;
 }
 .opt:last-child { border-bottom: 1px solid var(--line); }
-.opt:hover {
-  background: var(--bg-2);
-  border-color: var(--edge);
-  padding-left: 16px;
-}
+.opt:hover { background: var(--bg-2); border-color: var(--edge); }
 .opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .opt .num {
@@ -430,41 +441,31 @@ body::after {
   font-variant-numeric: tabular-nums;
   font-size: 12px;
   color: var(--ink-3);
-  letter-spacing: .5px;
+  letter-spacing: 0.04em;
   padding-top: 3px;
 }
-.opt .label {
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: .3px;
-}
+.opt .label { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
 .opt .desc {
   display: block;
-  font-family: var(--font-body);
   font-size: 13px;
   font-weight: 400;
   color: var(--ink-2);
   margin-top: 3px;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 .opt .tick {
   font-size: 12px;
   color: var(--accent);
   opacity: 0;
-  transition: opacity .15s;
+  transition: opacity 140ms linear;
   padding-top: 3px;
 }
 .opt:hover .tick { opacity: 1; }
-.opt[aria-pressed="true"] {
-  background: rgba(140, 58, 44, .05);
-  border-color: var(--accent);
-  padding-left: 16px;
-}
+.opt[aria-pressed="true"] { background: var(--bg-2); border-color: var(--ink); }
 .opt[aria-pressed="true"] .tick { opacity: 1; }
 .opt[aria-pressed="true"] .num { color: var(--accent); }
 
-/* ---------- 滑块：一根墨线，朱砂小圆当砝码 ---------- */
+/* ---------- 滑块：一根墨线，一个方形朱红砝码 ---------- */
 .scale { padding: 8px 0 4px; }
 .scale input[type="range"] {
   -webkit-appearance: none;
@@ -473,410 +474,388 @@ body::after {
   /* 元素盒子 44px 高：轨道只有 2px 是视觉，不是命中区。
      只写 height:2px 会让触屏可点高度真的变成 2px。 */
   height: 44px;
-  background: linear-gradient(var(--edge), var(--edge)) center / 100% 2px no-repeat;
+  background: transparent;
   margin: 6px 0 4px;
   padding: 0;
+  cursor: pointer;
 }
-.scale input[type="range"]:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 6px;
-  border-radius: 999px;
+.scale input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--ink);
+}
+.scale input[type="range"]::-moz-range-track {
+  height: 2px;
+  background: var(--ink);
 }
 .scale input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 20px; height: 20px;
-  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  margin-top: -9px;
+  border-radius: 0;
   background: var(--accent);
-  border: 2px solid var(--bg);
-  box-shadow: 0 0 0 1px var(--accent);
-  cursor: pointer;
+  border: 0;
 }
 .scale input[type="range"]::-moz-range-thumb {
-  width: 16px; height: 16px;
-  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  border-radius: 0;
   background: var(--accent);
-  border: 2px solid var(--bg);
-  box-shadow: 0 0 0 1px var(--accent);
-  cursor: pointer;
+  border: 0;
+}
+.scale input[type="range"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .scale-ends {
   display: flex;
   justify-content: space-between;
+  gap: 16px;
   font-size: 12px;
+  letter-spacing: 0.04em;
   color: var(--ink-3);
+  margin-top: 2px;
 }
 .scale-read {
-  text-align: center;
-  margin-top: 18px;
-  font-size: 16px;
-  min-height: 26px;
-  font-family: var(--font-display);
+  margin-top: 24px;
+  border-top: 1px solid var(--ink);
+  padding-top: 14px;
+  font-size: 15px;
+  color: var(--ink-2);
+  line-height: 1.5;
 }
-.scale-read b { color: var(--accent); font-weight: 600; }
-.scale-read span { color: var(--ink-2); font-size: 13px; font-family: var(--font-body); }
+.scale-read b {
+  display: inline-block;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.024em;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.scale-read span { font-size: 14px; color: var(--ink-2); }
 
-/* ---------- 香调多选：一枚枚小印 ---------- */
+/* ---------- 香调多选 ----------
+   Swiss 的标签是方框加打字机感，不用胶囊、不用阴影。 */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
-  font-family: var(--font-display);
-  font-size: 14px;
-  letter-spacing: .5px;
-  padding: 7px 14px;
-  min-height: 44px;
+  appearance: none;
   display: inline-flex;
   align-items: center;
+  font-family: var(--font-body);
+  font-size: 14px;
+  letter-spacing: -0.005em;
+  padding: 12px 14px;
+  min-height: 44px;
   border: 1px solid var(--edge);
-  background: transparent;
+  background: var(--bg);
   color: var(--ink-2);
-  border-radius: 999px;
+  border-radius: 0;
   cursor: pointer;
-  transition: all .15s;
+  transition: background-color 120ms linear, color 120ms linear,
+              border-color 120ms linear;
 }
-.chip:hover { border-color: var(--ink-2); color: var(--ink); background: var(--bg-2); }
-.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip:hover { border-color: var(--ink); color: var(--ink); }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .chip[aria-pressed="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--ink);
+  border-color: var(--ink);
   color: var(--bg);
   font-weight: 600;
 }
+/* 讨厌栏选中用危险色，与喜欢栏区分。白字压其上 7.26:1。 */
 .chip[aria-pressed="true"].neg {
   background: var(--danger);
   border-color: var(--danger);
   color: var(--bg);
 }
 .chips-label {
-  font-family: var(--font-display);
-  font-size: 14px;
-  letter-spacing: .5px;
-  color: var(--ink);
-  margin: 28px 0 12px;
-  line-height: 1.3;
   display: flex;
   align-items: center;
   gap: 8px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin: 28px 0 10px;
+  line-height: 1.3;
 }
-/* 标签前一枚朱砂小方，像古人断句的句读号。
+/* 标签前一段 12px 短线，像规格表的引出线。
    刻意不用 border-left 色条——那是最典型的模板 UI 痕迹。 */
 .chips-label::before {
   content: "";
   flex: none;
-  width: 6px;
-  height: 6px;
-  background: var(--accent);
-  transform: rotate(45deg);
+  width: 12px;
+  height: 1px;
+  background: var(--ink);
 }
 
 /* ---------- 底部动作 ---------- */
 .actions {
-  margin-top: 38px;
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 12px;
+  margin-top: 36px;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
 }
 .btn {
-  font-family: var(--font-display);
-  font-size: 15px;
-  letter-spacing: .8px;
-  padding: 11px 22px;
-  min-height: 44px;
+  appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius);
-  border: 1px solid var(--accent);
-  background: var(--accent);
+  border: 1px solid var(--ink);
+  background: var(--ink);
   color: var(--bg);
+  font-family: var(--font-body);
+  font-size: 15px;
   font-weight: 600;
+  letter-spacing: -0.005em;
+  padding: 14px 22px;
+  min-height: 44px;
+  border-radius: 0;
   cursor: pointer;
-  transition: background .15s, transform .1s, opacity .15s;
+  transition: background-color 120ms linear, border-color 120ms linear;
 }
-/* 按下时像盖章：颜色压深一点，位置下沉 1px */
-.btn:hover { background: #7a3125; border-color: #7a3125; }
+.btn:hover { background: var(--accent); border-color: var(--accent); }
 .btn:active { transform: translateY(1px); }
-.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 次按钮：白底墨线。Swiss 的两级按钮就是实心与描边，没有第三种。 */
 .btn.ghost {
   background: transparent;
   color: var(--ink-2);
   border-color: var(--edge);
-  font-weight: 400;
+  font-weight: 500;
 }
 .btn.ghost:hover {
-  background: var(--bg-2);
-  border-color: var(--ink-2);
+  background: transparent;
   color: var(--ink);
+  border-color: var(--ink);
 }
-.btn:disabled { opacity: .32; cursor: not-allowed; }
-.spacer { flex: 1; }
-.hint { font-size: 12px; color: var(--ink-3); }
+.btn:disabled {
+  background: var(--bg-3);
+  border-color: var(--bg-3);
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+.spacer { flex: 1 1 auto; }
+.hint { font-size: 12px; color: var(--ink-3); letter-spacing: 0.02em; }
 
 /* ---------- 结果 ---------- */
 .result-head {
-  border-bottom: 1px solid var(--edge);
+  border-bottom: 1px solid var(--ink);
   padding-bottom: 20px;
   margin-bottom: 30px;
 }
 .result-head .eyebrow {
-  font-family: var(--font-display);
   font-size: 12px;
-  letter-spacing: 1.4px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--accent);
-  margin-bottom: 8px;
+  font-weight: 600;
+  margin-bottom: 10px;
 }
 .result-head h2 {
-  font-family: var(--font-display);
-  font-size: 26px;
-  margin: 0 0 8px;
-  font-weight: 600;
-  letter-spacing: .3px;
-  line-height: 1.32;
+  font-size: 34px;
+  margin: 0 0 10px;
+  font-weight: 700;
+  letter-spacing: -0.028em;
+  line-height: 1.08;
 }
 .result-head p {
   margin: 0;
   color: var(--ink-2);
-  font-size: 14px;
+  font-size: 16px;
+  line-height: 1.5;
 }
+/* 用户画像回显：等宽小字，像规格表 */
 .result-head .profile-line {
-  display: inline-block;
-  margin-top: 14px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono);
   font-size: 12px;
+  line-height: 1.7;
   color: var(--ink-2);
-  background: var(--bg-2);
-  border: 1px solid var(--line);
-  padding: 6px 12px;
-  border-radius: var(--radius);
-  letter-spacing: .3px;
+  letter-spacing: 0;
 }
 
-/* 结果卡：像一页书的版心，四边留白，纸色压深一层。
-   顶部一道朱砂短横当书眉（不是左侧色条——那是模板 UI 最显眼的破绽）。 */
+@media (max-width: 620px) {
+  .result-head h2 { font-size: 24px; letter-spacing: -0.02em; }
+}
+
+/* 候选卡：靠顶部粗线和编号建立层级，不用卡片、不用阴影、不用圆角。
+   Swiss 的列表项之间只有一条线。 */
 article.pick {
-  border: 1px solid var(--line);
-  background: var(--bg-2);
-  padding: 30px 24px 22px;
-  margin-bottom: 20px;
-  position: relative;
-  border-radius: var(--radius);
+  border-top: 2px solid var(--ink);
+  padding: 22px 0 28px;
+  margin-bottom: 8px;
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
 }
-article.pick::before {
-  content: "";
-  position: absolute;
-  top: -1px;
-  left: 24px;
-  width: 40px;
-  height: 2px;
-  background: var(--accent);
-}
+article.pick:last-of-type { border-bottom: 1px solid var(--line); }
 
 .pick-rank {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 12px;
-  margin-bottom: 10px;
-}
-/* 编号做成一方小印：朱砂底、纸色字。 */
-.pick-rank .n {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 26px;
-  height: 22px;
-  padding: 0 5px;
-  background: var(--accent);
-  color: var(--bg);
-  font-family: var(--font-mono);
+  margin-bottom: 8px;
   font-size: 12px;
-  letter-spacing: .5px;
-  border-radius: 2px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+/* 编号：等宽加大字号。Swiss 的编号就是信息本身，不是装饰。 */
+.pick-rank .n {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent);
 }
 .pick-rank .score {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  margin-left: auto;
+  letter-spacing: 0;
 }
+
 .pick h3 {
-  font-family: var(--font-display);
-  font-size: 20px;
-  margin: 0 0 3px;
-  font-weight: 600;
-  letter-spacing: .3px;
-  line-height: 1.35;
+  margin: 0 0 4px;
+  font-size: 26px;
+  line-height: 1.14;
+  font-weight: 700;
+  letter-spacing: -0.024em;
 }
 .pick .meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
-  color: var(--ink-3);
-  margin-bottom: 18px;
+  color: var(--ink-2);
+  margin-bottom: 16px;
 }
-/* 分隔点用 --ink-3 而不是 --edge：--edge 是控件边界色（4.06:1，做边框够、做文字不够） */
-.pick .meta .dot { margin: 0 6px; color: var(--ink-3); }
+/* 分隔点改成竖线：Swiss 排版里中点用得少，竖线更像规格表 */
+.pick .meta .dot {
+  display: inline-block;
+  width: 1px;
+  height: 11px;
+  background: var(--edge);
+  color: transparent;
+  overflow: hidden;
+  font-size: 0;
+  text-indent: -999em;
+}
 
-/* 三调表：像一份标注清楚的器物图说 */
+/* 香调金字塔：三行两列，dt 固定列宽对齐，dd 左对齐 */
 .pyramid {
   display: grid;
   grid-template-columns: 58px 1fr;
-  gap: 0;
-  margin: 0 0 20px;
+  gap: 6px 14px;
+  margin: 0 0 18px;
+  padding: 14px 0;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
-}
-.pyramid dt, .pyramid dd {
-  margin: 0;
-  padding: 10px 0;
   font-size: 14px;
-  border-bottom: 1px solid var(--line);
+  line-height: 1.5;
 }
-.pyramid dt:last-of-type, .pyramid dd:last-of-type { border-bottom: none; }
 .pyramid dt {
-  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.06em;
   color: var(--ink-3);
-  font-size: 13px;
-  letter-spacing: .5px;
-  padding-top: 12px;
+  font-weight: 600;
+  padding-top: 1px;
 }
-.pyramid dd { color: var(--ink); }
-.pyramid dd span { color: var(--ink-3); font-size: 12px; }
+.pyramid dd { margin: 0; color: var(--ink); }
+.pyramid dd span {
+  color: var(--ink-3);
+  font-size: 12px;
+  margin-left: 6px;
+}
 
-/* 理由：像注文的序号 */
-.reasons {
-  list-style: none;
-  counter-reset: r;
-  padding: 0;
-  margin: 0 0 18px;
-}
+/* 理由：短横线做项目符号，不用圆点不用勾 */
+.reasons { margin: 0; padding: 0; list-style: none; }
 .reasons li {
-  counter-increment: r;
   position: relative;
-  padding-left: 32px;
-  margin-bottom: 10px;
+  padding-left: 16px;
+  margin-bottom: 7px;
   font-size: 14px;
-  color: var(--ink);
-  line-height: 1.62;
+  line-height: 1.55;
+  color: var(--ink-2);
 }
 .reasons li::before {
-  content: counter(r, decimal-leading-zero);
+  content: "";
   position: absolute;
   left: 0;
-  top: 2px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--accent);
-  letter-spacing: .5px;
-  font-variant-numeric: tabular-nums;
+  top: 0.66em;
+  width: 8px;
+  height: 1px;
+  background: var(--ink-3);
 }
 .reasons li.warn { color: var(--danger); }
-.reasons li.warn::before { color: var(--danger); }
+.reasons li.warn::before { background: var(--danger); }
 
 .pick-foot {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
   align-items: center;
-  font-size: 12px;
-  color: var(--ink-3);
-  padding-top: 4px;
+  gap: 10px;
+  margin-top: 14px;
 }
 .pick-foot a {
-  color: var(--ink-2);
-  text-decoration: none;
-  border-bottom: 1px solid var(--edge);
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0 2px;
-}
-.pick-foot a:hover { color: var(--accent); border-color: var(--accent); }
-.tag {
-  display: inline-block;
-  padding: 3px 9px;
-  border: 1px solid var(--line);
-  border-radius: 2px;
   font-size: 12px;
   color: var(--ink-2);
-  background: var(--bg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.pick-foot a:hover { color: var(--accent); }
+
+.tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  padding: 3px 7px;
+  border-radius: 0;
 }
 
 /* ---------- 页脚 ---------- */
 footer.foot {
-  margin-top: 54px;
-  padding-top: 20px;
-  border-top: 1px solid var(--edge);
+  margin-top: 56px;
+  border-top: 1px solid var(--ink);
+  padding-top: 18px;
   font-size: 12px;
+  line-height: 1.65;
   color: var(--ink-3);
-  line-height: 1.8;
+  letter-spacing: 0;
 }
-/* 页脚链接跟在长句里，抬到 24px（WCAG 2.5.8 下限）而不是 44px，
-   否则会把页脚行距撑散。刻意取舍，不是漏改。 */
+footer.foot strong { color: var(--ink-2); font-weight: 600; }
 footer.foot a {
   color: var(--ink-2);
-  display: inline-block;
-  min-height: 24px;
-  line-height: 24px;
-  border-bottom: 1px solid var(--line);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
-footer.foot a:hover { color: var(--accent); border-color: var(--accent); }
-footer.foot strong { color: var(--ink-2); font-weight: 500; }
-
-/* ---------- 动效：只留纸页翻动的那一点位移 ---------- */
-.fade-in { animation: fade .4s ease both; }
-@keyframes fade {
-  from { opacity: 0; transform: translateY(5px); }
-  to   { opacity: 1; transform: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .fade-in { animation: none; }
-  .disc-svg .ring-spin { animation: none; }
-  .disc-svg .sector-g { transition: none; }
-  * { transition: none !important; }
-}
-
-/* ---------- 窄屏 ---------- */
-@media (max-width: 620px) {
-  /* 首屏必须装下整个圆盘（iPhone SE 375×667 是最紧的一档）。
-     竖向预算：padding-top 14 + masthead 96/mb 14 + progress 2/mb 10
-     + 提示行 30 + stage-lead 108 + 圆盘 min(90vw, 56vh, 420)。
-     省掉的部分不动字号（test-contrast 守着 12px 下限）。 */
-  #app { padding: 14px 16px 60px; }
-  .masthead { margin-bottom: 14px; padding-bottom: 12px; }
-  .masthead::before { left: -10px; top: 6px; height: 18px; width: 4px; }
-  .masthead h1 { font-size: 20px; }
-  .masthead .lede { font-size: 13px; }
-  .q-title { font-size: 20px; }
-  .stage-lead { margin-bottom: 2px; }
-  .stage-lead .q-title { font-size: 20px; }
-  .stage-lead .q-help { font-size: 13px; line-height: 1.45; }
-  .pick h3 { font-size: 19px; }
-  .opt { grid-template-columns: 26px 1fr; }
-  .opt .tick { display: none; }
-  .pyramid { grid-template-columns: 50px 1fr; }
-  .disc { width: min(90vw, 56vh, 420px); }
-  .disc-sector { font-size: 14px; min-width: 56px; padding: 4px 6px; }
-  .disc-sector .en { display: none; }
-  /* 盘心放大到 42%：34% 在 390 宽下只有 119px，说明文字被挤成三行。
-     42% 时内宽约 124px，同样 16 个字能落到两行。
-     代价是会盖住内圈那道点线（r=95），所以窄屏直接把它隐掉——
-     它是装饰，不是信息。 */
-  .disc-hub { width: 42%; padding: 6%; }
-  .disc-svg .ring-accent { display: none; }
-  .disc-hub .hub-zh { font-size: 18px; }
-  .disc-hub .hub-desc { font-size: 12px; line-height: 1.28; margin-top: 4px; }
-  article.pick { padding: 22px 16px 18px; }
-  .foot { margin-top: 34px; }
-}
-
-/* 矮屏（横屏手机、老机型）：圆盘再压一档，宁可小也不能顶出首屏 */
-@media (max-height: 700px) and (max-width: 620px) {
-  .disc { width: min(86vw, 50vh, 380px); }
-  .disc-hub .hub-desc { display: none; }
-}
+footer.foot a:hover { color: var(--accent); }
 
 /* ---------- 骨架屏 ----------
-   数据没到之前画一个圆盘轮廓，取代原来的空白。
-   为什么不用 spinner：一个转圈图标没有交代「在等什么」，圆盘轮廓能让用户
-   提前知道这页长什么样，数据到位时也不跳版。 */
-.skeleton { display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 32px 0 48px; }
-
+   静态版写在 index.html 里（不能由 module 注入，慢网下会晚 3 秒）。
+   这里只定义外观：一个细墨线圈 + 一道绕圈的弧，不用渐变呼吸。 */
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 48px 0 24px;
+}
 .skeleton-ring {
   width: min(88vw, var(--discw));
   max-width: 420px;
@@ -884,30 +863,56 @@ footer.foot strong { color: var(--ink-2); font-weight: 500; }
   border-radius: 50%;
   border: 1px solid var(--line);
   position: relative;
-  background: var(--bg-2);
+  background: var(--bg);
 }
-/* 内圈一道更淡的线，暗示这是可以切分的圆盘而非一个圆点 */
 .skeleton-ring::after {
   content: "";
   position: absolute;
   inset: 22%;
   border-radius: 50%;
-  border: 1px dashed var(--edge);
-  opacity: .35;
+  border: 1px solid var(--line);
 }
 .skeleton-ring::before {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: -1px;
   border-radius: 50%;
-  background: conic-gradient(from -90deg, var(--bg-3) 0 25%, transparent 25% 50%, var(--bg-3) 50% 75%, transparent 75% 100%);
-  opacity: .55;
-  animation: skeleton-breathe 1.8s ease-in-out infinite;
+  border: 2px solid transparent;
+  border-top-color: var(--ink-3);
+  animation: skeleton-sweep 1.6s linear infinite;
 }
-@keyframes skeleton-breathe { 0%, 100% { opacity: .25; } 50% { opacity: .6; } }
+@keyframes skeleton-sweep { to { transform: rotate(360deg); } }
 
-.skeleton-note { font-size: 12px; color: var(--ink-3); text-align: center; margin: 0; }
+.skeleton-note {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  text-align: center;
+  max-width: 30em;
+}
+
+/* ---------- 动效与降级 ----------
+   Swiss 只承认硬切。保留一个 120ms 的 fade 只是为了不闪，不用缓动曲线。 */
+.fade-in { animation: fade-in 120ms linear both; }
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton-ring::before { animation: none; opacity: .35; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* 打印：Swiss 的终点本来就是纸。去掉进度与按钮，保留信息 */
+@media print {
+  body { background: #fff; }
+  .progress, .actions, .skeleton { display: none; }
+  article.pick { break-inside: avoid; }
 }
