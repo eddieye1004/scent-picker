@@ -299,7 +299,9 @@ const MAX_REASONS = 3;
 function reasonText(b, profile) {
   switch (b.factor) {
     case 'family':
-      return `你选了「${profile.emotion.zh}」+「${profile.occasion.zh}」，这瓶的主体是${b.familyZh}`;
+      // 三条理由如果都用「X，正是「Y」这一类」的句式，读起来就是同一个模板填词。
+      // 这里让 family 用「主调 + 占比」的事实句，跟下面两条在句型上岔开。
+      return `主调是${b.familyZh}，在你选的「${profile.emotion.zh}」里占大头`;
     case 'intensity':
       return `浓郁度 ${profile.intensity}/5 的偏好下，它的厚重感 ${b.heaviness} 落在这个区间`;
     case 'season':
@@ -309,7 +311,9 @@ function reasonText(b, profile) {
     case 'likedNotes':
       return `含你点名的 ${b.hits.slice(0, 2).join('、')}`;
     case 'emotionNotes':
-      return `里面有${b.hits.slice(0, 2).join('、')}，正是「${profile.emotion.zh}」这一类气味的主力`;
+      // 「这一类气味的主力」是句空话——「这一类」指代不明，读者拿不到新信息。
+      // 换成点名具体香材 + 它落在哪个调，是可核对的事实。
+      return `${b.hits.slice(0, 2).join('、')}在里面，是「${profile.emotion.zh}」靠的那几种味道`;
     case 'popularity':
       return `知名度排名 ${b.rank}，属于相对好买、好试的一类`;
     default:

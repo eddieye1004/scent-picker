@@ -312,7 +312,9 @@ ok('理由条数不超过 3（避免堆砌）',
 ok('每条理由含至少一条结构性理由（家族/浓度）',
   appRoot.querySelectorAll('.reasons').every((r) => {
     const t = r.textContent;
-    return /主体是|厚重感|浓郁度/.test(t);
+    // 家族/浓度这两条是结构性理由，占分权重最高（52/100）。文字改过措辞，
+    // 所以这里同时认新旧两套说法 —— 但要守住「不能只靠 likedNotes 那一句」这个意思。
+    return /主体是|主调是|厚重感|浓郁度/.test(t);
   }));
 ok('结果含数据来源链接',
   appRoot.querySelectorAll('a').some((a) => String(a.attrs.href || '').includes('scento')));

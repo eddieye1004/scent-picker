@@ -298,7 +298,13 @@ function buildDisc(items, cfg) {
         groups.forEach((g, j) => g.classList.toggle('is-hot', j === i));
         onPick(it);
       },
-      onmouseenter: () => { showInHub(it, 'hover'); hub.classList.add('is-hover'); },
+      // 悬停文字标签时扇形必须同步亮：按钮盖在扇形上方，只给 <g> 挂 mouseenter
+      // 的话，指针落在文字上扇形是不动的，反馈就断在用户最常指的位置。
+      onmouseenter: () => {
+        showInHub(it, 'hover');
+        hub.classList.add('is-hover');
+        groups.forEach((g, j) => g.classList.toggle('is-hot', j === i));
+      },
       onmouseleave: () => {
         const cur = items.find((x) => x.id === pick.current);
         showInHub(cur || null);
@@ -791,7 +797,7 @@ function renderMasthead() {
     el('p', { class: 'lede' },
       isResult
         ? '每一瓶的理由都能反推回你刚才的选择，没有一句是编的。'
-        : '不用懂前中后调。回答四个问题，我们会给你三个具体到型号的候选，和选它的理由。'
+        : '不用懂前中后调。四个问题，换三个具体到型号的候选，和选它的理由。'
     ),
     // 印章：纯装饰（aria-hidden），字取「香」—— 这个应用唯一的主题字。
     el('span', { class: 'seal', 'aria-hidden': 'true' }, '香')
@@ -929,8 +935,11 @@ function render() {
   }
   app.appendChild(renderFooter());
 
-  const first = app.querySelector('.disc-sector, .opt, input[type="range"], .chip');
-  if (first && state.step < STEPS.length) first.focus({ preventScroll: true });
+  // 不再自动聚焦第一个扇区。
+  // 原先会 focus，导致：① 新访客一进来就看见「清冷」戴着红色焦点环、盘心写着
+  // 「正在看 清冷」，误以为已经选中；② 真正的空态（还没选）永远不出现；
+  // ③ 焦点环在鼠标用户眼里是"选中"，与真实选择态撞车。
+  // 键盘用户仍可用 Tab 进圆盘（roving tabindex 已保证进得去），不需要替他们抢焦点。
 }
 
 /* ---------- 启动 ---------- */
