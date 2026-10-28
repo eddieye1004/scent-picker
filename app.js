@@ -592,6 +592,10 @@ function renderNotes() {
   // 40 个香调里有些在库里出现 0 次 —— 勾了它却永远推荐不出东西，等于骗一次点击。
   const usable = getUsableNotes();
 
+  // 同一香调不能既"喜欢"又"讨厌"。两栏各建一个 en → chip 的登记表，
+  // 勾一边时直接把另一边的 chip 关掉，不靠 DOM 结构去猜是哪一栏。
+  const chipRegistry = { likedNotes: new Map(), dislikedNotes: new Map() };
+
   const mkChips = (list, key, neg) => {
     const zhKey = key === 'likedNotes' ? 'likedZh' : 'dislikedZh';
     const box = el('div', { class: 'chips' });
@@ -600,9 +604,15 @@ function renderNotes() {
       const chip = el('button', {
         class: 'chip' + (neg && active ? ' neg' : ''),
         type: 'button',
+        // 标出所属栏：两栏有同名香调，测试与同步逻辑都要能分辨是哪一个，
+        // 靠 DOM 顺序猜（第一个 .chips 是喜欢…）在加了隐藏折叠区之后就不成立了。
+        'data-col': neg ? 'disliked' : 'liked',
         'aria-pressed': String(active),
         onclick: () => {
           const arr = state.answers[key];
+          const otherKey = key === 'likedNotes' ? 'dislikedNotes' : 'likedNotes';
+          const otherZh = key === 'likedNotes' ? 'dislikedZh' : 'likedZh';
+          const other = state.answers[otherKey];
           const idx = arr.indexOf(n.en);
           if (idx >= 0) {
             arr.splice(idx, 1);
@@ -610,11 +620,29 @@ function renderNotes() {
           } else {
             arr.push(n.en);
             state.answers[zhKey][n.en] = n.zh;  // 记住用户看到的中文名
+            // 同一香调不能既喜欢又讨厌。之前两栏互不通信，实测可以同时勾上
+            // 琥珀/香草各两次，进引擎后喜欢分与讨厌分互相抵消，理由里
+            // 反而完全不提用户点名的香材 —— 用户看到的是"我明明选了它"。
+            const oi = other.indexOf(n.en);
+            if (oi >= 0) {
+              other.splice(oi, 1);
+              delete state.answers[otherZh][n.en];
+            }
           }
           chip.setAttribute('aria-pressed', String(idx < 0));
           chip.classList.toggle('neg', neg && idx < 0);
+          // 刚勾上时，把对面那栏同名 chip 关掉并同步它的视觉态
+          if (idx < 0) {
+            const twin = chipRegistry[otherKey].get(n.en);
+            if (twin) {
+              twin.setAttribute('aria-pressed', 'false');
+              twin.classList.remove('neg');
+            }
+          }
         },
       }, n.zh);
+      const reg = chipRegistry[key].get(n.en);
+      if (reg) chipRegistry[key].set(n.en, reg); else chipRegistry[key].set(n.en, chip);
       box.appendChild(chip);
     });
     return box;
@@ -650,9 +678,8 @@ function renderNotes() {
   wrap.appendChild(moreBox);
 
   const moreBtn = el('button', {
-    class: 'btn ghost',
     type: 'button',
-    style: 'margin-top:14px;padding:7px 14px;font-size:13px',
+    class: 'btn ghost btn-more',
     onclick: () => {
       const hidden = moreBox.style.display === 'none';
       moreBox.style.display = hidden ? 'flex' : 'none';
@@ -670,9 +697,8 @@ function renderNotes() {
   wrap.appendChild(disMoreBox);
 
   const disMoreBtn = el('button', {
-    class: 'btn ghost',
     type: 'button',
-    style: 'margin-top:10px;padding:7px 14px;font-size:13px',
+    class: 'btn ghost btn-more',
     onclick: () => {
       const hidden = disMoreBox.style.display === 'none';
       disMoreBox.style.display = hidden ? 'flex' : 'none';
