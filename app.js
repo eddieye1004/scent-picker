@@ -95,11 +95,13 @@ const STEPS = [
    44px 触控保护，键盘 Tab 也进不去 —— 那样只剩"看起来能点"。
    盘心显示当前指向项的说明，指针移上去就先读一遍，再决定点不点。 */
 const SVG_NS = 'http://www.w3.org/2000/svg';
-// rIn 取 138 而不是更小的值：盘心是一块 34% 的方块，它的四个角比边长更靠外
-// （角到圆心 = 34% × √2/2 = 24.0%）。内圆半径必须大于这个数，否则方角穿出内弧，
-// 把整条内圆切成四段碎线 —— 实测 rIn=104（21.7%）时就是这样，看着像渲染坏了。
-// 138/480 = 28.75%，比方角 24.0% 留出 4.75% 余量。
-const DISC = { vb: 480, cx: 240, cy: 240, rOut: 230, rIn: 138, gapDeg: 1.6 };
+// rIn 的取值由盘心的 **方角** 决定，不是方角边长决定的。
+// 盘心是方块，四个角到圆心的距离 = 边长 × √2/2 ≈ 边长 × 0.7071，比方边长本身更靠外。
+// 设盘心边长占盘径 p，则方角占 p×0.7071；内圆半径必须大于它，否则方角穿出内弧，
+// 把整条内圆切成四段碎线（rIn=104 时就是这样），或者干脆顶出轮廓（盘心 42% 时实测溢出 3.2px）。
+// 取 rIn=146：146/480 = 30.42%，容得下 42% 盘心（29.70%），留 0.72% 余量；
+// 桌面盘心 34%（24.04%）余量 6.4%，约 32px——这个空隙就是盘心不"贴脸"的来源。
+const DISC = { vb: 480, cx: 240, cy: 240, rOut: 230, rIn: 146, gapDeg: 1.6 };
 
 function polar(r, deg) {
   const rad = (deg * Math.PI) / 180;
@@ -138,6 +140,12 @@ function buildDisc(items, cfg) {
   const startBase = -90 - half;
 
   const root = el('div', { class: 'disc', role: 'radiogroup', 'aria-label': label });
+
+  /* 可旋转层。SVG 与标签一起转，但标签各自反向旋转，文字始终正立。
+     旋转量只由一个自定义属性 --disc-rot 驱动：每帧只写一次 style，
+     6 个标签靠 calc(-1 * var(--disc-rot)) 自动跟随，不必逐个改。 */
+  const rot = el('div', { class: 'disc-rot' });
+  root.appendChild(rot);
 
   /* --- SVG：扇形 + 装饰环 --- */
   const svg = svgEl('svg', {
@@ -185,30 +193,44 @@ function buildDisc(items, cfg) {
     svg.appendChild(g);
     groups.push(g);
   });
-  root.appendChild(svg);
+  rot.appendChild(svg);
 
   /* --- 盘心：默认空态，指针移上去就换成那一条的说明 --- */
-  const hubKicker = el('div', { class: 'hub-kicker' }, '尚未选择');
-  const hubZh = el('div', { class: 'hub-zh' }, '还没选');
-  const hubDesc = el('div', { class: 'hub-desc' }, '点任意扇区，或先把指针移上去看看');
-  const hub = el('div', { class: 'disc-hub is-idle' }, hubKicker, hubZh, hubDesc);
-  root.appendChild(hub);
-
   // kicker 要跟着状态走：悬停时写「当前选择」是错的——那时还没选。
   const IDLE_KICK = '尚未选择';
   const HOVER_KICK = '正在看';
   const PICK_KICK = '当前选择';
+  // 空态文案分长短路：手机盘心只有 130px，长句会挤成三行贴到边框。
+  const narrow = window.matchMedia?.('(max-width: 620px)').matches;
+  const IDLE_DESC = narrow ? '点任意扇区' : '点任意扇区，或先把指针移上去看看';
+
+  const hubKicker = el('div', { class: 'hub-kicker' }, IDLE_KICK);
+  const hubZh = el('div', { class: 'hub-zh' }, '还没选');
+  const hubDesc = el('div', { class: 'hub-desc' }, IDLE_DESC);
+  const hub = el('div', { class: 'disc-hub is-idle' }, hubKicker, hubZh, hubDesc);
+  root.appendChild(hub);
+
   const showInHub = (it, kind) => {
+    const nextZh = it ? it.zh : '还没选';
+    const nextDesc = it ? it.desc : IDLE_DESC;
+    const changed = hubZh.textContent !== nextZh;
     if (it) {
       hub.classList.remove('is-idle');
       hubKicker.textContent = kind === 'hover' ? HOVER_KICK : PICK_KICK;
-      hubZh.textContent = it.zh;
-      hubDesc.textContent = it.desc;
+      hubZh.textContent = nextZh;
+      hubDesc.textContent = nextDesc;
     } else {
       hub.classList.add('is-idle');
       hubKicker.textContent = IDLE_KICK;
-      hubZh.textContent = '还没选';
-      hubDesc.textContent = '点任意扇区，或先把指针移上去看看';
+      hubZh.textContent = nextZh;
+      hubDesc.textContent = nextDesc;
+    }
+    // 只有文字真的换了才放动画：鼠标在同一条上反复进出不该一直闪。
+    // is-swap 先移除再加，强制浏览器重新触发 keyframes（连续两次同值不会重播）。
+    if (changed) {
+      hub.classList.remove('is-swap');
+      void hub.offsetWidth;
+      hub.classList.add('is-swap');
     }
   };
 
@@ -249,11 +271,13 @@ function buildDisc(items, cfg) {
     g.addEventListener('mouseenter', () => {
       showInHub(it, 'hover');
       g.classList.add('is-hot');
+      hub.classList.add('is-hover');
     });
     g.addEventListener('mouseleave', () => {
       const cur = items.find((x) => x.id === pick.current);
       showInHub(cur || null);
       groups.forEach((x, j) => x.classList.toggle('is-hot', items[j].id === pick.current));
+      hub.classList.remove('is-hover');
     });
 
     const btn = el('button', {
@@ -270,11 +294,12 @@ function buildDisc(items, cfg) {
         groups.forEach((g, j) => g.classList.toggle('is-hot', j === i));
         onPick(it);
       },
-      onmouseenter: () => showInHub(it, 'hover'),
+      onmouseenter: () => { showInHub(it, 'hover'); hub.classList.add('is-hover'); },
       onmouseleave: () => {
         const cur = items.find((x) => x.id === pick.current);
         showInHub(cur || null);
         groups.forEach((g, j) => g.classList.toggle('is-hot', items[j].id === pick.current));
+        hub.classList.remove('is-hover');
       },
       onfocus: () => showInHub(it, 'hover'),
       onblur: () => {
@@ -300,12 +325,122 @@ function buildDisc(items, cfg) {
       buttons[to].focus();
     });
 
-    root.appendChild(btn);
+    rot.appendChild(btn);
     buttons.push(btn);
   });
 
   // 把选择结果记进 pick.current，供 mouseleave / blur 回退盘心
   pick.current = selectedId;
+
+  /* ---------- 拖拽旋转 + 惯性 + 吸附 ----------
+     设计取舍：
+     1. 旋转量存在 root 的 --disc-rot 上，每帧只改一次样式属性；
+        6 个标签靠 calc(-1 * var(--disc-rot)) 反向抵消，文字始终正立。
+     2. 用 2.2° 角度阈值（约 6px @ 盘半径 150px）区分「拖」和「点」：
+        低于阈值不动手，让 click 正常派发；超过阈值立刻 setPointerCapture，
+        之后吞掉紧随的 click，避免松手时顺手选中某个扇区。
+     3. 松手后先按最后两帧的角度差算角速度，逐帧衰减 0.94；
+        降到 0.35°/帧 以下改用 ease-out 收进最近的扇区中线（两段式）。
+        一次性归位在快松手时会「啪」地跳一下。
+     4. 触屏不启用：圆盘在手机上占首屏大半，禁用默认手势会让用户
+        没法在圆盘上滑页——比不能转盘更糟。手机只保留点选。
+     5. prefers-reduced-motion 下完全不接管，圆盘固定不动。 */
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const coarse = window.matchMedia?.('(pointer: coarse)').matches;
+  if (!reduceMotion && !coarse) {
+    const state = {
+      rot: 0, dragging: false, moved: false,
+      startAngle: 0, startRot: 0, lastAngle: 0, lastT: 0, vel: 0,
+      raf: 0, pointerId: null,
+    };
+    const apply = (deg) => {
+      state.rot = deg;
+      rot.style.setProperty('--disc-rot', `${deg.toFixed(2)}deg`);
+      root.style.setProperty('--disc-rot', `${deg.toFixed(2)}deg`);
+    };
+    // 屏幕上某点相对盘心的极角（度）
+    const angleOf = (ev) => {
+      const r = root.getBoundingClientRect();
+      const dx = ev.clientX - (r.left + r.width / 2);
+      const dy = ev.clientY - (r.top + r.height / 2);
+      return (Math.atan2(dy, dx) * 180) / Math.PI;
+    };
+    const stopRaf = () => { if (state.raf) { cancelAnimationFrame(state.raf); state.raf = 0; } };
+
+    // 惯性 → 吸附。两段式：先自由减速，慢下来再插值归位，
+    // 一次性归位会在快松手时「啪」地跳一下。
+    const settle = () => {
+      stopRaf();
+      const step = () => {
+        if (Math.abs(state.vel) > 0.35) {
+          state.vel *= 0.94;
+          apply(state.rot + state.vel);
+          state.raf = requestAnimationFrame(step);
+          return;
+        }
+        const target = Math.round(state.rot / stepDeg) * stepDeg;
+        const delta = target - state.rot;
+        if (Math.abs(delta) < 0.15) {
+          apply(target);
+          state.raf = 0;
+          return;
+        }
+        apply(state.rot + delta * 0.22);
+        state.raf = requestAnimationFrame(step);
+      };
+      state.raf = requestAnimationFrame(step);
+    };
+
+    root.addEventListener('pointerdown', (ev) => {
+      if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+      stopRaf();
+      state.dragging = true;
+      state.moved = false;
+      state.pointerId = ev.pointerId;
+      state.startAngle = angleOf(ev);
+      state.startRot = state.rot;
+      state.lastAngle = state.startAngle;
+      state.lastT = ev.timeStamp;
+      state.vel = 0;
+    });
+
+    root.addEventListener('pointermove', (ev) => {
+      if (!state.dragging) return;
+      const a = angleOf(ev);
+      const moved = Math.abs(a - state.startAngle);
+      if (!state.moved && moved < 2.2) return;   // 约 6px @ 盘半径 150px，未达阈值
+      if (!state.moved) {
+        state.moved = true;
+        root.setPointerCapture?.(state.pointerId);
+        root.classList.add('is-dragging');
+      }
+      // 跨过 ±180° 时补正，否则会瞬跳一整圈
+      let delta = a - state.lastAngle;
+      if (delta > 180) delta -= 360;
+      if (delta < -180) delta += 360;
+      apply(state.rot + delta);
+      const dt = ev.timeStamp - state.lastT;
+      if (dt > 0) state.vel = delta * (16 / Math.max(dt, 8)) * 0.55;
+      state.lastAngle = a;
+      state.lastT = ev.timeStamp;
+    });
+
+    const endDrag = (ev) => {
+      if (!state.dragging) return;
+      state.dragging = false;
+      root.classList.remove('is-dragging');
+      // 拖过就吞掉随之而来的 click —— 否则松手会顺手选中某个扇区
+      if (state.moved) {
+        const swallow = (e) => { e.stopPropagation(); e.preventDefault(); };
+        root.addEventListener('click', swallow, { capture: true, once: true });
+        setTimeout(() => root.removeEventListener('click', swallow, { capture: true }), 0);
+      }
+      state.pointerId = null;
+      settle();
+    };
+    root.addEventListener('pointerup', endDrag);
+    root.addEventListener('pointercancel', endDrag);
+  }
 
   if (selectedId) {
     const idx = items.findIndex((x) => x.id === selectedId);
@@ -551,7 +686,7 @@ function navBar(stepId) {
   if (stepId === 'notes') {
     bar.appendChild(el('span', { class: 'hint' }, '不选也能看结果'));
     bar.appendChild(el('button', {
-      class: 'btn', type: 'button', onclick: finish,
+      class: 'btn', type: 'button', onclick: (ev) => finish(ev.currentTarget),
     }, '看推荐 →'));
     return bar;
   }
@@ -582,15 +717,38 @@ function prev() {
   }
 }
 
-async function finish() {
+async function finish(btn) {
   if (!state.answers.emotion) { state.step = 0; render(); return; }
   if (!state.answers.occasion) { state.step = 1; render(); return; }
-  // 库还没到时，这里会等它下完 —— 只有「四步全答完、但库仍在下载」才会卡到这
-  const d = await ensurePerfumes();
-  state.result = recommend(state.answers, d.perfumes, TAX, { topN: 3 });
-  state.step = STEPS.length;
-  render();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  // 库还没到时，这里会等它下完 —— 只有「四步全答完、但库仍在下载」才会卡到这。
+  // 等待期间必须给出可见反馈：按钮换成进度文案并禁用，否则用户会连点几次。
+  const busy = setBusy(btn, '正在比对…');
+  try {
+    const d = await ensurePerfumes();
+    state.result = recommend(state.answers, d.perfumes, TAX, { topN: 3 });
+    state.step = STEPS.length;
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } finally {
+    busy(false);
+  }
+}
+
+/** 把按钮切成「进行中」：改文案 + 禁用 + .is-busy。返回可恢复原状的函数。 */
+function setBusy(btn, text) {
+  if (!btn) return () => {};
+  const old = btn.textContent;
+  const disabled = btn.disabled;
+  btn.textContent = text;
+  btn.disabled = true;
+  btn.classList.add('is-busy');
+  return (restore = true) => {
+    if (restore) {
+      btn.textContent = old;
+      btn.disabled = disabled;
+      btn.classList.remove('is-busy');
+    }
+  };
 }
 
 function restart() {

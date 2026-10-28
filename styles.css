@@ -213,6 +213,34 @@ body {
   max-width: 100%;
   aspect-ratio: 1 / 1;
   margin: 28px auto 0;
+  /* 触屏上拖圆盘不该连带滚动页面。但圆盘在手机上占了首屏大半，
+     整块 touch-action:none 会让"在圆盘上滑动"完全无法滚动页面——比不能转盘更糟。
+     所以只在精确指针（鼠标/触控笔）上禁用默认手势；触屏保留 pan-y，
+     纵向仍可滚动页面，横向仍可拖动，且拖拽逻辑本身在触屏上已被关掉（见 app.js）。 */
+  touch-action: pan-y;
+  --disc-rot: 0deg;
+}
+@media (pointer: fine) {
+  .disc { touch-action: none; }
+}
+
+/* 可旋转层：SVG 与标签一起转。transform-origin 居中即可 ——
+   子元素用百分比定位，rotate 后仍是围绕盘心转。 */
+.disc-rot {
+  position: absolute;
+  inset: 0;
+  transform: rotate(var(--disc-rot, 0deg));
+  transform-origin: 50% 50%;
+  /* 拖拽中不要过渡，否则手指和圆盘会脱节；松手后的惯性由 JS 逐帧驱动，
+     也不该由 CSS 接管。所以这里只在「非拖拽」时给一个极短的抖动缓冲。 */
+  will-change: transform;
+}
+
+/* 拖拽中：光标抓手，扇区不响应 hover（手指划过会一路点亮，很吵）。 */
+.disc.is-dragging { cursor: grabbing; }
+.disc.is-dragging .disc-svg .sector-g:hover .sector-shape {
+  fill: var(--bg);
+  stroke: var(--edge);
 }
 
 /* 桌面端必须让圆盘受视口高度约束。
@@ -269,6 +297,14 @@ body {
   .stage-lead .q-title { font-size: 20px; margin-bottom: 4px; }
   .stage-lead .q-help { font-size: 13px; }
   .disc { width: min(88vw, var(--discw), 50vh); margin-top: 4px; }
+  /* 圆盘压到 360px 时盘心只有 122px，14% 的纵向内边距吃掉 34px，
+     只剩 86px 装三行字——实测 scrollHeight 138 > clientHeight 120，内容溢出。
+     这一档把纵向内边距收到 9%，字号降一级，行高收紧。 */
+  .disc-hub { padding: 8px 10px; gap: 3px; }
+  .disc-hub .hub-zh { font-size: 18px; }
+  /* 12px 是 test-contrast 强制的最小字号下限，不能降到 11px。
+     极矮屏改用「只留一行 + 省略号」来省高度，而不是缩字号。 */
+  .disc-hub .hub-desc { font-size: 12px; line-height: 1.2; max-height: 15px; }
   .actions { margin-top: 10px; padding-top: 10px; }
   footer.foot { margin-top: 24px; }
 }
@@ -283,15 +319,26 @@ body {
   fill: var(--bg);
   stroke: var(--edge);
   stroke-width: 1;
-  transition: fill 140ms linear, stroke 140ms linear;
+  transition: fill 150ms cubic-bezier(.4, 0, .2, 1), stroke 150ms cubic-bezier(.4, 0, .2, 1);
 }
 .disc-svg .sector-g { cursor: pointer; }
 
-/* hover：只把描边加深、填充转浅灰。不放大 —— 放大是拟物语言。 */
+/* hover：只把描边加深、填充转浅灰。不放大 —— 放大是拟物语言。
+   150ms + ease-out 是「立刻有反馈但不闪烁」的区间：再快（<80ms）看不出变化，
+   再慢（>200ms）鼠标横扫一排扇区会拖出尾迹。 */
 .disc-svg .sector-g:hover .sector-shape,
 .disc-svg .sector-g.is-hot .sector-shape {
   fill: var(--bg-2);
   stroke: var(--ink);
+}
+
+/* 按下：填成 --bg-3（比 hover 深一档），且不给过渡 —— 按下要瞬时。
+   若也走 150ms，手指压下去到变化发生有可感延迟，像点不动。
+   松开后过渡会把它平滑带回 hover 态。 */
+.disc-svg .sector-g:active .sector-shape {
+  fill: var(--bg-3);
+  stroke: var(--ink);
+  transition: none;
 }
 
 /* 选中：墨色实心。扇区上的文字同时转白（见 .disc-sector[aria-checked]）。
@@ -313,7 +360,9 @@ body {
    min-width / min-height 是触控下限，不能少于 44（test-contrast 会拦）。 */
 .disc-sector {
   position: absolute;
-  transform: translate(-50%, -50%);
+  /* 标签反向旋转：圆盘可拖拽旋转后，标签必须抵消掉父层的转动，文字才是正的。
+     fallback 值要与 .disc 上的 --disc-rot 一致（0deg），否则首帧会歪。 */
+  transform: translate(-50%, -50%) rotate(calc(-1 * var(--disc-rot, 0deg)));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -353,7 +402,13 @@ body {
   outline-offset: 1px;
 }
 
-/* 盘心：一块白方块压在圆心，1px 墨线描边。不圆、不发光、不加渐变。 */
+/* 盘心：一块压在圆心上的白方块。
+   层次不靠投影，靠**三层边界递进**：
+     1. 外圈留白（方角到内弧的空隙，由 rIn=146 给到，桌面约 32px）
+     2. 双层边框：外 1px --edge（浅，和扇区线同一族）+ 内 1px --ink（重，立刻抓住视线）
+     3. 内容自上而下三级字阶：12 小标 → 22 主词（朱红）→ 12 说明
+   不用 box-shadow：Swiss 里投影是最先该被砍的东西，且浅灰底上投影会脏。
+   方角与内弧的关系由 DISC.rIn 保证（见 app.js 顶部注释），这里只管盒内的呼吸。 */
 .disc-hub {
   position: absolute;
   left: 50%;
@@ -362,54 +417,123 @@ body {
   width: 34%;
   height: 34%;
   border-radius: 0;
-  border: 1px solid var(--ink);
-  background: var(--bg);
-  background-image: none;
+  /* 层次不靠阴影，靠边界的不对称——这是报刊栏线的做法：
+     上边 2px 墨色当"头部"，其余三边 1px 浅灰当"容器"。
+     视觉上立刻分出主次，但不引入任何拟物质感。
+     曾经用 border+outline 做双层框（offset:-5px），截图看是"错位的第二个框"，
+     不是层次——两层线离太近时人眼读成印刷套印不准。 */
+  border: 1px solid var(--edge);
+  border-top: 2px solid var(--ink);
+  background: var(--bg-2);
   box-shadow: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 9%;
+  gap: 5px;
+  /* 内边距必须用 px，不能用百分比。
+     绝对定位元素的百分比 padding 是按**父容器的宽度**算的（这里是 .disc 的 504px），
+     写 14% 就等于上下各 70px —— 122px 的盘心直接被撑爆（实测 scrollHeight 138 > 120）。
+     这个坑很隐蔽：CSS 看起来是「相对自己留白」，实际相对父级。 */
+  padding: 14px 16px;
   text-align: center;
   pointer-events: none;
+  transition: border-color 180ms cubic-bezier(.4,0,.2,1),
+              background-color 180ms cubic-bezier(.4,0,.2,1);
 }
+
+/* 四角角标：8px 的 L 形短线，象限对称。
+   它的作用是让方块与圆盘的几何说同一种语言——圆盘是角度构成的，
+   角标是直角构成的，两者在同一张图上读起来像一套制图符号，而不是一个网页框。
+   用 ::before/::after 只能画两个角，所以用 background 的四段线性渐变拼四个 L。 */
+.disc-hub::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--ink-3), var(--ink-3)) left top / 8px 1px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) left top / 1px 8px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) right top / 8px 1px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) right top / 1px 8px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) left bottom / 8px 1px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) left bottom / 1px 8px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) right bottom / 8px 1px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) right bottom / 1px 8px no-repeat;
+  opacity: .55;
+  transition: opacity 180ms cubic-bezier(.4,0,.2,1);
+}
+
+/* 悬停态：上边线本来已是墨色，这里把整圈边界收到墨色、底色提亮一档、
+   角标提到不透明。三个通道同时变化但都很轻，读起来是"醒了一下"而不是"换了个控件"。 */
+.disc-hub.is-hover {
+  border-color: var(--ink);
+  background: var(--bg);
+}
+.disc-hub.is-hover::before { opacity: 1; }
 .disc-hub .hub-kicker {
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-3);
   font-weight: 500;
+  transition: color 180ms cubic-bezier(.4,0,.2,1);
 }
 .disc-hub .hub-zh {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
   color: var(--accent);
+  transition: color 180ms cubic-bezier(.4,0,.2,1);
 }
 .disc-hub .hub-desc {
   font-size: 12px;
-  line-height: 1.34;
+  line-height: 1.4;
   color: var(--ink-3);
+  /* 说明最多两行。这里不能用 -webkit-line-clamp：
+     它要配合 display:-webkit-box，而 -webkit-box 作为 flex 子项时高度会塌成 0。
+     改用 max-height 裁两行——12px × 1.4 × 2 ≈ 34px，加 1px 余量。
+     还必须写 flex: none：flex 子项默认可收缩，内容一旦超高会被压成 0 高，
+     表现出来的现象是「说明文字凭空消失」，而 CSS 里看不出任何问题。 */
+  flex: none;
+  max-height: 34px;
+  overflow: hidden;
+  transition: color 180ms cubic-bezier(.4,0,.2,1);
 }
 .disc-hub.is-idle .hub-zh { color: var(--ink-3); }
+
+/* 盘心换字时的淡入：只在文字内容变化时触发（JS 加 .is-swap 再移除）。
+   180ms 是因为 34% 方块本身很小，时间长了会显得黏。 */
+@keyframes hub-swap {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+.disc-hub.is-swap .hub-zh,
+.disc-hub.is-swap .hub-desc {
+  animation: hub-swap 180ms cubic-bezier(.2,0,.2,1) both;
+}
 
 @media (max-width: 620px) {
   .disc { width: min(92vw, 380px); margin-top: 18px; }
   .disc-sector { font-size: 14px; padding: 5px 6px; }
   /* 窄屏隐藏英文副标：380px 直径的圆里两行字会撞在一起 */
   .disc-sector .en { display: none; }
-  .disc-hub { width: 42%; height: 42%; padding: 6%; gap: 4px; }
+  /* 盘心从 34% 放到 38%，但不能再大：
+     方角 = 边长 × 0.7071，38% 的方角是 26.87%，内弧 30.42% 还剩 12px 空隙。
+     曾经用过 42%（方角 29.70%），实测在 iPhone 14 / 360 / 320 上溢出 2.6–3.2px。 */
+  .disc-hub { width: 38%; height: 38%; padding: 10px 12px; gap: 4px; }
+  .disc-hub::before { inset: 2px; }
   .disc-hub .hub-zh { font-size: 17px; }
-  .disc-hub .hub-desc { font-size: 12px; line-height: 1.28; }
+  .disc-hub .hub-desc { font-size: 12px; line-height: 1.3; max-height: 32px; }
 }
 
 /* 矮屏（iPhone SE 竖屏 667px）：圆盘再压一档，保证首屏看到完整圆盘 */
 @media (max-width: 620px) and (max-height: 700px) {
   .disc { width: min(86vw, 320px); margin-top: 12px; }
+  .disc-hub { width: 40%; height: 40%; padding: 8px 10px; }
   .disc-hub .hub-desc { display: none; }
+  .disc-hub .hub-zh { font-size: 16px; }
 }
 
 /* ---------- 通用选项条目（第 2 步的备用形态）----------
@@ -496,6 +620,13 @@ body {
   border-radius: 0;
   background: var(--accent);
   border: 0;
+  /* 拖动时方块轻微撑开 + 加深，是「手在捏着它」的最轻表达；
+     20→22px 只有 2px 的差别，但足以让人确认「我抓住了」。 */
+  transition: transform 120ms cubic-bezier(.4, 0, .2, 1), background-color 120ms linear;
+}
+.scale input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.1);
+  background: var(--ink);
 }
 .scale input[type="range"]::-moz-range-thumb {
   width: 20px;
@@ -503,6 +634,11 @@ body {
   border-radius: 0;
   background: var(--accent);
   border: 0;
+  transition: transform 120ms cubic-bezier(.4, 0, .2, 1), background-color 120ms linear;
+}
+.scale input[type="range"]:active::-moz-range-thumb {
+  transform: scale(1.1);
+  background: var(--ink);
 }
 .scale input[type="range"]:focus-visible {
   outline: 2px solid var(--accent);
@@ -639,6 +775,29 @@ body {
   border-color: var(--bg-3);
   color: var(--ink-3);
   cursor: not-allowed;
+}
+
+/* 计算中：保持墨底（不要退成灰，那看起来像"不可用"而不是"正在做"），
+   右侧挂一段跳动的小方点表示忙。Swiss 不做旋转 spinner。 */
+.btn.is-busy {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+  cursor: progress;
+}
+.btn.is-busy::after {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin-left: 8px;
+  background: var(--bg);
+  animation: busy-dots 900ms steps(1, end) infinite;
+}
+@keyframes busy-dots {
+  0%, 33%   { opacity: 1; transform: translateX(0); }
+  34%, 66%  { opacity: .35; transform: translateX(3px); }
+  67%, 100% { opacity: .1; transform: translateX(6px); }
 }
 .spacer { flex: 1 1 auto; }
 .hint { font-size: 12px; color: var(--ink-3); letter-spacing: 0.02em; }

@@ -173,6 +173,19 @@ ok('扇区是真实 button', appRoot.querySelectorAll('button.disc-sector').leng
   `实际 ${appRoot.querySelectorAll('button.disc-sector').length}`);
 ok('圆盘有 radiogroup 语义', appRoot.querySelectorAll('[role="radiogroup"]').length === 1);
 ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null);
+// 圆盘外面包了一层可旋转容器：SVG 与标签都在里面，旋转才能带着它们一起转。
+// 这里走 parentNode 链判断，不用后代选择器 —— 测试桩的 querySelectorAll
+// 只支持 tag / .class / [attr] 与它们的直接组合，不支持后代选择器。
+const rotLayer = appRoot.querySelector('.disc-rot');
+const inRot = (node) => {
+  for (let p = node?.parentNode; p; p = p.parentNode) if (p === rotLayer) return true;
+  return false;
+};
+ok('圆盘有可旋转层', rotLayer !== null);
+ok('扇形在可旋转层内', inRot(appRoot.querySelector('.disc-svg')));
+ok('扇区标签也在可旋转层内', inRot(appRoot.querySelector('.disc-sector')));
+// 盘心必须留在旋转层外面：它不该跟着圆盘转
+ok('盘心不在可旋转层内', !inRot(appRoot.querySelector('.disc-hub')));
 ok('进度条存在', appRoot.querySelectorAll('.progress').length === 1);
 ok('页脚有许可声明', getStepText().includes('CC BY 4.0'));
 
