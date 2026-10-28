@@ -285,6 +285,31 @@ const dislikeStart = chips.length;
 ok('chip 状态可切换', chips[0].getAttribute('aria-pressed') === 'true',
   chips[0].getAttribute('aria-pressed'));
 
+/* 同一香调不能既喜欢又讨厌（两栏互斥）。
+   实测踩过：两栏原本互不通信，可以同时勾上同一个香调，进引擎后
+   喜欢分与讨厌分互相抵消，结果卡片的理由里反而不提用户点名的香材。
+   这里用 DOM 里的同名列来验：在"讨厌"栏点同名 chip，喜欢栏那个必须自动关掉。 */
+const sameZh = chips[0].textContent.trim();
+// 按 data-col 找同名的讨厌栏副本。
+// 不能拿 chips.length 当分界：chips 是静态快照，slice(自身长度) 永远是空数组，
+// 第一版就是这样假失败成「未找到副本」。
+const dislikeTwin = chips.find(
+  (c) => c.getAttribute('data-col') === 'disliked' && c.textContent.trim() === sameZh
+);
+if (dislikeTwin) {
+  dislikeTwin.dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  ok('两栏互斥：勾讨厌会取消喜欢', chips[0].getAttribute('aria-pressed') === 'false',
+    `「${sameZh}」喜欢=${chips[0].getAttribute('aria-pressed')} 讨厌=${dislikeTwin.getAttribute('aria-pressed')}`);
+  // 再点回喜欢，讨厌栏应随之取消
+  chips[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  ok('两栏互斥：勾喜欢会取消讨厌', dislikeTwin.getAttribute('aria-pressed') === 'false',
+    `「${sameZh}」喜欢=${chips[0].getAttribute('aria-pressed')} 讨厌=${dislikeTwin.getAttribute('aria-pressed')}`);
+} else {
+  ok('两栏互斥可测（需讨厌栏含同名 chip）', false, `未找到「${sameZh}」的讨厌栏副本`);
+}
+
 /* 出结果 */
 const finishBtn = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('看推荐'));
 ok('第 4 步有看推荐按钮', !!finishBtn);
