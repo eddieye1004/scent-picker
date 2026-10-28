@@ -414,8 +414,14 @@ body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 34%;
-  height: 34%;
+  /* 边长 = 内弧半径 × √2，即内接正方形。
+     DISC.rIn = 146/480 = 30.42%，×1.414 = 43.0%。
+     为什么不是"比内圆小一圈"：盘心缩在内圆中央时，四周留一圈 39px 的白，
+     方块和内圈没有任何几何关系，读起来像「贴在圆盘上的一张卡片」。
+     四角正好顶到内弧之后，方与圆互相咬合，同一张图里成立。
+     留 0.3% 余量防止亚像素舍入把角标顶出弧外。 */
+  width: 42.7%;
+  height: 42.7%;
   border-radius: 0;
   /* 层次不靠阴影，靠边界的不对称——这是报刊栏线的做法：
      上边 2px 墨色当"头部"，其余三边 1px 浅灰当"容器"。
@@ -519,19 +525,21 @@ body {
   .disc-sector { font-size: 14px; padding: 5px 6px; }
   /* 窄屏隐藏英文副标：380px 直径的圆里两行字会撞在一起 */
   .disc-sector .en { display: none; }
-  /* 盘心从 34% 放到 38%，但不能再大：
-     方角 = 边长 × 0.7071，38% 的方角是 26.87%，内弧 30.42% 还剩 12px 空隙。
-     曾经用过 42%（方角 29.70%），实测在 iPhone 14 / 360 / 320 上溢出 2.6–3.2px。 */
-  .disc-hub { width: 38%; height: 38%; padding: 10px 12px; gap: 4px; }
+  /* 窄屏同样取内接正方形（42.7%），不再单独缩到 38%：
+     一旦桌面是"角顶内弧"、手机是"浮在中间"，同一个组件在两种设备上
+     会读成两种东西。文字靠字号和内边距收敛，不靠缩框。 */
+  .disc-hub { padding: 10px 12px; gap: 4px; }
   .disc-hub::before { inset: 2px; }
   .disc-hub .hub-zh { font-size: 17px; }
+  .disc-hub .hub-kicker { letter-spacing: 0.06em; }
   .disc-hub .hub-desc { font-size: 12px; line-height: 1.3; max-height: 32px; }
 }
 
 /* 矮屏（iPhone SE 竖屏 667px）：圆盘再压一档，保证首屏看到完整圆盘 */
 @media (max-width: 620px) and (max-height: 700px) {
   .disc { width: min(86vw, 320px); margin-top: 12px; }
-  .disc-hub { width: 40%; height: 40%; padding: 8px 10px; }
+  .disc-hub { padding: 8px 10px; }
+  .disc-hub .hub-kicker { letter-spacing: 0.04em; }
   .disc-hub .hub-desc { display: none; }
   .disc-hub .hub-zh { font-size: 16px; }
 }
