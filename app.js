@@ -473,7 +473,10 @@ function renderEmotion() {
     selectedId: state.answers.emotion,
     onPick: (e) => {
       state.answers.emotion = e.id;
-      setTimeout(next, 320);   // 留一点时间让高亮动画走完再切题
+      // 620ms 不是随便定的：盘心压墨的过渡是 180ms，实测墨块在 t=180ms 才完全压黑，
+      // 而原先的 320ms 让它在 t≈369ms 就被下一题替换 —— 用户只看到闪一下。
+      // 620ms = 180ms 过渡 + 约 440ms 停留，足够看清「已选定」再走。
+      setTimeout(next, 620);
     },
   }));
 
@@ -497,7 +500,7 @@ function renderOccasion() {
     selectedId: state.answers.occasion,
     onPick: (o) => {
       state.answers.occasion = o.id;
-      setTimeout(next, 320);
+      setTimeout(next, 620);   // 与第 1 步同一节奏，两屏的手感必须一致
     },
   }));
 
