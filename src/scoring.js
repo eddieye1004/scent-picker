@@ -272,48 +272,63 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
 }
 
 /* ---------- 理由生成：只做模板拼装，不调模型 ---------- */
-export function buildReasons(scored, profile, taxonomy) {
-  // 优先级：用户明确点名的 > 结构性匹配 > 泛化描述
-  // 理由：用户最想看到的是"我说过的那句话被听见了"，命中香调必须排进前二。
-  const PRIORITY = { likedNotes: 1, emotionNotes: 2, family: 3, intensity: 4, season: 5, timeOfDay: 6, popularity: 7 };
 
-  const sorted = [...scored.breakdown]
+// 展示顺序：用户明确点名的排最前（"我说过的话被听见了"），结构性匹配其次，泛化描述垫底。
+const REASON_PRIORITY = { likedNotes: 1, emotionNotes: 2, family: 3, intensity: 4, season: 5, timeOfDay: 6, popularity: 7 };
+// 结构性因子合计权重 52（家族 30+22、浓度 18），是打分的骨架，不能让个性化理由把它们挤出去。
+const STRUCTURAL_FACTORS = new Set(['family', 'intensity']);
+const MAX_REASONS = 3;
+
+function reasonText(b, profile) {
+  switch (b.factor) {
+    case 'family':
+      return `你选了「${profile.emotion.zh}」+「${profile.occasion.zh}」，这瓶的主体是${b.familyZh}`;
+    case 'intensity':
+      return `浓郁度 ${profile.intensity}/5 的偏好下，它的厚重感 ${b.heaviness} 落在这个区间`;
+    case 'season':
+      return `它在${seasonZh(b.season)}季香里被标注过，当季喷不容易出错`;
+    case 'timeOfDay':
+      return `适合${b.time === 'day' ? '白天' : '夜晚'}使用，和你的场合一致`;
+    case 'likedNotes':
+      return `含你点名的 ${b.hits.slice(0, 2).join('、')}`;
+    case 'emotionNotes':
+      return `里面有${b.hits.slice(0, 2).join('、')}，正是「${profile.emotion.zh}」这一类气味的主力`;
+    case 'popularity':
+      return `知名度排名 ${b.rank}，属于相对好买、好试的一类`;
+    default:
+      return null;
+  }
+}
+
+export function buildReasons(scored, profile, taxonomy) {
+  const candidates = [...scored.breakdown]
     .filter((b) => b.score > 0)
+    // popularity 分数下限 5 分权重，得分 <2.5 说明排名很靠后，"好买"这句话就不成立
+    .filter((b) => !(b.factor === 'popularity' && b.score < 2.5))
     .sort((a, b) => {
-      const pa = PRIORITY[a.factor] ?? 99;
-      const pb = PRIORITY[b.factor] ?? 99;
+      const pa = REASON_PRIORITY[a.factor] ?? 99;
+      const pb = REASON_PRIORITY[b.factor] ?? 99;
       return pa !== pb ? pa - pb : b.score - a.score;
     });
 
-  const out = [];
-  for (const b of sorted) {
-    if (out.length >= 2) break;
-    switch (b.factor) {
-      case 'family':
-        out.push(`你选了「${profile.emotion.zh}」+「${profile.occasion.zh}」，这瓶的主体是${b.familyZh}`);
-        break;
-      case 'intensity':
-        out.push(`浓郁度 ${profile.intensity}/5 的偏好下，它的厚重感 ${b.heaviness} 落在这个区间`);
-        break;
-      case 'season':
-        out.push(`它在${seasonZh(b.season)}季香里被标注过，当季喷不容易出错`);
-        break;
-      case 'timeOfDay':
-        out.push(`适合${b.time === 'day' ? '白天' : '夜晚'}使用，和你的场合一致`);
-        break;
-      case 'likedNotes':
-        out.push(`含你点名的 ${b.hits.slice(0, 2).join('、')}`);
-        break;
-      case 'emotionNotes':
-        out.push(`里面有${b.hits.slice(0, 2).join('、')}，正是「${profile.emotion.zh}」这一类气味的主力`);
-        break;
-      case 'popularity':
-        out.push(`知名度排名 ${b.rank}，属于相对好买、好试的一类`);
-        break;
-      default:
-        break;
-    }
+  // 先决定"哪些因子入选"：必须含一条结构性理由，再按优先级补满。
+  const chosen = [];
+  const bestStructural = candidates.find((b) => STRUCTURAL_FACTORS.has(b.factor));
+  if (bestStructural) chosen.push(bestStructural);
+  for (const b of candidates) {
+    if (chosen.length >= MAX_REASONS) break;
+    if (chosen.includes(b)) continue;
+    chosen.push(b);
   }
+
+  // 再按展示优先级排序——入选集合与输出顺序是两件事。
+  chosen.sort((a, b) => {
+    const pa = REASON_PRIORITY[a.factor] ?? 99;
+    const pb = REASON_PRIORITY[b.factor] ?? 99;
+    return pa !== pb ? pa - pb : b.score - a.score;
+  });
+
+  const out = chosen.map((b) => reasonText(b, profile)).filter(Boolean);
 
   if (scored.longevityWarn) out.push(`⚠️ ${scored.longevityWarn}`);
   if (!out.length) out.push('各维度都只是勉强及格，属于兜底推荐');

@@ -205,6 +205,21 @@ ok('有前中后调表', appRoot.querySelectorAll('.pyramid').length === 3);
 ok('有推荐理由', appRoot.querySelectorAll('.reasons').length === 3);
 ok('每条理由数量 >=1',
   appRoot.querySelectorAll('.reasons').every((r) => r.querySelectorAll('li').length >= 1));
+// 回归守门：曾经的 bug 是理由上限被写成 2 条，导致场景/浓度这两个有 40 分权重的
+// 因子永远不产出理由，用户看不到自己答的第 2、3 题起了什么作用。
+ok('每条理由 >=2 条（README 承诺 2–3 条）',
+  appRoot.querySelectorAll('.reasons').every((r) => r.querySelectorAll('li').length >= 2),
+  appRoot.querySelectorAll('.reasons').map((r) => r.querySelectorAll('li').length).join(','));
+ok('理由条数不超过 3（避免堆砌）',
+  appRoot.querySelectorAll('.reasons').every((r) => r.querySelectorAll('li').length <= 3),
+  appRoot.querySelectorAll('.reasons').map((r) => r.querySelectorAll('li').length).join(','));
+// 家族或浓度必定有一条：这两项合计 52 分权重，是打分的骨架。
+// 若某瓶的理由里完全没有结构性表述，说明理由与得分脱节。
+ok('每条理由含至少一条结构性理由（家族/浓度）',
+  appRoot.querySelectorAll('.reasons').every((r) => {
+    const t = r.textContent;
+    return /主体是|厚重感|浓郁度/.test(t);
+  }));
 ok('结果含数据来源链接',
   appRoot.querySelectorAll('a').some((a) => String(a.attrs.href || '').includes('scento')));
 ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textContent.includes('重新来一次')));
