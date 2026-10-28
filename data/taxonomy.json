@@ -782,6 +782,102 @@
         "en": "aldehydes",
         "family": "floral",
         "subfamily": "powdery-floral"
+      },
+      {
+        "zh": "栀子",
+        "en": "gardenia",
+        "family": "floral",
+        "subfamily": "soliflore"
+      },
+      {
+        "zh": "木兰",
+        "en": "magnolia",
+        "family": "floral",
+        "subfamily": "soliflore"
+      },
+      {
+        "zh": "小苍兰",
+        "en": "freesia",
+        "family": "floral",
+        "subfamily": "soliflore"
+      },
+      {
+        "zh": "桂花",
+        "en": "osmanthus",
+        "family": "floral",
+        "subfamily": "soliflore"
+      },
+      {
+        "zh": "杜松",
+        "en": "juniper",
+        "family": "woody",
+        "subfamily": "woody-aromatic"
+      },
+      {
+        "zh": "迷迭香",
+        "en": "rosemary",
+        "family": "woody",
+        "subfamily": "woody-aromatic"
+      },
+      {
+        "zh": "柏树",
+        "en": "cypress",
+        "family": "woody",
+        "subfamily": "woody-aromatic"
+      },
+      {
+        "zh": "薄荷",
+        "en": "mint",
+        "family": "woody",
+        "subfamily": "woody-aromatic"
+      },
+      {
+        "zh": "桃子",
+        "en": "peach",
+        "family": "gourmand",
+        "subfamily": "fruity-gourmand"
+      },
+      {
+        "zh": "苹果",
+        "en": "apple",
+        "family": "gourmand",
+        "subfamily": "fruity-gourmand"
+      },
+      {
+        "zh": "梨",
+        "en": "pear",
+        "family": "gourmand",
+        "subfamily": "fruity-gourmand"
+      },
+      {
+        "zh": "焦糖",
+        "en": "caramel",
+        "family": "gourmand",
+        "subfamily": "fruity-gourmand"
+      },
+      {
+        "zh": "紫罗兰叶",
+        "en": "violet leaf",
+        "family": "fresh",
+        "subfamily": "green"
+      },
+      {
+        "zh": "白松香",
+        "en": "galbanum",
+        "family": "fresh",
+        "subfamily": "green"
+      },
+      {
+        "zh": "苦艾",
+        "en": "absinthe",
+        "family": "gourmand",
+        "subfamily": "boozy"
+      },
+      {
+        "zh": "干邑",
+        "en": "cognac",
+        "family": "gourmand",
+        "subfamily": "boozy"
       }
     ]
   },

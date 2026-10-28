@@ -180,7 +180,10 @@ body::before {
 
 .disc {
   position: relative;
-  width: min(88vw, var(--discw));
+  /* 三个上限取小：视口宽度、视口高度、设计宽。
+     只写 vw 的话，手机横屏/矮屏上圆盘会顶出首屏 —— iPhone SE 375×667 实测
+     单靠 88vw 会溢出 9px，加上 vh 约束才能在矮屏上自动收。 */
+  width: min(88vw, 62vh, var(--discw));
   aspect-ratio: 1 / 1;
   margin: 0 auto;
   touch-action: manipulation;
@@ -708,16 +711,35 @@ footer.foot strong { color: var(--ink-2); font-weight: 500; }
 
 /* ---------- 窄屏 ---------- */
 @media (max-width: 620px) {
-  #app { padding: 26px 16px 60px; }
-  .masthead h1 { font-size: 21px; }
+  /* 首屏必须装下整个圆盘（iPhone SE 375×667 是最紧的一档）。
+     实测竖向预算：原 padding-top 26 + masthead 96.3/mb 30 + progress 2/mb 8
+     + 提示行 29.8 + stage-lead 116.3 + 圆盘 345.2 = 底边 675.6，超出 8.6px。
+     这里省出约 60px：padding 26→14、masthead mb 30→14、提示行下间距 18→8、
+     stage-lead 下间距 4→2、圆盘的 help 文案窄屏收一行。
+     省掉的部分不动字号（test-contrast 守着 12px 下限）。 */
+  #app { padding: 14px 16px 60px; }
+  .masthead { margin-bottom: 14px; padding-bottom: 12px; }
+  .masthead h1 { font-size: 20px; }
+  .masthead .lede { font-size: 13px; }
   .q-title { font-size: 19px; }
-  .stage-lead .q-title { font-size: 20px; }
+  .stage-lead { margin-bottom: 2px; }
+  .stage-lead .q-title { font-size: 19px; }
+  .stage-lead .q-help { font-size: 13px; line-height: 1.45; }
   .pick h3 { font-size: 18px; }
   .opt { grid-template-columns: 26px 1fr; }
   .opt .tick { display: none; }
   .pyramid { grid-template-columns: 50px 1fr; }
-  .disc { width: min(92vw, 420px); }
-  .disc-sector { font-size: 13px; min-width: 48px; padding: 4px 6px; }
+  .disc { width: min(90vw, 56vh, 420px); }
+  .disc-sector { font-size: 13px; min-width: 56px; padding: 4px 6px; }
   .disc-sector .en { display: none; }
+  .disc-hub .hub-zh { font-size: 17px; }
+  .disc-hub .hub-desc { font-size: 12px; line-height: 1.3; }
   article.pick { padding: 20px 16px 16px; }
+  .foot { margin-top: 32px; }
+}
+
+/* 矮屏（横屏手机、老机型）：圆盘再压一档，宁可小也不能顶出首屏 */
+@media (max-height: 700px) and (max-width: 620px) {
+  .disc { width: min(86vw, 50vh, 380px); }
+  .disc-hub .hub-desc { display: none; }
 }

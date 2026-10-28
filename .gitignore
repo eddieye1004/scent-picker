@@ -23,3 +23,7 @@ tmp/
 # 它是上游 CC BY 4.0 发布的 perfumes.jsonl 原件（1.1 MB，blob sha 8c745960...）
 # 入库原因是让 build-data.js 无需联网即可复现，且许可允许再分发
 # 详见 docs/COMPLIANCE.md
+
+# 一次性探测脚本（测数据货量、模拟抽样、看家族覆盖用的）
+# 结论已写进 docs/DECISIONS.md 的 D16/D17，脚本本身是过程产物，不入库
+scripts/probes/

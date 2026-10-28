@@ -176,12 +176,20 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
 ok('进度条存在', appRoot.querySelectorAll('.progress').length === 1);
 ok('页脚有许可声明', getStepText().includes('CC BY 4.0'));
 
-/* 点第一个扇区（清冷） */
-const opts1 = appRoot.querySelectorAll('.disc-sector');
-opts1[0].dispatch('click');
+/* 扇形本体必须自己挂着点击 —— 只把事件绑在标签上的话，
+   用户戳扇区那一大块面积会毫无反应，等于"看起来能点"。 */
+const sectorGroups = appRoot.querySelectorAll('.sector-g');
+ok('扇区组数量与扇区一致', sectorGroups.length === 6, `实际 ${sectorGroups.length}`);
+const groupHasClick = sectorGroups.every((g) => (g._listeners.click || []).length > 0);
+ok('每个扇形本体都绑了 click', groupHasClick,
+  `绑了 click 的分组数 ${sectorGroups.filter((g) => (g._listeners.click || []).length > 0).length}/${sectorGroups.length}`);
+
+/* 点扇形本体（不是标签）推进流程 —— 等价于用户戳扇区那一大块面积。
+   这一下同时验证了「本体可点」和「点完会进入下一步」两件事。 */
+sectorGroups[0].dispatch('click');
 await new Promise((r) => setTimeout(r, 500));
 
-ok('进入第 2 步（场合）', getStepText().includes('主要在哪里用'), getStepText().slice(0, 100));
+ok('点扇形本体进入第 2 步（场合）', getStepText().includes('主要在哪里用'), getStepText().slice(0, 100));
 const opts2 = appRoot.querySelectorAll('.disc-sector');
 ok('场合圆盘 5 个扇区', opts2.length === 5, `实际 ${opts2.length}`);
 

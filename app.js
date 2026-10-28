@@ -206,6 +206,28 @@ function buildDisc(items, cfg) {
     const left = (lx / DISC.vb) * 100;
     const top = (ly / DISC.vb) * 100;
 
+    /* 扇形本体也要能点。扇区面积远大于标签（半径 104–230 的整块环形），
+       只给标签挂事件等于让用户去戳一个小方块。这里把同一套行为挂到 <g> 上，
+       点击、悬停、焦点三态与标签按钮完全一致。 */
+    const g = groups[i];
+    g.setAttribute('role', 'presentation');
+    g.addEventListener('click', () => {
+      pick.current = it.id;
+      setOn(i);
+      showInHub(it);
+      groups.forEach((x, j) => x.classList.toggle('is-hot', j === i));
+      onPick(it);
+    });
+    g.addEventListener('mouseenter', () => {
+      showInHub(it);
+      g.classList.add('is-hot');
+    });
+    g.addEventListener('mouseleave', () => {
+      const cur = items.find((x) => x.id === pick.current);
+      showInHub(cur || null);
+      groups.forEach((x, j) => x.classList.toggle('is-hot', items[j].id === pick.current));
+    });
+
     const btn = el('button', {
       class: 'disc-sector',
       type: 'button',

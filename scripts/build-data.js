@@ -40,6 +40,12 @@ function readJsonl(p) {
   });
 }
 
+// src/notes.js 是 ESM，本脚本是 CJS —— 只能动态 import，拿到的绑定在 main 里用。
+// tokenize / matchesNote 与前端完全同一份实现，保证"构建时判定的子家族"和
+// "用户点选时判定的子家族"不会因为两套匹配逻辑而错位。
+let tokenize = null;
+let matchesNote = null;
+
 function main() {
   if (!fs.existsSync(RAW)) {
     console.error(
@@ -123,9 +129,16 @@ function main() {
     return a.id.localeCompare(b.id);
   });
 
-  // ---- 分层抽样：先保证每个家族的最小配额，剩下按知名度补足 ----
+  // ---- 分层抽样：先保证每个家族的最小配额，再保证每个子家族，剩下按知名度补足 ----
   // 理由：纯按 popularity 排序会让 gourmand / citrus 几乎没货，前端选"甜香"就空结果。
+  // 加子家族配额的理由（实测 2026-10-28）：只按家族配额时，200 瓶里
+  // 咖啡可可 0 瓶、朗姆酒 2 瓶、海水 5 瓶、茶香 5 瓶 —— 第二层点进去是空的。
+  // 全量 1228 行里每个子家族都有货（最少的绿意也有 24 行），问题纯粹是抽样没分到。
   const MIN_PER_FAMILY = Math.max(12, Math.floor(LIMIT / taxonomy.families.length / 2));
+  const MIN_PER_SUBFAMILY = (() => {
+    const i = process.argv.indexOf('--sub-quota');
+    return i > -1 ? parseInt(process.argv[i + 1], 10) : 6;
+  })();
   const primaryOf = (p) => {
     // 主家族 = 权重最高的那个
     let best = null, bw = -1;
@@ -148,6 +161,44 @@ function main() {
       if (!chosenIds.has(p.id)) { chosenIds.add(p.id); pickedArr.push(p); }
     }
   }
+
+  // ---- 第二轮：子家族保底 ----
+  // 每个子家族先塞够 MIN_PER_SUBFAMILY 瓶，否则第二层轮盘点进去就是空的。
+  // 一瓶可同时计入多个子家族（它有多个香材），所以这里是"尽量满足"而非硬保证：
+  // 库容不够时按子家族顺序分配，末尾几个可能不足 —— 由构建后的覆盖度报告暴露。
+  const subCount = new Map();
+  for (const f of taxonomy.families) {
+    for (const s of f.subfamilies) subCount.set(`${f.id}/${s.id}`, 0);
+  }
+  const subHitsOf = (p) => {
+    // 该瓶覆盖了哪些子家族：它的任一香材命中该子家族的任一香调条目
+    const out = [];
+    for (const [key] of subCount) {
+      const [fam, sub] = key.split('/');
+      const ents = taxonomy.noteIndex.entries.filter((e) => e.family === fam && e.subfamily === sub);
+      const toks = (p.notesAll || []).map((x) => tokenize(x));
+      if (ents.some((en) => toks.some((tk) => matchesNote(en, null, tk)))) out.push(key);
+    }
+    return out;
+  };
+  // 预计算一次，避免 O(瓶 × 子家族 × 香材) 反复切词
+  const subHitsOfCache = new Map();
+  for (const p of accepted) subHitsOfCache.set(p.id, subHitsOf(p));
+
+  for (const [key] of subCount) {
+    let cur = 0;
+    for (const p of accepted) {
+      if (cur >= MIN_PER_SUBFAMILY) break;
+      if (chosenIds.has(p.id)) {
+        if (subHitsOfCache.get(p.id).includes(key)) cur++;
+        continue;
+      }
+      if (!subHitsOfCache.get(p.id).includes(key)) continue;
+      chosenIds.add(p.id); pickedArr.push(p); cur++;
+      for (const k2 of subHitsOfCache.get(p.id)) subCount.set(k2, subCount.get(k2) + 1);
+    }
+  }
+
   for (const p of accepted) {
     if (pickedArr.length >= LIMIT) break;
     if (!chosenIds.has(p.id)) { chosenIds.add(p.id); pickedArr.push(p); }
@@ -219,4 +270,11 @@ const CONC_ZH = {
   'eau-de-cologne': '古龙水 EDC',
 };
 
-main();
+(async () => {
+  const notesMod = await import(
+    'file:///' + path.join(ROOT, 'src', 'notes.js').replace(/\\/g, '/')
+  );
+  tokenize = notesMod.tokenize;
+  matchesNote = notesMod.matchesNote;
+  main();
+})();
