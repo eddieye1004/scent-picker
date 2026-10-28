@@ -650,9 +650,8 @@ function renderNotes() {
   wrap.appendChild(moreBox);
 
   const moreBtn = el('button', {
-    class: 'btn ghost',
     type: 'button',
-    style: 'margin-top:14px;padding:7px 14px;font-size:13px',
+    class: 'btn ghost btn-more',
     onclick: () => {
       const hidden = moreBox.style.display === 'none';
       moreBox.style.display = hidden ? 'flex' : 'none';
@@ -670,9 +669,8 @@ function renderNotes() {
   wrap.appendChild(disMoreBox);
 
   const disMoreBtn = el('button', {
-    class: 'btn ghost',
     type: 'button',
-    style: 'margin-top:10px;padding:7px 14px;font-size:13px',
+    class: 'btn ghost btn-more',
     onclick: () => {
       const hidden = disMoreBox.style.display === 'none';
       disMoreBox.style.display = hidden ? 'flex' : 'none';

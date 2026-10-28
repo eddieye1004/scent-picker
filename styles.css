@@ -800,6 +800,17 @@ body {
 .btn:active { transform: translateY(1px); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* 次按钮：白底墨线。Swiss 的两级按钮就是实心与描边，没有第三种。 */
+/* 次级按钮：与主按钮同高（44px 触控下限）但更轻。
+   原来这两处是在 app.js 里写内联 style="padding:7px 14px;font-size:13px" 的——
+   内联样式既绕过字阶，也绕过 test-contrast 的字号检查（它只读 styles.css）。
+   收进 CSS 后统一走 14px 档。 */
+.btn.btn-more {
+  padding: 10px 14px;
+  font-size: 14px;
+  margin-top: 12px;
+  display: inline-block;
+  width: auto;
+}
 .btn.ghost {
   background: transparent;
   color: var(--ink-2);
