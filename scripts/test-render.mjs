@@ -213,7 +213,7 @@ ok('每个扇形本体都绑了 click', groupHasClick,
 /* 点扇形本体（不是标签）推进流程 —— 等价于用户戳扇区那一大块面积。
    这一下同时验证了「本体可点」和「点完会进入下一步」两件事。 */
 sectorGroups[0].dispatch('click');
-await new Promise((r) => setTimeout(r, 500));
+await new Promise((r) => setTimeout(r, 800));  // 自动切题是 620ms，必须等过它
 
 ok('点扇形本体进入第 2 步（场合）', getStepText().includes('主要在哪里用'), getStepText().slice(0, 100));
 const opts2 = appRoot.querySelectorAll('.disc-sector');
@@ -221,7 +221,7 @@ ok('场合圆盘 5 个扇区', opts2.length === 5, `实际 ${opts2.length}`);
 
 /* 选「上班/上课」= 索引 1 */
 opts2[1].dispatch('click');
-await new Promise((r) => setTimeout(r, 500));
+await new Promise((r) => setTimeout(r, 800));  // 自动切题是 620ms，必须等过它
 
 ok('进入第 3 步（浓度）', getStepText().includes('希望它有多'), getStepText().slice(0, 100));
 const slider = appRoot.querySelector('input');
