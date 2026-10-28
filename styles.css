@@ -122,8 +122,8 @@ body {
 
 @media (max-width: 620px) {
   .masthead { border-top-width: 6px; padding-top: 14px; margin-bottom: 28px; }
-  .masthead h1 { font-size: 28px; letter-spacing: -0.024em; }
-  .masthead .lede { font-size: 15px; margin-top: 10px; }
+  .masthead h1 { font-size: 26px; letter-spacing: -0.024em; }
+  .masthead .lede { font-size: 16px; margin-top: 10px; }
 }
 
 /* ---------- 进度 ----------
@@ -154,7 +154,7 @@ body {
   font-weight: 500;
   margin-bottom: 36px;
 }
-.progress-meta b { color: var(--ink-2); font-weight: 600; }
+.progress-meta b { color: var(--ink-2); font-weight: 500; }
 
 @media (max-width: 620px) {
   .progress-meta { margin-bottom: 24px; }
@@ -165,8 +165,8 @@ body {
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--accent);
-  font-weight: 600;
+  color: var(--ink-3);
+  font-weight: 500;
   margin-bottom: 10px;
 }
 .q-title {
@@ -185,8 +185,8 @@ body {
 }
 
 @media (max-width: 620px) {
-  .q-title { font-size: 24px; letter-spacing: -0.02em; }
-  .q-help { font-size: 15px; margin-bottom: 22px; }
+  .q-title { font-size: 22px; letter-spacing: -0.02em; }
+  .q-help { font-size: 16px; margin-bottom: 22px; }
 }
 
 /* 圆盘那一屏：Swiss 一般不居中，但圆盘是整页的图形重心，
@@ -257,12 +257,12 @@ body {
 @media (min-width: 621px) and (max-height: 1000px) {
   #app { padding-top: 30px; }
   .masthead { padding-top: 12px; margin-bottom: 18px; }
-  .masthead h1 { font-size: 32px; }
-  .masthead .lede { font-size: 15px; margin-top: 8px; }
+  .masthead h1 { font-size: 34px; }
+  .masthead .lede { font-size: 16px; margin-top: 8px; }
   .progress-meta { margin-bottom: 16px; }
   .stage-lead .q-kicker { margin-bottom: 6px; }
   .stage-lead .q-title { font-size: 26px; margin-bottom: 8px; }
-  .stage-lead .q-help { font-size: 15px; }
+  .stage-lead .q-help { font-size: 16px; }
   /* 62vh 在这一档被 --discw 520 顶住了，实际没生效；56vh 才真的把圆盘压下去。
      压下去之后还要再收 action 条，否则提示语会掉出首屏（实测 900 高时差 19px）。 */
   .disc { width: min(88vw, var(--discw), 56vh); margin-top: 6px; }
@@ -276,7 +276,7 @@ body {
 @media (min-width: 621px) and (max-height: 820px) {
   #app { padding-top: 24px; }
   .masthead { padding-top: 10px; margin-bottom: 16px; }
-  .masthead h1 { font-size: 28px; }
+  .masthead h1 { font-size: 26px; }
   .masthead .lede { font-size: 14px; margin-top: 8px; }
   .progress-meta { margin-bottom: 14px; }
   .stage-lead .q-kicker { margin-bottom: 6px; }
@@ -292,16 +292,16 @@ body {
   #app { padding-top: 20px; }
   .masthead { padding-top: 8px; margin-bottom: 12px; }
   .masthead h1 { font-size: 26px; }
-  .masthead .lede { font-size: 13px; margin-top: 6px; }
+  .masthead .lede { font-size: 14px; margin-top: 6px; }
   .progress-meta { margin-bottom: 10px; }
-  .stage-lead .q-title { font-size: 20px; margin-bottom: 4px; }
-  .stage-lead .q-help { font-size: 13px; }
+  .stage-lead .q-title { font-size: 22px; margin-bottom: 4px; }
+  .stage-lead .q-help { font-size: 14px; }
   .disc { width: min(88vw, var(--discw), 50vh); margin-top: 4px; }
   /* 圆盘压到 360px 时盘心只有 122px，14% 的纵向内边距吃掉 34px，
      只剩 86px 装三行字——实测 scrollHeight 138 > clientHeight 120，内容溢出。
      这一档把纵向内边距收到 9%，字号降一级，行高收紧。 */
   .disc-hub { padding: 8px 10px; gap: 3px; }
-  .disc-hub .hub-zh { font-size: 18px; }
+  .disc-hub .hub-zh { font-size: 16px; }
   /* 12px 是 test-contrast 强制的最小字号下限，不能降到 11px。
      极矮屏改用「只留一行 + 省略号」来省高度，而不是缩字号。 */
   .disc-hub .hub-desc { font-size: 12px; line-height: 1.2; max-height: 15px; }
@@ -319,21 +319,26 @@ body {
   fill: var(--bg);
   stroke: var(--edge);
   stroke-width: 1;
-  transition: fill 150ms cubic-bezier(.4, 0, .2, 1), stroke 150ms cubic-bezier(.4, 0, .2, 1);
+  transition: fill 160ms cubic-bezier(.4, 0, .2, 1), stroke 160ms cubic-bezier(.4, 0, .2, 1);
 }
 .disc-svg .sector-g { cursor: pointer; }
 
-/* hover：只把描边加深、填充转浅灰。不放大 —— 放大是拟物语言。
-   150ms + ease-out 是「立刻有反馈但不闪烁」的区间：再快（<80ms）看不出变化，
+/* hover：描边加粗到 2px + 填充降到 --bg-3。不放大 —— 放大是拟物语言。
+   为什么必须动描边粗细：原方案只把填充换成 --bg-2(#f5f5f5)，对白底实测
+   只有 1.03:1，肉眼分辨不出来，等于没有悬停反馈。深色主题下这一步是够的
+   （深底换浅一档很明显），搬到浅底就失效了 —— 这是换肤时最容易漏掉的一类。
+   2px 描边在任何底色上都读得出来，且不引入阴影/缩放。
+   160ms + ease-out 是「立刻有反馈但不闪烁」的区间：再快（<80ms）看不出变化，
    再慢（>200ms）鼠标横扫一排扇区会拖出尾迹。 */
 .disc-svg .sector-g:hover .sector-shape,
 .disc-svg .sector-g.is-hot .sector-shape {
-  fill: var(--bg-2);
+  fill: var(--bg-3);
   stroke: var(--ink);
+  stroke-width: 2;
 }
 
 /* 按下：填成 --bg-3（比 hover 深一档），且不给过渡 —— 按下要瞬时。
-   若也走 150ms，手指压下去到变化发生有可感延迟，像点不动。
+   若也走 160ms，手指压下去到变化发生有可感延迟，像点不动。
    松开后过渡会把它平滑带回 hover 态。 */
 .disc-svg .sector-g:active .sector-shape {
   fill: var(--bg-3);
@@ -372,7 +377,7 @@ body {
   background: transparent;
   color: var(--ink);
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.01em;
@@ -380,7 +385,7 @@ body {
   min-width: 56px;
   min-height: 44px;
   cursor: pointer;
-  transition: color 140ms linear;
+  transition: color 160ms linear;
 }
 .disc-sector .en {
   font-family: var(--font-mono);
@@ -390,7 +395,7 @@ body {
   letter-spacing: 0.04em;
   color: var(--ink-3);
   text-transform: uppercase;
-  transition: color 140ms linear;
+  transition: color 160ms linear;
 }
 /* 选中扇区上的文字反白：--bg 纯白压在 --ink #0e0e0e 上是 19.30，远超标准。
    Swiss 里唯一允许的反白场景。 */
@@ -535,7 +540,7 @@ body {
   overflow: hidden;
   transition: color 180ms cubic-bezier(.4,0,.2,1);
 }
-.disc-hub.is-idle .hub-zh { color: var(--ink-3); }
+.disc-hub.is-idle .hub-zh { color: var(--ink-2); }
 
 /* 盘心换字时的淡入：只在文字内容变化时触发（JS 加 .is-swap 再移除）。
    180ms 是因为 34% 方块本身很小，时间长了会显得黏。 */
@@ -558,7 +563,7 @@ body {
      会读成两种东西。文字靠字号和内边距收敛，不靠缩框。 */
   .disc-hub { padding: 10px 12px; gap: 4px; }
   .disc-hub::before { inset: 2px; }
-  .disc-hub .hub-zh { font-size: 17px; }
+  .disc-hub .hub-zh { font-size: 16px; }
   .disc-hub .hub-kicker { letter-spacing: 0.06em; }
   .disc-hub .hub-desc { font-size: 12px; line-height: 1.3; max-height: 32px; }
 }
@@ -588,7 +593,7 @@ body {
   color: inherit;
   font: inherit;
   cursor: pointer;
-  transition: background-color 140ms linear, border-color 140ms linear;
+  transition: background-color 160ms linear, border-color 160ms linear;
   border-radius: 0;
   min-height: 44px;
 }
@@ -607,7 +612,7 @@ body {
 .opt .label { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
 .opt .desc {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
   color: var(--ink-2);
   margin-top: 3px;
@@ -615,9 +620,9 @@ body {
 }
 .opt .tick {
   font-size: 12px;
-  color: var(--accent);
+  color: var(--ink-3);
   opacity: 0;
-  transition: opacity 140ms linear;
+  transition: opacity 160ms linear;
   padding-top: 3px;
 }
 .opt:hover .tick { opacity: 1; }
@@ -658,7 +663,7 @@ body {
   border: 0;
   /* 拖动时方块轻微撑开 + 加深，是「手在捏着它」的最轻表达；
      20→22px 只有 2px 的差别，但足以让人确认「我抓住了」。 */
-  transition: transform 120ms cubic-bezier(.4, 0, .2, 1), background-color 120ms linear;
+  transition: transform 160ms cubic-bezier(.4, 0, .2, 1), background-color 160ms linear;
 }
 .scale input[type="range"]:active::-webkit-slider-thumb {
   transform: scale(1.1);
@@ -670,7 +675,7 @@ body {
   border-radius: 0;
   background: var(--accent);
   border: 0;
-  transition: transform 120ms cubic-bezier(.4, 0, .2, 1), background-color 120ms linear;
+  transition: transform 160ms cubic-bezier(.4, 0, .2, 1), background-color 160ms linear;
 }
 .scale input[type="range"]:active::-moz-range-thumb {
   transform: scale(1.1);
@@ -693,7 +698,7 @@ body {
   margin-top: 24px;
   border-top: 1px solid var(--ink);
   padding-top: 14px;
-  font-size: 15px;
+  font-size: 16px;
   color: var(--ink-2);
   line-height: 1.5;
 }
@@ -724,8 +729,8 @@ body {
   color: var(--ink-2);
   border-radius: 0;
   cursor: pointer;
-  transition: background-color 120ms linear, color 120ms linear,
-              border-color 120ms linear;
+  transition: background-color 160ms linear, color 160ms linear,
+              border-color 160ms linear;
 }
 .chip:hover { border-color: var(--ink); color: var(--ink); }
 .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -748,7 +753,7 @@ body {
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink-2);
   margin: 28px 0 10px;
   line-height: 1.3;
@@ -782,14 +787,14 @@ body {
   background: var(--ink);
   color: var(--bg);
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.005em;
   padding: 14px 22px;
   min-height: 44px;
   border-radius: 0;
   cursor: pointer;
-  transition: background-color 120ms linear, border-color 120ms linear;
+  transition: background-color 160ms linear, border-color 160ms linear;
 }
 .btn:hover { background: var(--accent); border-color: var(--accent); }
 .btn:active { transform: translateY(1px); }
@@ -848,8 +853,8 @@ body {
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--accent);
-  font-weight: 600;
+  color: var(--ink-3);
+  font-weight: 500;
   margin-bottom: 10px;
 }
 .result-head h2 {
@@ -878,7 +883,7 @@ body {
 }
 
 @media (max-width: 620px) {
-  .result-head h2 { font-size: 24px; letter-spacing: -0.02em; }
+  .result-head h2 { font-size: 22px; letter-spacing: -0.02em; }
 }
 
 /* 候选卡：靠顶部粗线和编号建立层级，不用卡片、不用阴影、不用圆角。
@@ -907,8 +912,8 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
 /* 编号：等宽加大字号。Swiss 的编号就是信息本身，不是装饰。 */
 .pick-rank .n {
   font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--accent);
 }
@@ -932,7 +937,7 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-2);
   margin-bottom: 16px;
 }
@@ -964,7 +969,7 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
   font-size: 12px;
   letter-spacing: 0.06em;
   color: var(--ink-3);
-  font-weight: 600;
+  font-weight: 500;
   padding-top: 1px;
 }
 .pyramid dd { margin: 0; color: var(--ink); }
