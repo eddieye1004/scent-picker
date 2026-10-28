@@ -15,6 +15,19 @@
       <div class="masthead"><h1>需要开启 JavaScript</h1></div>
       <p class="q-help">这个页面完全在浏览器本地运行，不联网也能算，但需要 JavaScript。</p>
     </noscript>
+
+    <!-- 静态骨架屏：必须写在这里，不能由 app.js 注入。
+         原因：app.js 是 module，要等自己下载完才执行，慢网下要 3 秒。
+         那 3 秒里如果这里什么都没有，用户看到的就是一张空纸 —— 会当成网站坏了。
+         静态骨架和 app.js 的 renderSkeleton() 长得一样，所以数据到位时不跳版。 -->
+    <header class="masthead">
+      <h1>从零开始，找到第一瓶香水</h1>
+      <p class="lede">正在读取香水库……</p>
+    </header>
+    <div class="skeleton">
+      <div class="skeleton-ring"></div>
+      <p class="skeleton-note">首次打开要下 500KB 左右的数据，之后浏览器会缓存。</p>
+    </div>
   </main>
   <script type="module" src="./app.js"></script>
 </body>

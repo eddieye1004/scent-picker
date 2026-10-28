@@ -422,9 +422,22 @@ function renderNotes() {
     el('p', { class: 'q-help' }, STEPS[3].help)
   );
 
-  // 40 个香调里有些在当前 200 瓶样本里出现 0 次（实测：可可/cocoa）。
-  // 勾了它却永远推荐不出东西，等于骗一次点击 —— 按命中数把死选项挡掉。
-  // 数据未加载完时退回全表，避免首屏空白。
+  // 香调表要扫全库才知道哪些选项真的有货。库还没到时不能退回全表 ——
+  // 那会把 0 命中的死选项也画出来，用户点了却推荐不出东西。
+  // 改成占位 + 到货后自动重画（正常早已下完，只有慢网首访会看到）。
+  if (!DATA?.perfumes?.length) {
+    ensurePerfumes()
+      .then(() => { if (state.step === 3) render(); })
+      .catch((err) => { wrap.appendChild(el('p', { class: 'q-help' }, `香调表加载失败：${err.message}`)); });
+    wrap.appendChild(el('div', { class: 'skeleton' },
+      el('div', { class: 'skeleton-ring' }),
+      el('p', { class: 'skeleton-note' }, '正在读取香水库……')
+    ));
+    wrap.appendChild(navBar('notes'));
+    return wrap;
+  }
+
+  // 40 个香调里有些在库里出现 0 次 —— 勾了它却永远推荐不出东西，等于骗一次点击。
   const usable = getUsableNotes();
 
   const mkChips = (list, key, neg) => {
@@ -565,10 +578,12 @@ function prev() {
   }
 }
 
-function finish() {
+async function finish() {
   if (!state.answers.emotion) { state.step = 0; render(); return; }
   if (!state.answers.occasion) { state.step = 1; render(); return; }
-  state.result = recommend(state.answers, DATA.perfumes, TAX, { topN: 3 });
+  // 库还没到时，这里会等它下完 —— 只有「四步全答完、但库仍在下载」才会卡到这
+  const d = await ensurePerfumes();
+  state.result = recommend(state.answers, d.perfumes, TAX, { topN: 3 });
   state.step = STEPS.length;
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -698,25 +713,37 @@ function renderResult() {
 }
 
 function renderFooter() {
+  // 署名信息存在 perfumes.json 的 meta 里，而香水库是延迟加载的 ——
+  // 首屏（前三步）可能还没到货。没到就先不渲染这一段，别让 undefined 崩掉整页。
+  const meta = DATA?.meta;
+  const credit = meta
+    ? el('div', { style: 'margin-top:8px' },
+        el('strong', {}, '数据署名 '),
+        // 直接取 meta.attribution，与上游 LICENSE 指定格式逐字一致，不在代码里另抄一份
+        meta.attribution,
+        ' · ',
+        el('a', { href: meta.licenseUrl, target: '_blank', rel: 'noopener noreferrer' }, 'CC BY 4.0'),
+        ' · 快照 ', meta.sourceSnapshot,
+        ' · 原始数据经清洗、家族映射与字段裁剪，',
+        el('em', {}, '已修改'),
+        '。'
+      )
+    : el('div', { style: 'margin-top:8px' },
+        el('strong', {}, '数据署名 '),
+        'Scento — perfume-database · CC BY 4.0 · 原始数据经清洗、家族映射与字段裁剪，',
+        el('em', {}, '已修改'),
+        '。'
+      );
+
   return el('footer', { class: 'foot' },
     el('div', {},
       el('strong', {}, '关于这些推荐 '),
       '选品完全由规则打分产生，不调用大模型。'
     ),
-    el('div', { style: 'margin-top:8px' },
-      el('strong', {}, '数据署名 '),
-      // 直接取 meta.attribution，与上游 LICENSE 指定格式逐字一致，不在代码里另抄一份
-      DATA.meta.attribution,
-      ' · ',
-      el('a', { href: DATA.meta.licenseUrl, target: '_blank', rel: 'noopener noreferrer' }, 'CC BY 4.0'),
-      ' · 快照 ', DATA.meta.sourceSnapshot,
-      ' · 原始数据经清洗、家族映射与字段裁剪，',
-      el('em', {}, '已修改'),
-      '。'
-    ),
+    credit,
     el('div', { style: 'margin-top:8px' },
       el('strong', {}, '已知局限 '),
-      '持香与扩散为按浓度推断，非实测；不含价格与购买渠道；只有 200 瓶样本，可能选不到你已经知道的那瓶。'
+      '持香与扩散为按浓度推断，非实测；不含价格与购买渠道；只收录了 400 瓶样本，可能选不到你已经知道的那瓶。'
     )
   );
 }
@@ -738,24 +765,40 @@ function render() {
 }
 
 /* ---------- 启动 ---------- */
+/* 分两段加载，而不是等两个文件都到齐才画第一屏。
+   为什么：perfumes.json 有 519KB，taxonomy.json 只有 23KB。原先是 Promise.all
+   一起等，慢网实测首屏要 1.9s（4G）/ 3.1s（限速），这期间页面只有一张空白纸，
+   用户会当成「网站打不开」。前三步（情绪/场合/浓度）根本用不到香水库，
+   只需要 taxonomy —— 所以先把它画出来，香水库在后台继续下，到第 4 步再等。 */
+let perfumesPromise = null;
+function ensurePerfumes() {
+  if (DATA) return Promise.resolve(DATA);
+  if (!perfumesPromise) {
+    const base = new URL('./', import.meta.url);
+    perfumesPromise = fetch(new URL('data/perfumes.json', base))
+      .then((r) => {
+        if (!r.ok) throw new Error(`perfumes.json HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => { DATA = d; return d; })
+      .catch((err) => { perfumesPromise = null; throw err; });
+  }
+  return perfumesPromise;
+}
+
 async function boot() {
+  /* index.html 里已有静态骨架屏（不能靠这里注入 —— app.js 是 module，
+     自己下载完才执行，那几秒里页面会是空的）。这里只负责抹掉它。 */
   try {
     // 以本模块的位置解析数据路径，而不是以页面位置。
     // 相对 fetch('./data/…') 会随【页面】所在目录变 —— 核查页放在 /tools/
     // 下时会错找 /tools/data/ 而 404（实测踩过）。以 import.meta.url 为基就没这问题。
     const base = new URL('./', import.meta.url);
-    const [d, t] = await Promise.all([
-      fetch(new URL('data/perfumes.json', base)).then((r) => {
-        if (!r.ok) throw new Error(`perfumes.json HTTP ${r.status}`);
-        return r.json();
-      }),
-      fetch(new URL('data/taxonomy.json', base)).then((r) => {
-        if (!r.ok) throw new Error(`taxonomy.json HTTP ${r.status}`);
-        return r.json();
-      }),
-    ]);
-    DATA = d;
-    TAX = t;
+    // 香水库不阻塞首屏：立刻发请求，但不等它
+    ensurePerfumes().catch(() => {});   // 失败在用到时再抛，这里只预热
+    const res = await fetch(new URL('data/taxonomy.json', base));
+    if (!res.ok) throw new Error(`taxonomy.json HTTP ${res.status}`);
+    TAX = await res.json();
     render();
   } catch (err) {
     $('#app').innerHTML = `<div class="masthead"><h1>加载失败</h1></div>

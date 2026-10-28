@@ -870,3 +870,44 @@ footer.foot strong { color: var(--ink-2); font-weight: 500; }
   .disc { width: min(86vw, 50vh, 380px); }
   .disc-hub .hub-desc { display: none; }
 }
+
+/* ---------- 骨架屏 ----------
+   数据没到之前画一个圆盘轮廓，取代原来的空白。
+   为什么不用 spinner：一个转圈图标没有交代「在等什么」，圆盘轮廓能让用户
+   提前知道这页长什么样，数据到位时也不跳版。 */
+.skeleton { display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 32px 0 48px; }
+
+.skeleton-ring {
+  width: min(88vw, var(--discw));
+  max-width: 420px;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  position: relative;
+  background: var(--bg-2);
+}
+/* 内圈一道更淡的线，暗示这是可以切分的圆盘而非一个圆点 */
+.skeleton-ring::after {
+  content: "";
+  position: absolute;
+  inset: 22%;
+  border-radius: 50%;
+  border: 1px dashed var(--edge);
+  opacity: .35;
+}
+.skeleton-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from -90deg, var(--bg-3) 0 25%, transparent 25% 50%, var(--bg-3) 50% 75%, transparent 75% 100%);
+  opacity: .55;
+  animation: skeleton-breathe 1.8s ease-in-out infinite;
+}
+@keyframes skeleton-breathe { 0%, 100% { opacity: .25; } 50% { opacity: .6; } }
+
+.skeleton-note { font-size: 12px; color: var(--ink-3); text-align: center; margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-ring::before { animation: none; opacity: .35; }
+}

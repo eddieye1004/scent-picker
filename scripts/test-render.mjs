@@ -158,7 +158,7 @@ fs.writeFileSync(tmpApp, appSrc);
 
 await import('file://' + tmpApp.replace(/\\/g, '/'));
 globalThis.document._domReady();          // 触发 boot()
-await new Promise((r) => setTimeout(r, 120)); // 等 fetch 完成
+await new Promise((r) => setTimeout(r, 600));
 
 const getStepText = () => appRoot.textContent;
 
