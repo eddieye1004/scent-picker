@@ -230,9 +230,28 @@ function renderNotes() {
     return box;
   };
 
-  // 40 个香调一次铺开会压垮新手 → 先给 16 个高频，其余折叠
-  const common = entries.slice(0, 16);
-  const rest = entries.slice(16);
+  // 40 个香调一次铺开会压垮新手 → 先给 16 个，其余折叠。
+  // 但不能直接 slice(0,16)：entries 按家族顺序排列，前 16 个正好全是
+  // 柑橘+花香+雪松檀木，喜欢木质/琥珀/美食/清新的人一个可点的都没有。
+  // 改成按家族轮流取，保证每个家族都露脸，再恢复原始顺序保持版面稳定。
+  const PEEK = 16;
+  const byFamily = new Map();
+  entries.forEach((n, i) => {
+    if (!byFamily.has(n.family)) byFamily.set(n.family, []);
+    byFamily.get(n.family).push(i);
+  });
+  const picked = new Set();
+  let round = 0;
+  while (picked.size < PEEK && round < 16) {
+    for (const idxs of byFamily.values()) {
+      if (picked.size >= PEEK) break;
+      if (idxs[round] != null) picked.add(idxs[round]);
+    }
+    round += 1;
+  }
+  const order = [...picked].sort((a, b) => a - b);
+  const common = order.map((i) => entries[i]);
+  const rest = entries.filter((_, i) => !picked.has(i));
 
   wrap.appendChild(el('div', { class: 'chips-label' }, '我喜欢这些味道'));
   wrap.appendChild(mkChips(common, 'likedNotes', false));
@@ -253,8 +272,25 @@ function renderNotes() {
   }, `展开全部 ${entries.length} 个香调`);
   wrap.appendChild(moreBtn);
 
+  // 讨厌栏与喜欢栏保持同一套可见范围，避免"喜欢只看到 16 个、讨厌却有 40 个"的不对称。
   wrap.appendChild(el('div', { class: 'chips-label' }, '我受不了这些味道（更有效）'));
-  wrap.appendChild(mkChips(entries, 'dislikedNotes', true));
+  wrap.appendChild(mkChips(common, 'dislikedNotes', true));
+
+  const disMoreBox = el('div', { class: 'chips', style: 'margin-top:8px;display:none' });
+  disMoreBox.appendChild(mkChips(rest, 'dislikedNotes', true));
+  wrap.appendChild(disMoreBox);
+
+  const disMoreBtn = el('button', {
+    class: 'btn ghost',
+    type: 'button',
+    style: 'margin-top:10px;padding:7px 14px;font-size:13px',
+    onclick: () => {
+      const hidden = disMoreBox.style.display === 'none';
+      disMoreBox.style.display = hidden ? 'flex' : 'none';
+      disMoreBtn.textContent = hidden ? '收起' : `展开全部 ${entries.length} 个香调`;
+    },
+  }, `展开全部 ${entries.length} 个香调`);
+  wrap.appendChild(disMoreBtn);
 
   wrap.appendChild(navBar('notes'));
   return wrap;
