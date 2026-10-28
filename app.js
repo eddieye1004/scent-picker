@@ -146,8 +146,26 @@ function buildDisc(items, cfg) {
   svg.appendChild(svgEl('circle', {
     class: 'ring-thin', cx: DISC.cx, cy: DISC.cy, r: DISC.rOut + 6,
   }));
+
+  /* 内圈分度刻线：36 道，每 3 道（30°）加长。
+     这不是装饰花纹——罗盘、日晷、量角器都长这样，因为它有用：
+     用户能数出「这是被切成几份的东西」。纯 SVG 直线，不参与命中。 */
+  const TICK_N = 36;
+  for (let k = 0; k < TICK_N; k++) {
+    const deg = -90 + (360 / TICK_N) * k;
+    const major = k % 3 === 0;
+    const r1 = DISC.rIn - 2;
+    const r2 = DISC.rIn - (major ? 10 : 6);
+    const [x1, y1] = polar(r1, deg);
+    const [x2, y2] = polar(r2, deg);
+    svg.appendChild(svgEl('line', {
+      class: major ? 'ring-tick is-major' : 'ring-tick',
+      x1, y1, x2, y2,
+    }));
+  }
+
   svg.appendChild(svgEl('circle', {
-    class: 'ring-accent', cx: DISC.cx, cy: DISC.cy, r: DISC.rIn - 9,
+    class: 'ring-accent', cx: DISC.cx, cy: DISC.cy, r: DISC.rIn - 16,
   }));
   // 缓慢旋转的弧：纯装饰，给"机器在运行"的暗示，不影响任何命中
   svg.appendChild(svgEl('circle', {
@@ -166,19 +184,25 @@ function buildDisc(items, cfg) {
   root.appendChild(svg);
 
   /* --- 盘心：默认空态，指针移上去就换成那一条的说明 --- */
-  const hubKicker = el('div', { class: 'hub-kicker' }, '当前选择');
+  const hubKicker = el('div', { class: 'hub-kicker' }, '尚未选择');
   const hubZh = el('div', { class: 'hub-zh' }, '还没选');
   const hubDesc = el('div', { class: 'hub-desc' }, '点任意扇区，或先把指针移上去看看');
   const hub = el('div', { class: 'disc-hub is-idle' }, hubKicker, hubZh, hubDesc);
   root.appendChild(hub);
 
-  const showInHub = (it) => {
+  // kicker 要跟着状态走：悬停时写「当前选择」是错的——那时还没选。
+  const IDLE_KICK = '尚未选择';
+  const HOVER_KICK = '正在看';
+  const PICK_KICK = '当前选择';
+  const showInHub = (it, kind) => {
     if (it) {
       hub.classList.remove('is-idle');
+      hubKicker.textContent = kind === 'hover' ? HOVER_KICK : PICK_KICK;
       hubZh.textContent = it.zh;
       hubDesc.textContent = it.desc;
     } else {
       hub.classList.add('is-idle');
+      hubKicker.textContent = IDLE_KICK;
       hubZh.textContent = '还没选';
       hubDesc.textContent = '点任意扇区，或先把指针移上去看看';
     }
@@ -214,12 +238,12 @@ function buildDisc(items, cfg) {
     g.addEventListener('click', () => {
       pick.current = it.id;
       setOn(i);
-      showInHub(it);
+      showInHub(it, 'pick');
       groups.forEach((x, j) => x.classList.toggle('is-hot', j === i));
       onPick(it);
     });
     g.addEventListener('mouseenter', () => {
-      showInHub(it);
+      showInHub(it, 'hover');
       g.classList.add('is-hot');
     });
     g.addEventListener('mouseleave', () => {
@@ -238,17 +262,17 @@ function buildDisc(items, cfg) {
       onclick: () => {
         pick.current = it.id;
         setOn(i);
-        showInHub(it);
+        showInHub(it, 'pick');
         groups.forEach((g, j) => g.classList.toggle('is-hot', j === i));
         onPick(it);
       },
-      onmouseenter: () => showInHub(it),
+      onmouseenter: () => showInHub(it, 'hover'),
       onmouseleave: () => {
         const cur = items.find((x) => x.id === pick.current);
         showInHub(cur || null);
         groups.forEach((g, j) => g.classList.toggle('is-hot', items[j].id === pick.current));
       },
-      onfocus: () => showInHub(it),
+      onfocus: () => showInHub(it, 'hover'),
       onblur: () => {
         const cur = items.find((x) => x.id === pick.current);
         showInHub(cur || null);
@@ -283,7 +307,7 @@ function buildDisc(items, cfg) {
     const idx = items.findIndex((x) => x.id === selectedId);
     if (idx >= 0) {
       groups[idx].classList.add('is-on');
-      showInHub(items[idx]);
+      showInHub(items[idx], 'pick');
     }
   }
 
@@ -584,7 +608,9 @@ function renderMasthead() {
       isResult
         ? '每一瓶的理由都能反推回你刚才的选择，没有一句是编的。'
         : '不用懂前中后调。回答四个问题，我们会给你三个具体到型号的候选，和选它的理由。'
-    )
+    ),
+    // 印章：纯装饰（aria-hidden），字取「香」—— 这个应用唯一的主题字。
+    el('span', { class: 'seal', 'aria-hidden': 'true' }, '香')
   );
 }
 

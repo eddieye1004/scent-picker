@@ -70,7 +70,8 @@ npx serve .
 | 打分 | 纯函数规则引擎（`src/scoring.js`） | 确定性、可测试、可解释。**不调用大模型** |
 | 数据 | 两个 JSON 文件，前端直接 fetch | 400 瓶的量级不值得上数据库 |
 | 服务器 | `node:http` 内置模块 | 30 行，能看懂 |
-| 测试 | 三个 Node 脚本，零测试框架 | 直接 `node scripts/xxx.mjs` 就能跑 |
+| 测试 | 五个 Node 脚本，零测试框架 | 直接 `node scripts/xxx.mjs` 就能跑 |
+| 视觉 | 手写 CSS，宣纸底 + 朱砂强调 | 纸纹用内联 SVG `feTurbulence` 生成，不引外部图片、不联网 |
 
 **为什么不用大模型做推荐**：模型给不出稳定结果——同一个问题问两次可能给两瓶不同的香，而且它无法保证"这瓶确实有佛手柑"。规则引擎的每一条理由都能复算，这是这个项目的立身之本。
 
@@ -101,7 +102,7 @@ scent-picker/
 │   ├── qa-data.mjs         数据体检
 │   └── test-compliance.mjs 10 项负向测试（证明断言有效）
 ├── docs/
-│   ├── DECISIONS.md        15 条已确认决策及其理由
+│   ├── DECISIONS.md        21 条已确认决策及其理由
 │   ├── COMPLIANCE.md       数据许可与合规边界（含证据链）
 │   └── DEPLOY.md           GitHub Pages 部署步骤
 └── tools/

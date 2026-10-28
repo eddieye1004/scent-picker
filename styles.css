@@ -1,38 +1,50 @@
-/* ===== 零基础香水选择器 · HUD =====
-   设计取向：深空黑底 + 青蓝色光路，像座舱仪表/全息操作盘。
-   唯一强调色是青（--accent），警告用暖橙（--warn），否定用珊瑚红（--danger）。
+/* ===== 零基础香水选择器 · 天工造物 =====
+   设计取向：宣纸底、墨字、朱砂印、宋体为骨。取《天工开物》的物质感——
+   纸是有纤维的，字是刻出来的，颜色来自矿物与植物染料，不是屏幕光。
 
    全部原生 CSS，无框架，无外部字体，离线可用。
+   纸纹是一段内联 SVG feTurbulence，不联网、不引外部图片。
 
-   ⚠️ 三条硬约束由 scripts/test-contrast.mjs 强制，改色会直接测试失败：
-     1. 下面 PAIRS 里列过的每组前景/背景 >= 4.5:1（WCAG AA 正文）
-     2. 任何字体不小于 12px
-     3. .btn / .chip / .disc-sector / input[type=range] 都声明 min-height:44px
+   ⚠️ 四条硬约束由 scripts/test-contrast.mjs 强制，改色会直接测试失败：
+     1. PAIRS 里每组前景/背景 >= 4.5:1（WCAG AA 正文）
+     2. 控件边界 --edge >= 3:1（WCAG 1.4.11）
+     3. 任何字体不小于 12px
+     4. .btn / .chip / .disc-sector / input[type=range] 都声明 min-height:44px
 */
 
 :root {
-  /* —— 底 —— */
-  --bg:      #070b11;   /* 页面底 */
-  --bg-2:    #0c1420;   /* 面板/条目底 */
-  --bg-3:    #132033;   /* hover / 选中底 */
-  --line:    #21324a;   /* 纯装饰分隔线（不承载文字，也不做控件边界） */
-  /* 可交互控件的边界色。--line 只有 1.52 : 1，用它画按钮边框等于没画，
-     WCAG 1.4.11 要求 UI 组件边界 >= 3 : 1，实测 #42688f = 3.39 : 1 才达标。 */
-  --edge:    #42688f;
+  /* —— 纸 —— */
+  --bg:      #f4ece0;   /* 宣纸底（生宣偏暖） */
+  --bg-2:    #ebe1d3;   /* 压深一层：面板、盘心、条目底 */
+  --bg-3:    #e0d4c3;   /* 再深一层：hover / 选中底 */
+  --line:    #ddd2c0;   /* 界格与分隔线。纯装饰，不承载文字也不做控件边界（1.28:1） */
+  /* 可交互控件的边界色。--line 只有 1.28:1，画按钮边框等于没画；
+     WCAG 1.4.11 要求 >= 3:1，实测 #82705a 在三层纸底上都达标（4.06 / 3.68 / 3.26）。 */
+  --edge:    #82705a;
 
-  /* —— 文字（全部按 WCAG 反解，见 test-contrast）—— */
-  --ink:     #e8eef6;   /* 16.93 : 1 on --bg */
-  --ink-2:   #a8b6c8;   /*  9.57 : 1 on --bg */
-  --ink-3:   #8595a8;   /*  6.44 : 1 on --bg / 6.04 on --bg-2 / 5.35 on --bg-3 */
+  /* —— 墨（全部按 WCAG 反解，见 test-contrast）—— */
+  --ink:     #211e19;   /* 14.17 : 1 on --bg（松烟墨） */
+  --ink-2:   #4d463c;   /*  7.94 : 1 on --bg（淡墨，正文次级） */
+  --ink-3:   #615a4e;   /*  5.82 on --bg / 5.27 on --bg-2 / 4.67 on --bg-3（三者全过） */
 
-  /* —— 强调 —— */
-  --accent:      #5ad6e8;  /* 11.47 : 1 on --bg */
-  --accent-soft: #2b6b78;  /* 仅 1px 描边与光晕，不承载文字 */
-  --warn:        #f0b969;  /* 11.13 : 1 */
-  --danger:      #ff8f9e;  /*  9.09 : 1 */
-  --ok:          #7ee0a8;
+  /* —— 色（矿物与植物染料）—— */
+  --accent:      #8c3a2c;  /* 朱砂。6.50 : 1 on --bg，白字压其上 7.62 */
+  --accent-soft: #8a7a63;  /* 仅 1px 描边与浅晕，不承载文字。3.55 : 1 on --bg */
+  --warn:        #755616;  /* 赭石。5.78 on --bg */
+  --danger:      #93291f;  /* 胭脂。6.95 on --bg */
+  --ok:          #435c42;  /* 苍绿。6.29 on --bg */
 
-  --radius: 2px;
+  /* —— 字体 ——
+     中文标题走宋体（本机已装 Noto Serif SC / Source Han Serif SC），
+     正文走黑体保证小字号可读——宋体在 14px 以下的横画会糊成一片。
+     西文与数字同用衬线，气质统一；等宽只给编号。 */
+  --font-display: "Noto Serif SC", "Source Han Serif SC", "Songti SC",
+                  "SimSun", Georgia, "Times New Roman", serif;
+  --font-body:    "Noto Sans SC", -apple-system, "PingFang SC",
+                  "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono:    ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --radius: 4px;
   --maxw: 760px;
   --discw: 560px;
 }
@@ -44,26 +56,36 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: "Inter", -apple-system, "PingFang SC", "Hiragino Sans GB",
-               "Microsoft YaHei", "Source Han Sans SC", sans-serif;
+  font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
 }
 
-/* HUD 底纹：细网格 + 中心径向辉光。不用图片，纯渐变。 */
+/* 纸纹：内联 SVG 的分形噪声，相当于把纤维压进纸里。
+   没有它，整页就是一块纯色块；有了它，纸才有"物"的感觉。
+   刻意不用网格线——网格是蓝图语言，不是造纸语言。 */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 0;
+  opacity: .5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23p)' opacity='.055'/%3E%3C/svg%3E");
+}
+/* 纸上的一层极淡色晕，模拟纸张受潮与染色的不均。
+   三个椭圆不同色相（朱砂 / 靛 / 赭），互相压得很淡，只做呼吸感。 */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
   background:
-    radial-gradient(ellipse 70% 55% at 50% 38%, rgba(90, 214, 232, .07), transparent 70%),
-    linear-gradient(rgba(33, 50, 74, .35) 1px, transparent 1px) 0 0 / 100% 44px,
-    linear-gradient(90deg, rgba(33, 50, 74, .35) 1px, transparent 1px) 0 0 / 44px 100%;
-  mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, #000 30%, transparent 100%);
-  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, #000 30%, transparent 100%);
+    radial-gradient(ellipse 62% 42% at 16% 6%, rgba(140, 58, 44, .045), transparent 62%),
+    radial-gradient(ellipse 54% 46% at 84% 16%, rgba(51, 70, 92, .038), transparent 64%),
+    radial-gradient(ellipse 72% 48% at 46% 102%, rgba(122, 90, 23, .04), transparent 66%);
 }
 
 #app {
@@ -71,177 +93,227 @@ body::before {
   z-index: 1;
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: 40px 24px 88px;
+  padding: 44px 24px 88px;
 }
 #app.wide { --maxw: 900px; }
 
 /* ---------- 头部 ---------- */
 .masthead {
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 16px;
-  margin-bottom: 30px;
+  border-bottom: 1px solid var(--edge);
+  padding-bottom: 18px;
+  margin-bottom: 32px;
   position: relative;
 }
-/* 左上角定位角标，纯装饰 */
+/* 双线：古籍版框常见「外粗内细」两道线，比单线有分量。
+   第二条线用 ::after 画在下方 3px，纯装饰。 */
+.masthead::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -4px;
+  height: 1px;
+  background: var(--line);
+}
+/* 标题左侧一枚朱砂小方，像书页起首的印记。纯装饰，不是图标。 */
 .masthead::before {
   content: "";
   position: absolute;
-  left: -12px; top: -8px;
-  width: 10px; height: 10px;
-  border-left: 1px solid var(--accent-soft);
-  border-top: 1px solid var(--accent-soft);
+  left: -14px; top: 9px;
+  width: 5px; height: 22px;
+  background: var(--accent);
+  border-radius: 1px;
 }
 .masthead h1 {
+  font-family: var(--font-display);
   font-size: 26px;
-  line-height: 1.3;
-  margin: 0 0 6px;
-  letter-spacing: -.3px;
+  line-height: 1.35;
+  margin: 0 0 8px;
+  letter-spacing: .5px;
   font-weight: 600;
+}
+/* 印章：右上角一方朱砂，白字压其内。
+   字是竖排的（writing-mode），像真的钤印，不是横排标签。
+   位置用 absolute 挂上去，不参与标题的流式布局。 */
+.masthead .seal {
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--bg);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: 0;
+  border-radius: 2px;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  /* 印泥不会均匀：一点内阴影让边缘比中心深 */
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .16);
+  user-select: none;
 }
 .masthead .lede {
   color: var(--ink-2);
   font-size: 14px;
   margin: 0;
+  padding-right: 48px;   /* 给印章让位，避免长句压到印上 */
 }
 .masthead .lede em {
   font-style: normal;
   color: var(--accent);
+  border-bottom: 1px solid var(--accent-soft);
+  padding-bottom: 1px;
 }
 
-/* ---------- 进度 ---------- */
+/* ---------- 进度：四道短横，像书页上的划线 ---------- */
 .progress {
   display: flex;
   gap: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 .progress i {
   display: block;
   height: 2px;
   flex: 1;
   background: var(--line);
-  transition: background .3s, box-shadow .3s;
+  transition: background .3s;
 }
-.progress i.done { background: var(--accent-soft); }
-.progress i.now  {
-  background: var(--accent);
-  box-shadow: 0 0 8px rgba(90, 214, 232, .8);
-}
+.progress i.done { background: var(--edge); }
+.progress i.now  { background: var(--accent); }
 .progress-meta {
   font-size: 12px;
   color: var(--ink-3);
-  letter-spacing: .8px;
-  text-transform: uppercase;
-  margin-bottom: 28px;
-  display: flex;
-  justify-content: space-between;
+  letter-spacing: .3px;
+  margin-bottom: 26px;
 }
+.progress-meta b { color: var(--ink-2); font-weight: 500; }
 
 /* ---------- 问题区 ---------- */
 .q-kicker {
+  font-family: var(--font-display);
   font-size: 12px;
-  letter-spacing: 1.6px;
-  text-transform: uppercase;
   color: var(--accent);
-  margin-bottom: 9px;
+  letter-spacing: 1.2px;
+  margin-bottom: 10px;
 }
 .q-title {
-  font-size: 22px;
-  line-height: 1.35;
-  margin: 0 0 9px;
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1.3;
+  margin: 0 0 8px;
   font-weight: 600;
-  letter-spacing: -.2px;
+  letter-spacing: .3px;
 }
 .q-help {
   color: var(--ink-2);
   font-size: 14px;
-  margin: 0 0 26px;
-  padding-left: 12px;
-  border-left: 2px solid var(--accent-soft);
+  margin: 0 0 28px;
+  line-height: 1.6;
 }
 
-/* ---------- 第 1 步：圆盘舞台 ---------- */
+/* 圆盘页面用居中排版：问题在盘上方居中，视线自然落到盘心 */
 .stage-lead {
   text-align: center;
-  margin-bottom: 4px;
-}
-.stage-lead .q-kicker { text-align: center; }
-.stage-lead .q-title {
-  font-size: 24px;
   margin-bottom: 6px;
 }
-.stage-lead .q-help {
-  display: inline-block;
-  text-align: center;
-  border-left: none;
-  padding-left: 0;
-  margin-bottom: 10px;
-  font-size: 13.5px;
-}
+.stage-lead .q-title { margin-bottom: 6px; }
+.stage-lead .q-help { margin-bottom: 1px; }
 
+/* ---------- 轮盘 ---------- */
 .disc {
   position: relative;
-  /* 三个上限取小：视口宽度、视口高度、设计宽。
-     只写 vw 的话，手机横屏/矮屏上圆盘会顶出首屏 —— iPhone SE 375×667 实测
-     单靠 88vw 会溢出 9px，加上 vh 约束才能在矮屏上自动收。 */
   width: min(88vw, 62vh, var(--discw));
   aspect-ratio: 1 / 1;
   margin: 0 auto;
-  touch-action: manipulation;
 }
 .disc-svg {
-  position: absolute;
-  inset: 0;
   width: 100%;
   height: 100%;
+  display: block;
   overflow: visible;
 }
+
+/* 扇区：纸上一圈刻出来的界格。默认几乎与纸同色，靠 --edge 描边显形。 */
 .disc-svg .sector-shape {
-  fill: var(--bg-2);
+  fill: rgba(235, 225, 211, .55);
   stroke: var(--edge);
   stroke-width: 1;
-  transition: fill .22s, stroke .22s;
+  transition: fill .22s, stroke .22s, stroke-width .22s;
 }
 .disc-svg .sector-g {
   transform-origin: 240px 240px;
   transition: transform .22s ease;
   cursor: pointer;
 }
+/* 指针移上去：纸背透出更深的底色，像手指按在纸上 */
 .disc-svg .sector-g:hover,
 .disc-svg .sector-g.is-hot {
-  transform: scale(1.035);
+  transform: scale(1.028);
 }
 .disc-svg .sector-g:hover .sector-shape,
 .disc-svg .sector-g.is-hot .sector-shape {
   fill: var(--bg-3);
-  stroke: var(--accent-soft);
-}.disc-svg .sector-g.is-on .sector-shape {
-  fill: rgba(90, 214, 232, .13);
-  stroke: var(--accent);
-  filter: drop-shadow(0 0 10px rgba(90, 214, 232, .55));
+  stroke: var(--ink-2);
 }
+
+/* 选中：填一层极淡的朱砂，描边换成朱砂实线。
+   不用发光——印章不发光，它是有厚度的颜色。 */
+.disc-svg .sector-g.is-on .sector-shape {
+  fill: rgba(140, 58, 44, .11);
+  stroke: var(--accent);
+  stroke-width: 1.6;
+}
+
 .disc-svg .sector-tick { stroke: var(--line); stroke-width: 1; }
+
+/* 内圈细线：罗盘的盘沿 */
 .disc-svg .ring-thin {
   fill: none;
-  stroke: var(--line);
+  stroke: var(--edge);
   stroke-width: 1;
+  opacity: .55;
 }
+/* 内圈分度刻线：36 道短划，每 3 道加长加粗。
+   用 --edge 而不是 --line —— 刻线紧挨盘心，会被当成"这里划分了区域"的结构线读，
+   跟 --line 那种纯装饰分隔线不是一回事。 */
+.disc-svg .ring-tick {
+  stroke: var(--edge);
+  stroke-width: 1;
+  opacity: .5;
+  stroke-linecap: round;
+}
+.disc-svg .ring-tick.is-major {
+  stroke-width: 1.4;
+  opacity: .78;
+}
+
+/* 内圈刻度环：一圈细密点，像罗盘刻线 */
 .disc-svg .ring-accent {
   fill: none;
-  stroke: var(--accent-soft);
+  stroke: var(--edge);
   stroke-width: 1;
-  stroke-dasharray: 2 7;
+  stroke-dasharray: 1 6;
+  opacity: .7;
 }
+/* 最外一道弧：转得很慢，像浑天仪的环。
+   只做"这是个可以转的东西"的暗示，不喧宾夺主。 */
 .disc-svg .ring-spin {
   fill: none;
-  stroke: rgba(90, 214, 232, .45);
+  stroke: var(--accent);
   stroke-width: 1;
-  stroke-dasharray: 40 200;
-  animation: spin 14s linear infinite;
+  stroke-dasharray: 56 400;
+  opacity: .38;
+  animation: spin 90s linear infinite;
   transform-origin: 240px 240px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* 扇区标签：真实 button，键盘可 Tab / 方向键切换 */
+/* 扇区标签：真实 button，键盘可 Tab / 方向键切换。
+   中文用宋体，字号跟着扇区走；下面的西文是款识，弱到几乎只是纹理。 */
 .disc-sector {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -249,42 +321,43 @@ body::before {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
+  gap: 0;
   min-width: 56px;
   min-height: 44px;
   padding: 6px 8px;
   border: 1px solid transparent;
-  border-radius: 3px;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--ink-2);
-  font: inherit;
-  font-size: 15px;
-  font-weight: 500;
-  letter-spacing: .5px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: .8px;
   cursor: pointer;
   transition: color .18s, border-color .18s, background .18s;
 }
-.disc-sector:hover { color: var(--ink); border-color: var(--accent-soft); }
+.disc-sector:hover { color: var(--ink); border-color: var(--edge); }
 .disc-sector[aria-checked="true"] {
   color: var(--accent);
   border-color: var(--accent);
-  background: rgba(90, 214, 232, .09);
-  text-shadow: 0 0 12px rgba(90, 214, 232, .6);
+  background: rgba(140, 58, 44, .06);
 }
 .disc-sector:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 .disc-sector .en {
+  font-family: var(--font-display);
   font-size: 12px;
-  letter-spacing: 1px;
+  font-style: italic;
+  letter-spacing: .2px;
   color: var(--ink-3);
-  text-transform: uppercase;
   font-weight: 400;
+  opacity: .8;
 }
-.disc-sector[aria-checked="true"] .en { color: var(--accent); }
+.disc-sector[aria-checked="true"] .en { color: var(--accent); opacity: 1; }
 
-/* 盘心：显示当前选择 */
+/* 盘心：一块压深的纸，像罗盘中央的天池 */
 .disc-hub {
   position: absolute;
   left: 50%; top: 50%;
@@ -292,8 +365,8 @@ body::before {
   width: 34%;
   aspect-ratio: 1 / 1;
   border-radius: 50%;
-  border: 1px solid var(--accent-soft);
-  background: radial-gradient(circle at 50% 45%, rgba(90, 214, 232, .10), var(--bg) 72%);
+  border: 1px solid var(--edge);
+  background: var(--bg-2);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -304,27 +377,27 @@ body::before {
 }
 .disc-hub .hub-kicker {
   font-size: 12px;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
+  letter-spacing: .8px;
   color: var(--ink-3);
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 .disc-hub .hub-zh {
-  font-size: 19px;
+  font-family: var(--font-display);
+  font-size: 20px;
   font-weight: 600;
   letter-spacing: 1px;
   color: var(--accent);
-  line-height: 1.25;
+  line-height: 1.3;
 }
 .disc-hub .hub-desc {
   font-size: 12px;
   color: var(--ink-2);
   line-height: 1.45;
-  margin-top: 4px;
+  margin-top: 5px;
 }
 .disc-hub.is-idle .hub-zh { color: var(--ink-2); font-weight: 500; }
 
-/* ---------- 通用选项条目（第 2 步）---------- */
+/* ---------- 通用选项条目（第 2 步的备用形态）---------- */
 .options { display: flex; flex-direction: column; gap: 2px; }
 
 .opt {
@@ -346,27 +419,34 @@ body::before {
 }
 .opt:last-child { border-bottom: 1px solid var(--line); }
 .opt:hover {
-  background: var(--bg-3);
-  border-color: var(--accent-soft);
+  background: var(--bg-2);
+  border-color: var(--edge);
   padding-left: 16px;
 }
 .opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .opt .num {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 12px;
   color: var(--ink-3);
   letter-spacing: .5px;
   padding-top: 3px;
 }
-.opt .label { font-size: 16px; font-weight: 500; }
+.opt .label {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: .3px;
+}
 .opt .desc {
   display: block;
+  font-family: var(--font-body);
   font-size: 13px;
   font-weight: 400;
   color: var(--ink-2);
-  margin-top: 2px;
-  line-height: 1.5;
+  margin-top: 3px;
+  line-height: 1.55;
 }
 .opt .tick {
   font-size: 12px;
@@ -377,14 +457,14 @@ body::before {
 }
 .opt:hover .tick { opacity: 1; }
 .opt[aria-pressed="true"] {
-  background: rgba(90, 214, 232, .08);
+  background: rgba(140, 58, 44, .05);
   border-color: var(--accent);
   padding-left: 16px;
 }
 .opt[aria-pressed="true"] .tick { opacity: 1; }
 .opt[aria-pressed="true"] .num { color: var(--accent); }
 
-/* ---------- 滑块 ---------- */
+/* ---------- 滑块：一根墨线，朱砂小圆当砝码 ---------- */
 .scale { padding: 8px 0 4px; }
 .scale input[type="range"] {
   -webkit-appearance: none;
@@ -393,7 +473,7 @@ body::before {
   /* 元素盒子 44px 高：轨道只有 2px 是视觉，不是命中区。
      只写 height:2px 会让触屏可点高度真的变成 2px。 */
   height: 44px;
-  background: linear-gradient(var(--line), var(--line)) center / 100% 2px no-repeat;
+  background: linear-gradient(var(--edge), var(--edge)) center / 100% 2px no-repeat;
   margin: 6px 0 4px;
   padding: 0;
 }
@@ -405,19 +485,19 @@ body::before {
 .scale input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px; height: 18px;
+  width: 20px; height: 20px;
   border-radius: 50%;
   background: var(--accent);
-  border: 3px solid var(--bg);
-  box-shadow: 0 0 0 1px var(--accent), 0 0 12px rgba(90, 214, 232, .7);
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 0 1px var(--accent);
   cursor: pointer;
 }
 .scale input[type="range"]::-moz-range-thumb {
-  width: 14px; height: 14px;
+  width: 16px; height: 16px;
   border-radius: 50%;
   background: var(--accent);
-  border: 3px solid var(--bg);
-  box-shadow: 0 0 0 1px var(--accent), 0 0 12px rgba(90, 214, 232, .7);
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 0 1px var(--accent);
   cursor: pointer;
 }
 .scale-ends {
@@ -428,36 +508,38 @@ body::before {
 }
 .scale-read {
   text-align: center;
-  margin-top: 16px;
-  font-size: 15px;
+  margin-top: 18px;
+  font-size: 16px;
   min-height: 26px;
+  font-family: var(--font-display);
 }
 .scale-read b { color: var(--accent); font-weight: 600; }
-.scale-read span { color: var(--ink-2); font-size: 13px; }
+.scale-read span { color: var(--ink-2); font-size: 13px; font-family: var(--font-body); }
 
-/* ---------- 香调多选 chips ---------- */
+/* ---------- 香调多选：一枚枚小印 ---------- */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
-  font: inherit;
+  font-family: var(--font-display);
   font-size: 14px;
+  letter-spacing: .5px;
   padding: 7px 14px;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   background: transparent;
   color: var(--ink-2);
   border-radius: 999px;
   cursor: pointer;
   transition: all .15s;
 }
-.chip:hover { border-color: var(--accent-soft); color: var(--ink); background: var(--bg-3); }
+.chip:hover { border-color: var(--ink-2); color: var(--ink); background: var(--bg-2); }
 .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .chip[aria-pressed="true"] {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--bg);
-  font-weight: 500;
+  font-weight: 600;
 }
 .chip[aria-pressed="true"].neg {
   background: var(--danger);
@@ -465,23 +547,38 @@ body::before {
   color: var(--bg);
 }
 .chips-label {
-  font-size: 12px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  margin: 24px 0 10px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: .5px;
+  color: var(--ink);
+  margin: 28px 0 12px;
+  line-height: 1.3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* 标签前一枚朱砂小方，像古人断句的句读号。
+   刻意不用 border-left 色条——那是最典型的模板 UI 痕迹。 */
+.chips-label::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  transform: rotate(45deg);
 }
 
 /* ---------- 底部动作 ---------- */
 .actions {
-  margin-top: 36px;
+  margin-top: 38px;
   display: flex;
   gap: 12px;
   align-items: center;
 }
 .btn {
-  font: inherit;
+  font-family: var(--font-display);
   font-size: 15px;
+  letter-spacing: .8px;
   padding: 11px 22px;
   min-height: 44px;
   display: inline-flex;
@@ -491,46 +588,49 @@ body::before {
   border: 1px solid var(--accent);
   background: var(--accent);
   color: var(--bg);
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: box-shadow .15s, transform .1s, opacity .15s;
+  transition: background .15s, transform .1s, opacity .15s;
 }
-.btn:hover { box-shadow: 0 0 18px rgba(90, 214, 232, .45); }
+/* 按下时像盖章：颜色压深一点，位置下沉 1px */
+.btn:hover { background: #7a3125; border-color: #7a3125; }
 .btn:active { transform: translateY(1px); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .btn.ghost {
   background: transparent;
   color: var(--ink-2);
-  border-color: var(--line);
+  border-color: var(--edge);
   font-weight: 400;
 }
 .btn.ghost:hover {
-  border-color: var(--accent-soft);
+  background: var(--bg-2);
+  border-color: var(--ink-2);
   color: var(--ink);
-  box-shadow: none;
 }
-.btn:disabled { opacity: .3; cursor: not-allowed; }
+.btn:disabled { opacity: .32; cursor: not-allowed; }
 .spacer { flex: 1; }
 .hint { font-size: 12px; color: var(--ink-3); }
 
 /* ---------- 结果 ---------- */
 .result-head {
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 18px;
-  margin-bottom: 28px;
+  border-bottom: 1px solid var(--edge);
+  padding-bottom: 20px;
+  margin-bottom: 30px;
 }
 .result-head .eyebrow {
+  font-family: var(--font-display);
   font-size: 12px;
-  letter-spacing: 1.6px;
-  text-transform: uppercase;
+  letter-spacing: 1.4px;
   color: var(--accent);
-  margin-bottom: 7px;
+  margin-bottom: 8px;
 }
 .result-head h2 {
-  font-size: 23px;
-  margin: 0 0 7px;
+  font-family: var(--font-display);
+  font-size: 26px;
+  margin: 0 0 8px;
   font-weight: 600;
-  letter-spacing: -.2px;
+  letter-spacing: .3px;
+  line-height: 1.32;
 }
 .result-head p {
   margin: 0;
@@ -539,108 +639,127 @@ body::before {
 }
 .result-head .profile-line {
   display: inline-block;
-  margin-top: 13px;
+  margin-top: 14px;
   font-size: 12px;
   color: var(--ink-2);
   background: var(--bg-2);
   border: 1px solid var(--line);
-  padding: 5px 11px;
-  border-radius: 2px;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  letter-spacing: .3px;
 }
 
+/* 结果卡：像一页书的版心，四边留白，纸色压深一层。
+   顶部一道朱砂短横当书眉（不是左侧色条——那是模板 UI 最显眼的破绽）。 */
 article.pick {
   border: 1px solid var(--line);
-  background: linear-gradient(180deg, var(--bg-2), transparent);
-  padding: 24px 22px 20px;
-  margin-bottom: 18px;
+  background: var(--bg-2);
+  padding: 30px 24px 22px;
+  margin-bottom: 20px;
   position: relative;
+  border-radius: var(--radius);
 }
-/* 卡片左上角一个小切角，HUD 标记 */
 article.pick::before {
   content: "";
   position: absolute;
-  left: -1px; top: -1px;
-  width: 14px; height: 14px;
-  border-left: 1px solid var(--accent);
-  border-top: 1px solid var(--accent);
+  top: -1px;
+  left: 24px;
+  width: 40px;
+  height: 2px;
+  background: var(--accent);
 }
 
 .pick-rank {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
-  margin-bottom: 6px;
+  margin-bottom: 10px;
 }
+/* 编号做成一方小印：朱砂底、纸色字。 */
 .pick-rank .n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 5px;
+  background: var(--accent);
+  color: var(--bg);
+  font-family: var(--font-mono);
   font-size: 12px;
-  letter-spacing: 1.5px;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-  text-transform: uppercase;
+  letter-spacing: .5px;
+  border-radius: 2px;
 }
 .pick-rank .score {
+  font-family: var(--font-mono);
   font-size: 12px;
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
 .pick h3 {
+  font-family: var(--font-display);
   font-size: 20px;
-  margin: 0 0 2px;
+  margin: 0 0 3px;
   font-weight: 600;
-  letter-spacing: -.2px;
+  letter-spacing: .3px;
+  line-height: 1.35;
 }
 .pick .meta {
   font-size: 13px;
   color: var(--ink-3);
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
-.pick .meta .dot { margin: 0 6px; }
+/* 分隔点用 --ink-3 而不是 --edge：--edge 是控件边界色（4.06:1，做边框够、做文字不够） */
+.pick .meta .dot { margin: 0 6px; color: var(--ink-3); }
 
-/* 三调表 */
+/* 三调表：像一份标注清楚的器物图说 */
 .pyramid {
   display: grid;
   grid-template-columns: 58px 1fr;
   gap: 0;
-  margin: 0 0 18px;
+  margin: 0 0 20px;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
 .pyramid dt, .pyramid dd {
   margin: 0;
-  padding: 9px 0;
+  padding: 10px 0;
   font-size: 14px;
   border-bottom: 1px solid var(--line);
 }
 .pyramid dt:last-of-type, .pyramid dd:last-of-type { border-bottom: none; }
 .pyramid dt {
+  font-family: var(--font-display);
   color: var(--ink-3);
-  font-size: 12px;
-  letter-spacing: .3px;
-  padding-top: 11px;
+  font-size: 13px;
+  letter-spacing: .5px;
+  padding-top: 12px;
 }
 .pyramid dd { color: var(--ink); }
 .pyramid dd span { color: var(--ink-3); font-size: 12px; }
 
-/* 理由 */
+/* 理由：像注文的序号 */
 .reasons {
   list-style: none;
   counter-reset: r;
   padding: 0;
-  margin: 0 0 16px;
+  margin: 0 0 18px;
 }
 .reasons li {
   counter-increment: r;
   position: relative;
-  padding-left: 30px;
-  margin-bottom: 9px;
+  padding-left: 32px;
+  margin-bottom: 10px;
   font-size: 14px;
   color: var(--ink);
+  line-height: 1.62;
 }
 .reasons li::before {
   content: counter(r, decimal-leading-zero);
   position: absolute;
   left: 0;
-  top: 1px;
+  top: 2px;
+  font-family: var(--font-mono);
   font-size: 12px;
   color: var(--accent);
   letter-spacing: .5px;
@@ -661,30 +780,31 @@ article.pick::before {
 .pick-foot a {
   color: var(--ink-2);
   text-decoration: none;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--edge);
   display: inline-flex;
   align-items: center;
   min-height: 44px;
   padding: 0 2px;
 }
-.pick-foot a:hover { color: var(--accent); border-color: var(--accent-soft); }
+.pick-foot a:hover { color: var(--accent); border-color: var(--accent); }
 .tag {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border: 1px solid var(--line);
   border-radius: 2px;
   font-size: 12px;
   color: var(--ink-2);
+  background: var(--bg);
 }
 
 /* ---------- 页脚 ---------- */
 footer.foot {
-  margin-top: 52px;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
+  margin-top: 54px;
+  padding-top: 20px;
+  border-top: 1px solid var(--edge);
   font-size: 12px;
   color: var(--ink-3);
-  line-height: 1.75;
+  line-height: 1.8;
 }
 /* 页脚链接跟在长句里，抬到 24px（WCAG 2.5.8 下限）而不是 44px，
    否则会把页脚行距撑散。刻意取舍，不是漏改。 */
@@ -693,13 +813,15 @@ footer.foot a {
   display: inline-block;
   min-height: 24px;
   line-height: 24px;
+  border-bottom: 1px solid var(--line);
 }
+footer.foot a:hover { color: var(--accent); border-color: var(--accent); }
 footer.foot strong { color: var(--ink-2); font-weight: 500; }
 
-/* ---------- 动效 ---------- */
-.fade-in { animation: fade .35s ease both; }
+/* ---------- 动效：只留纸页翻动的那一点位移 ---------- */
+.fade-in { animation: fade .4s ease both; }
 @keyframes fade {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(5px); }
   to   { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -712,30 +834,35 @@ footer.foot strong { color: var(--ink-2); font-weight: 500; }
 /* ---------- 窄屏 ---------- */
 @media (max-width: 620px) {
   /* 首屏必须装下整个圆盘（iPhone SE 375×667 是最紧的一档）。
-     实测竖向预算：原 padding-top 26 + masthead 96.3/mb 30 + progress 2/mb 8
-     + 提示行 29.8 + stage-lead 116.3 + 圆盘 345.2 = 底边 675.6，超出 8.6px。
-     这里省出约 60px：padding 26→14、masthead mb 30→14、提示行下间距 18→8、
-     stage-lead 下间距 4→2、圆盘的 help 文案窄屏收一行。
+     竖向预算：padding-top 14 + masthead 96/mb 14 + progress 2/mb 10
+     + 提示行 30 + stage-lead 108 + 圆盘 min(90vw, 56vh, 420)。
      省掉的部分不动字号（test-contrast 守着 12px 下限）。 */
   #app { padding: 14px 16px 60px; }
   .masthead { margin-bottom: 14px; padding-bottom: 12px; }
+  .masthead::before { left: -10px; top: 6px; height: 18px; width: 4px; }
   .masthead h1 { font-size: 20px; }
   .masthead .lede { font-size: 13px; }
-  .q-title { font-size: 19px; }
+  .q-title { font-size: 20px; }
   .stage-lead { margin-bottom: 2px; }
-  .stage-lead .q-title { font-size: 19px; }
+  .stage-lead .q-title { font-size: 20px; }
   .stage-lead .q-help { font-size: 13px; line-height: 1.45; }
-  .pick h3 { font-size: 18px; }
+  .pick h3 { font-size: 19px; }
   .opt { grid-template-columns: 26px 1fr; }
   .opt .tick { display: none; }
   .pyramid { grid-template-columns: 50px 1fr; }
   .disc { width: min(90vw, 56vh, 420px); }
-  .disc-sector { font-size: 13px; min-width: 56px; padding: 4px 6px; }
+  .disc-sector { font-size: 14px; min-width: 56px; padding: 4px 6px; }
   .disc-sector .en { display: none; }
-  .disc-hub .hub-zh { font-size: 17px; }
-  .disc-hub .hub-desc { font-size: 12px; line-height: 1.3; }
-  article.pick { padding: 20px 16px 16px; }
-  .foot { margin-top: 32px; }
+  /* 盘心放大到 42%：34% 在 390 宽下只有 119px，说明文字被挤成三行。
+     42% 时内宽约 124px，同样 16 个字能落到两行。
+     代价是会盖住内圈那道点线（r=95），所以窄屏直接把它隐掉——
+     它是装饰，不是信息。 */
+  .disc-hub { width: 42%; padding: 6%; }
+  .disc-svg .ring-accent { display: none; }
+  .disc-hub .hub-zh { font-size: 18px; }
+  .disc-hub .hub-desc { font-size: 12px; line-height: 1.28; margin-top: 4px; }
+  article.pick { padding: 22px 16px 18px; }
+  .foot { margin-top: 34px; }
 }
 
 /* 矮屏（横屏手机、老机型）：圆盘再压一档，宁可小也不能顶出首屏 */
