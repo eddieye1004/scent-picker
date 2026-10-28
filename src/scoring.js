@@ -7,7 +7,9 @@
  *   3. 缺失字段不猜：没有价格就不做价格筛选；没有扩散度就不编扩散度。
  */
 
-export const SCHEMA_VERSION = '1.0.0';
+import { tokenize, matchesNote, aliasesOf, normNote } from './notes.js';
+
+export const SCHEMA_VERSION = '1.1.0';
 
 /* ---------- 权重配置（集中于此，便于调参与写测试） ---------- */
 export const WEIGHTS = {
@@ -79,6 +81,14 @@ export function buildProfile(answers, taxonomy) {
   // 但"清冷"要的是鸢尾/紫罗兰/柏树那种冷感，两者在家族层面区分不出来。
   const emoNotes = new Set((emotion.notes || []).map((n) => String(n).toLowerCase()));
 
+  // 香调 id（= noteIndex 的 en）→ 条目，供 matchesNote 取 aliases。
+  // 一个条目可能被多个 id 指向（如 "neroli / orange blossom"），所以按别名逐个登记。
+  const noteEntryOf = new Map();
+  for (const e of taxonomy.noteIndex.entries) {
+    noteEntryOf.set(normNote(e.en), e);
+    for (const a of aliasesOf(e)) noteEntryOf.set(a, e);
+  }
+
   return {
     emotion,
     occasion,
@@ -86,6 +96,7 @@ export function buildProfile(answers, taxonomy) {
     families: totalVec,
     emotionNotes: emoNotes,
     emotionNotesZh: emotion.notesZh || null,
+    noteEntryOf,
     likedNotes: new Set((answers.likedNotes || []).map((n) => String(n).toLowerCase())),
     dislikedNotes: new Set((answers.dislikedNotes || []).map((n) => String(n).toLowerCase())),
     // 展示用原名：优先用调用方给的 zh 映射（界面上点的是「佛手柑」，
@@ -132,14 +143,24 @@ export function scorePerfume(p, profile, taxonomy) {
     });
   }
 
-  // 香调集合：后面几步都要用，提到前面统一构造
-  const pNotes = (p.notesAll || []).map((n) => String(n).toLowerCase());
-  const noteSet = new Set(pNotes);
+  // 香调集合：后面几步都要用，提到前面统一构造。
+  // 这里预先切好 token，后面三轮匹配共用，避免同一瓶切 3 次。
+  const noteTokens = (p.notesAll || []).map((n) => tokenize(n));
+
+  // 命中判定统一走 matchesNote：按词匹配 + 显式别名，
+  // 不再用双向子串（那会让 "Tuberose" 里的 rose 被当成玫瑰）。
+  const hitsOf = (selection) => {
+    const out = [];
+    for (const key of selection) {
+      const entry = profile.noteEntryOf?.get(key);
+      if (!entry) { out.push(key); continue; } // 没有条目时退化为 key 自身
+      if (noteTokens.some((toks) => matchesNote(entry, null, toks))) out.push(key);
+    }
+    return out;
+  };
 
   // 2) 情绪锚点香调命中（比家族更锐）
-  const emoHits = [...profile.emotionNotes].filter((n) =>
-    [...noteSet].some((pn) => pn.includes(n) || n.includes(pn))
-  );
+  const emoHits = hitsOf(profile.emotionNotes);
   if (emoHits.length) {
     const eScore = clamp01(emoHits.length / 2) * WEIGHTS.emotionNotes;
     score += eScore;
@@ -172,9 +193,7 @@ export function scorePerfume(p, profile, taxonomy) {
   }
 
   // 5) 喜欢的香调命中
-  const likedHits = [...profile.likedNotes].filter((n) =>
-    [...noteSet].some((pn) => pn.includes(n) || n.includes(pn))
-  );
+  const likedHits = hitsOf(profile.likedNotes);
   if (likedHits.length) {
     const nScore = clamp01(likedHits.length / 2) * WEIGHTS.likedNotes;
     score += nScore;
@@ -184,9 +203,7 @@ export function scorePerfume(p, profile, taxonomy) {
   }
 
   // 6) 讨厌的香调命中（强惩罚，且必须能解释为什么排除了它）
-  const dislikedHits = [...profile.dislikedNotes].filter((n) =>
-    [...noteSet].some((pn) => pn.includes(n) || n.includes(pn))
-  );
+  const dislikedHits = hitsOf(profile.dislikedNotes);
   if (dislikedHits.length) {
     score += WEIGHTS.dislikedNotes;
     const dh = dislikedHits.map((n) => profile.dislikedDisplay?.get(n) || n);

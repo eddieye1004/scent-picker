@@ -7,6 +7,7 @@
  *   3. 所有解释性文字来自数据或规则，不调模型、不编内容。
  */
 import { recommend } from './src/scoring.js';
+import { usableEntries } from './src/notes.js';
 
 const state = {
   step: 0,
@@ -25,6 +26,20 @@ const state = {
 
 let DATA = null;
 let TAX = null;
+
+// 香调 chip 表：滤掉在 200 瓶样本里 0 命中的死选项（实测只有 可可/cocoa）。
+// 每次重渲染都会调用，命中数是纯计算，缓存一份避免重复扫 200×40。
+let usableCache = null;
+function getUsableNotes() {
+  const all = TAX.noteIndex.entries;
+  if (!DATA?.perfumes?.length) return all;   // 数据未就绪时退回全表
+  if (usableCache && usableCache.src === DATA.perfumes && usableCache.tax === TAX) {
+    return usableCache.list;
+  }
+  const list = usableEntries(all, DATA.perfumes);
+  usableCache = { src: DATA.perfumes, tax: TAX, list };
+  return list;
+}
 
 const $ = (sel) => document.querySelector(sel);
 const el = (tag, attrs = {}, ...kids) => {
@@ -200,7 +215,10 @@ function renderNotes() {
     el('p', { class: 'q-help' }, STEPS[3].help)
   );
 
-  const entries = TAX.noteIndex.entries;
+  // 40 个香调里有些在当前 200 瓶样本里出现 0 次（实测：可可/cocoa）。
+  // 勾了它却永远推荐不出东西，等于骗一次点击 —— 按命中数把死选项挡掉。
+  // 数据未加载完时退回全表，避免首屏空白。
+  const usable = getUsableNotes();
 
   const mkChips = (list, key, neg) => {
     const zhKey = key === 'likedNotes' ? 'likedZh' : 'dislikedZh';
@@ -236,7 +254,7 @@ function renderNotes() {
   // 改成按家族轮流取，保证每个家族都露脸，再恢复原始顺序保持版面稳定。
   const PEEK = 16;
   const byFamily = new Map();
-  entries.forEach((n, i) => {
+  usable.forEach((n, i) => {
     if (!byFamily.has(n.family)) byFamily.set(n.family, []);
     byFamily.get(n.family).push(i);
   });
@@ -250,12 +268,11 @@ function renderNotes() {
     round += 1;
   }
   const order = [...picked].sort((a, b) => a - b);
-  const common = order.map((i) => entries[i]);
-  const rest = entries.filter((_, i) => !picked.has(i));
+  const common = order.map((i) => usable[i]);
+  const rest = usable.filter((_, i) => !picked.has(i));
 
   wrap.appendChild(el('div', { class: 'chips-label' }, '我喜欢这些味道'));
   wrap.appendChild(mkChips(common, 'likedNotes', false));
-
   const moreBox = el('div', { class: 'chips', style: 'margin-top:8px;display:none' });
   moreBox.appendChild(mkChips(rest, 'likedNotes', false));
   wrap.appendChild(moreBox);
@@ -267,9 +284,9 @@ function renderNotes() {
     onclick: () => {
       const hidden = moreBox.style.display === 'none';
       moreBox.style.display = hidden ? 'flex' : 'none';
-      moreBtn.textContent = hidden ? '收起' : `展开全部 ${entries.length} 个香调`;
+      moreBtn.textContent = hidden ? '收起' : `展开全部 ${usable.length} 个香调`;
     },
-  }, `展开全部 ${entries.length} 个香调`);
+  }, `展开全部 ${usable.length} 个香调`);
   wrap.appendChild(moreBtn);
 
   // 讨厌栏与喜欢栏保持同一套可见范围，避免"喜欢只看到 16 个、讨厌却有 40 个"的不对称。
@@ -287,9 +304,9 @@ function renderNotes() {
     onclick: () => {
       const hidden = disMoreBox.style.display === 'none';
       disMoreBox.style.display = hidden ? 'flex' : 'none';
-      disMoreBtn.textContent = hidden ? '收起' : `展开全部 ${entries.length} 个香调`;
+      disMoreBtn.textContent = hidden ? '收起' : `展开全部 ${usable.length} 个香调`;
     },
-  }, `展开全部 ${entries.length} 个香调`);
+  }, `展开全部 ${usable.length} 个香调`);
   wrap.appendChild(disMoreBtn);
 
   wrap.appendChild(navBar('notes'));

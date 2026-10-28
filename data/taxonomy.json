@@ -516,7 +516,11 @@
         "zh": "橙花",
         "en": "neroli / orange blossom",
         "family": "citrus",
-        "subfamily": "citrus-floral"
+        "subfamily": "citrus-floral",
+        "aliases": [
+          "neroli",
+          "orange blossom"
+        ]
       },
       {
         "zh": "苦橙叶",
@@ -534,13 +538,19 @@
         "zh": "晚香玉",
         "en": "tuberose",
         "family": "floral",
-        "subfamily": "white-floral"
+        "subfamily": "white-floral",
+        "aliases": [
+          "tuberose"
+        ]
       },
       {
         "zh": "玫瑰",
         "en": "rose",
         "family": "floral",
-        "subfamily": "rose"
+        "subfamily": "rose",
+        "aliases": [
+          "rose"
+        ]
       },
       {
         "zh": "鸢尾",
@@ -576,7 +586,11 @@
         "zh": "雪松",
         "en": "cedar",
         "family": "woody",
-        "subfamily": "dry-woody"
+        "subfamily": "dry-woody",
+        "aliases": [
+          "cedar",
+          "cedarwood"
+        ]
       },
       {
         "zh": "檀木",
@@ -612,13 +626,25 @@
         "zh": "琥珀",
         "en": "amber",
         "family": "amber",
-        "subfamily": "vanilla-amber"
+        "subfamily": "vanilla-amber",
+        "aliases": [
+          "amber",
+          "ambergris",
+          "amberwood",
+          "ambermax",
+          "ambroxan",
+          "ambrofix"
+        ]
       },
       {
         "zh": "乳香",
         "en": "frankincense",
         "family": "amber",
-        "subfamily": "resinous"
+        "subfamily": "resinous",
+        "aliases": [
+          "frankincense",
+          "olibanum"
+        ]
       },
       {
         "zh": "没药",
@@ -630,7 +656,10 @@
         "zh": "焚香",
         "en": "incense",
         "family": "amber",
-        "subfamily": "incense"
+        "subfamily": "incense",
+        "aliases": [
+          "incense"
+        ]
       },
       {
         "zh": "皮革",
@@ -696,13 +725,24 @@
         "zh": "麝香",
         "en": "musk",
         "family": "fresh",
-        "subfamily": "aquatic"
+        "subfamily": "aquatic",
+        "aliases": [
+          "musk",
+          "ambrette",
+          "musk mallow"
+        ]
       },
       {
         "zh": "海水",
         "en": "marine notes",
         "family": "fresh",
-        "subfamily": "marine"
+        "subfamily": "marine",
+        "aliases": [
+          "marine",
+          "sea notes",
+          "aquatic accord",
+          "salt"
+        ]
       },
       {
         "zh": "薰衣草",
@@ -720,13 +760,22 @@
         "zh": "绿茶",
         "en": "green tea",
         "family": "fresh",
-        "subfamily": "tea"
+        "subfamily": "tea",
+        "aliases": [
+          "green tea",
+          "tea",
+          "oolong tea"
+        ]
       },
       {
         "zh": "无花果叶",
         "en": "fig leaf",
         "family": "fresh",
-        "subfamily": "green"
+        "subfamily": "green",
+        "aliases": [
+          "fig leaf",
+          "fig"
+        ]
       },
       {
         "zh": "醛",

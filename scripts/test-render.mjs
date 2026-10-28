@@ -198,6 +198,26 @@ ok('首屏香调覆盖至少 4 个家族（防家族偏斜）', fams.size >= 4,
 ok('首屏可选到「琥珀」「香草」这类琥珀/美食调',
   visibleZh.includes('琥珀') && visibleZh.includes('香草'), visibleZh.join(' '));
 
+// 回归守门：40 个香调里有在当前 200 瓶样本中 0 命中的死选项（实测只有 可可/cocoa）。
+// 勾了它永远推荐不出东西，等于骗一次点击。必须被 usableEntries() 挡在界面之外。
+const perfs = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/perfumes.json'), 'utf8')).perfumes;
+const allChipZh = chips.map((c) => c.textContent.trim());
+ok('死选项「可可」不出现在香调 chip 里（0 命中即隐藏）',
+  !allChipZh.includes('可可'), `共渲染 ${allChipZh.length} 个 chip`);
+const moreBtnTxt = appRoot.querySelectorAll('.btn')
+  .map((b) => b.textContent).find((t) => t.includes('展开全部'));
+const renderedUnique = new Set(allChipZh).size;
+ok('「展开全部」计数与实际可选香调数一致（不是硬编码 40）',
+  !!moreBtnTxt && moreBtnTxt.includes(String(renderedUnique)),
+  `按钮="${moreBtnTxt}" 实际去重 ${renderedUnique} 个`);
+
+// 反向核对：所有上屏香调都必须至少命中 1 瓶，否则就是死选项漏网。
+const { usableEntries } = await import('file:///' + path.join(ROOT, 'src/notes.js').replace(/\\/g, '/'));
+const usableZh = new Set(usableEntries(taxa.noteIndex.entries, perfs).map((e) => e.zh));
+const deadLeaked = allChipZh.filter((z) => !usableZh.has(z));
+ok('上屏香调全部至少命中 1 瓶（无死选项漏网）',
+  deadLeaked.length === 0, deadLeaked.join(',') || '无泄漏');
+
 /* 点一个喜欢 + 一个讨厌，验证状态切换 */
 chips[0].dispatch('click');
 const dislikeStart = chips.length;
