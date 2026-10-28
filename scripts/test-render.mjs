@@ -185,6 +185,19 @@ ok('进入第 4 步（香调）', getStepText().includes('受不了'), getStepTe
 const chips = appRoot.querySelectorAll('.chip');
 ok('香调 chip 已渲染', chips.length >= 16, `实际 ${chips.length}`);
 
+// 回归守门：曾经用 entries.slice(0,16) 取"高频香调"，但数据按家族顺序排列，
+// 前 16 个正好全是柑橘+花香+雪松檀木 —— 喜欢木质/琥珀/美食/清新的人
+// 在"我喜欢"里一个可点的都没有，只有翻到"我受不了"（当时是全量 40 个）才看得到。
+// 断言：折叠前可见的香调必须覆盖全部 6 个家族，且喜欢/讨厌两栏初始可见数相等。
+const taxa = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/taxonomy.json'), 'utf8'));
+const entryFamily = new Map(taxa.noteIndex.entries.map((n) => [n.zh, n.family]));
+const visibleZh = chips.slice(0, 16).map((c) => c.textContent.trim());
+const fams = new Set(visibleZh.map((z) => entryFamily.get(z)).filter(Boolean));
+ok('首屏香调覆盖至少 4 个家族（防家族偏斜）', fams.size >= 4,
+  `${fams.size} 个家族: ${[...fams].join(',')}`);
+ok('首屏可选到「琥珀」「香草」这类琥珀/美食调',
+  visibleZh.includes('琥珀') && visibleZh.includes('香草'), visibleZh.join(' '));
+
 /* 点一个喜欢 + 一个讨厌，验证状态切换 */
 chips[0].dispatch('click');
 const dislikeStart = chips.length;
