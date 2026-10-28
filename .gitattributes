@@ -1,0 +1,17 @@
+# 仓库内统一用 LF。
+#
+# 为什么需要这个文件：这台机器 core.autocrlf=true，Windows 检出时会把
+# 文本文件转成 CRLF。之前推上去的 README/app.js/DECISIONS 因此在远端存了 CRLF，
+# 而本地索引是 LF —— 两边内容字字相同，git 却认为全文都改了（一次 463 行的假 diff）。
+# 写死 eol=lf 之后，检出与入库都是 LF，diff 只反映真实内容。
+#
+# 二进制文件必须显式排除，否则 git 会尝试转换并破坏文件。
+* text=auto eol=lf
+
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.ico  binary
+*.woff binary
+*.woff2 binary
