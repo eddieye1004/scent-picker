@@ -145,38 +145,8 @@
    为什么不是一次全给：水生与海洋、古龙水型与芳香柑橘这两对，
    命名上只差两个字，闻起来差一整类。并排摆在新手面前，
    等于逼他在两个他分不清的词之间做选择。 */
-.wheel .disc-sector.lvl2.sub-more {
-  min-width: 44px;
-  padding: 10px 8px;
-  color: var(--ink-3);
-  background: transparent;
-  border: 1px dashed var(--edge);
-  box-shadow: none;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: .02em;
-}
-.wheel .disc-sector.lvl2.sub-more:hover:not(:disabled) {
-  color: var(--ink);
-  background: var(--bg-2);
-  border-color: var(--ink);
-  border-style: solid;
-}
-.wheel .disc-sector.lvl2.sub-more:active {
-  transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) scale(.97);
-}
 
-/* 进阶格子的入场：只在点开那一下出现，不参与常态渲染。
-   时长借用已有的 200ms 图层档，不新增第四档。 */
-.wheel .disc-sector.lvl2.sub-sq.is-tier2 {
-  animation: sqIn 200ms cubic-bezier(.4, 0, .2, 1) both;
-}
-@keyframes sqIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
 @media (prefers-reduced-motion: reduce) {
-  .wheel .disc-sector.lvl2.sub-sq.is-tier2 { animation: none; }
   .wheel .hub-skip:active { transform: none; }
 }
 

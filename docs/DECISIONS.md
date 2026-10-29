@@ -778,6 +778,101 @@ UI：默认只渲染 `tier===1`，末尾多一枚虚线方格 `+N`，点开后�
 
 ---
 
+## D39 · 五条交互改造：三格弧窗、返回入口移出盘心、文案去句号
+
+**背景**：用户 m10062 提了五条（去句号 / 返回入口 / 小圈可点切大类 / 中圈改弧上旋转 / 图标质感统一）。五条里没有一条是"样式微调"，全部改到了结构。这里记取值理由与两次被截图否掉的实现。
+
+### 一、去句号：只剥末尾，不动句中
+
+`strip-period.cjs` 只匹配 `/[。]$/` —— taxonomy 70 处、`app.js` 9 处，`scoring.js` 0 处。**句中句号必须留**：`STEPS[0].help` 是「不用记名字。外圈挑大方向，中圈再收窄一层；不确定就只选外圈」，第一个句号断开的是两件事（做什么 / 怎么做），删掉它两句话会黏成一长句。
+
+两条守门断言（`test-render.mjs`）：扫 `families[].{oneLine,style,wear,avoid,desc}` 与 `subfamilies[].{desc,descWheel}`；以及把 `appRoot.textContent` 按行切后判 `/。$/`。**页脚的「已修改。」是独立文本节点，不是文案句末**，断言按行切正好把它排除（它不是行尾）。
+
+### 二、返回入口：从盘心搬到盘外，因为它和主操作抢位置
+
+原来「换一个大类」是盘心底部一个 `<button class="hub-reset">`。问题有两层：
+
+1. **位置冲突**：盘心同时要放 kicker / 主词 / 说明 / 标本 / 「就选「X」，下一步」/「中圈可不选」，再加一个「换大类」是第七件东西。实测盘心圆 270px（桌面）/ 156px（360），塞第七件就把某一件顶出弧外。
+2. **语义冲突**：「换大类」和「就选「X」，下一步」是**相反方向的两个动作**，一上一下并排在盘心中央，拇指在 44px 触屏上够错一个就反了。
+
+定稿：`.wheel-back` 绝对定位在控件左上角（`left:0; top:0`，窄屏 `-2px / -6px`），胶囊形 `border-radius:999px`、`min-height:44px`、`padding:0 12px`、12px/500、`color:var(--ink-2)`。三态齐全：`:hover` 转 `--bg-2` + `--edge`；`:active` `translateY(1px)` + `--ink` 描边 + `--bg-3`（下沉 1px 是"按下去了"的最小可见信号，不需要缩放）；`:focus-visible` 2px `--blue`。
+
+**[hidden] 的优先级陷阱**（这次又踩了一次）：`.wheel-back[hidden] { display: none; }` 必须显式写。UA 样式表里 `[hidden]` 只有 `display:none`，作者样式里任何 `display:inline-block` 都能顶掉它 —— 上一轮 `.hub-skip` 就是这么在闭合态露出来的。
+
+### 三、小圈可点切大类：先解决一堵"看不见的墙"
+
+`.sub-ring` 在 `is-open` 时是 `inset:0`（铺满整个控件矩形）+ `pointer-events:auto`。它视觉上只有外面的三格和两枚圆钮，但**命中判定基于几何盒子不是像素**——铺满的透明 div 会把下面 6 个扇区的点击全部吃掉。所以"让缩小后的盘可点"的第一步不是加事件，是把这堵墙拆了：
+
+```css
+.wheel.is-open .sub-ring { pointer-events: none; }
+.wheel .sub-arm { pointer-events: none; }
+.sub-arm .sub-sq, .sub-arm .spin-nav { pointer-events: auto; }
+.wheel.is-open .sector-g { opacity: .30; pointer-events: auto; cursor: pointer; }
+```
+
+`.sub-arm` 也是同理：`_wheel4c.css` 里已改成零宽轴，但仍要显式 `pointer-events:none`，否则轴上那条 0 宽的线在部分引擎里仍参与命中。
+
+**可点性要看得见**：`.30` 是"还在，但不是当前的"；悬停到非当前扇区抬到 `.55`（`.is-hot:not(.is-on)`）；当前那个保持 `1`。盘心 kick 从「已选定大类」变成「点一下换到」+ 新大类的名字与描述 —— 用户还没松手就知道点下去会发生什么。这条靠 `const showFamId = hoverFam || selFamily;`（悬停优先于已选）与 `hoverOther = !!(hoverFam && hoverFam !== selFamily)` 分支实现。
+
+### 四、中圈改弧上旋转：为什么是三格，为什么不用 transitionend
+
+原来一次把 tier1 铺成一整圈方格，末尾一枚 `+N` 虚线格点开铺全。两个问题：一圈 5–7 格在新手眼里是"又一份问卷"；`+N` 是个抽象符号，点之前不知道后面有几个。
+
+定稿：**三格弧窗**（左/中/右，`SPIN_DELTA = 44`，即两侧格偏离正上方 44°），左右各一枚 44×44 圆钮 `‹` `›`（`SPIN_ARROW = 90`，正 9 点 / 3 点钟方向，压在那条 1px 虚线上）。**转动即选中**（`turnBy` 里 `renderSpin` 后立刻 `chooseSub`）—— 不做"先转到位再点确认"的两段式，因为弧窗只有三格，中间那格就是指针，再要一次确认等于让用户点两次同一件事。
+
+- **中格 `.is-center`**：白底 + `--edge` 描边 + 阴影，字重 600；选中时自己填 `--blue` 反白。
+- **侧格 `.is-side`**：`opacity:.34; scale(.84); font-weight:500`，悬停/聚焦抬到 `.72`。它们可点（点侧格 = 转到那一格），所以不能 `pointer-events:none` —— 只是"次要"，不是"不可用"。
+- 入场动画 `@keyframes spinInNext/spinInPrev`：`translateX(±26px)` + opacity .2→1、200ms。方向要和用户点的那一侧一致，否则转起来像在打滑。
+
+**不用 `transitionend` 状态机**：`test-render.mjs` 的 TNode 桩只调监听器、不派发 `transitionend`，写成状态机会让整条断言链在测试环境里永远停在中间态。改用「重建节点 + 一次性 CSS 动画」——动画只负责好看，状态由 `spinIdx` 这个整数决定，测试可复现。
+
+**`armDeg = deg + 90` 是从旧代码抄来的错误换算**：旧的 `renderSpin` 拿到的 `midDeg` 是「0 = 正右」的极角，要 `+90` 换 CSS 旋转角；新参数 `deg` 本来就是「相对正上方」。不修的话中间那格会跑到 3 点钟方向。
+
+**`tier` 降级为排序依据**：第⑥点本来用 tier 做"默认只铺差异大的"，现在一次只显示三格，`+N` 的动机（一次别给一堆）已经被弧窗解决了。tier 保留在数据里用于决定 `spinIdx = 0` 时停在哪，不再驱动渲染 —— `is-tier2` 类名与 `@keyframes sqIn` 一并删掉（`_wheel5.css` 6121 → 5307 字节）。**留着是两条永远为真的假守门**：`test-render.mjs:245/246` 当时正在读这两段 CSS 文本，而它们守的 UI 已经不存在。
+
+### 五、图标质感统一：按包围盒归一，线宽按 1/k 补偿
+
+32 枚标识的原始包围盒 `k` 从 **0.886（fougere，5.5×19.75）到 1.429（spicy-amber，11.25×12.25）**，最大最小差 **1.61 倍**。不归一的话同一屏里有的图明显大一号、有的小一号，"质感"碎在这里。
+
+`markfit.mjs` 把每枚光栅化到 192×192 数着墨像素求 bbox，目标 `TARGET = 17.5`（viewBox 24 留 3.25 边距），`k = 17.5/max(w,h)`、`tx = 12 − k·cx`、`ty = 12 − k·cy`，结果写进 `SUB_FIT`（`app.js`）。
+
+**线宽必须按 `1/k` 补偿**：
+
+```js
+a.push(['stroke-width', r2(PLATE_SW / fit[0])]);
+```
+
+不补偿的话 k=1.429 那枚被放大后线粗 2.6px、k=0.886 只有 1.6px，**同一份样式表读出两套粗细** —— 这是"每张图单独调了"的观感来源。实测：预览态玫瑰（k=1.2385）算出 0.57、选中态白花（k=1.0069）算出 0.7。
+
+**预览态也要画图**（原设计是只有确认后才画）：不画的话用户转一圈看不到这味香型长什么样，第 4 点"辨识度"就只在最后一步兑现。常态 `.plate-svg{stroke:var(--ink-3); transform:scale(.92)}`、选中 `{stroke:var(--blue); transform:scale(1)}`，`.plate-cap` 的 opacity 从 .6 到 1。
+
+### 六、截图才查得出的缺陷：kicker 被一行老规则藏掉了
+
+第四轮写过 `.wheel .disc-hub.has-glyph .hub-kicker { display: none; }` —— 那时"有图 == 已选定"，藏掉 kicker 省盘心高度。这轮预览态也画图，这句话把「正在看」一起藏了，**两种状态只剩线稿颜色一个差别**（12px 灰线在 40px 尺寸下，用户几乎无法对比），第 5 点承诺的"区分"等于没落地。修法：
+
+```css
+.wheel .disc-hub.has-glyph:not(.is-picked) .hub-kicker { display: block; }
+.wheel .disc-hub.has-glyph.is-picked .hub-kicker { display: none; }
+```
+
+**这类缺陷逐条断言抓不到**：每条断言都过了（线稿存在、颜色对、`is-picked` 类在），失败的是"两种状态放在一起看"的对比。三处真缺陷（`.hub-skip` 闭合态露出、选中态盘底跳色、预览态 kicker 消失）全部是四视口截图比对发现的，不是断言。
+
+### 五条验收标准（可复跑）
+
+| # | 判据 | 复跑方式 |
+|---|---|---|
+| ① | 渲染文本无整行以句号收尾；taxonomy 展示字段无句末句号 | `node scripts/test-render.mjs` 两条 ok() |
+| ② | `.wheel-back` min-height 44px、有 `:active translateY(1px)`、有 `[hidden]{display:none}`；闭合态 w0 h0 | 断言 + `wheel7.mjs` 的 `back.hidden` |
+| ③ | 中圈容器 `pointer-events:none`；扇区 `auto` + `cursor:pointer`；当前态 1 与可换态 .30 不同档 | 断言 + 截图（悬停他类时 kick 变「点一下换到」） |
+| ④ | 中格/侧格类名不同；侧格 .34 且仍可点；圆钮 44px + `border-radius:50%` + `:disabled` | 断言 + `sqs 3 / navs 2 / radii 单一值` |
+| ⑤ | 线稿 `--ink-3` vs `--blue` 两色；`.plate-cap` opacity .6 vs 1；预览态有 kicker | 断言 + 四视口截图 |
+
+**四视口 × 六态（closed / open / spin / hoverOther / switched / back）实测**：`hubBad: []`（四角判据 `over > 1.5`）、`pairs: []`、`scrollX sw == cw`。盘心实测 270.4 / 270.4 / 171 / 156（1440 / 1366 / 390 / 360），标本 `plateW` 88 / 88 / 48 / 44。
+
+**归档**：`_wheel6.css` 是这五条的追加层，拼在 `_wheel5.css` 之后；`rebuild-css.mjs` 的 `parts` 必须同步加它，否则改了 CSS 不生效而测试全绿。
+
+---
+
 ---
 
 ## 待定（尚未决定，不假装已定）

@@ -69,28 +69,28 @@ const STEPS = [
     id: 'family',
     kicker: '第 1 步 / 共 4 步',
     title: '你闻着舒服的，是哪一类味道？',
-    help: '不用记名字。外圈挑大方向，中圈再收窄一层；不确定就只选外圈。',
+    help: '不用记名字。外圈挑大方向，中圈再收窄一层；不确定就只选外圈',
     render: renderFamily,
   },
   {
     id: 'occasion',
     kicker: '第 2 步 / 共 4 步',
     title: '主要在哪里用？',
-    help: '同一瓶香水，在办公室和约会里表现完全不同。先定主战场。',
+    help: '同一瓶香水，在办公室和约会里表现完全不同。先定主战场',
     render: renderOccasion,
   },
   {
     id: 'intensity',
     kicker: '第 3 步 / 共 4 步',
     title: '希望它有多"浓"？',
-    help: '左边是洗完澡的清透，右边是围巾上留一整天的厚重。',
+    help: '左边是洗完澡的清透，右边是围巾上留一整天的厚重',
     render: renderIntensity,
   },
   {
     id: 'notes',
     kicker: '第 4 步 / 共 4 步',
     title: '有没有特别喜欢或受不了的味道？',
-    help: '可跳过。点名"讨厌"比点名"喜欢"更有用——排除比加分更准。',
+    help: '可跳过。点名"讨厌"比点名"喜欢"更有用——排除比加分更准',
     render: renderNotes,
   },
 ];
@@ -524,6 +524,10 @@ function noteZhOf(en) {
    六种母题按家族选形，不按 32 个小类硬编码 —— 32 张手画必然走形，
    而且家族才是这枚图真正想表达的东西。 */
 const PLATE_SIZE = 24;
+/* ⑤ 统一线宽。原来写死在 CSS 的 .plate-svg 上（.7 viewBox 单位），
+   但归一化缩放之后每枚的实际粗细 = .7 × k，k 差 1.61 倍就成了两套粗细。
+   → 线宽改成按 1/k 补偿后内联到图元上，这里只留基准值。 */
+const PLATE_SW = 0.7;
 
 const r2 = (n) => (Math.round(n * 100) / 100).toString();
 
@@ -886,6 +890,46 @@ const SUB_MARKS = {
   ],
 };
 
+/* ⑤ 视觉尺寸归一化表：[缩放, 平移 x, 平移 y]，viewBox 24×24 单位。
+   由 C:/Users/16256/ego/markfit.mjs 用 canvas 光栅化实测每枚的着墨包围盒得出，
+   不是估计值。k 范围 0.886（fougere，瘦长 5.5×19.75）– 1.429（spicy-amber，
+   11.25×12.25），最大最小差 1.61 倍 —— 不归一化就没有"同一套图标"这回事。
+   目标 17.5 单位（24 留 3.25 边距），k = 17.5 / max(w, h)。 */
+const SUB_FIT = {
+  'cologne': [1.0769, -0.928, -0.923],
+  'aromatic-citrus': [1.0145, -0.174, 1.343],
+  'citrus-floral': [1.25, -3, -2.225],
+  'green-citrus': [1.0448, -0.543, -0.543],
+  'white-floral': [1.0069, -0.083, -0.652],
+  'rose': [1.2385, -2.323, -1.085],
+  'green-floral': [1.1475, -2.207, -3.784],
+  'fruity-floral': [1.0938, -0.72, -0.037],
+  'powdery-floral': [1.102, -1.23, -1.02],
+  'yellow-floral': [0.8974, 1.231, 1.231],
+  'soliflore': [1.1111, -1.339, -1.406],
+  'dry-woody': [1.25, -3, -3],
+  'sandalwood': [1.0448, -1.065, -0.276],
+  'vetiver': [0.9459, 0.649, 0.176],
+  'mossy': [1.0145, -0.179, -4.298],
+  'oud': [1.3328, -3.414, -3.747],
+  'woody-aromatic': [1.0294, -0.353, -0.868],
+  'spicy-amber': [1.4286, -3.721, -9.25],
+  'vanilla-amber': [1.0069, -0.083, -0.148],
+  'resinous': [1.0367, -0.446, 0.269],
+  'incense': [0.9211, 0.887, 1.178],
+  'leather': [1.2963, -3.562, -3.556],
+  'aquatic': [1.0145, -0.179, 0.46],
+  'marine': [1.0523, -0.17, -0.633],
+  'green': [0.9787, 0.25, 0.558],
+  'fougere': [0.8861, 1.367, 1.478],
+  'tea': [1.1111, -2.033, -3.006],
+  'vanilla-gourmand': [1.0367, -0.959, 0.399],
+  'coffee-cocoa': [1.1475, -1.776, -1.776],
+  'fruity-gourmand': [1.2069, -2.489, -4.595],
+  'nutty': [0.9722, 0.328, 0.333],
+  'boozy': [1.129, -1.548, -1.548],
+};
+
 const PLATE_FALLBACK = [{ tag: 'circle', attrs: { cx: 12, cy: 12, r: 7.4 } }];
 
 const PLATE_LABEL = { citrus: '柑橘', floral: '花', woody: '木质', amber: '树脂', fresh: '叶', gourmand: '果实' };
@@ -916,9 +960,19 @@ function scentPlate(sub) {
     fill: 'none',
     'aria-hidden': 'true', focusable: 'false',
   });
+  /* ⑤ 归一化：先把每枚的着墨包围盒平移回中心、缩放到同一尺寸，
+     再按 1/k 反向补偿线宽。不补偿的话 k=1.429 那枚线会粗到 2.6px、
+     k=0.886 那枚只有 1.6px，同一份样式表读出来是两套粗细。 */
+  const fit = SUB_FIT[sub.id] || SUB_FIT._default || [1, 0, 0];
+  const grp = svgEl('g', {
+    transform: 'translate(' + r2(fit[1]) + ' ' + r2(fit[2]) + ') scale(' + r2(fit[0]) + ')',
+  });
+  svg.appendChild(grp);
   shapes.forEach(({ tag, attrs }) => {
-    svg.appendChild(svgEl(tag, Object.fromEntries(
-      Object.entries(attrs).map(([k, v]) => [k, String(v)]))));
+    const a = Object.entries(attrs).map(([k, v]) => [k, String(v)]);
+    /* 只给真的画线的图元补线宽；circle 无 d 也照样描边，一并补 */
+    a.push(['stroke-width', r2(PLATE_SW / fit[0])]);
+    grp.appendChild(svgEl(tag, Object.fromEntries(a)));
   });
   wrap.appendChild(svg);
   wrap.appendChild(el('div', { class: 'plate-rule' }));
@@ -1012,8 +1066,14 @@ function buildWheel(cfg) {
   }, '中圈可不选');
   hubSkip.hidden = true;
   hubGo.hidden = true;
-  const hubReset = el('button', {
-    class: 'hub-reset',
+  /* ② 返回入口挪出盘心。
+     原来盘心底部有一颗 12px 下划线的「换一个大类」，26px 高 ——
+     低于 44px 触控下限，而且和「直接下一步」挤在同一列里，
+     主操作与退路挨在一起，手指再准也会点错。
+     改到盘外左上角：圆盘在方框里是个圆，四个角是空的，
+     按钮落在那里既不压盘面，也不和底部那条主按钮抢位置。 */
+  const backBtn = el('button', {
+    class: 'wheel-back',
     type: 'button',
     onclick: (ev) => {
       ev.stopPropagation();
@@ -1021,10 +1081,11 @@ function buildWheel(cfg) {
       paint();
       onChange(null, null);
     },
-  }, '换一个大类');
-  hubReset.hidden = true;
+  }, '← 重选大类');
+  backBtn.hidden = true;
+  root.appendChild(backBtn);
   const hub = el('div', { class: 'disc-hub is-idle' },
-    hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo, hubReset);
+    hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
   root.appendChild(hub);
 
   /* --- 第一层：6 个家族，固定不变 --- */
@@ -1106,110 +1167,126 @@ function buildWheel(cfg) {
      窄屏也能同时保住 44px 触控与一行四个字的宽度。 */
   const subRing = el('div', { class: 'sub-ring', role: 'radiogroup', 'aria-label': '子类' });
   root.appendChild(subRing);
-  let subBtns = [];
-  let subItems = null;
-  /* ⑥ 内圈先给差异大的。默认只铺 tier===1，末尾多一枚虚线 +N。
-     不是"藏起来" —— 那一枚写着 +N，点开就铺全，
-     用户知道后面还有东西，只是现在不必看。 */
-  let tierOpen = false;
+
+  /* --- 第二层：沿圆弧旋转浏览 ---
+     原来一次把 tier1 全部铺成一圈方格，末尾再挂一枚「+N」，点开铺满 ——
+     那一下屏幕上同时多出五六个词，用户得先读一圈才能决定，
+     而"转到哪项即选中"这件事根本没发生，铺开之后还要再点一次。
+     改成一条弧上的三格窗口：中间是当前项，两侧各一格淡出，
+     左右两枚 44px 圆钮把整条弧一格一格转过去。
+     转动本身就是选择动作 —— 转到哪项即选中哪项，不需要二次确认。
+     全部子项都进序列（按 tier 排好序，差异大的在前），
+     不再有「+N 一次铺开」那一格。 */
+  const SPIN_DELTA = 44;   // 两侧格相对"正上方"偏开的角度
+  const SPIN_ARROW = 90;   // 左右圆钮：正左 / 正右（±90 = 9 点 / 3 点钟方向）
+  let subItems = null;     // 当前家族的全部子项（有序）
+  let spinIdx = 0;         // 停在第几项
+  let spinBtns = [];       // 稳定顺序：[前, 中, 后]；只有一项时只有中
+  let spinPrev = null;
+  let spinNext = null;
 
   function buildSubRing(fam) {
-    subRing.innerHTML = '';
-    subBtns = [];
     subItems = null;
+    spinBtns = [];
+    spinPrev = null;
+    spinNext = null;
+    subRing.innerHTML = '';
     if (!fam) return;
     const all = fam.subfamilies || [];
     if (!all.length) return;
-    const subs = tierOpen ? all : all.filter((s) => (s.tier || 1) === 1);
-    const hiddenCount = all.length - subs.length;
-    subItems = subs;
-    /* 摆位的分母要用「这一轮实际铺出来的格数 + 可能的那枚 +N」，
-       否则点开前后半径不变、角度也不变，格子会突然换位。 */
-    const slots = subs.length + (hiddenCount ? 1 : 0);
-    const step = 360 / slots;
-    const start = -90 - step / 2;
+    subItems = all;
+    /* 从别的步骤退回来时要把指针放回已选的那一项，
+       否则用户看到的是"第一项"而不是"我上次选的那项"。 */
+    const at = all.findIndex((x) => x.id === selSub);
+    spinIdx = at >= 0 ? at : 0;
+    renderSpin(fam, 0);
+  }
 
-    subs.forEach((s, i) => {
-      const midDeg = start + (i + 0.5) * step;
-      /* 摆位用「旋转的手臂」：手臂盒子铺满控件并绕中心转过 θ，
-         方格钉在手臂顶端，于是所有方格落在同一半径的圆上；
-         方格再反向转回 −θ，文字保持水平。 */
-      const armDeg = midDeg + 90;
-      const arm = el('div', {
-        class: 'sub-arm',
-        style: 'transform: rotate(' + armDeg.toFixed(2) + 'deg)',
-      });
+  function renderSpin(fam, dir) {
+    subRing.innerHTML = '';
+    spinBtns = [];
+    const all = subItems || [];
+    const n = all.length;
+    if (!n) return;
+    const pick = (d) => all[((spinIdx + d) % n + n) % n];
+
+    const mkSlot = (item, deg, role, dIdx) => {
+      /* deg 已是「相对正上方」的旋转角（0 = 正上方），直接用作 rotate 角度。
+         旧代码这里写 deg + 90，是因为它拿到的 midDeg 是「0 = 正右」的极角；
+         两套约定不能混，混了中间那格会跑到 3 点钟去。 */
+      const armDeg = deg;
+      const arm = el('div', { class: 'sub-arm' });
+      arm.setAttribute('style', 'transform: rotate(' + armDeg.toFixed(2) + 'deg)');
       const btn = el('button', {
-        class: 'disc-sector lvl2 sub-sq' + ((s.tier || 1) === 2 ? ' is-tier2' : ''),
+        class: 'disc-sector lvl2 sub-sq spin-slot ' + role,
         type: 'button',
         role: 'radio',
         'aria-checked': 'false',
-        'data-sub': s.id,
-        tabindex: '-1',
-        style: 'transform: translate(-50%, -50%) rotate(' + (-armDeg).toFixed(2) + 'deg); --aq: ' + (-armDeg).toFixed(2) + 'deg',
-      }, el('span', { class: 'zh' }, s.zh));
-      const enter = () => { hoverSub = s.id; paint(); };
-      const leave = () => { hoverSub = null; paint(); };
+        'data-sub': item.id,
+        'data-spin': String(dIdx),
+        tabindex: dIdx === 0 ? '0' : '-1',
+        /* 只写自定义属性，不写内联 transform：
+           内联 transform 会盖掉 CSS 里的 :active 缩放，
+           按下就没反馈了。旋转从 --aq 走，样式表里再拼。 */
+        style: '--aq: ' + (-armDeg).toFixed(2) + 'deg',
+      }, el('span', { class: 'zh' }, item.zh));
+      /* 方向性入场：转动时新的中格从转动方向滑进来。
+         用一次性 animation 而不是 transition + transitionend ——
+         后者要一个异步状态机，测试桩不派发 transitionend，
+         而且这条动效只值 200ms 的观感，不值得一个状态。 */
+      if (dir && dIdx === 0) btn.classList.add(dir > 0 ? 'spin-in-next' : 'spin-in-prev');
+      const enter = () => { hoverSub = item.id; paint(); };
+      const leave = () => { if (hoverSub === item.id) { hoverSub = null; paint(); } };
       btn.addEventListener('mouseenter', enter);
       btn.addEventListener('mouseleave', leave);
       btn.addEventListener('focus', enter);
       btn.addEventListener('blur', leave);
-      btn.addEventListener('click', (ev) => { ev.stopPropagation(); chooseSub(fam, s); });
-      btn.addEventListener('keydown', (ev) => keyNav(ev, subBtns, i));
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        /* 点中间那格 = 确认预览；点两侧那格 = 把它转到中间，
+           两条路最后都落到 chooseSub，不会有"转了却没选中"的中间态。 */
+        if (dIdx === 0) chooseSub(fam, item); else turnBy(fam, dIdx);
+      });
+      btn.addEventListener('keydown', (ev) => keyNav(ev, spinBtns, spinBtns.indexOf(btn)));
       arm.appendChild(btn);
       subRing.appendChild(arm);
-      subBtns.push(btn);
-    });
-
-    if (hiddenCount) {
-      const midDeg = start + (subs.length + 0.5) * step;
-      const armDeg = midDeg + 90;
-      const arm = el('div', {
-        class: 'sub-arm',
-        style: 'transform: rotate(' + armDeg.toFixed(2) + 'deg)',
-      });
-      const more = el('button', {
-        class: 'disc-sector lvl2 sub-sq sub-more',
-        type: 'button',
-        'data-more': String(hiddenCount),
-        'aria-label': '展开另外 ' + hiddenCount + ' 个细分香型',
-        tabindex: '-1',
-        style: 'transform: translate(-50%, -50%) rotate(' + (-armDeg).toFixed(2) + 'deg); --aq: ' + (-armDeg).toFixed(2) + 'deg',
-      }, el('span', { class: 'zh' }, '+' + hiddenCount));
-      more.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        tierOpen = true;
-        builtFor = null;   // 强制重建
-        paint();
-      });
-      more.addEventListener('mouseenter', () => { hoverSub = null; paint(); });
-      arm.appendChild(more);
-      subRing.appendChild(arm);
-    }
-
-    /* ③ 指针在内圈"划过去"也算数：按指针相对圆心的角度反查最近一格。
-       原来只有 mouseenter 落进 44px 格子才响应，360 视口下格子只占盘周
-       一小段，用户划过去是常态，盘心一直停在上一格。 */
-    const idxAt = (ev) => {
-      const r = root.getBoundingClientRect();
-      const dx = ev.clientX - (r.left + r.width / 2);
-      const dy = ev.clientY - (r.top + r.height / 2);
-      // 只在盘的半径范围内响应，避免指针划过整页时盘心乱跳
-      if (Math.hypot(dx, dy) > r.width * 0.52) return -1;
-      let rel = (Math.atan2(dy, dx) * 180) / Math.PI - start;
-      rel = ((rel % 360) + 360) % 360;
-      const k = Math.floor(rel / step);
-      return k >= 0 && k < subs.length ? k : -1;
+      spinBtns.push(btn);
     };
-    core.addEventListener('pointermove', (ev) => {
-      if (!root.classList.contains('is-open')) return;
-      const k = idxAt(ev);
-      const next = k < 0 ? null : subs[k].id;
-      if (next !== hoverSub) { hoverSub = next; paint(); }
-    });
-    core.addEventListener('pointerleave', () => {
-      if (hoverSub) { hoverSub = null; paint(); }
-    });
+
+    if (n > 1) mkSlot(pick(-1), -SPIN_DELTA, 'is-side is-side-prev', -1);
+    mkSlot(pick(0), 0, 'is-center', 0);
+    if (n > 1) mkSlot(pick(1), SPIN_DELTA, 'is-side is-side-next', 1);
+
+    const arrow = (deg, key, label) => {
+      const armDeg = deg;
+      const arm = el('div', { class: 'sub-arm' });
+      arm.setAttribute('style', 'transform: rotate(' + armDeg.toFixed(2) + 'deg)');
+      const b = el('button', {
+        class: 'spin-nav ' + key,
+        type: 'button',
+        'aria-label': label,
+        tabindex: '-1',
+        style: '--aq: ' + (-armDeg).toFixed(2) + 'deg',
+      }, key === 'prev' ? '\u2039' : '\u203a');
+      b.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        turnBy(fam, key === 'prev' ? -1 : 1);
+      });
+      arm.appendChild(b);
+      subRing.appendChild(arm);
+      return b;
+    };
+    spinPrev = arrow(-SPIN_ARROW, 'prev', '上一个细分香型');
+    spinNext = arrow(SPIN_ARROW, 'next', '下一个细分香型');
+    if (n < 2) { spinPrev.disabled = true; spinNext.disabled = true; }
+  }
+
+  function turnBy(fam, d) {
+    const n = (subItems || []).length;
+    if (n < 2) return;
+    spinIdx = ((spinIdx + d) % n + n) % n;
+    renderSpin(fam, d);
+    chooseSub(fam, subItems[spinIdx]);
   }
 
   function chooseSub(fam, s) {
@@ -1228,9 +1305,11 @@ function buildWheel(cfg) {
     /* 只有"真的选了"才缩放并铺方格；悬停只改盘心预览。
        悬停就缩放会让指针划过时整个版面跳动，比少一个反馈更糟。 */
     const open = !!selFamily;
-    const showFamId = selFamily || hoverFam;
+    /* 悬停优先于已选：缩小后的盘六个扇区都能直接点（见 ③），
+       不给预览就等于蒙眼换类。悬停时盘心先讲那个大类。 */
+    const showFamId = hoverFam || selFamily;
     const showFam = showFamId ? famById.get(showFamId) : null;
-    const builtKey = selFamily ? selFamily + '|' + (tierOpen ? 2 : 1) : null;
+    const builtKey = selFamily || null;
     if (builtFor !== builtKey) {
       buildSubRing(selFamily ? famById.get(selFamily) : null);
       builtFor = builtKey;
@@ -1253,20 +1332,29 @@ function buildWheel(cfg) {
     });
 
     if (subItems) {
-      subBtns.forEach((b, i) => {
-        const s = subItems[i];
-        const on = selSub === s.id;
-        const hot = hoverSub === s.id;
+      /* 只有三格，"哪一格是哪一项"由 data-sub 决定，不靠下标 ——
+         转动之后三格的内容整体位移，按下标对齐会错一格。 */
+      spinBtns.forEach((b) => {
+        const id = b.getAttribute('data-sub');
+        const on = selSub === id;
+        const hot = hoverSub === id;
         b.classList.toggle('is-on', on);
         b.classList.toggle('is-hot', hot && !on);
         b.setAttribute('aria-checked', String(on));
-        b.setAttribute('tabindex', on ? '0' : (i === 0 && !selSub ? '0' : '-1'));
       });
     }
 
-    const sub = showFam && selSub ? (showFam.subfamilies || []).find((x) => x.id === selSub) : null;
-    const hovSub = showFam && hoverSub ? (showFam.subfamilies || []).find((x) => x.id === hoverSub) : null;
-    const focusSub = hovSub || sub;
+    /* 正在悬停另一个大类（不是已选的那个）—— 这时盘心必须讲悬停的那一个 */
+    const hoverOther = !!(hoverFam && hoverFam !== selFamily);
+    const sub = (showFam && !hoverOther && selSub)
+      ? (showFam.subfamilies || []).find((x) => x.id === selSub) : null;
+    const hovSub = showFam && hoverSub
+      ? (showFam.subfamilies || []).find((x) => x.id === hoverSub) : null;
+    /* 弧上停着的那一格。还没选定任何小项时它就是盘心的预览对象 ——
+       否则中间格子写着「玫瑰」、盘心写着「花香调」，用户会以为中圈没反应。 */
+    const centered = (!hoverOther && showFam && subItems && subItems.length)
+      ? subItems[Math.min(spinIdx, subItems.length - 1)] : null;
+    const focusSub = hovSub || sub || centered;
 
     let kick;
     let zh;
@@ -1277,11 +1365,14 @@ function buildWheel(cfg) {
     let picked = false;
     if (!showFam) {
       kick = '香型轮盘'; zh = '还没选'; desc = '从外圈挑一个大类'; idle = true;
+    } else if (hoverOther) {
+      /* ③ 盘缩小后六个扇区都能点，盘心先报出"点一下会换到哪" */
+      kick = '点一下换到'; zh = showFam.zh; desc = showFam.style || showFam.oneLine;
     } else if (focusSub) {
-      kick = hovSub ? '正在看' : '已选定';
+      picked = !!(sub && sub.id === focusSub.id);
+      kick = picked ? '已选定' : '正在看';
       zh = focusSub.zh;
       desc = focusSub.descWheel || focusSub.desc;
-      picked = !hovSub;
     } else {
       kick = hoverFam && !selFamily ? '正在看' : '已选定大类';
       zh = showFam.zh;
@@ -1301,10 +1392,12 @@ function buildWheel(cfg) {
     hubZh.textContent = zh;
     hubDesc.textContent = desc;
 
-    // 示意图只在落到具体小项时出现：大类层面没有"具体香材构成"可画
+    /* ⑤ 图标常态与选中态要能区分开。
+       常态（预览）画灰线稿、不写香材名；落到具体项后线稿转蓝、名字出现。
+       原来只在"已选定"时才画，等于常态没有图标可比，也就无所谓区分。 */
     hubGlyph.innerHTML = '';
-    hub.classList.toggle('has-glyph', !!picked);
-    if (picked && sub) { const plate = scentPlate(sub); if (plate) hubGlyph.appendChild(plate); }
+    hub.classList.toggle('has-glyph', !!focusSub);
+    if (focusSub) { const plate = scentPlate(focusSub); if (plate) hubGlyph.appendChild(plate); }
 
     // 只选了大类时给快捷出口；已落到小项就没必要再催一次
     const canSkip = !!(selFamily && !selSub);
@@ -1314,7 +1407,7 @@ function buildWheel(cfg) {
       hubGo.textContent = '就选「' + (f ? f.zh : '') + '」，下一步 →';
     }
     hubSkip.hidden = !canSkip;
-    hubReset.hidden = !selFamily;
+    backBtn.hidden = !selFamily;
   }
 
   paint();
@@ -1366,7 +1459,7 @@ function familyPanel(famId) {
     box.innerHTML = '';
     if (!fam) {
       box.classList.add('is-empty');
-      box.appendChild(el('p', { class: 'fam-empty' }, '上面转盘里挑一个大类，这里会展开它的代表香材、风格和使用场合。'));
+      box.appendChild(el('p', { class: 'fam-empty' }, '上面转盘里挑一个大类，这里会展开它的代表香材、风格和使用场合'));
       return;
     }
     box.classList.remove('is-empty');
@@ -1750,8 +1843,8 @@ function renderMasthead() {
       : el('h1', {}, '从零开始，找到', el('em', {}, '第一瓶'), '香水'),
     el('p', { class: 'lede' },
       isResult
-        ? '每一瓶的理由都能反推回你刚才的选择，没有一句是编的。'
-        : '不用懂前中后调。转盘选香型，再定场合和浓度，换三个具体到型号的候选。'
+        ? '每一瓶的理由都能反推回你刚才的选择，没有一句是编的'
+        : '不用懂前中后调。转盘选香型，再定场合和浓度，换三个具体到型号的候选'
     ),
     // 印章：纯装饰（aria-hidden），字取「香」—— 这个应用唯一的主题字。
     el('span', { class: 'seal', 'aria-hidden': 'true' }, '香')
@@ -1766,7 +1859,7 @@ function renderResult() {
   head.append(
     el('div', { class: 'eyebrow' }, '基于你的四个回答'),
     el('h2', {}, `${profile.emotionZh} · ${profile.occasionZh} · 浓郁度 ${profile.intensity}/5`),
-    el('p', {}, '下面三瓶分属不同家族，方便你对比着闻，而不是三瓶一个味道。'),
+    el('p', {}, '下面三瓶分属不同家族，方便你对比着闻，而不是三瓶一个味道'),
     el('div', { class: 'profile-line' },
       '匹配度 = 规则得分 / 满分。家族吻合 52 + 情绪锚点 22 + 浓度 18 + 香调点名 14 为主要项')
   );
@@ -1867,12 +1960,12 @@ function renderFooter() {
   return el('footer', { class: 'foot' },
     el('div', {},
       el('strong', {}, '关于这些推荐 '),
-      '选品完全由规则打分产生，不调用大模型。'
+      '选品完全由规则打分产生，不调用大模型'
     ),
     credit,
     el('div', { style: 'margin-top:8px' },
       el('strong', {}, '已知局限 '),
-      '持香与扩散为按浓度推断，非实测；不含价格与购买渠道；只收录了 400 瓶样本，可能选不到你已经知道的那瓶。'
+      '持香与扩散为按浓度推断，非实测；不含价格与购买渠道；只收录了 400 瓶样本，可能选不到你已经知道的那瓶'
     )
   );
 }

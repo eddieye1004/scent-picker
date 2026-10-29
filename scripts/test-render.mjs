@@ -241,9 +241,42 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
   /* ② 方格挂在一条与盘同心的轨道上 */
   ok('方块有一条与盘同心的轨道', /\.wheel \.sub-ring::before \{[^}]*?border:\s*1px dashed/.test(css)
     && /\.wheel\.is-open \.sub-ring::before \{ opacity: 1; \}/.test(css));
-  /* ⑥ 进阶格子只在点开 +N 后才渲染 */
-  ok('进阶格子有独立类名', /\.wheel \.disc-sector\.lvl2\.sub-sq\.is-tier2/.test(css));
-  ok('「+N」展开格是虚线未选态', /\.wheel \.disc-sector\.lvl2\.sub-more \{[^}]*?border:\s*1px dashed/.test(css));
+  /* ---- 第五轮五条（m10062）的守门 ----
+     这些测的都是"用户能不能用"，不是"某段颜色对不对" ——
+     前几轮漏掉的缺陷（返回入口没有、缩小盘点不动、图标常态没有）
+     全都不在视觉参数上，而在交互路径上。 */
+  /* ② 返回入口：44px 触控下限 + 三个状态都要有 */
+  ok('返回入口是 44px 触屏尺寸', /\.wheel \.wheel-back \{[^}]*?min-height:\s*44px/.test(css));
+  ok('返回入口有按下态', /\.wheel \.wheel-back:active \{[^}]*?translateY\(1px\)/.test(css));
+  ok('返回入口能真正隐藏', /\.wheel \.wheel-back\[hidden\] \{ display: none; \}/.test(css),
+    '[hidden] 的 UA display:none 会被作者的 display 顶掉，必须显式压回');
+
+  /* ③ 缩小盘可点的前提：中圈那层不能再吃事件 */
+  ok('中圈容器不再拦截扇区点击', /\.wheel\.is-open \.sub-ring \{ pointer-events: none; \}/.test(css));
+  ok('缩小后的扇区恢复可点', /\.wheel\.is-open \.sector-g \{[^}]*?pointer-events:\s*auto/.test(css)
+    && /\.wheel\.is-open \.sector-g \{[^}]*?cursor:\s*pointer/.test(css));
+  ok('当前大类与可换大类在视觉上不同档',
+    /\.wheel\.is-open \.sector-g\.is-on \{ opacity: 1; \}/.test(css)
+    && /\.wheel\.is-open \.sector-g \{[^}]*?opacity:\s*\.30/.test(css));
+
+  /* ④ 三格弧窗 + 转动钮 */
+  ok('中格与侧格有不同的类名', /\.wheel \.sub-arm \.sub-sq\.is-center/.test(css)
+    && /\.wheel \.sub-arm \.sub-sq\.is-side/.test(css));
+  ok('侧格降透明但仍可点（不是"看着能点"）',
+    /\.wheel \.sub-arm \.sub-sq\.is-side \{[^}]*?opacity:\s*\.34/.test(css)
+    && !/\.is-side \{[^}]*?pointer-events:\s*none/.test(css));
+  ok('转动钮是 44px 圆钮', /\.wheel \.sub-arm \.spin-nav \{[^}]*?width:\s*44px/.test(css)
+    && /\.wheel \.sub-arm \.spin-nav \{[^}]*?border-radius:\s*50%/.test(css));
+  ok('转动钮有禁用态', /\.wheel \.sub-arm \.spin-nav:disabled \{/.test(css));
+  ok('转动有方向性入场', /@keyframes spinInNext/.test(css) && /@keyframes spinInPrev/.test(css));
+
+  /* ⑤ 图标常态与选中态分开 */
+  ok('线稿常态与选中态是两种颜色',
+    /\.wheel \.plate-svg \{[^}]*?stroke:\s*var\(--ink-3\)/.test(css)
+    && /\.wheel \.disc-hub\.is-picked \.plate-svg \{[^}]*?stroke:\s*var\(--blue\)/.test(css));
+  ok('常态香材名压暗、选中态全亮',
+    /\.wheel \.plate-cap \{[^}]*?opacity:\s*\.6/.test(css)
+    && /\.wheel \.disc-hub\.is-picked \.plate-cap \{[^}]*?opacity:\s*1/.test(css));
 
   // 手臂是插在圆心上的零宽轴，不是满尺寸盒子。
   // 满尺寸盒子绕过中心会被旋转扫出圆盘外：360 视口实测 l:-39 r:399，
@@ -298,11 +331,16 @@ const midAfter = appRoot.querySelectorAll('.disc-sector.lvl2');
 ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${midAfter.length}`);
 
 /* ---- 盘心示意图（需求③）：香材剖面标本条 ----
-   只选了大类时不该出现（大类层面没有"具体香材构成"可画），
-   落到具体小项才该长出图形。旧版是枚 34px 环图，读不出画的是什么，
-   这里连"图形是不是真被画出来"一起断言，别只看容器存在。 */
-ok('只选大类时盘心没有示意图', appRoot.querySelectorAll('.hub-plate').length === 0,
-  `已有 ${appRoot.querySelectorAll('.hub-plate').length} 个`);
+   旧版只在"已选定"时才画，于是"常态与选中态要区分"这句话无从落地。
+   现在预览态（只选了大类、弧上停着某项）也画，只是灰线 + 名字压暗；
+   落到具体小项才转蓝。所以要断的是"预览态有图、但还没到已选定"。 */
+{
+  const prevPlates = appRoot.querySelectorAll('.plate-svg');
+  const hubPrev = appRoot.querySelector('.disc-hub');
+  ok('预览态盘心已经画出标本', prevPlates.length === 1, `${prevPlates.length} 枚`);
+  ok('预览态还没到「已选定」', !!hubPrev && !hubPrev.classList.contains('is-picked'),
+    hubPrev && hubPrev.className);
+}
 
 /* 中圈第一个子家族 = 「古龙水型」（notes 只有 lemon 一味） */
 midAfter[0].dispatch('click');
@@ -360,19 +398,19 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
 {
   let compared = 0;
   let same = 0;
-  /* 只走 tier1 那几格。末尾那枚「+N」也在 .disc-sector.lvl2 里，
-     点它会重建整个中圈，midAfter 这个 NodeList 会失效。 */
-  for (let i = 1; i < Math.min(3, midAfter.length); i += 1) {
-    midAfter[i].dispatch('click');
+  /* 走用户真实操作路径：点右转钮，每点一次重新查一次 ——
+     turnBy 会重建整条弧，上一轮的节点已经脱离文档。 */
+  for (let i = 0; i < 2; i += 1) {
+    const next = appRoot.querySelectorAll('.spin-nav').find((b) => /next/.test(b.className));
+    if (!next) break;
+    next.dispatch('click');
     await new Promise((r) => setTimeout(r, 300));
     const sig = sigOf();
     if (sig.length) { compared += 1; if (sig === sigCitrus) same += 1; }
   }
   ok('同族不同小类各有各的图形', compared > 0 && same === 0,
     `比较 ${compared} 组，其中 ${same} 组与首个相同`);
-  /* 停在另一个小类上，后面那条「换小类后香材名跟着变」才有对照。 */
-  midAfter[1].dispatch('click');
-  await new Promise((r) => setTimeout(r, 300));
+  /* 停在另一项上，后面那条「换小类后香材名跟着变」才有对照。 */
 }
 /* 不断言具体是哪一味：中圈格子的顺序由 taxonomy 决定，写死「葡萄柚」
    会把测试绑死在当前数据顺序上，数据一改就假失败。要守的是
@@ -580,6 +618,27 @@ ok('每条理由含至少一条结构性理由（家族/浓度）',
     // 「主体就是」漏掉过一次：`主体是` 匹配不到 `主体就是`，而 `骨架` 那句同样是家族理由。
     return /主体就是|主体是|主调是|骨架|厚重感|浓郁度/.test(t);
   }));
+/* ---------- ① 文案统一收尾：句末不留句号 ----------
+   这一条守的是「短句风格」这条设计约定。它容易在改文案时被无意破坏：
+   加一句话顺手补个句号，页面上就跟其他 78 条短句不一致了。
+   只查真正渲染出来的文本（含 taxonomy 的 desc/descWheel/oneLine/style），
+   不查注释与代码。 */
+{
+  const TAX2 = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'taxonomy.json'), 'utf8'));
+  const bad = [];
+  const scan = (where, s) => { if (typeof s === 'string' && /[。]$/.test(s)) bad.push(where + ' → ' + s); };
+  for (const f of TAX2.families) {
+    ['oneLine', 'style', 'wear', 'avoid', 'desc'].forEach((k) => scan('family/' + f.id + '.' + k, f[k]));
+    for (const s of f.subfamilies) ['desc', 'descWheel'].forEach((k) => scan('sub/' + s.id + '.' + k, s[k]));
+  }
+  ok('taxonomy 展示文案无句末句号', bad.length === 0, bad.slice(0, 4).join(' | '));
+
+  // 页面上真实渲染的文本：四步都走一遍会太长，这里扫已渲染的全局文本。
+  const vis = appRoot.textContent;
+  const tailDot = vis.split(/[\n]/).filter((l) => /[。]$/.test(l.trim()));
+  ok('渲染文本无整行以句号收尾', tailDot.length === 0, tailDot.slice(0, 3).join(' | '));
+}
+
 ok('结果含数据来源链接',
   appRoot.querySelectorAll('a').some((a) => String(a.attrs.href || '').includes('scento')));
 ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textContent.includes('重新来一次')));
