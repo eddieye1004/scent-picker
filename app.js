@@ -608,6 +608,284 @@ const PLATE_MOTIFS = {
     return out;
   },
 };
+/* 32 个小类的专属标识。
+   推翻 D32「图案只编码家族」——用户明确要求「古龙水型用古龙独有标识，
+   青绿柑橘与芳香柑橘各自不同」。这个要求是对的：旧做法下同族小类的
+   标本图完全一样，用户选完看不出自己选的是哪一格。
+
+   但不是给同一个形状做哈希微差（那种"区别"是凭空造的）。每一枚画的是
+   该小类的**代表香材本体**：柠檬是横置尖椭圆，佛手柑是带颈的梨形，
+   橙花是五瓣，葡萄柚是正圆厚皮分瓣 —— 区别来自数据，不来自随机数。
+
+   24px 线稿的可辨识度有三条硬限制，是前面几轮试出来的：
+     1. 两个相邻的圆点一定被读成一张脸 → 母题里不留并排小圆；
+     2. 不与主形同心的线段会被读成螺旋的一部分 → 内部线必须对称或贯穿；
+     3. 外轮廓差异 >> 内部细节差异 → 优先换轮廓，内部线不超过两条。
+
+   统一 24×24 视框、无填充、stroke 由 CSS 给（0.7 viewBox 单位）、圆头端点。 */
+const SUB_MARKS = {
+  /* ---- 柑橘调 ---- */
+  // 柠檬：横置尖椭圆 + 一道竖中缝（柠檬瓣的分界）
+  cologne: () => [
+    { tag: 'path', attrs: { d: 'M4.2 12C5.6 8.6 8.4 6.6 12 6.6C15.6 6.6 18.4 8.6 19.8 12C18.4 15.4 15.6 17.4 12 17.4C8.4 17.4 5.6 15.4 4.2 12Z' } },
+    { tag: 'path', attrs: { d: 'M12 6.9V17.1' } },
+  ],
+  // 佛手柑：带颈的梨形（顶部收窄并探出一小截果柄），柑橘里唯一非圆的轮廓
+  'aromatic-citrus': () => [
+    { tag: 'path', attrs: { d: 'M12 4.4C12.9 6.3 15.3 7.4 16.5 9.7C17.7 12 17.1 15.8 14.6 17.7C12.9 19 11.1 19 9.4 17.7C6.9 15.8 6.3 12 7.5 9.7C8.7 7.4 11.1 6.3 12 4.4Z' } },
+    { tag: 'path', attrs: { d: 'M12 4.4V2.2' } },
+  ],
+  // 橙花：五瓣小花（比花家族的瓣更短更圆，像一圈小圆点围出的星）
+  'citrus-floral': () => {
+    const d = 'M12 12C10.3 10 10.3 7 12 5C13.7 7 13.7 10 12 12Z';
+    const out = [];
+    for (let k = 0; k < 5; k++) {
+      out.push({ tag: 'path', attrs: k ? { d, transform: 'rotate(' + r2((k * 360) / 5) + ' 12 12)' } : { d } });
+    }
+    out.push({ tag: 'circle', attrs: { cx: 12, cy: 12, r: 1.5 } });
+    return out;
+  },
+  // 葡萄柚：正圆 + 一圈厚皮 + 四道短分瓣线（分瓣线只在内圈里，不碰外皮）
+  'green-citrus': () => {
+    const out = [
+      { tag: 'circle', attrs: { cx: 12, cy: 12, r: 8 } },
+      { tag: 'circle', attrs: { cx: 12, cy: 12, r: 6.1 } },
+    ];
+    for (let k = 0; k < 4; k++) {
+      const a = ((k * 90) - 90) * (Math.PI / 180);
+      out.push({
+        tag: 'path',
+        attrs: {
+          d: 'M' + r2(12 + 1.5 * Math.cos(a)) + ' ' + r2(12 + 1.5 * Math.sin(a))
+            + 'L' + r2(12 + 6.1 * Math.cos(a)) + ' ' + r2(12 + 6.1 * Math.sin(a)),
+        },
+      });
+    }
+    return out;
+  },
+
+  /* ---- 花香调 ---- */
+  // 白花（茉莉/晚香玉）：细长管状花冠，竖向拉长是这一族最直观的特征
+  'white-floral': () => [
+    { tag: 'path', attrs: { d: 'M12 20.8C11 17.6 10.2 14.8 10.2 12.4C10.2 9.4 10.9 6.6 12 4.2C13.1 6.6 13.8 9.4 13.8 12.4C13.8 14.8 13 17.6 12 20.8Z' } },
+    { tag: 'path', attrs: { d: 'M12 6.4V18.4' } },
+  ],
+  // 玫瑰：两层开环花瓣。不开成同心圆 —— 同心圆在花香里会和白花、鸢尾撞形
+  rose: () => [
+    { tag: 'path', attrs: { d: 'M12 4C14.7 4 17 5.7 17.9 8.2C18.8 10.7 18.1 13.4 16.2 15.2C14.3 17 11.6 17.6 9.2 16.7C6.8 15.8 5 13.5 4.9 10.8C4.8 8.1 6.4 5.6 8.8 4.6' } },
+    { tag: 'path', attrs: { d: 'M12 7.6C13.9 7.6 15.4 9 15.4 10.9C15.4 12.8 13.9 14.2 12 14.2C10.1 14.2 8.6 12.8 8.6 10.9' } },
+  ],
+  // 绿叶花香（铃兰）：一根弯茎挂四枚小铃
+  'green-floral': () => {
+    const out = [{ tag: 'path', attrs: { d: 'M15.4 21C15.4 16 13.8 10.6 9.6 6.6' } }];
+    const bells = [[14.4, 17.4], [11.9, 14.6], [11.6, 11.4], [10.4, 8.4]];
+    bells.forEach(([cx, cy]) => out.push({ tag: 'circle', attrs: { cx, cy, r: 1.6 } }));
+    return out;
+  },
+  // 果香花香（牡丹）：一圈宽波浪瓣 + 花心
+  'fruity-floral': () => [
+    { tag: 'path', attrs: { d: 'M12 3.8C14.4 3.8 16.6 5 18 7C19.4 9 19.6 11.6 18.6 13.8C17.6 16 15.4 17.6 12.8 18.1C10.2 18.6 7.6 17.8 5.9 16C4.2 14.2 3.6 11.6 4.4 9.2C5.2 6.8 7.4 4.8 9.9 4.1' } },
+    { tag: 'circle', attrs: { cx: 12, cy: 11.2, r: 2.6 } },
+  ],
+  // 粉感花香（鸢尾）：三片下垂宽瓣 + 中心三角，是鸢尾花的标志性结构
+  'powdery-floral': () => [
+    { tag: 'path', attrs: { d: 'M12 11.6C9 12.6 6.8 14.8 6.8 16.9C6.8 18.5 9 19.4 12 19.4C15 19.4 17.2 18.5 17.2 16.9C17.2 14.8 15 12.6 12 11.6Z' } },
+    { tag: 'path', attrs: { d: 'M12 11.6C10.3 8.8 8.9 6.2 9.8 4.4C10.8 3.8 12 4.9 12 6.4' } },
+    { tag: 'path', attrs: { d: 'M12 11.6C13.7 8.8 15.1 6.2 14.2 4.4C13.2 3.8 12 4.9 12 6.4' } },
+  ],
+  // 黄花（依兰）：六片细长扭瓣，比其它花更"细长"，像爪
+  'yellow-floral': () => {
+    const d = 'M12 12C10.6 9.4 9.4 5.6 11 2.6C12.6 3.6 12.6 8 12 12Z';
+    const out = [];
+    for (let k = 0; k < 6; k++) {
+      out.push({ tag: 'path', attrs: k ? { d, transform: 'rotate(' + r2((k * 360) / 6) + ' 12 12)' } : { d } });
+    }
+    return out;
+  },
+  // 单一花（栀子）：五片宽圆瓣 + 花心，瓣比橙花大一号
+  soliflore: () => {
+    const d = 'M12 12C9.4 11 7.4 8.6 7.8 5.8C10.4 4.6 12 6.2 12 8.4C12 6.2 13.6 4.6 16.2 5.8C16.6 8.6 14.6 11 12 12Z';
+    const out = [];
+    for (let k = 0; k < 3; k++) {
+      out.push({ tag: 'path', attrs: k ? { d, transform: 'rotate(' + r2((k * 360) / 3) + ' 12 12)' } : { d } });
+    }
+    out.push({ tag: 'circle', attrs: { cx: 12, cy: 12, r: 1.5 } });
+    return out;
+  },
+
+  /* ---- 木质调 ---- */
+  // 干燥木质（雪松）：方木截面 + 两道直纹。木纹是直的，才"干"
+  'dry-woody': () => [
+    { tag: 'path', attrs: { d: 'M6.4 5.4H17.6V18.6H6.4Z' } },
+    { tag: 'path', attrs: { d: 'M10.4 5.4V18.6' } },
+    { tag: 'path', attrs: { d: 'M13.6 5.4V18.6' } },
+  ],
+  // 檀木：宽而不正的椭圆年轮（中心略偏，树干截面本就不正圆）
+  sandalwood: () => [
+    { tag: 'ellipse', attrs: { cx: 12.5, cy: 11.7, rx: 8, ry: 6.6 } },
+    { tag: 'ellipse', attrs: { cx: 12.4, cy: 11.8, rx: 4.7, ry: 3.6 } },
+    { tag: 'ellipse', attrs: { cx: 12.3, cy: 11.9, rx: 2, ry: 1.4 } },
+  ],
+  // 香根草：一束扇形下垂的根须（不画圈，靠"束"的形状区分）
+  vetiver: () => {
+    let d = '';
+    const tips = [[8.4, 20.6], [10.2, 21.2], [12, 21.4], [13.8, 21.2], [15.6, 20.6]];
+    tips.forEach(([x, y], k) => {
+      const midX = 12 + (x - 12) * 0.42;
+      d += 'M12 ' + r2(3.6 + k * 0.3) + 'Q' + r2(midX) + ' ' + r2(12) + ' ' + r2(x) + ' ' + r2(y);
+    });
+    return [{ tag: 'path', attrs: { d } }];
+  },
+  // 苔藓木质（橡苔）：一条树皮横线 + 上面一丛长短不齐的短毛。
+  // 两版否决：①「主枝 + 两对短枝 + 顶点」与芳香木质骨架相同、44px 下是同一枚图；
+  // ②「宽拱 + 三根等距竖线」虽然不撞形了，但读成拱桥/提篮，不像苔。
+  // 苔藓没有主干、也不成枝 —— 它是贴在树皮上的一层绒毛，
+  // 所以用「横线 + 不规则短毛」：横线是树皮，短毛是苔，这是木质族里唯一的横向构图。
+  mossy: () => [
+    { tag: 'path', attrs: { d: 'M3.8 18.4H20.2' } },
+    { tag: 'path', attrs: { d: 'M6.2 18.4V15.6M8.4 18.4V14.4M10.6 18.4V15.2M12.8 18.4V13.8M15 18.4V15.4M17.2 18.4V14.8' } },
+  ],
+  // 乌木：不规则块 + 一道 C 形树脂纹
+  oud: () => [
+    { tag: 'path', attrs: { d: 'M7.6 6.8C9.6 5.6 12.4 5.2 15 6.4C17.4 7.4 18 10.4 17.2 13.2C16.4 16 14 18 11.2 18C8.4 18 6.2 16 5.8 13.2C5.4 10.8 5.8 7.8 7.6 6.8Z' } },
+    { tag: 'path', attrs: { d: 'M9.6 16.4C11.6 16.4 13.2 14.8 13.2 12.8C13.2 10.8 11.6 9.2 9.6 9.2' } },
+  ],
+  // 芳香木质（杜松）：一根主枝 + 三对针叶 + 顶上一枚浆果。
+  // 针叶向外张得更开（斜率 13.4→12.2 改成 14.6→12.0），
+  // 与苔藓木质区分靠轮廓（细高 vs 宽扁），不靠内部线的疏密。
+  'woody-aromatic': () => {
+    const out = [
+      { tag: 'path', attrs: { d: 'M12 20.6V8' } },
+      { tag: 'path', attrs: { d: 'M12 16.4L7.4 13.2M12 16.4L16.6 13.2M12 12.4L8.2 9.6M12 12.4L15.8 9.6' } },
+    ];
+    out.push({ tag: 'circle', attrs: { cx: 12, cy: 6.2, r: 1.8 } });
+    return out;
+  },
+
+  /* ---- 东方琥珀调 ---- */
+  // 辛香琥珀（肉桂）：向内收的卷曲条 —— 肉桂卷的截面
+  'spicy-amber': () => [
+    { tag: 'path', attrs: { d: 'M12 20.6C8.4 20.6 5.8 18 5.8 14.8C5.8 11.6 8.2 9.2 11.4 9.2C14.2 9.2 16.2 11 16.2 13.4C16.2 15.4 14.8 16.8 13 16.8C11.4 16.8 10.4 15.8 10.4 14.4' } },
+  ],
+  // 香草琥珀（香草荚）：两根平行长荚 + 内部三粒
+  'vanilla-amber': () => {
+    const out = [
+      { tag: 'path', attrs: { d: 'M9.4 3.8C10.6 8 11.4 13 12 20.4' } },
+      { tag: 'path', attrs: { d: 'M14.6 3.8C13.4 8 12.6 13 12 20.4' } },
+    ];
+    out.push({ tag: 'circle', attrs: { cx: 12, cy: 9.4, r: 0.8 } });
+    out.push({ tag: 'circle', attrs: { cx: 12, cy: 13, r: 0.8 } });
+    return out;
+  },
+  // 树脂：水滴轮廓 + 一道开口高光弧（沿用家族母题，这一族只有 1 个）
+  resinous: () => [
+    { tag: 'path', attrs: { d: 'M12 3.2C12 3.2 18 9.6 18 13.4A6 6 0 0 1 6 13.4C6 9.6 12 3.2 12 3.2Z' } },
+    { tag: 'path', attrs: { d: 'M9.1 14.6A3.1 3.1 0 0 0 12.4 17.4' } },
+  ],
+  // 焚香：竖棒 + 上升的 S 形烟
+  incense: () => [
+    { tag: 'path', attrs: { d: 'M12 20.8V14.4' } },
+    { tag: 'path', attrs: { d: 'M12 13.2C10.2 11 13.8 9 12.2 6.4C11.2 4.8 12.4 3.4 12.6 2.6' } },
+  ],
+  // 皮革：圆角皮片 + 内缘一圈缝线孔（孔小且密，读作缝线而不是脸）
+  leather: () => {
+    const out = [
+      { tag: 'path', attrs: { d: 'M7.6 5.6H16.4C17.3 5.6 18 6.3 18 7.2V16.8C18 17.7 17.3 18.4 16.4 18.4H7.6C6.7 18.4 6 17.7 6 16.8V7.2C6 6.3 6.7 5.6 7.6 5.6Z' } },
+    ];
+    for (let k = 0; k < 8; k++) {
+      const a = (k * 45 - 90) * (Math.PI / 180);
+      out.push({ tag: 'circle', attrs: { cx: r2(12 + 4.3 * Math.cos(a)), cy: r2(12 + 4.3 * Math.sin(a)), r: 0.55 } });
+    }
+    return out;
+  },
+
+  /* ---- 清新调 ---- */
+  // 水生：三道平行水波（方向一致，不像海洋那样有卷头）
+  aquatic: () => {
+    let d = '';
+    [9.4, 13.4].forEach((y) => {
+      d += 'M3.8 ' + r2(y) + 'C5.8 ' + r2(y - 2) + ' 8.2 ' + r2(y - 2) + ' 10.2 ' + r2(y)
+        + 'C12.2 ' + r2(y + 2) + ' 14.6 ' + r2(y + 2) + ' 16.6 ' + r2(y)
+        + 'C18  ' + r2(y - 1.2) + ' 19.2 ' + r2(y - 1.4) + ' 20.2 ' + r2(y - 1);
+    });
+    return [{ tag: 'path', attrs: { d } }];
+  },
+  // 海洋：一条平浪 + 一枚卷起的浪头（卷头是海洋和水生唯一的形状差别）
+  marine: () => [
+    { tag: 'path', attrs: { d: 'M3.6 16.2C6.2 16.2 7.6 13.8 9.6 13.8C11.6 13.8 12.2 16.2 14.2 16.2C15.8 16.2 16.8 15.2 17.4 14.2' } },
+    { tag: 'path', attrs: { d: 'M14.2 9.2C16.2 7 18.8 7.4 19.4 9.4C19.9 11.1 18.7 12.4 17.1 12' } },
+  ],
+  // 绿意：叶（与家族母题同形，这一族只有"叶"这一个直觉）
+  green: () => {
+    const pairs = 3;
+    let d = 'M12 5.4V18.4';
+    for (let k = 0; k < pairs; k++) {
+      const y = 8.2 + k * 2.6;
+      const w = 3.2 - k * 0.35;
+      d += 'M12 ' + r2(y) + 'L' + r2(12 - w) + ' ' + r2(y - 1.8)
+        + 'M12 ' + r2(y) + 'L' + r2(12 + w) + ' ' + r2(y - 1.8);
+    }
+    return [
+      { tag: 'path', attrs: { d: 'M12 20.2C4.6 16.2 5.4 6.4 12 3.2C18.6 6.4 19.4 16.2 12 20.2Z' } },
+      { tag: 'path', attrs: { d } },
+    ];
+  },
+  // 馥奇（薰衣草）：一根茎 + 穗上交错的花苞（四条短弧，不画圆点）
+  fougere: () => {
+    let d = 'M12 21.4V7.4';
+    [[9.6, 11.6], [14.4, 11.6], [9.6, 14.4], [14.4, 14.4]].forEach(([x, y]) => {
+      d += 'M12 ' + r2(y - 1.4) + 'Q' + r2(x) + ' ' + r2(y - 1.8) + ' ' + r2(x) + ' ' + r2(y);
+    });
+    return [
+      { tag: 'path', attrs: { d } },
+      { tag: 'path', attrs: { d: 'M12 7C10.8 5.6 10.8 3.6 12 2.4C13.2 3.6 13.2 5.6 12 7Z' } },
+    ];
+  },
+  // 茶香：一芽两叶，茎在下的"Y"
+  tea: () => [
+    { tag: 'path', attrs: { d: 'M12 21V11.6' } },
+    { tag: 'path', attrs: { d: 'M12 14.4C12 10.6 14.4 7 18.2 6C18.6 9.6 16.2 13.4 12 14.4Z' } },
+    { tag: 'path', attrs: { d: 'M12 17C12 14.2 10 11.4 7 10.6C6.7 13.4 8.5 16.2 12 17Z' } },
+  ],
+
+  /* ---- 美食调 ---- */
+  // 香草甜（零陵香豆）：**细长弯荚 + 沿缝的籽**。
+  // 四版否决：①「斜置竖椭圆 + 弯缝」与咖啡可可几乎一样（只差旋转 8°），44px 下同一枚；
+  // ②「无柄月牙」读成树叶/香蕉；③「宽月牙 + 柄」仍像带柄的叶；
+  // ④「窄弯荚 + 全长内缝 + 柄」还是被读成叶脉。
+  // 症结不在胖瘦：带中缝的尖椭圆本来就是叶子的画法。
+  // 所以换线索 —— 荚的特征是「籽沿轴向排」而不是「叶脉向两侧分叉」，
+  // 加三道横跨的短线（种子），叶脉永远不长这样，一眼就分开。
+  'vanilla-gourmand': () => [
+    { tag: 'path', attrs: { d: 'M5.6 19.2C3.6 12.8 9.4 6.2 17.6 5.2C16.8 11.2 12.4 17.4 5.6 19.2Z' } },
+    { tag: 'path', attrs: { d: 'M8.0 16.6L9.8 17.9M10.6 13.0L12.5 14.4M13.2 9.4L15.1 10.8' } },
+    { tag: 'path', attrs: { d: 'M17.6 5.2L19.8 3.2' } },
+  ],
+  // 咖啡可可：**近圆**的豆 + S 形中缝。
+  // 可可豆横切是扁圆，不是长条；用「圆」回应「月牙/竖椭圆/心形」三种轮廓，
+  // 同族五枚的外形分别是 弯/圆/竖尖/心/杯，互不粘连。
+  'coffee-cocoa': () => [
+    { tag: 'circle', attrs: { cx: 12, cy: 12, r: 7.2 } },
+    { tag: 'path', attrs: { d: 'M11.6 4.9C14.6 8 8.6 16 11.6 19.1' } },
+  ],
+  // 果味甜（桃）：心形轮廓 + 中缝（桃是这一族里唯一"心形"的）
+  'fruity-gourmand': () => [
+    { tag: 'path', attrs: { d: 'M12 20.6C8 18 5.6 14.6 6.4 10.8C7 8 9 6.4 11 7C11.6 7.2 11.8 7.4 12 7.6C12.2 7.4 12.4 7.2 13 7C15 6.4 17 8 17.6 10.8C18.4 14.6 16 18 12 20.6Z' } },
+    { tag: 'path', attrs: { d: 'M12 7.9V12.6' } },
+  ],
+  // 坚果杏仁：竖置尖椭圆（柠檬是横的，方向就是区别）
+  nutty: () => [
+    { tag: 'path', attrs: { d: 'M12 3.4C14.1 5.9 15.5 8.9 15.5 12C15.5 15.1 14.1 18.1 12 20.6C9.9 18.1 8.5 15.1 8.5 12C8.5 8.9 9.9 5.9 12 3.4Z' } },
+    { tag: 'path', attrs: { d: 'M12 7.2V16.8' } },
+  ],
+  // 酒香：杯身 + 杯脚 + 底座（整套轮廓就是一只酒杯）
+  boozy: () => [
+    { tag: 'path', attrs: { d: 'M8.4 4.6H15.6L14.6 12.4C14.4 13.8 13.2 14.6 12 14.6C10.8 14.6 9.6 13.8 9.4 12.4Z' } },
+    { tag: 'path', attrs: { d: 'M12 14.6V19.4' } },
+    { tag: 'path', attrs: { d: 'M9.2 19.4H14.8' } },
+  ],
+};
+
 const PLATE_FALLBACK = [{ tag: 'circle', attrs: { cx: 12, cy: 12, r: 7.4 } }];
 
 const PLATE_LABEL = { citrus: '柑橘', floral: '花', woody: '木质', amber: '树脂', fresh: '叶', gourmand: '果实' };
@@ -625,7 +903,11 @@ function scentPlate(sub) {
      而且三枚 22px 的小图标撑不起"示意图"这个位置，读起来还是徽标。
      所以：按家族画一枚放大的标本线稿，香材名交给下面那行小字去说。 */
   const family = entries[0].family;
-  const shapes = (PLATE_MOTIFS[family] || (() => PLATE_FALLBACK))();
+  /* 先找这一格自己的标识，找不到再退回家族母题。
+     32 个小类各有一枚专属线稿（SUB_MARKS），家族母题（PLATE_MOTIFS）只作兜底：
+     数据里新增了没来得及画的小类时，宁可退回家族图，也不要画一个假的专属图。 */
+  const markFn = SUB_MARKS[sub.id];
+  const shapes = markFn ? markFn() : (PLATE_MOTIFS[family] || (() => PLATE_FALLBACK))();
 
   const wrap = el('div', { class: 'hub-plate' });
   const svg = svgEl('svg', {
@@ -715,6 +997,20 @@ function buildWheel(cfg) {
       next();
     },
   }, '直接下一步');
+  /* ① 「中圈可以不选」这件事，原来只有桌面端这颗 .hub-go 在说，
+     而它在 ≤620px 是 display:none —— 手机上最需要这句话的人恰好看不到。
+     补一颗 .hub-skip：窄屏显示、桌面隐藏（.hub-go 说得更具体）。 */
+  const hubSkip = el('button', {
+    class: 'hub-skip',
+    type: 'button',
+    onclick: (ev) => {
+      ev.stopPropagation();
+      const f = families.find((x) => x.id === selFamily) || null;
+      onChange(f, null);
+      next();
+    },
+  }, '中圈可不选');
+  hubSkip.hidden = true;
   hubGo.hidden = true;
   const hubReset = el('button', {
     class: 'hub-reset',
@@ -728,7 +1024,7 @@ function buildWheel(cfg) {
   }, '换一个大类');
   hubReset.hidden = true;
   const hub = el('div', { class: 'disc-hub is-idle' },
-    hubKicker, hubZh, hubDesc, hubGlyph, hubGo, hubReset);
+    hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo, hubReset);
   root.appendChild(hub);
 
   /* --- 第一层：6 个家族，固定不变 --- */
@@ -812,16 +1108,25 @@ function buildWheel(cfg) {
   root.appendChild(subRing);
   let subBtns = [];
   let subItems = null;
+  /* ⑥ 内圈先给差异大的。默认只铺 tier===1，末尾多一枚虚线 +N。
+     不是"藏起来" —— 那一枚写着 +N，点开就铺全，
+     用户知道后面还有东西，只是现在不必看。 */
+  let tierOpen = false;
 
   function buildSubRing(fam) {
     subRing.innerHTML = '';
     subBtns = [];
     subItems = null;
     if (!fam) return;
-    const subs = fam.subfamilies || [];
-    if (!subs.length) return;
+    const all = fam.subfamilies || [];
+    if (!all.length) return;
+    const subs = tierOpen ? all : all.filter((s) => (s.tier || 1) === 1);
+    const hiddenCount = all.length - subs.length;
     subItems = subs;
-    const step = 360 / subs.length;
+    /* 摆位的分母要用「这一轮实际铺出来的格数 + 可能的那枚 +N」，
+       否则点开前后半径不变、角度也不变，格子会突然换位。 */
+    const slots = subs.length + (hiddenCount ? 1 : 0);
+    const step = 360 / slots;
     const start = -90 - step / 2;
 
     subs.forEach((s, i) => {
@@ -835,7 +1140,7 @@ function buildWheel(cfg) {
         style: 'transform: rotate(' + armDeg.toFixed(2) + 'deg)',
       });
       const btn = el('button', {
-        class: 'disc-sector lvl2 sub-sq',
+        class: 'disc-sector lvl2 sub-sq' + ((s.tier || 1) === 2 ? ' is-tier2' : ''),
         type: 'button',
         role: 'radio',
         'aria-checked': 'false',
@@ -854,6 +1159,56 @@ function buildWheel(cfg) {
       arm.appendChild(btn);
       subRing.appendChild(arm);
       subBtns.push(btn);
+    });
+
+    if (hiddenCount) {
+      const midDeg = start + (subs.length + 0.5) * step;
+      const armDeg = midDeg + 90;
+      const arm = el('div', {
+        class: 'sub-arm',
+        style: 'transform: rotate(' + armDeg.toFixed(2) + 'deg)',
+      });
+      const more = el('button', {
+        class: 'disc-sector lvl2 sub-sq sub-more',
+        type: 'button',
+        'data-more': String(hiddenCount),
+        'aria-label': '展开另外 ' + hiddenCount + ' 个细分香型',
+        tabindex: '-1',
+        style: 'transform: translate(-50%, -50%) rotate(' + (-armDeg).toFixed(2) + 'deg); --aq: ' + (-armDeg).toFixed(2) + 'deg',
+      }, el('span', { class: 'zh' }, '+' + hiddenCount));
+      more.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        tierOpen = true;
+        builtFor = null;   // 强制重建
+        paint();
+      });
+      more.addEventListener('mouseenter', () => { hoverSub = null; paint(); });
+      arm.appendChild(more);
+      subRing.appendChild(arm);
+    }
+
+    /* ③ 指针在内圈"划过去"也算数：按指针相对圆心的角度反查最近一格。
+       原来只有 mouseenter 落进 44px 格子才响应，360 视口下格子只占盘周
+       一小段，用户划过去是常态，盘心一直停在上一格。 */
+    const idxAt = (ev) => {
+      const r = root.getBoundingClientRect();
+      const dx = ev.clientX - (r.left + r.width / 2);
+      const dy = ev.clientY - (r.top + r.height / 2);
+      // 只在盘的半径范围内响应，避免指针划过整页时盘心乱跳
+      if (Math.hypot(dx, dy) > r.width * 0.52) return -1;
+      let rel = (Math.atan2(dy, dx) * 180) / Math.PI - start;
+      rel = ((rel % 360) + 360) % 360;
+      const k = Math.floor(rel / step);
+      return k >= 0 && k < subs.length ? k : -1;
+    };
+    core.addEventListener('pointermove', (ev) => {
+      if (!root.classList.contains('is-open')) return;
+      const k = idxAt(ev);
+      const next = k < 0 ? null : subs[k].id;
+      if (next !== hoverSub) { hoverSub = next; paint(); }
+    });
+    core.addEventListener('pointerleave', () => {
+      if (hoverSub) { hoverSub = null; paint(); }
     });
   }
 
@@ -875,9 +1230,10 @@ function buildWheel(cfg) {
     const open = !!selFamily;
     const showFamId = selFamily || hoverFam;
     const showFam = showFamId ? famById.get(showFamId) : null;
-    if (builtFor !== selFamily) {
+    const builtKey = selFamily ? selFamily + '|' + (tierOpen ? 2 : 1) : null;
+    if (builtFor !== builtKey) {
       buildSubRing(selFamily ? famById.get(selFamily) : null);
-      builtFor = selFamily;
+      builtFor = builtKey;
     }
     root.classList.toggle('is-open', open);
 
@@ -957,6 +1313,7 @@ function buildWheel(cfg) {
       const f = famById.get(selFamily);
       hubGo.textContent = '就选「' + (f ? f.zh : '') + '」，下一步 →';
     }
+    hubSkip.hidden = !canSkip;
     hubReset.hidden = !selFamily;
   }
 

@@ -207,6 +207,44 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
   ok('窄屏隐藏盘心重复出口', /@media \(max-width: 620px\) \{[\s\S]*?\.wheel \.hub-go \{ display: none; \}/.test(css),
     '360 视口该按钮宽 156 而圆弧只容 140，且与底部「按大类推荐」重复');
 
+  /* ⑤ 确认后不整盘翻黑（用户原话：「避免内圈直接变黑，反差过大不优雅」）。
+     改成：盘底保持白、只加一圈发丝描边；选中由方格自己填实表达。
+     这条守的是「盘底不许再出现 --ink 实底」。 */
+  ok('选定态盘底不翻黑', (() => {
+    // 必须取层叠里最后一条：基础层/旧追加层里还留着 background: var(--ink) 的墨底规则，
+    // match() 只拿第一条会读到那条已作废的，得出「还在翻黑」的假结论。
+    const all = [...css.matchAll(/\.wheel\.is-open\.is-picked \.disc-core \{[^}]*?background:\s*var\((--[\w-]+)\)/g)];
+    if (!all.length) return false;
+    const token = all[all.length - 1][1];
+    // 只认浅色底板令牌。曾经写死 var(--bg)，后来发现展开态是 --bg-2(#f5f5f5)、
+    // 选中后跳到 --bg(#ffffff) —— 8% 亮度跳变自己就成了一次「整块变色」，只是方向反了。
+    return token === '--bg' || token === '--bg-2';
+  })(),
+    '翻黑是"页面切走了"的信号，不是"你选中了这一格"的信号');
+
+  ok('选中态与展开态同一个底板色', (() => {
+    // 选中瞬间若底板换色，用户会先感到"页面变了"才看到"我选了这格"。
+    // 两态必须同 token，选中只由被选中的方格自己表达。
+    const pick = [...css.matchAll(/\.wheel\.is-open\.is-picked \.disc-core \{[^}]*?background:\s*var\((--[\w-]+)\)/g)];
+    const open = [...css.matchAll(/\.wheel\.is-open \.disc-core \{[^}]*?background:\s*var\((--[\w-]+)\)/g)];
+    if (!pick.length || !open.length) return true; // 展开态未显式声明，继承闭合态，不算违规
+    return pick[pick.length - 1][1] === open[open.length - 1][1];
+  })(), '展开态 #f5f5f5 → 选中态 #ffffff 是 8% 的整块跳变');
+  ok('选定态盘底有激活描边', /\.wheel\.is-open\.is-picked \.disc-core \{[^}]*?box-shadow:[^}]*?var\(--blue-amb\)/.test(css));
+  /* 换底必须换线：标本线稿原写 rgba(255,255,255,.82) 是给墨底配的，
+     底变白之后白线画在白盘上等于图形消失。 */
+  ok('标本线稿跟着底色换成深色', /\.wheel \.plate-svg \{[^}]*?stroke:\s*var\(--ink/.test(css),
+    '换底不换线是改配色最容易漏的一处');
+  /* ① 手机上也要看得见「中圈可不选」 */
+  ok('窄屏出现「中圈可不选」的出口', /@media \(max-width: 620px\) \{[\s\S]*?\.wheel \.hub-skip \{ display: inline-block; \}/.test(css),
+    '原来只有桌面的 .hub-go 在说这件事，它在 ≤620px 是 display:none');
+  /* ② 方格挂在一条与盘同心的轨道上 */
+  ok('方块有一条与盘同心的轨道', /\.wheel \.sub-ring::before \{[^}]*?border:\s*1px dashed/.test(css)
+    && /\.wheel\.is-open \.sub-ring::before \{ opacity: 1; \}/.test(css));
+  /* ⑥ 进阶格子只在点开 +N 后才渲染 */
+  ok('进阶格子有独立类名', /\.wheel \.disc-sector\.lvl2\.sub-sq\.is-tier2/.test(css));
+  ok('「+N」展开格是虚线未选态', /\.wheel \.disc-sector\.lvl2\.sub-more \{[^}]*?border:\s*1px dashed/.test(css));
+
   // 手臂是插在圆心上的零宽轴，不是满尺寸盒子。
   // 满尺寸盒子绕过中心会被旋转扫出圆盘外：360 视口实测 l:-39 r:399，
   // 文档 scrollWidth 401 > clientWidth 360，整页可以左右晃。
@@ -302,25 +340,110 @@ const hubAfter = appRoot.querySelector('.disc-hub');
 ok('盘心挂上了 has-glyph', !!hubAfter && hubAfter.classList.contains('has-glyph'),
   hubAfter && hubAfter.className);
 
-/* 同一家族下换个小类，图案应当保持一致 —— 这枚图编码的是"家族"，
-   不编码小类。上一版按小类 id 做哈希微差，结果古龙水型和青绿柑橘
-   算出来的瓣数完全相同，那条断言直接假失败；更重要的是那个想法本身错了：
-   小类的名字就写在盘心主词上，为同族小类画不同图标等于凭空造区别。 */
+/* 同一家族下换个小类，图案必须**不同** —— 这枚图编码的是小类，不是家族。
+   这一条推翻了上一轮的做法（那时同族共用家族母题）。推翻的理由是用户提出的：
+   古龙水型要有古龙独有的标识，青绿柑橘与芳香柑橘各自不同。
+   那个要求是对的 —— 旧做法下选完古龙水型和青绿柑橘，盘心画的是同一枚图，
+   用户看不出自己选的是哪一格。
+   注意这里仍然不是「给同一形状做哈希微差」：每枚画的是该小类的代表香材本体。 */
 const sigOf = () => {
   const s = appRoot.querySelectorAll('.plate-svg')[0];
   if (!s) return '';
   return s.querySelectorAll('path').map((q) => q.getAttribute('d') || '').join('|')
-    + s.querySelectorAll('circle').map((q) => q.getAttribute('r') || '').join('|');
+    + s.querySelectorAll('circle').map((q) => q.getAttribute('r') || '').join('|')
+    + s.querySelectorAll('ellipse').map((q) => (q.getAttribute('rx') || '') + (q.getAttribute('ry') || '')).join('|');
 };
 const sigCitrus = sigOf();
-/* 中圈第 3 个是「青绿柑橘」，同属 citrus */
-midAfter[2].dispatch('click');
-await new Promise((r) => setTimeout(r, 500));
-ok('同一家族下不同小类共用同一图案', sigCitrus === sigOf(),
-  `古龙水型=${sigCitrus.slice(0, 36)} 青绿柑橘=${sigOf().slice(0, 36)}`);
+ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice(0, 40));
+/* 中圈的格子顺序由 taxonomy 的 tier 排序决定，不写死「第 3 个」，
+   而是遍历同族的其它小类，任意一个的签名都应当与第一个不同。 */
+{
+  let compared = 0;
+  let same = 0;
+  /* 只走 tier1 那几格。末尾那枚「+N」也在 .disc-sector.lvl2 里，
+     点它会重建整个中圈，midAfter 这个 NodeList 会失效。 */
+  for (let i = 1; i < Math.min(3, midAfter.length); i += 1) {
+    midAfter[i].dispatch('click');
+    await new Promise((r) => setTimeout(r, 300));
+    const sig = sigOf();
+    if (sig.length) { compared += 1; if (sig === sigCitrus) same += 1; }
+  }
+  ok('同族不同小类各有各的图形', compared > 0 && same === 0,
+    `比较 ${compared} 组，其中 ${same} 组与首个相同`);
+  /* 停在另一个小类上，后面那条「换小类后香材名跟着变」才有对照。 */
+  midAfter[1].dispatch('click');
+  await new Promise((r) => setTimeout(r, 300));
+}
 /* 不断言具体是哪一味：中圈格子的顺序由 taxonomy 决定，写死「葡萄柚」
    会把测试绑死在当前数据顺序上，数据一改就假失败。要守的是
    「名字跟着小类变」，这才是这条断言的意义。 */
+/* ---- 32 枚标识：数据完整性 + 两两不撞形 ---- */
+{
+  const appJs = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  const s0 = appJs.indexOf('const SUB_MARKS');
+  let depth = 0;
+  let e0 = -1;
+  for (let i = appJs.indexOf('{', s0); i < appJs.length; i += 1) {
+    if (appJs[i] === '{') depth += 1;
+    else if (appJs[i] === '}') { depth -= 1; if (depth === 0) { e0 = i + 1; break; } }
+  }
+  ok('能从 app.js 里切出 SUB_MARKS 块', s0 > 0 && e0 > s0);
+  /* r2 在 app.js 里定义在这块之后，直接求值会 ReferenceError，这里自带一份同名实现。
+     两处必须一致，都是「保留两位小数、去掉尾随 0」。 */
+  const r2 = (n) => (Math.round(n * 100) / 100).toString();
+  const MARKS = new Function('r2', appJs.slice(s0, e0) + '; return SUB_MARKS;')(r2);
+
+  const TAXA_MARK = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/taxonomy.json'), 'utf8'));
+  const allSubs = TAXA_MARK.families.flatMap((f) => f.subfamilies.map((s) => ({ id: s.id, fam: f.id })));
+  const missing = allSubs.filter((s) => typeof MARKS[s.id] !== 'function').map((s) => s.id);
+  ok('每个小类都有专属标识（不缺格）', missing.length === 0,
+    `缺 ${missing.length} 个: ${missing.join(',')}`);
+  const extra = Object.keys(MARKS).filter((k) => !allSubs.some((s) => s.id === k));
+  ok('没有多余的标识（不画数据里不存在的格）', extra.length === 0, extra.join(','));
+
+  /* 几何签名：把每个图元的 tag 与全部属性拼起来。
+     不去光栅化 —— 测试里没有 canvas，而且几何签名已经能抓住
+     「轮廓与内部线完全一样、只差 1px 偏移」这类撞形（本轮真正的问题就是这个）。 */
+  const sig = (id) => JSON.stringify(MARKS[id]());
+  const seen = new Map();
+  const dup = [];
+  for (const s of allSubs) {
+    const k = sig(s.id);
+    if (seen.has(k)) dup.push(`${seen.get(k)} / ${s.id}`);
+    else seen.set(k, s.id);
+  }
+  ok('32 枚标识的图形全不相同', dup.length === 0, dup.join(' ; '));
+  /* 同族内部尤其不能撞：外圈一次只展开一族，用户看到的永远只有同族那几格，
+     跨族撞形用户看不见，同族撞形就是「两格长得一样」。 */
+  const dupSameFam = [];
+  for (const fam of TAXA_MARK.families) {
+    const m = new Map();
+    for (const s of fam.subfamilies) {
+      const k = sig(s.id);
+      if (m.has(k)) dupSameFam.push(`${fam.id}: ${m.get(k)} / ${s.id}`);
+      else m.set(k, s.id);
+    }
+  }
+  ok('同族内部图形不重复', dupSameFam.length === 0, dupSameFam.join(' ; '));
+  /* 每枚要有足够的笔触，不能是一个点或一条孤线。
+     判据不是「图元个数 >= 2」——香根草是一束五条曲线，全打包在一条 path 里；
+     水生是两道波纹，同理。数 M 命令才反映实际笔触数。 */
+  const strokes = (shapes) => shapes.reduce((n, sh) => {
+    if (sh.tag !== 'path') return n + 1;
+    return n + String(sh.attrs.d || '').split('M').length - 1;
+  }, 0);
+  /* 但也不能反过来要求「必须多笔」：辛香琥珀是一根连续卷进的肉桂卷，
+     一笔到底才是对的。真正的下限是「不能只有一个点或一根直线」——
+     于是判据改成「图元数 + 曲线段数」的总和 >= 2。 */
+  const weight = (shapes) => shapes.reduce((n, sh) => {
+    if (sh.tag !== 'path') return n + 1;
+    const seg = String(sh.attrs.d || '').match(/[CLQ]/g);
+    return n + (seg ? seg.length : 1);
+  }, 0);
+  const thin = allSubs.filter((s) => weight(MARKS[s.id]()) < 2).map((s) => s.id);
+  ok('每枚标识都不是孤点孤线', thin.length === 0, thin.join(','));
+}
+
 ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textContent !== cap.textContent,
   `${cap.textContent} → ${appRoot.querySelector('.plate-cap').textContent}`);
 
