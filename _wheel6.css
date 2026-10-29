@@ -84,9 +84,8 @@
      - 当前态保持 1 + 蓝描边，与可点态拉开明确档位。
    ============================================================ */
 .wheel.is-open .sub-ring { pointer-events: none; }
-.wheel .sub-arm { pointer-events: none; }
-.wheel .sub-arm .sub-sq,
-.wheel .sub-arm .spin-nav { pointer-events: auto; }
+/* v7 的瓦片（.sub-arc / .sub-arc-btn）自己声明 pointer-events，见 _wheel7.css；
+   这里只保留容器不吃事件这一条。 */
 
 .wheel.is-open .sector-g {
   opacity: .30;
@@ -103,141 +102,6 @@
 .wheel.is-open .sector-g.is-hot:not(.is-on) .sector-shape {
   stroke: var(--ink-2);
   stroke-width: 1.5;
-}
-
-
-/* ============================================================
-   ④ 中圈：三格圆弧窗口
-   ------------------------------------------------------------
-   把「一次铺一圈方格 + 末尾一枚 +N」换成一条弧上的三格：
-   中间是当前项、两侧各一格淡出，两枚 44px 圆钮把整条弧转动一格。
-   转动即选择 —— 转到哪项就是哪项，不需要再点一次确认。
-
-   位置全靠现有的「零宽手臂 + rotate」机制：手臂转过 θ，格子钉在顶端，
-   格子再反着转回 −θ（走 --aq 自定义属性，不用内联 transform，
-   否则会盖掉 :active 的按下缩放）。
-   三格的角度：0 / ±44。圆钮：±78 —— 比格子更靠外更低，
-   与格子留出至少 45px 的净距（360 视口实测），不与格子争触控区。
-   ============================================================ */
-.wheel .sub-arm .sub-sq {
-  transform: translate(-50%, -50%) rotate(var(--aq, 0deg));
-  transform-origin: center center;
-  transition: background-color 160ms cubic-bezier(.4, 0, .2, 1),
-              border-color 160ms cubic-bezier(.4, 0, .2, 1),
-              color 160ms cubic-bezier(.4, 0, .2, 1),
-              opacity 160ms cubic-bezier(.4, 0, .2, 1),
-              transform 160ms cubic-bezier(.4, 0, .2, 1);
-}
-
-/* 中间那格：这一轮唯一"实"的一格，与盘心讲的是同一项 */
-.wheel .sub-arm .sub-sq.is-center {
-  border-color: var(--edge);
-  background: var(--bg);
-  color: var(--ink);
-  box-shadow: 0 1px 0 rgba(255,255,255,.9) inset,
-              0 6px 18px -12px rgba(0,26,94,.28);
-}
-.wheel .sub-arm .sub-sq.is-center.is-hot:not(.is-on) {
-  border-color: var(--ink);
-  background: var(--bg-2);
-}
-/* 选中（已落到这一项）：填蓝、反白，与盘心线稿转蓝同一时刻发生 */
-.wheel .sub-arm .sub-sq.is-center.is-on {
-  background: var(--blue);
-  border-color: var(--blue);
-  color: #ffffff;
-  box-shadow: 0 1px 0 rgba(255,255,255,.18) inset,
-              0 8px 20px -12px rgba(0,47,167,.5);
-}
-
-/* 两侧那格：副信息。可点（点它就把它转到中间），所以只降不透明与尺寸，
-   不用 pointer-events:none —— 降透明但点不了，是最伤人的一种"看起来能点"。 */
-.wheel .sub-arm .sub-sq.is-side {
-  opacity: .34;
-  transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) scale(.84);
-  font-weight: 500;
-}
-.wheel .sub-arm .sub-sq.is-side:hover,
-.wheel .sub-arm .sub-sq.is-side.is-hot {
-  opacity: .72;
-}
-.wheel .sub-arm .sub-sq.is-side:active {
-  transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) scale(.80);
-  opacity: .9;
-}
-
-/* 转动钮：44px 圆钮，压在同一条轨道上，读作"这个环可以转" */
-.wheel .sub-arm .spin-nav {
-  position: absolute;
-  left: 50%;
-  top: 12.4%;
-  width: 44px;
-  height: 44px;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-body);
-  font-size: 22px;
-  font-weight: 400;
-  line-height: 1;
-  color: var(--ink-2);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  cursor: pointer;
-  transform: translate(-50%, -50%) rotate(var(--aq, 0deg));
-  transform-origin: center center;
-  transition: color 160ms cubic-bezier(.4, 0, .2, 1),
-              border-color 160ms cubic-bezier(.4, 0, .2, 1),
-              background-color 160ms cubic-bezier(.4, 0, .2, 1),
-              transform 80ms cubic-bezier(.4, 0, .2, 1);
-}
-.wheel .sub-arm .spin-nav:hover:not(:disabled) {
-  color: var(--blue);
-  border-color: var(--blue-amb);
-  background: var(--blue-wash);
-}
-.wheel .sub-arm .spin-nav:active:not(:disabled) {
-  transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) scale(.94);
-  background: var(--bg-3);
-}
-.wheel .sub-arm .spin-nav:focus-visible {
-  outline: 2px solid var(--blue);
-  outline-offset: 2px;
-}
-/* 只有一个子项时转无可转：显式置灰，不靠"点了没反应"来表达 */
-.wheel .sub-arm .spin-nav:disabled {
-  color: var(--line);
-  border-color: var(--line);
-  cursor: default;
-  opacity: .5;
-}
-
-/* 方向性入场：新的一项从转动方向滑进中间位。
-   用一次性 animation 而不是 transition + transitionend ——
-   后者要一个异步状态机，而这条动效只值 200ms 的观感。 */
-.wheel .sub-arm .sub-sq.spin-in-next {
-  animation: spinInNext 200ms cubic-bezier(.2, 0, .2, 1) both;
-}
-.wheel .sub-arm .sub-sq.spin-in-prev {
-  animation: spinInPrev 200ms cubic-bezier(.2, 0, .2, 1) both;
-}
-@keyframes spinInNext {
-  from { transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) translateX(26px); opacity: .2; }
-  to   { transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) translateX(0);    opacity: 1; }
-}
-@keyframes spinInPrev {
-  from { transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) translateX(-26px); opacity: .2; }
-  to   { transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) translateX(0);     opacity: 1; }
-}
-
-@media (max-width: 620px) {
-  .wheel .sub-arm .spin-nav { top: 9.8%; width: 44px; height: 44px; font-size: 20px; }
-}
-@media (max-width: 400px) {
-  .wheel .sub-arm .spin-nav { top: 10.3%; }
 }
 
 
@@ -282,9 +146,7 @@
 
 
 @media (prefers-reduced-motion: reduce) {
-  .wheel .sub-arm .sub-sq.spin-in-next,
-  .wheel .sub-arm .sub-sq.spin-in-prev { animation: none; }
-  .wheel .wheel-back:active,
-  .wheel .sub-arm .spin-nav:active:not(:disabled) { transform: translate(-50%, -50%) rotate(var(--aq, 0deg)); }
   .wheel .wheel-back:active { transform: none; }
+  .wheel .sub-arc { animation: none; }
+  .wheel .sub-arc-btn { animation: none; }
 }

@@ -30,3 +30,8 @@ scripts/probes/
 
 # 截图产物（本地核查用，不入库）
 shots/
+
+# 一次性探测脚本与截图（本轮 v14 的输出目录，约 660 MB 含 Edge profile）
+# 结论已写进 docs/DECISIONS.md 的 D40；脚本原件在 C:/Users/16256/ego/
+# （glyph.cjs / tune10.cjs / textov.cjs / rebuild-css.mjs）
+_probe/

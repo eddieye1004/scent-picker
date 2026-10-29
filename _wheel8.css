@@ -1,0 +1,393 @@
+/* ============================================================
+   香型轮盘 v14 · 两层切换的进出场编排
+   ------------------------------------------------------------
+   这一层只做一件事：让「第一层 ↔ 第二层」的切换读成一次
+   有去有回的换层，而不是一瞬间换了一张图。
+
+   三个问题（都是截图比对出来的，不是读代码猜的）：
+
+   1. 进入第二圈时，家族环（大圈）只是被覆盖 —— 它的 opacity 由
+      _wheel7.css 里 `.wheel.is-open .sector-g { opacity: 1 }` 钉在 1，
+      既没有退场动作，也没有退让层级。六个浅色环块和七段白瓦同时
+      满亮度，用户分不清哪个是「现在这一层」。
+   2. 返回时弧段被 `innerHTML = ''` 立刻抹掉，DOM 里没有节点就没有
+      退场动画可播 —— 「消失动效」在实现层面根本不存在。
+   3. 两侧的错峰（弧段 i*60ms 依次滑出）只在入场有，退场是整块一起消失，
+      进出不对称，读起来像两段不相干的动效。
+
+   ## 定稿的编排
+
+   | 时刻 | 元素 | 动作 | 时长 / 缓动 |
+   |---|---|---|---|
+   | 进入·0ms | 大圈六块 | 淡出 + 缩到 .965 + 反向转 -1.4°，按 i*16ms 错峰 | 280ms `cubic-bezier(.4,0,.9,1)` |
+   | 进入·40ms | 大圈文字 | 淡到 .45（文字比色块耐淡，全退等于消失） | 240ms linear |
+   | 进入·60ms | 中圈七段 | 从 scale .88 + rotate -6° 起到 1，按 i*38ms 顺着铺开 | 360ms `cubic-bezier(.22,1,.36,1)` |
+   | 进入·150ms | 段上文字 | 淡入，跟弧段同序 | 260ms linear |
+   | 返回·0ms | 中圈七段 | 淡出 + 缩回 .93，按 (n-1-i)*22ms 反着收 | 200ms `cubic-bezier(.4,0,1,1)` |
+   | 返回·90ms | 大圈六块 | 从幽灵态浮回满亮度，按 i*16ms 展开 | 340ms `cubic-bezier(.22,1,.36,1)` |
+   | 返回·120ms | 大圈文字 | 淡回 1 | 300ms linear |
+
+   两段都只用 transform / opacity —— 这两个属性走合成层，
+   不会触发重排，60fps 下不会掉帧。**不用 filter 做模糊**：
+   七段各带一层 blur 会把 GPU 预算吃满，而且在低端机上直接变卡顿。
+
+   ## 为什么退场用 CSS 动画而不是 transition
+
+   opacity 的 transition 是双向的，但「退到 .30 还是退到 0」由
+   `.is-open` 一个类决定：同一个属性没法既做「进入时淡到幽灵」又做
+   「返回时从幽灵浮回」而中间不打架。用一次性 keyframes + `both`，
+   结束时停在 is-open / 未 is-open 各自的目标值上，两边都不留尾巴。
+   类由 app.js 的 `is-lifting` / `is-returning` 挂 760ms 后摘掉 ——
+   只挂类不写状态机，层级仍然只由 selFamily 这一个值决定
+   （与 D39④ 不用 transitionend 的理由同源：动画只负责好看）。
+   ============================================================ */
+
+/* ---------------- 一、大圈：退场到「幽灵态」 ---------------- */
+
+/* 幽灵态的取值有两条约束，都不是审美取舍：
+   ① 必须仍然可点 —— 用户要的「在中圈里点别的大类直接换」全靠它，
+      退到 opacity 0 或 pointer-events:none 就等于把这条路封了；
+   ② 必须能看出六块的分界 —— _wheel7.css 里六族本色渐变到幽灵态后
+      只剩 3% 饱和的浅色，实测 .16 时六段读成一条连续灰环（D39③ 的
+      原话），.30 是仍能数出六块的下限，比它更淡就退回上一版的毛病。 */
+.wheel.is-open .sector-g {
+  opacity: .30;
+  pointer-events: auto;
+  cursor: pointer;
+  /* 悬停要能立刻回到满亮度：换大类是这个盘上第二高频的动作，
+     200ms 的过渡比 160ms 更稳（160ms 在低刷新率屏上会读成闪一下）。 */
+  transition: opacity 200ms cubic-bezier(.4, 0, .2, 1);
+}
+/* 悬停 / 键盘聚焦 / 盘心正在讲的那一块：浮回满亮度。
+   `.is-hot` 由 paint() 里 hoverFam 驱动，键盘 focus 也走同一条。 */
+.wheel.is-open .sector-g.is-hot:not(.is-on),
+.wheel.is-open .sector-g:hover:not(.is-on) {
+  opacity: 1;
+}
+/* 当前大类始终满亮度：这一块是「我从哪儿进来的」，不能跟着一起退。 */
+.wheel.is-open .sector-g.is-on { opacity: 1; }
+
+/* 进入第二圈：六块按 i*16ms 依次退场。
+   末帧必须回到 identity（scale 1 / rotate 0），不能停在 -1.4° ——
+   这组类在 780ms 后被摘掉，摘掉那一刻若末帧不是 identity，
+   六块会「啪」地正回来 1.4°，看起来像动画播完跳了一帧。
+   所以把"缩一下再归位"做成一次回弹：中段缩到 .955 并反斜 1.6°，
+   末帧归位，只留 opacity 落到幽灵值。 */
+.wheel.is-lifting .sector-g {
+  animation: fanExit 320ms cubic-bezier(.4, 0, .9, 1) both;
+  animation-delay: calc(var(--i, 0) * 16ms);
+}
+@keyframes fanExit {
+  0%   { opacity: 1; transform: scale(1) rotate(0deg); }
+  55%  { opacity: .55; transform: scale(.955) rotate(-1.6deg); }
+  100% { opacity: .30; transform: scale(1) rotate(0deg); }
+}
+
+/* 返回第一圈：从幽灵态浮回，同样在中段过冲一次再归位。
+   过冲方向与退场相反（+1.6°），于是「退出去」和「收回来」
+   是同一根轴上的两次相反运动，不是两段不相干的动画。 */
+.wheel.is-returning .sector-g {
+  animation: fanEnter 400ms cubic-bezier(.22, 1, .36, 1) both;
+  animation-delay: calc(90ms + var(--i, 0) * 16ms);
+}
+@keyframes fanEnter {
+  0%   { opacity: .30; transform: scale(1) rotate(0deg); }
+  45%  { opacity: .80; transform: scale(1.022) rotate(1.6deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+/* 两组 keyframes 都要以盘心为原点。transform-box: view-box 让
+   240/240 成为共同原点；缺了它每块会绕自己的包围盒中心转，
+   六块会朝六个方向散开，读起来像炸开而不是转动。 */
+.wheel .sector-g {
+  transform-box: view-box;
+  transform-origin: 240px 240px;
+}
+
+/* ---------------- 二、大圈文字：不跟着淡 ----------------
+   这一条是**刻意不做**的，理由不是审美：
+   展开态里六个家族名的唯一作用，就是让用户判断「我要换到哪一类」。
+   把它淡到 .45（≈ #9a9a9a on 白底，实测 2.9:1）读不清，
+   淡到 .78 又和满亮看不出差别 —— 中间没有一档既"退让"又不伤可读性。
+   色块退到 .30 已经足够表达"这一层退后了"，文字留在 1。
+   换层时只给文字一次 6px 的横向滑入（translate 不参与，
+   因为 .disc-sector 的 transform 已经被 translate(-50%,-50%) 占用，
+   再碰它就会像 D39④ 那样把标签推出弧段）—— 所以只做 opacity 的一次轻呼吸。 */
+.wheel.is-lifting .label-layer .disc-sector.lvl1 {
+  animation: fanLabelBreathe 300ms cubic-bezier(.4, 0, .2, 1) both;
+  animation-delay: calc(40ms + var(--i, 0) * 16ms);
+}
+@keyframes fanLabelBreathe {
+  0%   { opacity: 1; }
+  45%  { opacity: .55; }
+  100% { opacity: 1; }
+}
+.wheel.is-returning .label-layer .disc-sector.lvl1 {
+  animation: fanLabelBreatheBack 320ms cubic-bezier(.22, 1, .36, 1) both;
+  animation-delay: calc(120ms + var(--i, 0) * 16ms);
+}
+@keyframes fanLabelBreatheBack {
+  0%   { opacity: .55; }
+  100% { opacity: 1; }
+}
+
+/* ---------------- 三、中圈弧段：入场重排 + 退场 ---------------- */
+
+/* 入场：_wheel7.css 的 arcIn 只有 scale(.94)→1，位移量太小，
+   在 520px 的盘上读不出「滑出来」。这一版从 .88 起、并带 -6° 起始角，
+   停下时回到 0°，于是每段都是「顺着圆周推进到位」而不是「原地放大」。
+   起始角必须与错峰方向一致：i 越大越靠后（顺时针），
+   所以起始角取负值，让它从逆时针侧转进来。 */
+.wheel.is-open .sub-arc {
+  animation: arcSlideIn 360ms cubic-bezier(.22, 1, .36, 1) both;
+  animation-delay: calc(60ms + var(--i, 0) * 38ms);
+}
+@keyframes arcSlideIn {
+  from { opacity: 0; transform: scale(.88) rotate(-6deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+/* 退场：DOM 由 app.js 推迟 400ms 再清，否则没有节点可动。
+   延迟公式与入场反号：最后铺开的那段最先收走，读起来是「一圈绕回去」。 */
+.sub-ring.is-exit .sub-arc {
+  animation: arcSlideOut 200ms cubic-bezier(.4, 0, 1, 1) both;
+  animation-delay: calc((var(--n, 1) - 1 - var(--i, 0)) * 22ms);
+  pointer-events: none;
+}
+@keyframes arcSlideOut {
+  from { opacity: 1; transform: scale(1) rotate(0deg); }
+  to   { opacity: 0; transform: scale(.93) rotate(4deg); }
+}
+
+/* 退场期间容器不能被 `.wheel:not(.is-open) .sub-ring { opacity: 0 }` 掐掉，
+   否则子元素的动画在 0 不透明度里播，等于没播。 */
+.wheel .sub-ring.is-exit {
+  opacity: 1;
+  pointer-events: none;
+}
+
+/* 段上文字：只动 opacity。`.sub-arc-btn` 的基础 transform 是
+   translate(-50%,-50%)（居中），动画里再碰 transform 会把标签推出弧段
+   —— D39④ 踩过一次（内联 transform 盖掉居中位移）。 */
+.wheel .disc-sector.lvl2.sub-arc-btn {
+  animation: subLabelIn 260ms linear both;
+  animation-delay: calc(150ms + var(--i, 0) * 38ms);
+}
+@keyframes subLabelIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.sub-ring.is-exit .disc-sector.lvl2.sub-arc-btn {
+  animation: subLabelOut 160ms linear both;
+  animation-delay: calc((var(--n, 1) - 1 - var(--i, 0)) * 22ms);
+  pointer-events: none;
+}
+@keyframes subLabelOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* 凹槽环与底座：跟着同一段节奏淡入淡出，比弧段晚 40ms 落地 */
+.wheel .sub-channel {
+  transition: opacity 260ms cubic-bezier(.4, 0, .2, 1) 40ms;
+}
+.wheel.is-open .sub-channel { opacity: 1; }
+
+/* ---------------- 四、弧段要读得出是「一段一段」 ----------------
+   实测缺陷（1440 / 900 两视口截图一致）：七段弧都是 #ffffff，
+   盘心是 #ffffff，家族环是 #e7ebf5 —— 中圈整条带读成「一个白环 +
+   几道灰辐条」，弧段的"一片一片浮起来"完全没有落地。
+   进场动画再顺，进来的是白环而不是瓦片，第②条要求的"圆弧依次滑出并排"
+   就等于只做了一半。
+
+   三处一起改，缺一条都不成立：
+   ① 槽底压深：#b4bcd2 → #97a3c1。与白瓦片对比 1.9:1 → 3.0:1。
+      2.6° 的缝在 520px 盘上只有 6px 宽，低于 3:1 时人眼把它读成
+      "描边没对齐"而不是"缝"（D39④ 的同一处教训）。
+   ② 缝加宽到 3.4°（step 的 6%–7%）：6px → 8px，足够容下两侧各 1px 白描边
+      之后仍露出 6px 槽底。
+   ③ 每段自己一道向下的落影：瓦片压在槽里，靠影子的方向读出"浮起来"。
+      只给整组加影（v13 的做法）等于七段共用一层影，读成一张贴纸。 */
+.wheel .sub-channel { stroke: #97a3c1; }
+.wheel.is-open .sub-g .sub-arc {
+  filter: drop-shadow(0 1.5px 2px rgba(0, 26, 94, .18));
+}
+/* 选中段把影收掉：蓝色实心块再加影会读成"塑料按钮"，
+   与整页"只靠明度分层、不靠发光"的语言冲突。 */
+.wheel.is-open .sub-g.is-on .sub-arc {
+  filter: drop-shadow(0 .5px 1px rgba(0, 26, 94, .10));
+}
+
+/* ---------------- 五、盘心：换层时也换一次字 ----------------
+   盘心是两层共同的焦点，它不跟着任何一侧消失，而是「换内容」。
+   换层瞬间给它一次 180ms 的淡入，读起来是同一块盘在换牌面。 */
+.wheel.is-lifting .disc-hub,
+.wheel.is-returning .disc-hub {
+  animation: hubLevelSwap 180ms cubic-bezier(.2, 0, .2, 1) both;
+  animation-delay: 60ms;
+}
+@keyframes hubLevelSwap {
+  from { opacity: .55; }
+  to   { opacity: 1; }
+}
+
+/* ---------------- 六、盘心排版：不加字体，先修字距与节奏 ----------------
+   需求原文是「重塑中间区域文字排版：选用更精致、有设计感的字体与字号、
+   字距、行距层级」。这里刻意**不换字体族**：
+
+   · 换字体要联网（Google Fonts / 思源），而 index.html 承诺离线可用，
+     D05 也定了零构建；本机就算装了 NotoSerifSC，用户机器上没有就回退，
+     回退后的衬线在 12px 上接缝明显 —— 那是"换了个字体"不是"排版变好"。
+   · D22 已定瑞士国际主义：层级靠字号、字重、留白，不靠换族。换族会
+     同时推翻 D22 与 D25 的字阶结论，属于范围外改动。
+
+   所以在三件事上动手，都是能测的：
+
+   ① 层级拉开：kicker 10 字 → 主词 2–4 字，原来 12 / 22 只差 1.8 倍，
+      两个层级读起来是"同一段话的两行"。主词拉到 28px（展开态）＝ 2.3 倍，
+      视线先落到"花香调"再回读上面那行小字。
+   ② 字距按字号反向配：中文大字要收紧（-0.02em 起步），小字要放开
+      （0.14em），两者都放开会读成"字距不匀"。
+   ③ 说明与主词之间加一道 24px 的发丝横线：盘心是圆的，长期只有三行
+      居中文字时，上下留白读成"没排满"。一道短线把"这是什么"与
+      "它怎么样"分成两段，等于给圆盘内部一个基线。 */
+.wheel .disc-hub .hub-kicker {
+  font-size: 12px;
+  letter-spacing: .14em;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+/* 主词：字重 600 而不是 700 —— 700 在 28px 上笔画粘连，
+   黑体的横画会糊成一块；600 保住了"强调"又不失笔画间隙。 */
+.wheel .disc-hub .hub-zh {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+}
+.wheel.is-open .disc-hub .hub-zh { font-size: 28px; }
+/* 说明：行高从 1.4 拉到 1.5，中文 12px 在 1.4 下行间几乎相接；
+   上限仍按 D33 的圆弧约束收在 88%，不新增溢出风险。
+   2 行 × 12 × 1.5 = 36px，max-height 必须跟着放到 37 —— 只拉行高不改
+   max-height 会直接把第二行裁掉半截（第一版就这么错的，截图里
+   「白花与粉感是两条路」只剩上半截）。 */
+.wheel .disc-hub .hub-desc {
+  line-height: 1.5;
+  letter-spacing: .01em;
+  color: var(--ink-3);
+  max-height: 37px;
+}
+/* 发丝分隔线挂在主词下沿，不挂在说明上：挂在说明上要用 padding-top
+   把文字顶下去，而那段 padding 会一起计入 max-height，两行文字立刻被裁。
+   用 zh 的 ::after 则完全不参与说明的高度计算。两端淡出而不是实线 ——
+   实线在圆里读成表格分割线，这里是盘心的刻线。 */
+.wheel .disc-hub .hub-zh::after {
+  content: '';
+  display: block;
+  width: 54%;
+  height: 1px;
+  margin: 9px auto 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(14, 14, 14, .18) 22%,
+    rgba(14, 14, 14, .18) 78%,
+    transparent 100%);
+}
+/* 空态（还没选）不画这道线：空态盘心是"请你去外圈挑"，不需要分隔 */
+.wheel .disc-hub.is-idle .hub-zh::after { display: none; }
+/* 选中（落到具体小项）时主词再重一档：此刻它是屏幕上的答案，不是预览 */
+.wheel .disc-hub.is-picked .hub-zh { font-weight: 700; letter-spacing: -.025em; }
+
+/* 窄屏：28px 在 156px 的盘心里，三字单行约 84px 仍在弧容内，
+   四字到 112px 就出弧（360 视口盘心该高度可用宽约 96px）——
+   而"东方琥珀调"正是四字。窄屏回 24px，四字 96px 恰好压线。 */
+@media (max-width: 620px) {
+  .wheel .disc-hub .hub-zh,
+  .wheel.is-open .disc-hub .hub-zh { font-size: 24px; }
+  .wheel .disc-hub .hub-desc { line-height: 1.45; max-height: 36px; }
+  .wheel .disc-hub .hub-kicker { letter-spacing: .1em; }
+  .wheel .disc-hub .hub-zh::after { margin-top: 7px; }
+  /* 窄屏展开态（未落到小项）说明文字本来就被 D33 藏掉腾弧容，
+     此时发丝线下面什么都没有，一道孤线读成装饰而不是分隔 —— 一起收掉。 */
+  .wheel.is-open:not(.is-picked) .disc-hub .hub-zh::after { display: none; }
+}
+
+/* ---------------- 七、窄屏：中圈文字不能撞大圈文字 ----------------
+   实测（390×844）。六枚家族标签的方框与七枚小类标签的方框在 12 点
+   两侧的斜向位置相交，最早量到 15.9 × 32.3 px²，肉眼就是
+   「果香花香」压着「木质调」；360 视口更糟（19.7 × 33，另加一处 63.5 × 3.3）。
+
+   根因是几何不是字号：小类标签落在半径 96px，家族标签落在 137px，
+   两行中心只差 41px，而两个方框各高 44px —— 半高相加 44 > 41，
+   同一极角附近必然相交。
+
+   改法有两步，第二步是被第一步的实测逼出来的：
+   ① 把两行标签的方框都收到 26px。只收小类那侧时还剩 16.9×28.3 px²，
+      两框都收才降到 8.5×17.3 —— 仍不为零。
+   ② 把两行标签的半径一起往里收：家族 193 → 176、小类 135 → 124。
+      坐标由 app.js 按 480 视框算好写在 --l/--t（桌面）与 --nl/--nt（窄屏）上，
+      CSS 只负责挑哪一套。
+
+   网格搜索用的是 `_probe/tune9.cjs`（六组半径 × 三种视口），
+   四项判据全零的组合只有 176/124 这一档：
+     家族↔小类、家族↔家族、小类↔小类、越出盘外。
+   172/120 也能全零，但小类标签会贴到盘心边缘，视觉上挤，所以取 176/124。 */
+.disc-sector.lvl1,
+.disc-sector.lvl2.sub-arc-btn {
+  left: var(--l, 50%);
+  top: var(--t, 50%);
+}
+@media (max-width: 620px) {
+  .disc-sector.lvl1,
+  .disc-sector.lvl2.sub-arc-btn {
+    left: var(--nl, 50%);
+    top: var(--nt, 50%);
+  }
+  .wheel .disc-sector.lvl2.sub-arc-btn {
+    min-height: 26px;
+    height: 26px;
+    padding: 0 3px;
+    line-height: 26px;
+  }
+  /* 家族标签的宽度也要收：`.disc-sector` 基类有 min-width:56px，
+     三字标签（"木质调"）在 12px 下文字只有 36px，余下 20px 全是空白 ——
+     而正是这 20px 在斜向位置上压到小类标签。收到 0 让盒子贴住文字。 */
+  .wheel.is-open .label-layer .disc-sector.lvl1 {
+    min-width: 0;
+    min-height: 26px;
+    height: 26px;
+    padding: 0 2px;
+    font-size: 12px;
+    line-height: 26px;
+  }
+}
+/* ---------------- 八、减少动态效果 ----------------
+   prefers-reduced-motion 下把所有进出场压成「无动画」，
+   但**保留最终状态**：动画关掉后 opacity / transform 各回自己的规则，
+   .is-open 下大圈仍然是 .30 幽灵态、弧段仍然满亮 —— 层级信息不丢。
+
+   **选择器必须写到与开启动画的那条同档或更高**：开启用的是
+   `.wheel.is-open .sub-arc`（3 个类），这里只写 `.wheel .sub-arc`
+   （2 个类）的话特异度输一层，动画照播 —— 实测 `animationName`
+   仍是 `arcSlideIn`，也就是说这一整块在真浏览器里从没生效过。
+   桩测试只查 CSS 文本，抓不到这种情况，所以每条都要对齐。 */
+@media (prefers-reduced-motion: reduce) {
+  .wheel.is-open .sub-arc,
+  .wheel .sub-ring.is-exit .sub-arc,
+  .wheel.is-open .disc-sector.lvl2.sub-arc-btn,
+  .wheel .sub-ring.is-exit .disc-sector.lvl2.sub-arc-btn,
+  .wheel.is-lifting .sector-g,
+  .wheel.is-returning .sector-g,
+  .wheel.is-lifting .label-layer .disc-sector.lvl1,
+  .wheel.is-returning .label-layer .disc-sector.lvl1,
+  .wheel.is-lifting .disc-hub,
+  .wheel.is-returning .disc-hub {
+    animation: none;
+  }
+  /* 退场那两段在无动画时必须立刻不可见，否则会留下七个"半亮不亮"的弧 */
+  .wheel .sub-ring.is-exit .sub-arc,
+  .wheel .sub-ring.is-exit .disc-sector.lvl2.sub-arc-btn {
+    opacity: 0;
+  }
+}

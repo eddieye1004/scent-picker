@@ -32,8 +32,8 @@
 
 /* ---- 盘心：展开后是透明文字层 ---- */
 .wheel.is-open .disc-hub {
-  width: 52%;
-  height: 52%;
+  width: 46%;
+  height: 46%;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -52,8 +52,12 @@
               0 14px 34px -16px rgba(0,0,0,.5);
 }
 .wheel.is-open.is-picked .disc-hub {
-  width: 52%;
-  height: 52%;
+  /* 46% 与展开态同宽：52% 换算到 viewBox 是 r=124.8，比中圈弧段内沿
+     SUB_R2I=114 还大 —— 点完一项，盘底反而胀出去压掉刚点过的那圈弧。
+     这条是 v4 时代为「翻黑后要更大才读得清反白字」写的，
+     翻黑在 v5 已去掉，尺寸一直没跟着改。 */
+  width: 46%;
+  height: 46%;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -102,7 +106,7 @@
   .wheel.is-open .disc-core { transform: scale(.6); }
   .wheel .sub-arm .sub-sq { top: 9.8%; }
   .wheel.is-open .disc-hub,
-  .wheel.is-open.is-picked .disc-hub { width: 54%; height: 54%; }
+  .wheel.is-open.is-picked .disc-hub { width: 46%; height: 46%; }
 }
 /* 360 宽：盘只剩 181px，盘心必须让位给方格，
    否则左右两侧的方格内边会切进盘心文字的包围盒（实测 1.25px）。
@@ -111,7 +115,7 @@
   .wheel.is-open .disc-core { transform: scale(.58); }
   .wheel .sub-arm .sub-sq { top: 10.3%; }
   .wheel.is-open .disc-hub,
-  .wheel.is-open.is-picked .disc-hub { width: 50%; height: 50%; }
+  .wheel.is-open.is-picked .disc-hub { width: 46%; height: 46%; }
 }
 
 /* ---- 圆弧约束：盘心是圆，元素四角的可用宽度随高度收窄 ----

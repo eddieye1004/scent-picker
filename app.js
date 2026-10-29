@@ -469,7 +469,6 @@ function buildDisc(items, cfg) {
   return root;
 }
 
-
 /* ---------- 多层香型轮盘（第 1 步）----------
    为什么是同心圆而不是两页问卷：
    香水的分类本身就是树（家族 → 子家族 → 香材）。做成两页会把"我在哪一层"这个
@@ -772,24 +771,29 @@ const SUB_MARKS = {
     { tag: 'path', attrs: { d: 'M12 20.6C8.4 20.6 5.8 18 5.8 14.8C5.8 11.6 8.2 9.2 11.4 9.2C14.2 9.2 16.2 11 16.2 13.4C16.2 15.4 14.8 16.8 13 16.8C11.4 16.8 10.4 15.8 10.4 14.4' } },
   ],
   // 香草琥珀（香草荚）：两根平行长荚 + 内部三粒
-  'vanilla-amber': () => {
-    const out = [
-      { tag: 'path', attrs: { d: 'M9.4 3.8C10.6 8 11.4 13 12 20.4' } },
-      { tag: 'path', attrs: { d: 'M14.6 3.8C13.4 8 12.6 13 12 20.4' } },
-    ];
-    out.push({ tag: 'circle', attrs: { cx: 12, cy: 9.4, r: 0.8 } });
-    out.push({ tag: 'circle', attrs: { cx: 12, cy: 13, r: 0.8 } });
-    return out;
-  },
+  'vanilla-amber': () => [
+    /* 原版两根近平行长线 + 两枚 r0.8 圆点（着墨 587，中位 850），
+       24px 下只剩"两根线"。改成闭合梭形，剪影立刻读得出是"一条荚"。
+       籽用纵向短划：斜线是叶脉画法，这枚曾四版被读成叶子
+       （见 gourmand/vanilla-gourmand 返工史）；籽沿轴向排列才像荚。 */
+    { tag: 'path', attrs: { d: 'M12 2.4C15.5 6.4 15.5 15.6 12 21.6C8.5 15.6 8.5 6.4 12 2.4Z' } },
+    { tag: 'path', attrs: { d: 'M12 4.9V19.2' } },
+    { tag: 'path', attrs: { d: 'M10.6 7.4V8.8M10.6 10.9V12.3M10.6 14.4V15.8M13.4 7.4V8.8M13.4 10.9V12.3M13.4 14.4V15.8' } },
+  ],
   // 树脂：水滴轮廓 + 一道开口高光弧（沿用家族母题，这一族只有 1 个）
   resinous: () => [
     { tag: 'path', attrs: { d: 'M12 3.2C12 3.2 18 9.6 18 13.4A6 6 0 0 1 6 13.4C6 9.6 12 3.2 12 3.2Z' } },
     { tag: 'path', attrs: { d: 'M9.1 14.6A3.1 3.1 0 0 0 12.4 17.4' } },
   ],
-  // 焚香：竖棒 + 上升的 S 形烟
+  // 焚香：香炉 + 竖棒 + 上升的烟
+  // 原版只有"棒 + 烟"两根开曲线（着墨 274，全表最低）—— 24px 下是两根线。
+  // 焚香之所以是焚香，靠的是插在香炉里这个场景。补上炉身与炉足，
+  // 下半部有了实底，上半部的烟才有"从某处升起"的归属。
   incense: () => [
-    { tag: 'path', attrs: { d: 'M12 20.8V14.4' } },
-    { tag: 'path', attrs: { d: 'M12 13.2C10.2 11 13.8 9 12.2 6.4C11.2 4.8 12.4 3.4 12.6 2.6' } },
+    { tag: 'path', attrs: { d: 'M7.4 17.6H16.6L15.2 21.6H8.8Z' } },
+    { tag: 'path', attrs: { d: 'M9.9 17.6C9.9 16 10.8 15.2 12 15.2C13.2 15.2 14.1 16 14.1 17.6' } },
+    { tag: 'path', attrs: { d: 'M12 15.2V10.6' } },
+    { tag: 'path', attrs: { d: 'M12 9.8C9.9 7.6 14.1 6.2 12 4.1C10.7 2.8 12.3 1.9 12.5 1.2' } },
   ],
   // 皮革：圆角皮片 + 内缘一圈缝线孔（孔小且密，读作缝线而不是脸）
   leather: () => {
@@ -814,10 +818,15 @@ const SUB_MARKS = {
     });
     return [{ tag: 'path', attrs: { d } }];
   },
-  // 海洋：一条平浪 + 一枚卷起的浪头（卷头是海洋和水生唯一的形状差别）
+  // 海洋：大卷浪 + 下方两道碎浪
+  // 原版一根平浪 + 一枚小卷头（着墨 444）。同族 aquatic 也是波浪线，
+  // 两者的区别只靠"卷头有没有"—— 24px 里那枚卷头几乎看不见。
+  // 现在把卷浪做成近乎闭合的螺旋（占上半部约一半），下部再接两道碎浪，
+  // 剪影是"一个卷 + 两道水"，与 aquatic 的"两道平行长浪"分得开。
   marine: () => [
-    { tag: 'path', attrs: { d: 'M3.6 16.2C6.2 16.2 7.6 13.8 9.6 13.8C11.6 13.8 12.2 16.2 14.2 16.2C15.8 16.2 16.8 15.2 17.4 14.2' } },
-    { tag: 'path', attrs: { d: 'M14.2 9.2C16.2 7 18.8 7.4 19.4 9.4C19.9 11.1 18.7 12.4 17.1 12' } },
+    { tag: 'path', attrs: { d: 'M13.2 12.6C11.4 9.2 14 5.6 17.6 6.1C20.4 6.5 21.6 9.4 20.2 11.6C19.2 13.2 17 13.7 15.6 12.7C14.7 12.1 14.6 11 15.2 10.3' } },
+    { tag: 'path', attrs: { d: 'M2.8 16.4C5.2 16.4 6.4 13.6 8.8 13.6C11.2 13.6 11.9 16.4 14.3 16.4C16.3 16.4 17.5 15.1 18.3 13.9' } },
+    { tag: 'path', attrs: { d: 'M4.6 20.2C6.6 20.2 7.6 18.2 9.6 18.2C11.6 18.2 12.3 20.2 14.3 20.2C16 20.2 17 19.2 17.7 18.3' } },
   ],
   // 绿意：叶（与家族母题同形，这一族只有"叶"这一个直觉）
   green: () => {
@@ -834,17 +843,17 @@ const SUB_MARKS = {
       { tag: 'path', attrs: { d } },
     ];
   },
-  // 馥奇（薰衣草）：一根茎 + 穗上交错的花苞（四条短弧，不画圆点）
-  fougere: () => {
-    let d = 'M12 21.4V7.4';
-    [[9.6, 11.6], [14.4, 11.6], [9.6, 14.4], [14.4, 14.4]].forEach(([x, y]) => {
-      d += 'M12 ' + r2(y - 1.4) + 'Q' + r2(x) + ' ' + r2(y - 1.8) + ' ' + r2(x) + ' ' + r2(y);
-    });
-    return [
-      { tag: 'path', attrs: { d } },
-      { tag: 'path', attrs: { d: 'M12 7C10.8 5.6 10.8 3.6 12 2.4C13.2 3.6 13.2 5.6 12 7Z' } },
-    ];
-  },
+  // 馥奇（薰衣草）：纺锤穗 + 三道横隔 + 细茎
+  // 原版茎 + 四根短枝 + 一枚顶珠（着墨 513），全是细线，24px 下读成"一根带刺的杆"。
+  // 薰衣草最易辨的特征是穗：一朵纺锤形花序，不是一粒顶珠。
+  // 穗做成闭合纺锤并在内部加三道横隔，上半部立刻有体量；
+  // 四根短枝全部删掉 —— 它们是"看不清"的来源，不是信息。
+  fougere: () => [
+    { tag: 'path', attrs: { d: 'M12 2C15.2 4.6 15.2 9.8 12 12.4C8.8 9.8 8.8 4.6 12 2Z' } },
+    { tag: 'path', attrs: { d: 'M10 5.6H14M9.7 8.2H14.3M10.1 10.4H13.9' } },
+    { tag: 'path', attrs: { d: 'M12 12.4V21.6' } },
+    { tag: 'path', attrs: { d: 'M12 18.2L9.2 16.6M12 18.2L14.8 16.6' } },
+  ],
   // 茶香：一芽两叶，茎在下的"Y"
   tea: () => [
     { tag: 'path', attrs: { d: 'M12 21V11.6' } },
@@ -1007,6 +1016,27 @@ function buildWheel(cfg) {
   let hoverFam = null;      // 指针停在外圈哪个家族（只改盘心预览，不改变层数）
   let hoverSub = null;
 
+  /* ---- 三层环的半径（480 单位视框，控件半径 240）----
+       盘心   46% 直径 = 220.8 单位 → 半径 110.4
+       中圈   118–152（band 34）
+       家族环 158–228（不缩放）
+     三项数量都由实测决定，理由写在各自的注释里。 */
+  const SUB_R2I = 118;
+  const SUB_R2O = 152;
+  const SUB_GROOVE = 2.4;   // 凹槽比弧带每侧多出的宽度
+  /* 标签半径：桌面 193（r1i 158 与 r1o 228 的中线），窄屏 200 / 130。
+     窄屏两个数来自 `_probe/glyph.cjs` 的网格（六组半径 × 三个视口），
+     判据用 Range 量出来的**字形外框**而不是按钮盒 —— 按钮的 padding
+     会把盒子撑得比字宽得多，按盒子判会把真重叠读成"还差 3px"：
+       实测同样半径 193/135，按按钮盒量是「不相交」，
+       按字形量在 390 上仍叠 18 px²、360 上叠 69 px²。
+     200/130 在 390 与 360 上字形零交叠、最小间隙 +1.1px；
+     192/130 在 320 上才零交叠，但 320 不在四视口验收集内，
+     且把标签推到家族环外沿会越出盘外，所以不取。 */
+  const LABEL_R = 193;
+  const LABEL_R_NARROW = 200;
+  const SUB_LABEL_R_NARROW = 130;
+
   const root = el('div', { class: 'disc wheel', role: 'group', 'aria-label': '香型轮盘' });
 
   /* 核心圆盘 = 第一层。初始铺满整个控件；一旦选定大类，整盘缩到 58%，
@@ -1026,6 +1056,46 @@ function buildWheel(cfg) {
     focusable: 'false',
   });
   rot.appendChild(svg);
+  /* ---- 渐变 defs ----
+     所有渐变都在同一个 480×480 坐标系里。角度统一按"光从左上"：
+     靠左上偏亮、靠右下偏暗；斜率控制在 2–3%，再多就成了金属拉丝。
+     用 userSpaceOnUse 而不是 objectBoundingBox —— 后者会让每个扇形
+     各自从自己的包围盒起算，同一圈上六个扇形的光向会各不相同。 */
+  const defs = svgEl('defs', {});
+  const mkGrad = (id, stops, x1, y1, x2, y2) => {
+    const g = svgEl('linearGradient', {
+      id: id,
+      gradientUnits: 'userSpaceOnUse',
+      x1: x1, y1: y1, x2: x2, y2: y2,
+    });
+    stops.forEach(([off, col]) => g.appendChild(svgEl('stop', { offset: off, 'stop-color': col })));
+    defs.appendChild(g);
+  };
+  // 家族扇区：左上 #ffffff → 右下 #eef1f8
+  mkGrad('gFam', [['0', '#ffffff'], ['0.55', '#fafbfe'], ['1', '#eef1f8']], 40, 30, 440, 450);
+  // 家族扇区悬停：整体再亮一档，斜率不变
+  mkGrad('gFamHot', [['0', '#ffffff'], ['0.5', '#f5f8ff'], ['1', '#e4eaf7']], 40, 30, 440, 450);
+  // 中圈弧段：白 → 极浅蓝灰（下沿收暗 = 瓦片厚度）
+  /* 六族本色渐变：每一族在自己的色相内做 97% → 92% 的明暗，
+     而不是六块纯色。纯色 = 绝对均匀的平面，无论色相多准都读成色块；
+     同一色相内 5% 的明暗变化才让它像"一块有厚度的材料"。 */
+  mkGrad('gFamCitrus',   [['0', '#fbfcee'], ['0.58', '#f5f7e2'], ['1', '#eef2d4']], 40, 30, 440, 450);
+  mkGrad('gFamFloral',   [['0', '#fdf8fb'], ['0.58', '#faeef4'], ['1', '#f5e4ee']], 40, 30, 440, 450);
+  mkGrad('gFamWoody',    [['0', '#f9f6f2'], ['0.58', '#f2ece4'], ['1', '#e9e1d6']], 40, 30, 440, 450);
+  mkGrad('gFamAmber',    [['0', '#fdfaf0'], ['0.58', '#f8f0dd'], ['1', '#f2e6cc']], 40, 30, 440, 450);
+  mkGrad('gFamFresh',    [['0', '#f2faf6'], ['0.58', '#e6f3ec'], ['1', '#d8ecdf']], 40, 30, 440, 450);
+  mkGrad('gFamGourmand', [['0', '#fcf7f1'], ['0.58', '#f6ebde'], ['1', '#efdfcc']], 40, 30, 440, 450);
+
+  mkGrad('gArc', [['0', '#ffffff'], ['0.62', '#fdfdff'], ['1', '#f2f5fc']], 40, 30, 440, 450);
+  mkGrad('gArcHot', [['0', '#ffffff'], ['1', '#eaf0fd']], 40, 30, 440, 450);
+  // 选中弧段：克莱因蓝，左上亮、右下深
+  mkGrad('gArcOn', [['0', '#2249b8'], ['0.5', '#002fa7'], ['1', '#00268a']], 40, 30, 440, 450);
+  // 底座：径向，中心略亮、外圈收暗 = 盘面微微内凹
+  const rg = svgEl('radialGradient', { id: 'gBase', gradientUnits: 'userSpaceOnUse', cx: 220, cy: 200, r: 300 });
+  [['0', '#cdd3e2'], ['0.6', '#c3c9dc'], ['1', '#b9c0d6']].forEach(([o, c]) => rg.appendChild(svgEl('stop', { offset: o, 'stop-color': c })));
+  defs.appendChild(rg);
+  svg.appendChild(defs);
+
 
   /* 最外一道发丝线：把整个轮盘从背景里框出来。
      圆盘边缘与白底之间没有界线时，大面积留白里会"漏边"。 */
@@ -1098,7 +1168,10 @@ function buildWheel(cfg) {
   families.forEach((f, i) => {
     const a0 = famStart + i * famStep + 1.0;
     const a1 = famStart + (i + 1) * famStep - 1.0;
-    const g = svgEl('g', { class: 'sector-g lvl1', 'data-fam': f.id });
+    /* --i 只服务一处：两层切换时六块按顺序退场/归位。
+       写在 style 上而不是 nth-child 上 —— 家族数由数据决定（6），
+       但同一套错峰逻辑要能照搬到中圈（4–7 段），CSS 里只认这一个变量。 */
+    const g = svgEl('g', { class: 'sector-g lvl1', 'data-fam': f.id, style: '--i: ' + i });
     g.appendChild(svgEl('path', { class: 'sector-shape', d: ringPath(WHEEL.r1o, WHEEL.r1i, a0, a1) }));
     svg.appendChild(g);
     outerG.push(g);
@@ -1120,8 +1193,16 @@ function buildWheel(cfg) {
 
   families.forEach((f, i) => {
     const midDeg = famStart + (i + 0.5) * famStep;
-    const rMid = (WHEEL.r1o + WHEEL.r1i) / 2;
+    const rMid = LABEL_R;
     const p = wheelPolar(rMid, midDeg);
+    /* 同一个极角写两套坐标：桌面一套（left/top），窄屏一套（--nl / --nt）。
+       窄屏盘心与大圈之间只剩约 330px（390 视口）或 310px（360），
+       两行标签的中心距小于两个方框的半高之和就必然相交 —— 只收盒子不够，
+       半径也得往里挪一档。半径是 JS 按视框算的（CSS 里拿不到
+       "圆心到某一点的百分比"这种量），所以两套都在这里算好，
+       窄屏那套交给 media query 用 var() 取。 */
+    const pn = wheelPolar(LABEL_R_NARROW, midDeg);
+    const px = (q, k) => ((q[k] / WHEEL.vb) * 100).toFixed(2);
     const btn = el('button', {
       class: 'disc-sector lvl1',
       type: 'button',
@@ -1129,7 +1210,7 @@ function buildWheel(cfg) {
       'aria-checked': 'false',
       'data-fam': f.id,
       tabindex: i === 0 ? '0' : '-1',
-      style: 'left:' + ((p[0] / WHEEL.vb) * 100).toFixed(2) + '%;top:' + ((p[1] / WHEEL.vb) * 100).toFixed(2) + '%',
+      style: '--l:' + px(p, 0) + '%;--t:' + px(p, 1) + '%;--nl:' + px(pn, 0) + '%;--nt:' + px(pn, 1) + '%;--i:' + i,
     },
       el('span', { class: 'zh' }, f.zh),
       el('span', { class: 'notes' }, (f.representativeNotes || []).slice(0, 2).map((e) => noteZhOf(e)).join('·'))
@@ -1168,125 +1249,179 @@ function buildWheel(cfg) {
   const subRing = el('div', { class: 'sub-ring', role: 'radiogroup', 'aria-label': '子类' });
   root.appendChild(subRing);
 
-  /* --- 第二层：沿圆弧旋转浏览 ---
-     原来一次把 tier1 全部铺成一圈方格，末尾再挂一枚「+N」，点开铺满 ——
-     那一下屏幕上同时多出五六个词，用户得先读一圈才能决定，
-     而"转到哪项即选中"这件事根本没发生，铺开之后还要再点一次。
-     改成一条弧上的三格窗口：中间是当前项，两侧各一格淡出，
-     左右两枚 44px 圆钮把整条弧一格一格转过去。
-     转动本身就是选择动作 —— 转到哪项即选中哪项，不需要二次确认。
-     全部子项都进序列（按 tier 排好序，差异大的在前），
-     不再有「+N 一次铺开」那一格。 */
-  const SPIN_DELTA = 44;   // 两侧格相对"正上方"偏开的角度
-  const SPIN_ARROW = 90;   // 左右圆钮：正左 / 正右（±90 = 9 点 / 3 点钟方向）
-  let subItems = null;     // 当前家族的全部子项（有序）
-  let spinIdx = 0;         // 停在第几项
-  let spinBtns = [];       // 稳定顺序：[前, 中, 后]；只有一项时只有中
-  let spinPrev = null;
-  let spinNext = null;
+  /* --- 第二层：一圈弧段 ---
+     三代形态的演进，每一代都在修上一代的可读性问题：
+     v5「tier1 铺一圈方格 + 末尾 +N」—— 一次冒出五六个词，末尾那格还要再点一次才展开；
+     v6「三格弧窗 + 左右箭头」—— 一次只看得见三项，箭头把"还有几项、转到第几项"藏起来，
+        用户转两下就不知道自己在环上的哪个位置了；
+     v7「全部细分类等分铺满一整圈弧段」—— 有几项、现在停在第几项、往两边各还有什么，
+        一眼全在。没有箭头，也没有"转到才算选中"的中间态：点哪段就是哪段。
+     为什么是弧段而不是方格：方格是贴上去的，弧段是从这块盘上切下来的 ——
+     同一圆心、同一线宽、同一留白，视觉上属于同一个物件。 */
+  /* 三层环的半径分配（480 单位视框，控件半径 240）：
+       盘心   46% 直径 = 221 单位 → 半径 110.4
+       家族盘 scale(.6) → r1o 228×.6 = 136.8（盘心之外 26.4 单位的一圈，够看出"盘还在"）
+       弧段   152–226：内径离家族盘 15.2 单位的缝，外径离控件边 14 给描边与投影
+     原来弧段 148–232 几乎顶满控件，外圈家族扇区被挤到只剩贴边一条，
+     三层读不出主次。 */
+  /* 中圈弧段的内外径。三条约束都是实测出来的：
+     ① 内径必须离盘心够远。盘心 46% → r = 110.4（480 单位视框）。
+        原来内径 114 只差 3.6 单位（520px 盘上约 4px），白瓦片几乎贴着白盘心，
+        两者并成一块白饼，中圈只剩几道"辐条"—— 截图确认，这是
+        「中圈读不出是浮起的一片片」的直接原因，不是段数不够。
+        现在内径 118，与盘心隔 7.6 单位（约 8px）。
+     ② 外径 < 家族环内沿 r1i = 158（展开态家族环不缩放）。152 留 6 单位。
+     ③ 凹槽要比弧带更宽，两侧各露出 4 单位（约 4.3px）的槽边。
+        槽与弧带同宽时，槽只在段缝里露出，整条带仍读成"一个环"；
+        两侧露边之后，弧段才是"嵌在一圈槽里的瓦"。
+     代价：弧带从 42 收窄到 34 单位，段上文字仍在 rMid = 135，位置不变。 */
+  /* 三层环的半径分配见函数开头（SUB_R2I / SUB_R2O / LABEL_R）。
+     这里只留 arc 的推导：凹槽比弧带每侧宽 SUB_GROOVE，
+     段缝保证 3.4° 以内，段上文字落在弧带中线。 */
+  let subItems = null;
+  let subBtns = [];
+  let subGs = [];   // 与 subBtns 同序的 SVG 弧段组，填充由它驱动
 
-  function buildSubRing(fam) {
-    subItems = null;
-    spinBtns = [];
-    spinPrev = null;
-    spinNext = null;
+  /* 退场不是"立刻清空"，否则 DOM 里没有节点可播动画。
+     旧实现 `subRing.innerHTML = ''` 一行抹掉七段 —— 上一版文档里写的
+     「返回时中圈播消失动效」在实现层面根本不存在，只能算一句愿望。
+     现在先挂 `.is-exit`（CSS 按 --n-1---i 反序收），420ms 后再清。
+     420 = 220ms 动画 + (n-1)×22ms 的最长错峰 + 60ms 余量。 */
+  let exitTimer = 0;
+  function clearSubRing() {
+    subRing.classList.remove('is-exit');
     subRing.innerHTML = '';
-    if (!fam) return;
-    const all = fam.subfamilies || [];
-    if (!all.length) return;
-    subItems = all;
-    /* 从别的步骤退回来时要把指针放回已选的那一项，
-       否则用户看到的是"第一项"而不是"我上次选的那项"。 */
-    const at = all.findIndex((x) => x.id === selSub);
-    spinIdx = at >= 0 ? at : 0;
-    renderSpin(fam, 0);
+    subBtns = [];
+    subGs = [];
+    subItems = null;
+    exitTimer = 0;
   }
 
-  function renderSpin(fam, dir) {
+  function buildSubRing(fam) {
+    /* 先掐掉待执行的清空：用户在 420ms 内又把大类点回来时，
+       定时器不能把刚建好的新节点一起删掉。 */
+    if (exitTimer) { clearTimeout(exitTimer); exitTimer = 0; }
+    if (!fam) {
+      if (subRing.children.length) {
+        subRing.classList.add('is-exit');
+        /* 立刻交出选中身份：退场中的那几段不能再被点、也不该再被
+           paint() 当"当前项"高亮 —— 但它们仍留在 DOM 里播动画。 */
+        subBtns = [];
+        subGs = [];
+        subItems = null;
+        exitTimer = setTimeout(clearSubRing, 420);
+      }
+      return;
+    }
+    const all = fam.subfamilies || [];
+    if (!all.length) { clearSubRing(); return; }
+    subRing.classList.remove('is-exit');
     subRing.innerHTML = '';
-    spinBtns = [];
+    subBtns = [];
+    subGs = [];
+    subItems = all;
+    renderArcs(fam);
+  }
+
+  function renderArcs(fam) {
+    subRing.innerHTML = '';
+    subBtns = [];
+    subGs = [];
     const all = subItems || [];
     const n = all.length;
     if (!n) return;
-    const pick = (d) => all[((spinIdx + d) % n + n) % n];
+    const step = 360 / n;
+    /* 段间留缝而不是画分隔线：缝里露出的是凹槽的底（.sub-channel），
+       比再补一道描边更干净。缝宽 3.4°：520px 盘上约 8px，
+       两侧各留 1px 白描边之后槽底仍露出 6px —— 低于这个数，
+       缝会退化成「描边没对齐」而不是「瓦片之间的槽」（见 _wheel8.css 第四节）。 */
+    const gap = Math.min(3.4, step * 0.075);
+    const rMid = (SUB_R2O + SUB_R2I) / 2;
+    const svg = svgEl('svg', {
+      class: 'sub-svg',
+      viewBox: '0 0 ' + WHEEL.vb + ' ' + WHEEL.vb,
+      'aria-hidden': 'true',
+      focusable: 'false',
+    });
+    const labels = el('div', { class: 'sub-labels' });
 
-    const mkSlot = (item, deg, role, dIdx) => {
-      /* deg 已是「相对正上方」的旋转角（0 = 正上方），直接用作 rotate 角度。
-         旧代码这里写 deg + 90，是因为它拿到的 midDeg 是「0 = 正右」的极角；
-         两套约定不能混，混了中间那格会跑到 3 点钟去。 */
-      const armDeg = deg;
-      const arm = el('div', { class: 'sub-arm' });
-      arm.setAttribute('style', 'transform: rotate(' + armDeg.toFixed(2) + 'deg)');
+    /* 凹槽环：比弧带每侧再宽 4 单位的深色带，弧段嵌在它上面。
+       没有这条槽，段间的缝透出的是盘心白（同色），七段读成一块连续白环；
+       有了槽，缝里与上下两侧露出的都是槽底（比白瓦深），
+       "从同一个槽里切出来、一片片嵌进去"才成立。
+       stroke-width = 弧带宽 + 2×SUB_GROOVE。 */
+    svg.appendChild(svgEl('circle', {
+      class: 'sub-channel',
+      cx: WHEEL.cx,
+      cy: WHEEL.cy,
+      r: (SUB_R2O + SUB_R2I) / 2,
+      fill: 'none',
+      'stroke-width': (SUB_R2O - SUB_R2I) + SUB_GROOVE * 2,
+    }));
+
+
+    all.forEach((item, i) => {
+      /* -90 = 正上方，与第一层同一套角度约定（混了就会整体偏 90°） */
+      const a0 = -90 + i * step + gap / 2;
+      const a1 = a0 + step - gap;
+      const mid = (a0 + a1) / 2;
+
+      /* --i / --n 只服务一处：入退场错峰。
+           入场按 --i 顺着铺开（第一段先到），退场按 --n-1---i 反着收（最后一段先走）——
+           同一个方向进出，读起来是"一圈绕完再绕回来"，不是七段一起闪。
+           写变量不写死 nth-child：段数由数据决定（4–7），CSS 里只认这两个数。 */
+      const g = svgEl('g', {
+        class: 'sub-g',
+        'data-sub': item.id,
+        style: '--i: ' + i + '; --n: ' + n,
+      });
+      g.appendChild(svgEl('path', {
+        class: 'sub-arc',
+        d: ringPath(SUB_R2O, SUB_R2I, a0, a1),
+      }));
+      svg.appendChild(g);
+      subGs.push(g);
+
+      const px = wheelPolar(rMid, mid);
+      /* 窄屏半径 = 124（实测网格的最佳值）。弧带中线是 135，
+         窄屏把标签往里收 11 单位，是为了让它与家族标签之间留出
+         两个半高的间隙 —— 详见 _wheel8.css 第七节的实测数字。 */
+      const pxm = wheelPolar(SUB_LABEL_R_NARROW, mid);
       const btn = el('button', {
-        class: 'disc-sector lvl2 sub-sq spin-slot ' + role,
+        class: 'disc-sector lvl2 sub-arc-btn',
         type: 'button',
         role: 'radio',
         'aria-checked': 'false',
         'data-sub': item.id,
-        'data-spin': String(dIdx),
-        tabindex: dIdx === 0 ? '0' : '-1',
-        /* 只写自定义属性，不写内联 transform：
-           内联 transform 会盖掉 CSS 里的 :active 缩放，
-           按下就没反馈了。旋转从 --aq 走，样式表里再拼。 */
-        style: '--aq: ' + (-armDeg).toFixed(2) + 'deg',
+        tabindex: i === 0 ? '0' : '-1',
+        /* 只写定位变量与错峰变量，不写内联 left/top/transform：
+           内联 left/top 会盖掉窄屏那套（--nl/--nt）的 media query，
+           内联 transform 会盖掉 .disc-sector 基类的居中位移。 */
+        style: '--l: ' + (px[0] / WHEEL.vb * 100).toFixed(2) + '%; --t: ' + (px[1] / WHEEL.vb * 100).toFixed(2)
+          + '%; --nl: ' + (pxm[0] / WHEEL.vb * 100).toFixed(2) + '%; --nt: ' + (pxm[1] / WHEEL.vb * 100).toFixed(2)
+          + '%; --i: ' + i + '; --n: ' + n,
       }, el('span', { class: 'zh' }, item.zh));
-      /* 方向性入场：转动时新的中格从转动方向滑进来。
-         用一次性 animation 而不是 transition + transitionend ——
-         后者要一个异步状态机，测试桩不派发 transitionend，
-         而且这条动效只值 200ms 的观感，不值得一个状态。 */
-      if (dir && dIdx === 0) btn.classList.add(dir > 0 ? 'spin-in-next' : 'spin-in-prev');
+
       const enter = () => { hoverSub = item.id; paint(); };
       const leave = () => { if (hoverSub === item.id) { hoverSub = null; paint(); } };
       btn.addEventListener('mouseenter', enter);
       btn.addEventListener('mouseleave', leave);
       btn.addEventListener('focus', enter);
       btn.addEventListener('blur', leave);
-      btn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        /* 点中间那格 = 确认预览；点两侧那格 = 把它转到中间，
-           两条路最后都落到 chooseSub，不会有"转了却没选中"的中间态。 */
-        if (dIdx === 0) chooseSub(fam, item); else turnBy(fam, dIdx);
-      });
-      btn.addEventListener('keydown', (ev) => keyNav(ev, spinBtns, spinBtns.indexOf(btn)));
-      arm.appendChild(btn);
-      subRing.appendChild(arm);
-      spinBtns.push(btn);
-    };
+      btn.addEventListener('click', (ev) => { ev.stopPropagation(); chooseSub(fam, item); });
+      btn.addEventListener('keydown', (ev) => keyNav(ev, subBtns, subBtns.indexOf(btn)));
+      /* 弧段本身也可点：文字只有 48px 宽，弧段比它大得多，
+         只让文字接事件等于把可用面积缩到三分之一。 */
+      g.addEventListener('mouseenter', enter);
+      g.addEventListener('mouseleave', leave);
+      g.addEventListener('click', (ev) => { ev.stopPropagation(); chooseSub(fam, item); });
 
-    if (n > 1) mkSlot(pick(-1), -SPIN_DELTA, 'is-side is-side-prev', -1);
-    mkSlot(pick(0), 0, 'is-center', 0);
-    if (n > 1) mkSlot(pick(1), SPIN_DELTA, 'is-side is-side-next', 1);
+      labels.appendChild(btn);
+      subBtns.push(btn);
+    });
 
-    const arrow = (deg, key, label) => {
-      const armDeg = deg;
-      const arm = el('div', { class: 'sub-arm' });
-      arm.setAttribute('style', 'transform: rotate(' + armDeg.toFixed(2) + 'deg)');
-      const b = el('button', {
-        class: 'spin-nav ' + key,
-        type: 'button',
-        'aria-label': label,
-        tabindex: '-1',
-        style: '--aq: ' + (-armDeg).toFixed(2) + 'deg',
-      }, key === 'prev' ? '\u2039' : '\u203a');
-      b.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        turnBy(fam, key === 'prev' ? -1 : 1);
-      });
-      arm.appendChild(b);
-      subRing.appendChild(arm);
-      return b;
-    };
-    spinPrev = arrow(-SPIN_ARROW, 'prev', '上一个细分香型');
-    spinNext = arrow(SPIN_ARROW, 'next', '下一个细分香型');
-    if (n < 2) { spinPrev.disabled = true; spinNext.disabled = true; }
-  }
-
-  function turnBy(fam, d) {
-    const n = (subItems || []).length;
-    if (n < 2) return;
-    spinIdx = ((spinIdx + d) % n + n) % n;
-    renderSpin(fam, d);
-    chooseSub(fam, subItems[spinIdx]);
+    subRing.appendChild(svg);
+    subRing.appendChild(labels);
   }
 
   function chooseSub(fam, s) {
@@ -1300,6 +1435,10 @@ function buildWheel(cfg) {
 
   /* --- 统一重绘 --- */
   let builtFor;
+  /* 上一层是不是"展开"状态。只用来判断这次 paint 是不是一次换层 ——
+     hover 引起的重绘每天几十次，不能每次都重播一遍进出场动画。 */
+  let wasOpen = null;
+  let liftTimer = 0;
   function paint() {
     const famById = new Map(families.map((f) => [f.id, f]));
     /* 只有"真的选了"才缩放并铺方格；悬停只改盘心预览。
@@ -1315,6 +1454,24 @@ function buildWheel(cfg) {
       builtFor = builtKey;
     }
     root.classList.toggle('is-open', open);
+
+    /* ---- 换层只在这里发生 ----
+       两类动画类（is-lifting / is-returning）只在这两个分支里挂，
+       挂完 780ms 摘掉。之所以不写成"每次 paint 都重挂"：paint 由
+       hover 高频调用，那样每划过一块扇区就把整盘重播一次。
+       780 = 最长动画链（返回 120ms 起 + 300ms 文字 + n×16 错峰）加余量。
+
+       为什么用类而不是 transitionend：测试桩只调监听器、不派发事件，
+       写成状态机会让 test-render 里的断言链永远停在中间态（D39④ 同因）。 */
+    if (wasOpen !== null && wasOpen !== open) {
+      const cls = open ? 'is-lifting' : 'is-returning';
+      root.classList.remove(open ? 'is-returning' : 'is-lifting');
+      void root.offsetWidth;                  // 强制回流，同一个类连播两次时动画才会重跑
+      root.classList.add(cls);
+      if (liftTimer) clearTimeout(liftTimer);
+      liftTimer = setTimeout(() => { root.classList.remove(cls); liftTimer = 0; }, 780);
+    }
+    wasOpen = open;
 
     outerG.forEach((g, i) => {
       const f = families[i];
@@ -1332,15 +1489,24 @@ function buildWheel(cfg) {
     });
 
     if (subItems) {
-      /* 只有三格，"哪一格是哪一项"由 data-sub 决定，不靠下标 ——
-         转动之后三格的内容整体位移，按下标对齐会错一格。 */
-      spinBtns.forEach((b) => {
+      /* "是哪一项"由 data-sub 决定，不靠下标：弧段顺序与子项顺序一致，
+         但一旦以后要按命中率重排，下标对齐就会错位。 */
+      /* 弧段与它上面那行字是两棵子树（SVG / HTML），状态必须同时挂到两边：
+         只挂按钮的话填充不变，只挂组的话文字不变 —— 两种半亮都很难看。 */
+      subBtns.forEach((b) => {
         const id = b.getAttribute('data-sub');
         const on = selSub === id;
         const hot = hoverSub === id;
         b.classList.toggle('is-on', on);
         b.classList.toggle('is-hot', hot && !on);
         b.setAttribute('aria-checked', String(on));
+      });
+      subGs.forEach((g) => {
+        const id = g.getAttribute('data-sub');
+        const on = selSub === id;
+        const hot = hoverSub === id;
+        g.classList.toggle('is-on', on);
+        g.classList.toggle('is-hot', hot && !on);
       });
     }
 
@@ -1350,11 +1516,10 @@ function buildWheel(cfg) {
       ? (showFam.subfamilies || []).find((x) => x.id === selSub) : null;
     const hovSub = showFam && hoverSub
       ? (showFam.subfamilies || []).find((x) => x.id === hoverSub) : null;
-    /* 弧上停着的那一格。还没选定任何小项时它就是盘心的预览对象 ——
-       否则中间格子写着「玫瑰」、盘心写着「花香调」，用户会以为中圈没反应。 */
-    const centered = (!hoverOther && showFam && subItems && subItems.length)
-      ? subItems[Math.min(spinIdx, subItems.length - 1)] : null;
-    const focusSub = hovSub || sub || centered;
+    /* v7 弧段全部可见，「当前」由选中那段自己表达；
+       盘心只在真的选了小项（或悬停）时才换主词，不再猜"弧上停的是谁" ——
+       猜错比不猜更糟：盘心报「玫瑰」而一段都没选中，用户会以为已经选好了。 */
+    const focusSub = hovSub || sub;
 
     let kick;
     let zh;
@@ -1406,7 +1571,10 @@ function buildWheel(cfg) {
       const f = famById.get(selFamily);
       hubGo.textContent = '就选「' + (f ? f.zh : '') + '」，下一步 →';
     }
-    hubSkip.hidden = !canSkip;
+    /* 悬停预览某个细分时，「中圈可不选」是第三遍同义出口：
+       底部 navBar 已有「下一步」+ hint，盘心又出现主按钮（桌面）或
+       这枚胶囊（窄屏）。窄屏实测 hub-skip 四角溢出 8.4px（390）/ 5px（360）。 */
+    hubSkip.hidden = !canSkip || !!hovSub;
     backBtn.hidden = !selFamily;
   }
 

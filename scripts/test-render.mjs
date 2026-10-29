@@ -259,16 +259,72 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
     /\.wheel\.is-open \.sector-g\.is-on \{ opacity: 1; \}/.test(css)
     && /\.wheel\.is-open \.sector-g \{[^}]*?opacity:\s*\.30/.test(css));
 
-  /* ④ 三格弧窗 + 转动钮 */
-  ok('中格与侧格有不同的类名', /\.wheel \.sub-arm \.sub-sq\.is-center/.test(css)
-    && /\.wheel \.sub-arm \.sub-sq\.is-side/.test(css));
-  ok('侧格降透明但仍可点（不是"看着能点"）',
-    /\.wheel \.sub-arm \.sub-sq\.is-side \{[^}]*?opacity:\s*\.34/.test(css)
-    && !/\.is-side \{[^}]*?pointer-events:\s*none/.test(css));
-  ok('转动钮是 44px 圆钮', /\.wheel \.sub-arm \.spin-nav \{[^}]*?width:\s*44px/.test(css)
-    && /\.wheel \.sub-arm \.spin-nav \{[^}]*?border-radius:\s*50%/.test(css));
-  ok('转动钮有禁用态', /\.wheel \.sub-arm \.spin-nav:disabled \{/.test(css));
-  ok('转动有方向性入场', /@keyframes spinInNext/.test(css) && /@keyframes spinInPrev/.test(css));
+  /* ④ 一圈弧段依次滑出（v7 推翻了 v6 的三格弧窗 + 转动钮） */
+  /* 段与段之间必须有缝，否则七段连成一条环，看不出"有七项" */
+  ok('弧段之间留缝（读得出有几段）',
+    /\.sub-arc \{[^}]*?stroke:\s*rgba\(255,\s*255,\s*255/.test(css));
+  /* 整段弧自己吃事件 —— 只让文字可点等于把可点面积缩到 1/3，
+     而这正是上一版「看得见点不着」的来源 */
+  ok('弧段本身可点（不是只有文字可点）',
+    /\.wheel \.sub-arc \{[^}]*?pointer-events:\s*auto/.test(css)
+    && /\.wheel \.disc-sector\.lvl2\.sub-arc-btn \{[^}]*?pointer-events:\s*auto/.test(css));
+  /* 弧段上的文字按钮仍须达到 44px 触控高 */
+  ok('弧段文字按钮达 44px 触控高',
+    /\.disc-sector\.lvl2\.sub-arc-btn \{[^}]*?min-height:\s*44px/.test(css));
+  /* 依次滑出 —— 用户要的"一个个圆盘圆弧依次滑出并并排排列"，
+     靠 animation-delay 实现；没有这条就变成同时出现，读不出顺序 */
+  ok('弧段依次滑出（有延迟）',
+    /@keyframes arcIn/.test(css) && /animation-delay/.test(css));
+
+  /* ⑥ 两层切换的进出场编排（v14，_wheel8.css）
+     这四条守的是"退场真的存在"，不是"有没有写动画"。
+     之前 subRing.innerHTML = '' 一行抹掉七段 —— DOM 里没有节点，
+     CSS 再怎么写也没有东西可以动。 */
+  ok('大圈退场到幽灵态但仍可点',
+    /\.wheel\.is-open \.sector-g \{[^}]*?opacity:\s*\.30/.test(css)
+    && /\.wheel\.is-open \.sector-g \{[^}]*?pointer-events:\s*auto/.test(css),
+    '退到 0 或 pointer-events:none 就等于封掉「中圈里点别的大类直接换」');
+  ok('进入第二圈时大圈播退场动画（按 --i 错峰）',
+    /@keyframes fanExit/.test(css)
+    && /\.wheel\.is-lifting \.sector-g \{[^}]*?animation:\s*fanExit/.test(css)
+    && /animation-delay:\s*calc\(var\(--i/.test(css));
+  ok('返回时大圈播归位动画',
+    /@keyframes fanEnter/.test(css) && /\.wheel\.is-returning \.sector-g \{[^}]*?animation:\s*fanEnter/.test(css));
+  ok('返回时中圈弧段反序收（不是整块消失）',
+    /@keyframes arcSlideOut/.test(css)
+    && /\.sub-ring\.is-exit \.sub-arc \{[^}]*?animation:\s*arcSlideOut/.test(css)
+    && /var\(--n,\s*1\) - 1 - var\(--i/.test(css),
+    '退场延时按 --n-1---i 反算；正序收会读成「又铺了一遍」');
+  /* 退场期间容器不能被 :not(.is-open) 的 opacity:0 掐掉 —— 子元素的
+     动画在 0 透明度里播，等于没播。 */
+  ok('退场期间容器保持可见', /\.wheel \.sub-ring\.is-exit \{[^}]*?opacity:\s*1/.test(css));
+  /* 减少动态效果必须覆盖新增的全部动画，否则遵守系统设置的用户会看到
+     一个"动画播到一半就跳"的界面。
+     注意 styles.css 里有**两处** prefers-reduced-motion：基础层的
+     全局 `*` 那一块（把时长压到 0.001ms），和追加层里点名本次新增
+     动画的那一块。只查第一处会读到全局块，得出假结论 —— 所以扫全部块。 */
+  ok('prefers-reduced-motion 覆盖了新增动画', (() => {
+    const blocks = [];
+    for (const m of css.matchAll(/@media \(prefers-reduced-motion: reduce\)\s*\{/g)) {
+      let depth = 0;
+      let end = -1;
+      for (let i = m.index + m[0].length - 1; i < css.length; i += 1) {
+        if (css[i] === '{') depth += 1;
+        else if (css[i] === '}') { depth -= 1; if (depth === 0) { end = i + 1; break; } }
+      }
+      if (end > 0) blocks.push(css.slice(m.index, end));
+    }
+    const joined = blocks.join('\n');
+    return /animation:\s*none/.test(joined)
+      && /is-lifting \.sector-g/.test(joined)
+      && /is-returning \.sector-g/.test(joined)
+      && /is-exit \.sub-arc/.test(joined);
+  })());
+  /* 盘心排版：主词要真的比 kicker 大一档以上（原 22/12 只差 1.8 倍，
+     两个层级读起来是同一段话的两行）。 */
+  ok('盘心主词比 kicker 大出一档', /\.wheel \.disc-hub \.hub-zh \{[^}]*?font-size:\s*2[6-9]px/.test(css),
+    '26px 及以上 = 与 12px 的 kicker 拉开 2.2 倍以上');
+  ok('盘心主词下有一道收口发丝线', /\.wheel \.disc-hub \.hub-zh::after/.test(css));
 
   /* ⑤ 图标常态与选中态分开 */
   ok('线稿常态与选中态是两种颜色',
@@ -334,12 +390,28 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
    旧版只在"已选定"时才画，于是"常态与选中态要区分"这句话无从落地。
    现在预览态（只选了大类、弧上停着某项）也画，只是灰线 + 名字压暗；
    落到具体小项才转蓝。所以要断的是"预览态有图、但还没到已选定"。 */
+/* 只选了大类、还没指向任何一段：盘心不该有标本。
+   v7 一圈弧段全部可见，没有「停着的那一项」可推断 —— 凭猜画图会让用户
+   以为已经选好。这条与下一条合起来才守得住"预览 vs 已选定"的区别。 */
 {
   const prevPlates = appRoot.querySelectorAll('.plate-svg');
   const hubPrev = appRoot.querySelector('.disc-hub');
-  ok('预览态盘心已经画出标本', prevPlates.length === 1, `${prevPlates.length} 枚`);
-  ok('预览态还没到「已选定」', !!hubPrev && !hubPrev.classList.contains('is-picked'),
-    hubPrev && hubPrev.className);
+  ok('只选大类时盘心还没有标本', prevPlates.length === 0, `${prevPlates.length} 枚`);
+  ok('只选大类时盘心是「正在看」而非「已选定」',
+    !!hubPrev && !hubPrev.classList.contains('is-picked'), hubPrev && hubPrev.className);
+}
+/* 悬停某一段：标本出现，但仍是预览态 */
+{
+  const g0 = appRoot.querySelectorAll('.sub-g')[0];
+  g0.dispatch('mouseenter');
+  await new Promise((r) => setTimeout(r, 200));
+  const hoverPlates = appRoot.querySelectorAll('.plate-svg');
+  const hubHover = appRoot.querySelector('.disc-hub');
+  ok('悬停某一段后盘心画出标本', hoverPlates.length === 1, `${hoverPlates.length} 枚`);
+  ok('悬停态还没到「已选定」', !!hubHover && !hubHover.classList.contains('is-picked'),
+    hubHover && hubHover.className);
+  g0.dispatch('mouseleave');
+  await new Promise((r) => setTimeout(r, 150));
 }
 
 /* 中圈第一个子家族 = 「古龙水型」（notes 只有 lemon 一味） */
@@ -398,12 +470,13 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
 {
   let compared = 0;
   let same = 0;
-  /* 走用户真实操作路径：点右转钮，每点一次重新查一次 ——
-     turnBy 会重建整条弧，上一轮的节点已经脱离文档。 */
-  for (let i = 0; i < 2; i += 1) {
-    const next = appRoot.querySelectorAll('.spin-nav').find((b) => /next/.test(b.className));
-    if (!next) break;
-    next.dispatch('click');
+  /* 走用户真实操作路径：直接点弧段上的文字按钮。
+     v7 没有"转到即选中"的箭头了，七段同时可点，一次点击换一项。
+     每轮重新查——paint() 会重建标签层，旧节点脱离文档。 */
+  for (let i = 1; i <= 2; i += 1) {
+    const btnsNow = appRoot.querySelectorAll('.disc-sector.lvl2');
+    if (btnsNow.length <= i) break;
+    btnsNow[i].dispatch('click');
     await new Promise((r) => setTimeout(r, 300));
     const sig = sigOf();
     if (sig.length) { compared += 1; if (sig === sigCitrus) same += 1; }
@@ -484,6 +557,64 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
 
 ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textContent !== cap.textContent,
   `${cap.textContent} → ${appRoot.querySelector('.plate-cap').textContent}`);
+
+/* ---- 两层切换的返回路径（v14）----
+   三条：① 返回按钮把大类一起清掉、回到闭合盘；
+        ② 闭合盘上点扇区重新选中；
+        ③ 展开态里点另一个大类是**切换**，不是清空 —— 这是用户明确要的
+           「点大圈就直接变成别的大类」。
+   第 ③ 条曾经在实现里和 ① 混在一起：既然「返回」要清空大类，
+   很容易顺手把扇区点击也写成清空，那样用户每换一次类都要重新挑一次。 */
+{
+  const backNow = appRoot.querySelector('.wheel-back');
+  ok('展开态有返回按钮（未隐藏）', !!backNow && backNow.hidden === false,
+    backNow ? String(backNow.hidden) : 'no button');
+  backNow.dispatch('click');
+  await new Promise((r) => setTimeout(r, 600));
+  const wheelNow = appRoot.querySelector('.disc.wheel');
+  ok('返回后圆盘回到闭合态', !!wheelNow && !wheelNow.classList.contains('is-open'), wheelNow && wheelNow.className);
+  const hubNow = appRoot.querySelector('.disc-hub');
+  ok('返回后盘心回到空态', !!hubNow && hubNow.classList.contains('is-idle'), hubNow && hubNow.className);
+  ok('返回后盘心文案回到「还没选」',
+    appRoot.querySelector('.hub-zh').textContent === '还没选',
+    appRoot.querySelector('.hub-zh').textContent);
+  ok('返回后没有任何扇区仍被标记为选中',
+    appRoot.querySelectorAll('.disc-sector').every((b) => b.getAttribute('aria-checked') === 'false'));
+  /* 退场不是立刻清空：DOM 里要留着节点播动画，420ms 后才移除。
+     600ms 之后必须已经清干净，否则残留节点会接住下一次点击。 */
+  ok('返回后退场结束、中圈节点已清空',
+    appRoot.querySelectorAll('.disc-sector.lvl2').length === 0,
+    `残留 ${appRoot.querySelectorAll('.disc-sector.lvl2').length} 个`);
+
+  /* ③ 切换：重新选一个大类，再点另一个大类 —— 结果应当是「换成新的」 */
+  appRoot.querySelectorAll('.sector-g')[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+  const firstSubs = appRoot.querySelectorAll('.disc-sector.lvl2').map((b) => b.textContent).join('|');
+  const wheelOpen = appRoot.querySelector('.disc.wheel');
+  ok('重新点扇区后中圈再次展开', !!wheelOpen && wheelOpen.classList.contains('is-open'));
+  appRoot.querySelectorAll('.sector-g')[3].dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+  const secondSubs = appRoot.querySelectorAll('.disc-sector.lvl2').map((b) => b.textContent).join('|');
+  const hubAfterSwitch = appRoot.querySelector('.hub-zh').textContent;
+  ok('展开态点另一个大类是切换而不是清空',
+    !!appRoot.querySelector('.disc.wheel').classList.contains('is-open') && hubAfterSwitch !== '还没选',
+    `盘心：「${hubAfterSwitch}」`);
+  ok('切换后中圈换成新大类的小类',
+    secondSubs.length > 0 && secondSubs !== firstSubs,
+    `${firstSubs} → ${secondSubs}`);
+  ok('切换后大类不重复选择（旧大类不再是选中态）',
+    appRoot.querySelectorAll('.disc-sector.lvl1')
+      .filter((b) => b.getAttribute('aria-checked') === 'true').length === 1,
+    /* 桩的 querySelectorAll 不支持后代选择器（见文件开头的说明），
+       所以这里按 .disc-sector.lvl1 取全集再过滤，不要写 `.label-layer .disc-sector`。 */
+    String(appRoot.querySelectorAll('.disc-sector.lvl1').filter((b) => b.getAttribute('aria-checked') === 'true').length));
+
+  /* 把状态还原成「有家族 + 有小类」，后面的流程断言才有东西可走 */
+  appRoot.querySelectorAll('.sector-g')[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+  appRoot.querySelectorAll('.disc-sector.lvl2')[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+}
 
 /* 前进到第 2 步：点「下一步」 */
 const goBtn = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('下一步'));
