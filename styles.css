@@ -2322,3 +2322,200 @@ body { position: relative; }
   .wheel .hub-plate { gap: 3px; }
   .wheel .plate-cap { display: none; }
 }
+/* ============================================================
+   第五轮 · 用户六点需求
+   ============================================================ */
+
+
+/* ============================================================
+   ② 方格与圆盘视觉呼应：给方格铺一条轨道
+   ------------------------------------------------------------
+   方格原来是浮在白底上的六块小卡片，与圆盘没有任何几何关系 ——
+   读起来像「盘旁边散着一堆按钮」。加一条 1px 虚线圆，正好穿过
+   所有方格的中心，方格就从「散落的卡片」变成「挂在这条轨道上的节点」，
+   和盘同属一个系统。
+
+   半径是算出来的，不是试的：方格中心钉在控件的 top 处
+   （translateY(-50%) 已生效），所以
+       轨道半径 = 50% − top
+   三个断点各自成立：
+       ≥621  top 12.4% → 半径 37.6% → 直径 75.2%
+       ≤620  top 9.8%  → 半径 40.2% → 直径 80.4%
+       ≤400  top 10.3% → 半径 39.7% → 直径 79.4%
+   轨道只在展开态出现：闭合态还没有方格，画出来是一条悬空的圆。 */
+.wheel .sub-ring::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 75.2%;
+  height: 75.2%;
+  transform: translate(-50%, -50%);
+  border: 1px dashed var(--blue-amb);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms linear;
+}
+.wheel.is-open .sub-ring::before { opacity: 1; }
+@media (max-width: 620px) {
+  .wheel .sub-ring::before { width: 80.4%; height: 80.4%; }
+}
+@media (max-width: 400px) {
+  .wheel .sub-ring::before { width: 79.4%; height: 79.4%; }
+}
+
+
+/* ============================================================
+   ⑤ 确认后不整盘翻黑
+   ------------------------------------------------------------
+   原做法：选中具体小项后整个盘翻成墨色、文字全反白。
+   那读起来是「页面切走了」，不是「你选中了这一格」。
+   Apple 与 Oura 的做法一致：选中由被选中的那个小元素自己表达，
+   不给整块底板上色 —— 底板一变色，用户要重新找一遍自己在哪。
+
+   改成三层同时表达，没有一层靠"整块翻色"：
+     1. 盘底仍是白，加一圈 --blue-amb 发丝描边，说明「这个盘现在是激活的」
+     2. 被选中的方格自己填实 --blue、文字反白（面积小、对比强、位置明确）
+     3. 盘心文字回到墨色系，标本线稿从白色改成深色
+   ============================================================ */
+/* 盘底用 --bg-2，与展开态同一个底。
+   最早写的是 --bg（纯白）：展开态是 #f5f5f5，选中后跳成 #ffffff ——
+   8% 的亮度跳变自己就成了一次「整块变色」，只是方向反过来而已。
+   用户的诉求是「选中由被选中的那个小元素自己表达」，那底板就不该动。 */
+.wheel.is-open.is-picked .disc-core {
+  background: var(--bg-2);
+  box-shadow: 0 0 0 1px var(--blue-amb) inset,
+              0 10px 30px -18px rgba(0, 26, 94, .34);
+}
+.wheel.is-open.is-picked .disc-hub { color: var(--ink); }
+.wheel.is-open.is-picked .disc-hub .hub-zh { color: var(--ink); }
+.wheel.is-open.is-picked .disc-hub .hub-desc { color: var(--ink-2); }
+.wheel.is-open.is-picked .disc-hub .hub-reset { color: var(--ink-3); }
+.wheel.is-open.is-picked .disc-hub .hub-reset:hover { color: var(--ink); }
+.wheel.is-open.is-picked .disc-hub .hub-kicker { color: var(--ink-3); }
+
+/* 选中的方格填实：整盘里唯一一块高对比面积，一眼定位 */
+.wheel .disc-sector.lvl2.sub-sq.is-on {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #ffffff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset,
+              0 8px 20px -12px rgba(0, 47, 167, .5);
+}
+
+/* 标本线稿必须跟着换底色一起换线色。
+   原来写死 rgba(255,255,255,.82) 是给墨底配的；底变白之后
+   白线画在白盘上等于图形消失 —— 「换底不换线」是改配色最容易漏的一处。 */
+.wheel .plate-svg { stroke: var(--ink-2); }
+.wheel .plate-rule { background: var(--line); }
+.wheel .plate-cap { color: var(--ink-3); }
+
+
+/* ============================================================
+   ① 「内圈可以不选」要让人一眼看见
+   ------------------------------------------------------------
+   原来只有桌面端盘心那颗 .hub-go 在说这件事，
+   而它在 ≤620px 是 display:none —— 手机上最需要这句话的人恰好看不到。
+   补一条 .hub-skip：文案「中圈可不选」，只在 canSkip 时出现。
+   桌面隐藏（.hub-go 说得更具体），窄屏显示。 */
+.wheel .hub-skip {
+  display: none;
+  margin-top: 2px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: .01em;
+  color: var(--ink-3);
+  background: transparent;
+  border: 1px dashed var(--edge);
+  border-radius: 999px;
+  cursor: pointer;
+  flex: none;
+  transition: color 160ms cubic-bezier(.4, 0, .2, 1),
+              border-color 160ms cubic-bezier(.4, 0, .2, 1),
+              background-color 160ms cubic-bezier(.4, 0, .2, 1);
+}
+.wheel .hub-skip:hover {
+  color: var(--bg);
+  background: var(--ink);
+  border-color: var(--ink);
+  border-style: solid;
+}
+.wheel .hub-skip:active { transform: translateY(1px); }
+.wheel .hub-skip:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+/* [hidden] 自带 UA 的 display:none，但它的优先级低于任何作者样式 ——
+   下面这条 media query 里的 display:inline-block 会把 hidden 顶掉，
+   于是闭合态（还没选大类）就冒出一颗「中圈可不选」。
+   实测就是这个症状：closed 态 skip.shown=true。必须显式压回。 */
+.wheel .hub-skip[hidden] { display: none; }
+@media (max-width: 620px) {
+  .wheel .hub-skip { display: inline-block; }
+  .wheel .hub-skip[hidden] { display: none; }
+}
+
+
+/* ============================================================
+   ⑥ 内圈先给差异大的，细微差别收进「更多」
+   ------------------------------------------------------------
+   数据层已按 tier 重排（taxonomy 每个 sub 带 tier）。
+   UI 只做一件事：默认只渲染 tier===1，末尾多一枚虚线方格 +N，
+   点开后铺全、这枚消失。
+
+   为什么不是一次全给：水生与海洋、古龙水型与芳香柑橘这两对，
+   命名上只差两个字，闻起来差一整类。并排摆在新手面前，
+   等于逼他在两个他分不清的词之间做选择。 */
+.wheel .disc-sector.lvl2.sub-more {
+  min-width: 44px;
+  padding: 10px 8px;
+  color: var(--ink-3);
+  background: transparent;
+  border: 1px dashed var(--edge);
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .02em;
+}
+.wheel .disc-sector.lvl2.sub-more:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--bg-2);
+  border-color: var(--ink);
+  border-style: solid;
+}
+.wheel .disc-sector.lvl2.sub-more:active {
+  transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) scale(.97);
+}
+
+/* 进阶格子的入场：只在点开那一下出现，不参与常态渲染。
+   时长借用已有的 200ms 图层档，不新增第四档。 */
+.wheel .disc-sector.lvl2.sub-sq.is-tier2 {
+  animation: sqIn 200ms cubic-bezier(.4, 0, .2, 1) both;
+}
+@keyframes sqIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wheel .disc-sector.lvl2.sub-sq.is-tier2 { animation: none; }
+  .wheel .hub-skip:active { transform: none; }
+}
+
+
+/* ============================================================
+   ③ 指针在内圈拖动时实时预览
+   ------------------------------------------------------------
+   原来只在 mouseenter 单个按钮时改盘心，指针必须精确落在 44px 的格子上；
+   在 360 视口，格子只占盘周一小段，用户"划过去"是常态。
+   JS 侧补了 subRing 上的 pointermove：按指针相对圆心的角度反查最近一格。
+   这里只给「被角度命中的格子」一个和 :hover 相同的语言，
+   保证两种触发路径视觉上不可区分（否则会出现两种高亮）。 */
+.wheel .disc-sector.lvl2.sub-sq.is-hot,
+.wheel .disc-sector.lvl2.sub-sq:hover:not(:disabled) {
+  background: var(--bg-2);
+  border-color: var(--ink);
+  color: var(--ink);
+}

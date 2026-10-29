@@ -80,11 +80,14 @@ const PAIRS = [
   ['--blue on --bg（主色承载文字）', 'blue', 'bg', '.h1 em / .pick-foot a:hover'],
   ['--blue-deep on --bg（暗部）', 'blue-deep', 'bg', '.progress i.done'],
   ['--blue-lift on --bg（高光）', 'blue-lift', 'bg', '渐变起点，最小字 12px'],
-  // 盘心选定态翻成实心墨块，文字全部反白。这三个是写死的十六进制，
-  // 不走变量——它们在别处不会被复用，进 VARS 反而让人以为可以随便改。
-  ['白 on 墨 --hub-on-ink', '#ffffff', 'ink', '.disc-hub.is-picked .hub-zh'],
-  ['#a8a8a8 on 墨', '#a8a8a8', 'ink', '.disc-hub.is-picked .hub-kicker'],
-  ['#c9c9c9 on 墨', '#c9c9c9', 'ink', '.disc-hub.is-picked .hub-desc'],
+  // 盘心选定态**不再翻黑**（用户原话：「避免内圈直接变黑，反差过大不优雅」）。
+  // 改动前这三条守的是「白字压在墨块上」，翻黑去掉之后那个场景不存在了，
+  // 继续留着就是三条永远为真的假守门。换成 picked 态真实的墨色系组合：
+  // 盘底仍是 --bg，文字回到 ink / ink-2 / ink-3 三档。
+  ['选定态盘心主词（--ink on --bg）', 'ink', 'bg', '.disc-hub.is-picked .hub-zh'],
+  ['选定态盘心说明（--ink-2 on --bg）', 'ink-2', 'bg', '.disc-hub.is-picked .hub-desc'],
+  ['选定态盘心其它（--ink-3 on --bg）', 'ink-3', 'bg', '.disc-hub.is-picked .hub-kicker'],
+  ['白 on --blue（选中方格填实）', '#ffffff', 'blue', '.sub-sq.is-on'],
   ['--ink-2 on --bg-3（禁用按钮文案）', 'ink-2', 'bg-3', '.btn:disabled'],
 ];
 
