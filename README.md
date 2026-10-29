@@ -109,12 +109,12 @@ scent-picker/
 │   ├── build-data.js       数据管线（纯本地，不联网）
 │   ├── lib/qa-checks.mjs   ← 体检断言（供正向+负向测试共用）
 │   ├── test-scoring.mjs    106 项引擎测试
-│   ├── test-render.mjs     65 项 DOM 渲染流程测试（含圆盘几何、语义、扇形本体可点、两栏互斥、盘心标本）
+│   ├── test-render.mjs     68 项 DOM 渲染流程测试（含圆盘几何、语义、扇形本体可点、两栏互斥、盘心标本、圆弧约束）
 │   ├── test-contrast.mjs   33 项无障碍守门（文字对比度/控件边界/字号/焦点环/触控尺寸）
 │   ├── qa-data.mjs         数据体检
 │   └── test-compliance.mjs 10 项负向测试（证明断言有效）
 ├── docs/
-│   ├── DECISIONS.md        32 条已确认决策及其理由
+│   ├── DECISIONS.md        33 条已确认决策及其理由
 │   ├── COMPLIANCE.md       数据许可与合规边界（含证据链）
 │   └── DEPLOY.md           GitHub Pages 部署步骤
 └── tools/
@@ -203,7 +203,7 @@ node scripts/qa-data.mjs
 
 ```bash
 node scripts/test-scoring.mjs      # 106 项：全组合出结果、幂等、讨厌香调生效、品牌+家族双重多样性、单调性
-node scripts/test-render.mjs       # 65 项：四步流程走通、圆盘 6/5 扇区与 radiogroup 语义、扇形本体可点、盘心三态与标线稿、两栏互斥、结果页三调与理由齐全、无 NaN
+node scripts/test-render.mjs       # 68 项：四步流程走通、圆盘 6/5 扇区与 radiogroup 语义、扇形本体可点、盘心三态与标本线稿、盘心圆弧约束、两栏互斥、结果页三调与理由齐全、无 NaN
 node scripts/test-contrast.mjs     # 33 项：文字对比度 ≥4.5、控件边界 ≥3、字号 ≥12px、焦点环、触控目标 ≥44px
 node scripts/qa-data.mjs           # 数据体检：结构、唯一性、权重、家族覆盖、可溯源 + 5 项合规断言
 node scripts/test-compliance.mjs   # 10 项：证明上面那些断言真的会失败

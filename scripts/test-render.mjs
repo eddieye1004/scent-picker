@@ -193,6 +193,20 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
     fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')),
     '角标在圆盘外接方框的四角，圆盘下会悬在盘外');
 }
+// 盘心是圆：元素四角的可用宽度按 sqrt(R²−半高²) 收窄，宽元素必须显式收窄，
+// 否则矩形中段贴边、四角顶出弧线。三视口实测溢出 4.7 / 5.7 / 15.8 / 3px。
+{
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  ok('展开态盘心说明收窄到圆弧内（≤ 96%）',
+    /\.wheel\.is-open \.disc-hub \.hub-desc\s*\{[^}]*?max-width:\s*(?:[0-8]\d|9[0-6])%/.test(css),
+    '不加 max-width 时 1440 视口溢出 4.7px；96% 是 270×.96=259.2 < 弧容 266 的上限');
+  ok('选定态盘心说明收窄（≤ 92%）',
+    /\.wheel \.disc-hub\.is-picked \.hub-desc\s*\{[^}]*?max-width:\s*(?:[0-8]\d|9[0-2])%/.test(css),
+    '不加 max-width 时 360 视口溢出 3px');
+  // 窄屏盘心装不下「就选「X」，下一步 →」，且底部已有同义出口
+  ok('窄屏隐藏盘心重复出口', /@media \(max-width: 620px\) \{[\s\S]*?\.wheel \.hub-go \{ display: none; \}/.test(css),
+    '360 视口该按钮宽 156 而圆弧只容 140，且与底部「按大类推荐」重复');
+}
 // 圆盘外面包了一层可旋转容器：SVG 与标签都在里面，旋转才能带着它们一起转。
 // 这里走 parentNode 链判断，不用后代选择器 —— 测试桩的 querySelectorAll
 // 只支持 tag / .class / [attr] 与它们的直接组合，不支持后代选择器。
