@@ -114,7 +114,7 @@ scent-picker/
 │   ├── qa-data.mjs         数据体检
 │   └── test-compliance.mjs 10 项负向测试（证明断言有效）
 ├── docs/
-│   ├── DECISIONS.md        34 条已确认决策及其理由
+│   ├── DECISIONS.md        36 条已确认决策及其理由
 │   ├── COMPLIANCE.md       数据许可与合规边界（含证据链）
 │   └── DEPLOY.md           GitHub Pages 部署步骤
 └── tools/

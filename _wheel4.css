@@ -31,7 +31,8 @@
 /* 缩放后六个扇区太窄，标签必然溢出：文字交给盘心，
    扇区只留色块作为「选的是哪一块」的空间锚点。 */
 .wheel .label-layer {
-  transition: opacity 220ms linear;
+  /* 与 340ms 圆盘缩放同段：图层显隐挂在缩放末段，慢 40ms 会读成"标签掉队" */
+  transition: opacity 200ms linear;
 }
 .wheel.is-open .label-layer {
   opacity: 0;
