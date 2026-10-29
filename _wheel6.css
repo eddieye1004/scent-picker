@@ -1,0 +1,290 @@
+/* ============================================================
+   第六轮 · 用户五条（m10062）
+   ------------------------------------------------------------
+   一、文案去句末句号 —— 数据与 JS 里已逐条剥掉，这里不涉及。
+   二、大圈选定后补返回入口 —— 从盘心那颗 12px 下划线挪到盘外左上角。
+   三、中间小圈可直接点选切换大类，并区分当前态与可点态。
+   四、中圈改成沿圆弧旋转浏览：三格窗口 + 左右两枚转动钮。
+   五、图标统一视觉尺寸与线宽，常态与选中态分开。
+   ============================================================ */
+
+
+/* ============================================================
+   ② 返回入口：盘外左上角
+   ------------------------------------------------------------
+   原来盘心底部有一颗「换一个大类」：12px 字、26px 高、下划线样式。
+   三个问题叠在一起 ——
+     1. 26px 低于 44px 触控下限，拇指点它得瞄准；
+     2. 它和「直接下一步」「中圈可不选」挤在同一列里，
+        主操作与退路上下相邻，正是最容易点错的位置；
+     3. 盘心是圆，越靠下可用宽度越窄，它一直在被弧容卡（D33 那几条 96%/82% 就是为它让路）。
+   圆盘画在方框里是个圆，四个角是空的 —— 按钮落在那里，
+   既不压盘面，也不与底部主按钮抢位置，还顺手解掉了盘心的宽度约束。
+   ============================================================ */
+.wheel .wheel-back {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 12px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .01em;
+  line-height: 1;
+  color: var(--ink-2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 160ms cubic-bezier(.4, 0, .2, 1),
+              border-color 160ms cubic-bezier(.4, 0, .2, 1),
+              background-color 160ms cubic-bezier(.4, 0, .2, 1),
+              transform 80ms cubic-bezier(.4, 0, .2, 1);
+}
+.wheel .wheel-back:hover {
+  color: var(--ink);
+  border-color: var(--edge);
+  background: var(--bg-2);
+}
+/* 按下要能看见：位移 1px + 描边转墨，两个通道同时给才算"有按下态" */
+.wheel .wheel-back:active {
+  transform: translateY(1px);
+  color: var(--ink);
+  border-color: var(--ink);
+  background: var(--bg-3);
+}
+.wheel .wheel-back:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+/* [hidden] 的 UA display:none 优先级低于任何作者样式，
+   这里显式压回 —— 上一轮的 .hub-skip 就是被 @media 里的 display 顶掉的。 */
+.wheel .wheel-back[hidden] { display: none; }
+@media (max-width: 620px) {
+  .wheel .wheel-back { left: -2px; top: -6px; }
+}
+
+
+/* ============================================================
+   ③ 缩小后的盘：六个扇区直接点，换大类
+   ------------------------------------------------------------
+   原状态：.sub-ring 在展开态是 inset:0 + pointer-events:auto，
+   整个控件矩形都吃事件 —— 下层的扇区一个都点不到。
+   同时扇区被压到 opacity:.16，看上去是一块淡底纹，不像能点。
+   两件事合起来，用户唯一的换类方式就是盘心那颗小字按钮。
+
+   改成：
+     - .sub-ring 自己不吃事件（只有格子和圆钮吃），扇区重新可点；
+     - 可点态 opacity .30 + cursor:pointer，悬停 .55 + 描边转墨；
+     - 当前态保持 1 + 蓝描边，与可点态拉开明确档位。
+   ============================================================ */
+.wheel.is-open .sub-ring { pointer-events: none; }
+.wheel .sub-arm { pointer-events: none; }
+.wheel .sub-arm .sub-sq,
+.wheel .sub-arm .spin-nav { pointer-events: auto; }
+
+.wheel.is-open .sector-g {
+  opacity: .30;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 160ms cubic-bezier(.4, 0, .2, 1);
+}
+.wheel.is-open .sector-g.is-hot:not(.is-on) { opacity: .55; }
+.wheel.is-open .sector-g.is-on { opacity: 1; }
+.wheel.is-open .sector-g:not(.is-on) .sector-shape {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.wheel.is-open .sector-g.is-hot:not(.is-on) .sector-shape {
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
+}
+
+
+/* ============================================================
+   ④ 中圈：三格圆弧窗口
+   ------------------------------------------------------------
+   把「一次铺一圈方格 + 末尾一枚 +N」换成一条弧上的三格：
+   中间是当前项、两侧各一格淡出，两枚 44px 圆钮把整条弧转动一格。
+   转动即选择 —— 转到哪项就是哪项，不需要再点一次确认。
+
+   位置全靠现有的「零宽手臂 + rotate」机制：手臂转过 θ，格子钉在顶端，
+   格子再反着转回 −θ（走 --aq 自定义属性，不用内联 transform，
+   否则会盖掉 :active 的按下缩放）。
+   三格的角度：0 / ±44。圆钮：±78 —— 比格子更靠外更低，
+   与格子留出至少 45px 的净距（360 视口实测），不与格子争触控区。
+   ============================================================ */
+.wheel .sub-arm .sub-sq {
+  transform: translate(-50%, -50%) rotate(var(--aq, 0deg));
+  transform-origin: center center;
+  transition: background-color 160ms cubic-bezier(.4, 0, .2, 1),
+              border-color 160ms cubic-bezier(.4, 0, .2, 1),
+              color 160ms cubic-bezier(.4, 0, .2, 1),
+              opacity 160ms cubic-bezier(.4, 0, .2, 1),
+              transform 160ms cubic-bezier(.4, 0, .2, 1);
+}
+
+/* 中间那格：这一轮唯一"实"的一格，与盘心讲的是同一项 */
+.wheel .sub-arm .sub-sq.is-center {
+  border-color: var(--edge);
+  background: var(--bg);
+  color: var(--ink);
+  box-shadow: 0 1px 0 rgba(255,255,255,.9) inset,
+              0 6px 18px -12px rgba(0,26,94,.28);
+}
+.wheel .sub-arm .sub-sq.is-center.is-hot:not(.is-on) {
+  border-color: var(--ink);
+  background: var(--bg-2);
+}
+/* 选中（已落到这一项）：填蓝、反白，与盘心线稿转蓝同一时刻发生 */
+.wheel .sub-arm .sub-sq.is-center.is-on {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #ffffff;
+  box-shadow: 0 1px 0 rgba(255,255,255,.18) inset,
+              0 8px 20px -12px rgba(0,47,167,.5);
+}
+
+/* 两侧那格：副信息。可点（点它就把它转到中间），所以只降不透明与尺寸，
+   不用 pointer-events:none —— 降透明但点不了，是最伤人的一种"看起来能点"。 */
+.wheel .sub-arm .sub-sq.is-side {
+  opacity: .34;
+  transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) scale(.84);
+  font-weight: 500;
+}
+.wheel .sub-arm .sub-sq.is-side:hover,
+.wheel .sub-arm .sub-sq.is-side.is-hot {
+  opacity: .72;
+}
+.wheel .sub-arm .sub-sq.is-side:active {
+  transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) scale(.80);
+  opacity: .9;
+}
+
+/* 转动钮：44px 圆钮，压在同一条轨道上，读作"这个环可以转" */
+.wheel .sub-arm .spin-nav {
+  position: absolute;
+  left: 50%;
+  top: 12.4%;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--ink-2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  cursor: pointer;
+  transform: translate(-50%, -50%) rotate(var(--aq, 0deg));
+  transform-origin: center center;
+  transition: color 160ms cubic-bezier(.4, 0, .2, 1),
+              border-color 160ms cubic-bezier(.4, 0, .2, 1),
+              background-color 160ms cubic-bezier(.4, 0, .2, 1),
+              transform 80ms cubic-bezier(.4, 0, .2, 1);
+}
+.wheel .sub-arm .spin-nav:hover:not(:disabled) {
+  color: var(--blue);
+  border-color: var(--blue-amb);
+  background: var(--blue-wash);
+}
+.wheel .sub-arm .spin-nav:active:not(:disabled) {
+  transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) scale(.94);
+  background: var(--bg-3);
+}
+.wheel .sub-arm .spin-nav:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+/* 只有一个子项时转无可转：显式置灰，不靠"点了没反应"来表达 */
+.wheel .sub-arm .spin-nav:disabled {
+  color: var(--line);
+  border-color: var(--line);
+  cursor: default;
+  opacity: .5;
+}
+
+/* 方向性入场：新的一项从转动方向滑进中间位。
+   用一次性 animation 而不是 transition + transitionend ——
+   后者要一个异步状态机，而这条动效只值 200ms 的观感。 */
+.wheel .sub-arm .sub-sq.spin-in-next {
+  animation: spinInNext 200ms cubic-bezier(.2, 0, .2, 1) both;
+}
+.wheel .sub-arm .sub-sq.spin-in-prev {
+  animation: spinInPrev 200ms cubic-bezier(.2, 0, .2, 1) both;
+}
+@keyframes spinInNext {
+  from { transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) translateX(26px); opacity: .2; }
+  to   { transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) translateX(0);    opacity: 1; }
+}
+@keyframes spinInPrev {
+  from { transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) translateX(-26px); opacity: .2; }
+  to   { transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) translateX(0);     opacity: 1; }
+}
+
+@media (max-width: 620px) {
+  .wheel .sub-arm .spin-nav { top: 9.8%; width: 44px; height: 44px; font-size: 20px; }
+}
+@media (max-width: 400px) {
+  .wheel .sub-arm .spin-nav { top: 10.3%; }
+}
+
+
+/* ============================================================
+   ⑤ 图标：常态与选中态分开
+   ------------------------------------------------------------
+   原来只在"已选定"时才画图，常态没有图可比 —— 于是"选中态与常态要区分"
+   这句话无从落地。现在常态（转到某格但还没确认）也画，只是：
+     常态：线稿 --ink-3（灰）、香材名压到 60%、整体缩到 92%
+     选中：线稿 --blue（与中间格填蓝同一时刻）、香材名全亮、回到 100%
+   线宽已按包围盒归一化（SUB_FIT + PLATE_SW），CSS 这里不再碰 stroke-width。
+   ============================================================ */
+.wheel .plate-svg {
+  stroke: var(--ink-3);
+  transition: stroke 160ms cubic-bezier(.4, 0, .2, 1),
+              transform 180ms cubic-bezier(.2, 0, .2, 1),
+              opacity 160ms cubic-bezier(.4, 0, .2, 1);
+  transform: scale(.92);
+}
+.wheel .disc-hub.is-picked .plate-svg {
+  stroke: var(--blue);
+  transform: scale(1);
+}
+.wheel .plate-cap {
+  color: var(--ink-3);
+  opacity: .6;
+  transition: color 160ms cubic-bezier(.4, 0, .2, 1),
+              opacity 160ms cubic-bezier(.4, 0, .2, 1);
+}
+.wheel .disc-hub.is-picked .plate-cap {
+  color: var(--ink-2);
+  opacity: 1;
+}
+
+/* 展开态盘心多了一件东西（标本），kicker 只在"已选定"时让位。
+   基础层写的是 .has-glyph 就藏 —— 那时有图就等于已选定。
+   现在预览态也画图（⑤ 要求常态与选中态能对比），
+   那条规则会把「正在看」一起藏掉，预览态与选中态就只剩线稿颜色一个差别。
+   所以这里把预览态显式打开：既有图、又留着"正在看"两个字。 */
+.wheel .disc-hub.has-glyph:not(.is-picked) .hub-kicker { display: block; }
+.wheel .disc-hub.has-glyph.is-picked .hub-kicker { display: none; }
+
+
+@media (prefers-reduced-motion: reduce) {
+  .wheel .sub-arm .sub-sq.spin-in-next,
+  .wheel .sub-arm .sub-sq.spin-in-prev { animation: none; }
+  .wheel .wheel-back:active,
+  .wheel .sub-arm .spin-nav:active:not(:disabled) { transform: translate(-50%, -50%) rotate(var(--aq, 0deg)); }
+  .wheel .wheel-back:active { transform: none; }
+}
