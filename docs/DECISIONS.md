@@ -560,6 +560,32 @@ chip 加 `data-col="liked|disliked"`，让测试也能按列定位。`test-rende
 
 ---
 
+
+## D34 · 子类方格的手臂是零宽轴，不是满尺寸盒子
+
+**问题**：展开态（选了大类、未选小类）后整页可以左右晃。实测 `documentElement.scrollWidth 401 / clientWidth 360`（390 视口 435/390、320 视口 356/320）。方格本身没出屏（`bad: []`），`.disc.wheel` 也没出屏（312 宽、左 24 右 336）。
+
+**根因**：`.sub-arm` 是 `position:absolute; inset:0` 的满尺寸盒子，靠 `transform: rotate(θ)` 把方格送到圆周上。盒子绕中心转 θ 之后，它的**角**必然扫到圆盘外面——360 视口实测 `l:-39 r:399 w:438`，六个手臂里最宽的那个把文档撑到 401。溢出的是空手臂，肉眼看不见，所以截图看不出问题。
+
+**改法**：手臂不需要面积，只需要一条过圆心的轴。
+```css
+.wheel .sub-arm {
+  inset: auto;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  transform-origin: 50% 50%;
+}
+```
+旋转一条零宽线不产生任何横向延伸。方格本来就挂在手臂顶端，位置一个像素都没变（实测 `cells360` 前后 `outBy` / `clearHub` 完全一致）。
+
+**验证**：三视口 `overflowX` 全部 `false`、`scrollW == clientW`（360→360、390→390、320→320）；`scripts/test-render.mjs` 加一条断言钉住 `width: 0` + `inset: auto`，共 69 项。
+
+**这条为什么值得记**：绝对定位 + `inset:0` + 旋转，是「容器自己不可见却撑开文档」的典型；用截图和元素自身 boundingRect 都查不出来，只有扫 `body *` 的 `right > clientWidth` 才抓得到。
+
+---
+
 ## 待定（尚未决定，不假装已定）
 
 | 项 | 为什么还没定 | 什么时候该定 |

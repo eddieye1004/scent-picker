@@ -206,6 +206,12 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
   // 窄屏盘心装不下「就选「X」，下一步 →」，且底部已有同义出口
   ok('窄屏隐藏盘心重复出口', /@media \(max-width: 620px\) \{[\s\S]*?\.wheel \.hub-go \{ display: none; \}/.test(css),
     '360 视口该按钮宽 156 而圆弧只容 140，且与底部「按大类推荐」重复');
+
+  // 手臂是插在圆心上的零宽轴，不是满尺寸盒子。
+  // 满尺寸盒子绕过中心会被旋转扫出圆盘外：360 视口实测 l:-39 r:399，
+  // 文档 scrollWidth 401 > clientWidth 360，整页可以左右晃。
+  ok('子类手臂是零宽轴（不再撑宽页面）',
+    /\.wheel \.sub-arm \{[^}]*?width:\s*0/.test(css) && /\.wheel \.sub-arm \{[^}]*?inset:\s*auto/.test(css));
 }
 // 圆盘外面包了一层可旋转容器：SVG 与标签都在里面，旋转才能带着它们一起转。
 // 这里走 parentNode 链判断，不用后代选择器 —— 测试桩的 querySelectorAll
