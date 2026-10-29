@@ -554,7 +554,7 @@ chip 加 `data-col="liked|disliked"`，让测试也能按列定位。`test-rende
 
 **顺带修的两处**：
 - `.hub-go` 在展开态是 `--ink` 实底、230×30 的黑条压在 270px 白盘上——需求①要求「中间方框不要显示为黑色」，盘底虽然改透明了，这条黑按钮让观感又回到黑块。改成描边次要按钮，主操作交给底部蓝按钮。
-- `.hub-go` / `.hub-reset` 缺 `flex: none`，在 flex-column 里被压过：`.hub-reset` 内容 34px、盒子只剩 24px，「换一个大类」的下沿被裁 10px（12px 字加下划线正好压在线外）。补 `flex: none` + `line-height: 1.2`。
+- `.hub-go` / `.hub-reset` 补 `flex: none` + `line-height: 1.2`。**这条要诚实标注**：`.hub-reset` 的 `scrollHeight 34 > clientHeight 24` 一直存在，补完也没变；但文字行盒实测 t=611 / b=625，盒子 t=606 / b=632，**文字完整落在盒内，截图里「换一个大类」也没被裁**。所以那个比值是假信号（下划线延伸撑出的滚动区），不是视觉缺陷。`flex: none` 留作防御性写法，不当作已修复的 bug 记。
 
 **写测试时注意**：`test-render.mjs` 里断言 `max-width` 用的是 CSS 文本正则，不是几何测量。真正的几何守门在 `arclimit.mjs` / `local4.mjs` 这两个探测脚本里，它们不进仓库也不进 CI —— 每次改盘心尺寸都要手动跑一遍。
 
