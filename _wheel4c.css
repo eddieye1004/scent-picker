@@ -1,0 +1,115 @@
+/* ============================================================
+   香型轮盘 v4-rev3
+   ------------------------------------------------------------
+   这一版只解决三件事，都是前两版截图撞出来的：
+   1. 盘心原来是一块带四角角标的白方块，压在缩小后的盘上，
+      读成「盘上贴了张卡」，四角还悬在盘面中间。→ 展开后盘心透明，
+      文字直接落在盘上，角标收掉。
+   2. 「加深」原来做成一枚墨色圆片贴在心口，读成「盘里又套了个圆」。
+      → 改成整块缩小的盘翻深，白字压上。加深发生在盘，不是圆心。
+   3. 说明文字在 39% 宽里挤成一行长条，横向溢出圆边。
+      → 盘心收到 52%（落在缩小的盘内，不与方格相交），说明两行收口，环图放到最下面。
+   ============================================================ */
+
+/* 缩小后是一块有厚度的盘，而不是一张平贴图 */
+.wheel.is-open .disc-core {
+  border-radius: 50%;
+  background: var(--bg-2);
+  box-shadow: 0 1px 0 rgba(255,255,255,.9) inset,
+              0 2px 4px rgba(0,26,94,.06),
+              0 14px 34px -18px rgba(0,26,94,.34);
+}
+/* 盘缩小后扇区变成一圈细片，全部压到背景层；
+   只让选中的那一片留一点水洗色 —— 盘因此仍属于「哪个大类」。 */
+.wheel.is-open .sector-g { opacity: .16; }
+.wheel.is-open .sector-g.is-on { opacity: 1; }
+.wheel.is-open .sector-g.is-on .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--blue);
+  stroke-width: 1;
+}
+.wheel.is-open .ring-thin { opacity: 0; }
+
+/* ---- 盘心：展开后是透明文字层 ---- */
+.wheel.is-open .disc-hub {
+  width: 52%;
+  height: 52%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  gap: 4px;
+  justify-content: center;
+}
+/* 展开后盘心不再是方块，四角角标就变成四个悬空的直角 —— 收掉 */
+.wheel.is-open .disc-hub::before { display: none; }
+
+/* 落到具体项：整块盘翻深。加深的是盘，不是圆心。 */
+.wheel.is-open.is-picked .disc-core {
+  background: var(--ink);
+  box-shadow: 0 1px 0 rgba(255,255,255,.12) inset,
+              0 14px 34px -16px rgba(0,0,0,.5);
+}
+.wheel.is-open.is-picked .disc-hub {
+  width: 52%;
+  height: 52%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--bg);
+}
+.wheel.is-open.is-picked .disc-hub .hub-zh { color: #ffffff; }
+.wheel.is-open.is-picked .disc-hub .hub-desc { color: #d6d6d6; }
+.wheel.is-open.is-picked .disc-hub .hub-reset { color: #c9c9c9; }
+.wheel.is-open.is-picked .disc-hub .hub-kicker { color: #b0b0b0; }
+
+/* 未展开态：整块轮盘要读成「一块填满中间区域的实心盘」。
+   做法：扇区填 --bg-2 让外环成为实体，盘心由白方块改成白色圆盘压在上面，
+   两者边缘贴合，合起来是一个同心圆盘，而不是「空心线框 + 一张白卡」。 */
+.wheel:not(.is-open) .sector-shape {
+  fill: var(--bg-2);
+  stroke: var(--edge);
+  stroke-width: 1;
+}
+.wheel:not(.is-open) .sector-g.is-hot .sector-shape {
+  fill: var(--bg-3);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.wheel:not(.is-open) .disc-hub {
+  width: 66%;
+  height: 66%;
+  border-radius: 50%;
+  border: 1px solid var(--edge);
+  background: var(--bg);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 8px 26px -14px rgba(0, 26, 94, .28);
+  padding: 12px 14px;
+}
+.wheel:not(.is-open) .disc-hub::before { display: none; }
+
+/* 落到具体项时「已选定」已由整盘翻深表达，kicker 是重复信息，让位给说明 */
+.wheel .disc-hub.has-glyph .hub-kicker { display: none; }
+.wheel .disc-hub.has-glyph .hub-desc { max-height: 34px; }
+
+/* ---- 一格一格贴住盘边 ---- */
+.wheel .sub-arm .sub-sq { top: 12.4%; }
+
+@media (max-width: 620px) {
+  .wheel.is-open:not(.is-picked) .disc-hub .hub-desc { display: none; }
+  .wheel.is-open .disc-core { transform: scale(.6); }
+  .wheel .sub-arm .sub-sq { top: 9.8%; }
+  .wheel.is-open .disc-hub,
+  .wheel.is-open.is-picked .disc-hub { width: 54%; height: 54%; }
+}
+/* 360 宽：盘只剩 181px，盘心必须让位给方格，
+   否则左右两侧的方格内边会切进盘心文字的包围盒（实测 1.25px）。
+   只收盘心宽度，不缩字号 —— 12px 已是最小可读。 */
+@media (max-width: 400px) {
+  .wheel.is-open .disc-core { transform: scale(.58); }
+  .wheel .sub-arm .sub-sq { top: 10.3%; }
+  .wheel.is-open .disc-hub,
+  .wheel.is-open.is-picked .disc-hub { width: 50%; height: 50%; }
+}

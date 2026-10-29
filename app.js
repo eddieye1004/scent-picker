@@ -1,3 +1,4 @@
+
 /**
  * app.js — 零基础香水选择器的交互层
  *
@@ -510,6 +511,153 @@ function noteZhOf(en) {
   return e ? e.zh : String(en);
 }
 
+/* 香材剖面标本：把该小类的代表香材画成一枚线稿。
+   为什么不用图片：需求明确不要"廉价 AI 图或扒来的劣质素材"。可离线、
+   且保证每张质感一致的只有两条路 —— 自己画，或买一套统一授权的摄影。
+   后者做不到离线，前者天然一致：同一视框、同一线宽、同一取色。
+
+   为什么只有一枚：实测 38 个小类的代表香材，32/32 全落在同一个家族里
+   （白花是茉莉+晚香玉，都是 floral；果味甜是桃+苹果+梨，都是 gourmand）。
+   逐味画会出来一排一模一样的图标 —— 那不是示意图，是重复。
+   所以图案只编码"家族"，一枚放大；香材名交给下面那行字去说。
+
+   六种母题按家族选形，不按 32 个小类硬编码 —— 32 张手画必然走形，
+   而且家族才是这枚图真正想表达的东西。 */
+const PLATE_SIZE = 24;
+
+const r2 = (n) => (Math.round(n * 100) / 100).toString();
+
+/** 六个家族的标本母题。统一 24×24 视框、stroke 1.25、无填充、圆头端点。 */
+const PLATE_MOTIFS = {
+  // 柑橘横切：外皮 + 中心 + 八根等分瓤线。
+  // 四根会读成瞄准镜（与木质撞形），八根才是柑橘断面的密度。
+  citrus() {
+    const seg = 8;
+    const out = [
+      { tag: 'circle', attrs: { cx: 12, cy: 12, r: 8 } },
+      { tag: 'circle', attrs: { cx: 12, cy: 12, r: 2.6 } },
+    ];
+    for (let k = 0; k < seg; k++) {
+      const a = ((k * 360) / seg - 90) * (Math.PI / 180);
+      out.push({
+        tag: 'path',
+        attrs: {
+          d: 'M' + r2(12 + 2.6 * Math.cos(a)) + ' ' + r2(12 + 2.6 * Math.sin(a))
+            + 'L' + r2(12 + 8 * Math.cos(a)) + ' ' + r2(12 + 8 * Math.sin(a)),
+        },
+      });
+    }
+    return out;
+  },
+    // 花：同一片花瓣旋转 n 次（n=5 或 6）
+  floral() {
+    const petals = 5;   // 五瓣：与真实花瓣数一致，也避开六瓣显得像齿轮
+    const d = 'M12 12C9.6 9.2 9.6 4.8 12 2.2C14.4 4.8 14.4 9.2 12 12Z';
+    const out = [];
+    for (let k = 0; k < petals; k++) {
+      out.push({
+        tag: 'path',
+        attrs: k ? { d, transform: 'rotate(' + r2((k * 360) / petals) + ' 12 12)' } : { d },
+      });
+    }
+    out.push({ tag: 'circle', attrs: { cx: 12, cy: 12, r: 1.6 } });
+    return out;
+  },
+  // 木：三道同心**椭圆**年轮。
+  // 椭圆而非正圆：树干截面本就不正圆，也避免与柑橘的同心结构撞形。
+  // 不加裂纹 —— 24px 里任何不与圈同心的线段都会被读成螺旋的一部分（试过三次）。
+  woody() {
+    return [
+      { tag: 'ellipse', attrs: { cx: 12, cy: 12, rx: 8, ry: 6.9 } },
+      { tag: 'ellipse', attrs: { cx: 12, cy: 12, rx: 5.3, ry: 4.55 } },
+      { tag: 'ellipse', attrs: { cx: 12, cy: 12, rx: 2.5, ry: 2.15 } },
+    ];
+  },
+    // 树脂滴：水滴轮廓 + 内部一道斜向高光。
+  // 上一版是「短弧 + 小圆」，两者挨在一起像一张脸 —— 24px 下任何
+  // 两个相邻的圆点都会被读成眼睛。改成一道连续的开口弧，只表达"有体积"。
+  amber() {
+    return [
+      { tag: 'path', attrs: { d: 'M12 3.2C12 3.2 18 9.6 18 13.4A6 6 0 0 1 6 13.4C6 9.6 12 3.2 12 3.2Z' } },
+      { tag: 'path', attrs: { d: 'M9.1 14.6A3.1 3.1 0 0 0 12.4 17.4' } },
+    ];
+  },
+  // 叶：主脉 + 三对或四对侧脉
+  fresh() {
+    const pairs = 3;   // 三对侧脉：四对在 24px 里会黏连
+    let d = 'M12 5.4V18.4';
+    for (let k = 0; k < pairs; k++) {
+      const y = 8.2 + k * 2.6;
+      const w = 3.2 - k * 0.35;
+      d += 'M12 ' + r2(y) + 'L' + r2(12 - w) + ' ' + r2(y - 1.8)
+        + 'M12 ' + r2(y) + 'L' + r2(12 + w) + ' ' + r2(y - 1.8);
+    }
+    return [
+      { tag: 'path', attrs: { d: 'M12 20.2C4.6 16.2 5.4 6.4 12 3.2C18.6 6.4 19.4 16.2 12 20.2Z' } },
+      { tag: 'path', attrs: { d } },
+    ];
+  },
+  // 豆荚：斜置椭圆 + 中缝 + 一粒或两粒
+  gourmand() {
+    const out = [
+      { tag: 'ellipse', attrs: { cx: 12, cy: 12, rx: 5.2, ry: 8, transform: 'rotate(-18 12 12)' } },
+      { tag: 'path', attrs: { d: 'M12 4V20', transform: 'rotate(-18 12 12)' } },
+      { tag: 'circle', attrs: { cx: 10.6, cy: 9.6, r: 1.1 } },
+    ];
+    out.push({ tag: 'circle', attrs: { cx: 13.4, cy: 14.2, r: 1.1 } });
+    return out;
+  },
+};
+const PLATE_FALLBACK = [{ tag: 'circle', attrs: { cx: 12, cy: 12, r: 7.4 } }];
+
+const PLATE_LABEL = { citrus: '柑橘', floral: '花', woody: '木质', amber: '树脂', fresh: '叶', gourmand: '果实' };
+
+function scentPlate(sub) {
+  const entries = (sub.notes || [])
+    .map((en) => TAX.noteIndex.entries.find((x) => normNote(x.en) === normNote(en)))
+    .filter(Boolean);
+  if (!entries.length) return null;
+
+  /* 只画一枚，画得大。
+     原本的设想是"每味香材一枚小图标"，实测行不通：38 个小类的代表香材
+     32/32 全落在同一个家族里（白花是茉莉+晚香玉，都是 floral），
+     逐味画会出来一排一模一样的图标 —— 那不是示意图，是重复。
+     而且三枚 22px 的小图标撑不起"示意图"这个位置，读起来还是徽标。
+     所以：按家族画一枚放大的标本线稿，香材名交给下面那行小字去说。 */
+  const family = entries[0].family;
+  const shapes = (PLATE_MOTIFS[family] || (() => PLATE_FALLBACK))();
+
+  const wrap = el('div', { class: 'hub-plate' });
+  const svg = svgEl('svg', {
+    class: 'plate-svg',
+    viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
+    fill: 'none',
+    'aria-hidden': 'true', focusable: 'false',
+  });
+  shapes.forEach(({ tag, attrs }) => {
+    svg.appendChild(svgEl(tag, Object.fromEntries(
+      Object.entries(attrs).map(([k, v]) => [k, String(v)]))));
+  });
+  wrap.appendChild(svg);
+  wrap.appendChild(el('div', { class: 'plate-rule' }));
+  /* 名字最多列两味。实测四味的名字在 360px 视口是 144px 宽，
+     而盘心只有 156px 且是圆的 —— 一行放不下、折两行又把「换一个大类」顶出去。
+     完整清单留在 aria-label 里，视觉上两味足够说明这格是哪一路气味。 */
+  const capText = entries.slice(0, 2).map((e) => e.zh).join(' · ')
+    + (entries.length > 2 ? ' 等' : '');
+  wrap.appendChild(el('div', { class: 'plate-cap' }, capText));
+  // 图形本身是装饰，语义交给屏幕阅读器读这句话，避免读出「一张图」却没有内容
+  wrap.setAttribute('role', 'img');
+  wrap.setAttribute('aria-label',
+    '代表香材：' + entries.map((e) => e.zh + '（' + (PLATE_LABEL[e.family] || e.family) + '）').join('、'));
+  return wrap;
+}
+
+/**
+ * 盘心示意图。只在落到具体小项时调用 —— 大类层面没有"具体香材构成"可画。
+ * 最多取 3 味：360px 视口下盘心可用宽度约 131px，4 味会挤成一条。
+ */
+
 /**
  * @param {{
  *   families: Array, selFamily: string|null, selSub: string|null,
@@ -520,12 +668,20 @@ function buildWheel(cfg) {
   const { families, onChange } = cfg;
   let selFamily = cfg.selFamily || null;
   let selSub = cfg.selSub || null;
-  let hoverFam = null;      // 指针停在外圈哪个家族（决定中圈显示谁的孩子）
+  let hoverFam = null;      // 指针停在外圈哪个家族（只改盘心预览，不改变层数）
   let hoverSub = null;
 
   const root = el('div', { class: 'disc wheel', role: 'group', 'aria-label': '香型轮盘' });
+
+  /* 核心圆盘 = 第一层。初始铺满整个控件；一旦选定大类，整盘缩到 58%，
+     外圈让给第二轮的小方格。
+     缩小后盘里不再画六个扇区（58% 下扇区太窄，字必然溢出），改成一块实心盘，
+     盘心文字直接落在盘上 —— 于是「一块盘 + 一圈方格」是一个整体，
+     而不是「一块盘 + 盘心一个小方块」两个物体。 */
+  const core = el('div', { class: 'disc-core' });
   const rot = el('div', { class: 'disc-rot' });
-  root.appendChild(rot);
+  core.appendChild(rot);
+  root.appendChild(core);
 
   const svg = svgEl('svg', {
     class: 'disc-svg',
@@ -540,19 +696,26 @@ function buildWheel(cfg) {
   svg.appendChild(svgEl('circle', {
     class: 'ring-thin', cx: WHEEL.cx, cy: WHEEL.cy, r: WHEEL.r1o + 8,
   }));
-  /* 中圈空态导轨已删除（原为一圈虚线圆）。
-     理由不是"不够好看"，是几何上无解：空态盘心撑到 r1i=158 的内接正方形，
-     半对角 156.8；而虚线要落在方框之外就得 r>=156.8，外圈内径只有 158。
-     只剩 1.2px 的容身区，怎么画都会切到方框或压到外圈。
-     它是纯装饰，删掉不加替代 —— 中圈选中后会自己长出真实扇区，不需要预告。 */
 
-  const midLayer = svgEl('g', { class: 'mid-layer' });
-  svg.appendChild(midLayer);
-
-  /* --- 盘心：三行，讲「当前在哪一层」 --- */
+  /* --- 盘心 --- */
   const hubKicker = el('div', { class: 'hub-kicker' }, '香型轮盘');
   const hubZh = el('div', { class: 'hub-zh' }, '还没选');
   const hubDesc = el('div', { class: 'hub-desc' }, '从外圈挑一个大类');
+  const hubGlyph = el('div', { class: 'hub-glyph' });
+  /* 只选了大类时的快捷出口：跳过第二轮直接进下一步。
+     放在盘心而不是底部按钮栏，是因为「我只想要大类」这个决定，
+     正好发生在用户刚点完大类、视线还在盘心的一瞬间。 */
+  const hubGo = el('button', {
+    class: 'hub-go',
+    type: 'button',
+    onclick: (ev) => {
+      ev.stopPropagation();
+      const f = families.find((x) => x.id === selFamily) || null;
+      onChange(f, null);
+      next();
+    },
+  }, '直接下一步');
+  hubGo.hidden = true;
   const hubReset = el('button', {
     class: 'hub-reset',
     type: 'button',
@@ -562,12 +725,13 @@ function buildWheel(cfg) {
       paint();
       onChange(null, null);
     },
-  }, '重新开始');
+  }, '换一个大类');
   hubReset.hidden = true;
-  const hub = el('div', { class: 'disc-hub is-idle' }, hubKicker, hubZh, hubDesc, hubReset);
+  const hub = el('div', { class: 'disc-hub is-idle' },
+    hubKicker, hubZh, hubDesc, hubGlyph, hubGo, hubReset);
   root.appendChild(hub);
 
-  /* --- 外圈：6 个家族，固定不变 --- */
+  /* --- 第一层：6 个家族，固定不变 --- */
   const nFam = families.length;
   const famStep = 360 / nFam;
   const famStart = -90 - famStep / 2;
@@ -583,9 +747,6 @@ function buildWheel(cfg) {
     outerG.push(g);
   });
 
-  // 标签按钮单独一层，位置固定，不随中圈重建而消失
-  // 外圈与中圈各自是一组单选，所以各自一个 radiogroup。
-  // 放在一个组里会把两层混成"12 选 1"，读屏会念错父子关系。
   const labelLayer = el('div', { class: 'label-layer', role: 'radiogroup', 'aria-label': '香型大类' });
   rot.appendChild(labelLayer);
 
@@ -614,7 +775,6 @@ function buildWheel(cfg) {
       style: 'left:' + ((p[0] / WHEEL.vb) * 100).toFixed(2) + '%;top:' + ((p[1] / WHEEL.vb) * 100).toFixed(2) + '%',
     },
       el('span', { class: 'zh' }, f.zh),
-      // 字段名是 representativeNotes（taxonomy 里的实际键），不是 notes
       el('span', { class: 'notes' }, (f.representativeNotes || []).slice(0, 2).map((e) => noteZhOf(e)).join('·'))
     );
     const enter = () => { hoverFam = f.id; hoverSub = null; paint(); };
@@ -644,56 +804,56 @@ function buildWheel(cfg) {
     });
   });
 
-  /* --- 中圈：随焦点家族重建 --- */
-  const midLabelLayer = el('div', { class: 'label-layer mid', role: 'radiogroup', 'aria-label': '子类' });
-  rot.appendChild(midLabelLayer);
-  let midBtn = [];
-  let midSubs = null;
+  /* --- 第二轮：一圈小方格 ---
+     为什么不是同心环：环的宽度被半径卡死。360px 视口下中圈直径只剩 60px，
+     44px 的触控框数学上装不进去，四字标签必然溢出。方格不随圆盘缩放，
+     窄屏也能同时保住 44px 触控与一行四个字的宽度。 */
+  const subRing = el('div', { class: 'sub-ring', role: 'radiogroup', 'aria-label': '子类' });
+  root.appendChild(subRing);
+  let subBtns = [];
+  let subItems = null;
 
-  function buildMid(fam) {
-    midLayer.innerHTML = '';
-    midLabelLayer.innerHTML = '';
-    midBtn = [];
-    midSubs = null;
+  function buildSubRing(fam) {
+    subRing.innerHTML = '';
+    subBtns = [];
+    subItems = null;
     if (!fam) return;
     const subs = fam.subfamilies || [];
     if (!subs.length) return;
-    midSubs = subs;
+    subItems = subs;
     const step = 360 / subs.length;
     const start = -90 - step / 2;
-    const rMid = (WHEEL.r2o + WHEEL.r2i) / 2;
 
     subs.forEach((s, i) => {
-      const a0 = start + i * step + 0.8;
-      const a1 = start + (i + 1) * step - 0.8;
-      const g = svgEl('g', { class: 'sector-g lvl2', 'data-sub': s.id });
-      g.appendChild(svgEl('path', { class: 'sector-shape', d: ringPath(WHEEL.r2o, WHEEL.r2i, a0, a1) }));
-      const enter = () => { hoverSub = s.id; paint(); };
-      const leave = () => { hoverSub = null; paint(); };
-      g.addEventListener('mouseenter', enter);
-      g.addEventListener('mouseleave', leave);
-      g.addEventListener('click', (ev) => { ev.stopPropagation(); chooseSub(fam, s); });
-      midLayer.appendChild(g);
-      g.__sub = s;
-
-      const p = wheelPolar(rMid, start + (i + 0.5) * step);
+      const midDeg = start + (i + 0.5) * step;
+      /* 摆位用「旋转的手臂」：手臂盒子铺满控件并绕中心转过 θ，
+         方格钉在手臂顶端，于是所有方格落在同一半径的圆上；
+         方格再反向转回 −θ，文字保持水平。 */
+      const armDeg = midDeg + 90;
+      const arm = el('div', {
+        class: 'sub-arm',
+        style: 'transform: rotate(' + armDeg.toFixed(2) + 'deg)',
+      });
       const btn = el('button', {
-        class: 'disc-sector lvl2',
+        class: 'disc-sector lvl2 sub-sq',
         type: 'button',
         role: 'radio',
         'aria-checked': 'false',
         'data-sub': s.id,
         tabindex: '-1',
-        style: 'left:' + ((p[0] / WHEEL.vb) * 100).toFixed(2) + '%;top:' + ((p[1] / WHEEL.vb) * 100).toFixed(2) + '%',
+        style: 'transform: translate(-50%, -50%) rotate(' + (-armDeg).toFixed(2) + 'deg); --aq: ' + (-armDeg).toFixed(2) + 'deg',
       }, el('span', { class: 'zh' }, s.zh));
+      const enter = () => { hoverSub = s.id; paint(); };
+      const leave = () => { hoverSub = null; paint(); };
       btn.addEventListener('mouseenter', enter);
       btn.addEventListener('mouseleave', leave);
       btn.addEventListener('focus', enter);
       btn.addEventListener('blur', leave);
       btn.addEventListener('click', (ev) => { ev.stopPropagation(); chooseSub(fam, s); });
-      btn.addEventListener('keydown', (ev) => keyNav(ev, midBtn, i));
-      midLabelLayer.appendChild(btn);
-      midBtn.push(btn);
+      btn.addEventListener('keydown', (ev) => keyNav(ev, subBtns, i));
+      arm.appendChild(btn);
+      subRing.appendChild(arm);
+      subBtns.push(btn);
     });
   }
 
@@ -706,58 +866,48 @@ function buildWheel(cfg) {
     onChange(fam, s);
   }
 
-  /* --- 统一重绘：一处改动决定所有层的样子 --- */
+  /* --- 统一重绘 --- */
   let builtFor;
   function paint() {
     const famById = new Map(families.map((f) => [f.id, f]));
-    // 中圈跟随：选中优先，其次悬停
-    const showFamId = hoverFam || selFamily;
+    /* 只有"真的选了"才缩放并铺方格；悬停只改盘心预览。
+       悬停就缩放会让指针划过时整个版面跳动，比少一个反馈更糟。 */
+    const open = !!selFamily;
+    const showFamId = selFamily || hoverFam;
     const showFam = showFamId ? famById.get(showFamId) : null;
-    if (builtFor !== showFamId) {
-      buildMid(showFam);
-      builtFor = showFamId;
+    if (builtFor !== selFamily) {
+      buildSubRing(selFamily ? famById.get(selFamily) : null);
+      builtFor = selFamily;
     }
+    root.classList.toggle('is-open', open);
 
-    // 外层：选中 > 悬停 > 其余（展开时把其余压暗，让视线收到中圈）
-    const expanded = !!showFamId;
     outerG.forEach((g, i) => {
       const f = families[i];
       const on = f.id === selFamily;
       const hot = f.id === hoverFam;
       g.classList.toggle('is-on', on);
       g.classList.toggle('is-hot', hot && !on);
-      g.classList.toggle('is-dim', expanded && !on && !hot);
     });
     outerBtn.forEach((b, i) => {
       const f = families[i];
       const on = f.id === selFamily;
-      b.classList.toggle('is-dim', expanded && !on && f.id !== hoverFam);
       b.classList.toggle('is-on', on);
       b.setAttribute('aria-checked', String(on));
       b.setAttribute('tabindex', on ? '0' : (i === 0 && !selFamily ? '0' : '-1'));
     });
 
-    // 中圈：选中子家族填墨，悬停变浅
-    if (midSubs) {
-      const kids = Array.from(midLayer.childNodes || []);
-      kids.forEach((g) => {
-        const s = g.__sub;
-        if (!s) return;
-        const on = selSub === s.id && showFamId === selFamily;
+    if (subItems) {
+      subBtns.forEach((b, i) => {
+        const s = subItems[i];
+        const on = selSub === s.id;
         const hot = hoverSub === s.id;
-        g.classList.toggle('is-on', on);
-        g.classList.toggle('is-hot', hot && !on);
-      });
-      midBtn.forEach((b, i) => {
-        const s = midSubs[i];
-        const on = selSub === s.id && showFamId === selFamily;
         b.classList.toggle('is-on', on);
+        b.classList.toggle('is-hot', hot && !on);
         b.setAttribute('aria-checked', String(on));
-        b.setAttribute('tabindex', on ? '0' : '-1');
+        b.setAttribute('tabindex', on ? '0' : (i === 0 && !selSub ? '0' : '-1'));
       });
     }
 
-    // 盘心：空态 / 悬停家族 / 悬停子家族 / 已选家族 / 已选子家族
     const sub = showFam && selSub ? (showFam.subfamilies || []).find((x) => x.id === selSub) : null;
     const hovSub = showFam && hoverSub ? (showFam.subfamilies || []).find((x) => x.id === hoverSub) : null;
     const focusSub = hovSub || sub;
@@ -766,6 +916,8 @@ function buildWheel(cfg) {
     let zh;
     let desc;
     let idle = false;
+    /* 压深只留给「具体小项」。第一层选中时盘心保持浅色，
+       与第二层的浅色方格是同一档 —— 压深代表"定下来了"，不是"点到了"。 */
     let picked = false;
     if (!showFam) {
       kick = '香型轮盘'; zh = '还没选'; desc = '从外圈挑一个大类'; idle = true;
@@ -775,18 +927,15 @@ function buildWheel(cfg) {
       desc = focusSub.descWheel || focusSub.desc;
       picked = !hovSub;
     } else {
-      kick = (hoverFam && !selFamily) ? '正在看' : '已选定';
+      kick = hoverFam && !selFamily ? '正在看' : '已选定大类';
       zh = showFam.zh;
       desc = showFam.style || showFam.oneLine;
-      picked = !(hoverFam && !selFamily);
     }
     hub.classList.toggle('is-idle', idle);
     hub.classList.toggle('is-picked', picked);
-    // 没选家族时中圈是空的。若盘心还保持 30.6%，它会在内孔里悬空：
-    // 外侧是 158 的内孔半径，方块只有 77 的半边长，中间空出 81px 一圈白。
-    // 所以空态让盘心撑到内孔的内接正方形（46.2%），选中后再收回 30.6% 给中圈让位。
-    hub.classList.toggle('is-wide', !showFamId);
-    hub.classList.toggle('is-hover', !!(hoverFam || hoverSub));
+    // 整盘翻深由 root 上的 is-picked 驱动：加深的是盘，不是盘心方块
+    root.classList.toggle('is-picked', picked);
+    hub.classList.toggle('is-hover', !!(hoverFam || hoverSub) && !picked);
     if (hubZh.textContent !== zh || hubKicker.textContent !== kick) {
       hub.classList.remove('is-swap');
       void hub.offsetWidth;
@@ -795,6 +944,19 @@ function buildWheel(cfg) {
     hubKicker.textContent = kick;
     hubZh.textContent = zh;
     hubDesc.textContent = desc;
+
+    // 示意图只在落到具体小项时出现：大类层面没有"具体香材构成"可画
+    hubGlyph.innerHTML = '';
+    hub.classList.toggle('has-glyph', !!picked);
+    if (picked && sub) { const plate = scentPlate(sub); if (plate) hubGlyph.appendChild(plate); }
+
+    // 只选了大类时给快捷出口；已落到小项就没必要再催一次
+    const canSkip = !!(selFamily && !selSub);
+    hubGo.hidden = !canSkip;
+    if (canSkip) {
+      const f = famById.get(selFamily);
+      hubGo.textContent = '就选「' + (f ? f.zh : '') + '」，下一步 →';
+    }
     hubReset.hidden = !selFamily;
   }
 

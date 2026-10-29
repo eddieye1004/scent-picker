@@ -175,18 +175,23 @@ ok('扇区是真实 button', appRoot.querySelectorAll('button.disc-sector').leng
 ok('圆盘有 radiogroup 语义', appRoot.querySelectorAll('[role="radiogroup"]').length >= 1,
   `实际 ${appRoot.querySelectorAll('[role="radiogroup"]').length}`);
 ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null);
-// 盘心是内接正方形：边长 = 内弧半径 × √2。这条守的是「方与圆咬合」这个视觉决定，
-// 缩回「内圆中间一小块」四周就会留一圈白，读起来像贴在圆盘上的卡片。
+// 闭合态盘心必须填满内孔：外环与盘心连成一整块圆盘。
+// 若只取内接正方形（42.7%），四周会留一圈白，读起来像「环 + 贴在环上的一张卡」。
 {
   const hubPct = (() => {
     const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-    const m = css.match(/\.disc-hub\s*\{[^}]*?width:\s*([\d.]+)%/);
+    // 必须取闭合态那条规则；基础 .disc-hub 是旧基线的 42.7%，读到它会得出假结论。
+    const m = css.match(/\.wheel:not\(\.is-open\) \.disc-hub\s*\{[^}]*?width:\s*([\d.]+)%/);
     return m ? parseFloat(m[1]) : NaN;
   })();
-  // rIn = 146/480 = 30.417%，内接正方形 = 30.417 × 1.41421 = 43.02%，留 0.3% 余量 → 42.7%
-  ok('盘心取内接正方形（42–43%）', hubPct >= 42 && hubPct <= 43, `实际 ${hubPct}%`);
-  ok('盘心有角落角标', /\.disc-hub::before[\s\S]{0,400}?linear-gradient/.test(
-    fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')));
+  // 内孔 r1i=158 / 视框 480 → 直径 2×158/480 = 65.83%，取 66% 与内弧咬合。
+  ok('闭合态盘心填满内孔（65–67%）', hubPct >= 65 && hubPct <= 67, `实际 ${hubPct}%`);
+  ok('闭合态盘心是圆而不是方', /\.wheel:not\(\.is-open\) \.disc-hub\s*\{[^}]*?border-radius:\s*50%/.test(
+    fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')),
+    '圆盘语义要求盘心与外环同形，方盘会读成贴在盘上的一张卡');
+  ok('闭合态关掉方盘角标', /\.wheel:not\(\.is-open\) \.disc-hub::before\s*\{\s*display:\s*none/.test(
+    fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')),
+    '角标在圆盘外接方框的四角，圆盘下会悬在盘外');
 }
 // 圆盘外面包了一层可旋转容器：SVG 与标签都在里面，旋转才能带着它们一起转。
 // 这里走 parentNode 链判断，不用后代选择器 —— 测试桩的 querySelectorAll
@@ -233,6 +238,71 @@ ok('点扇形本体选中了家族', checkedCount >= 1, `选中 ${checkedCount} 
    点外圈若只是高亮、不展开下一层，那就还是一层圆盘。 */
 const midAfter = appRoot.querySelectorAll('.disc-sector.lvl2');
 ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${midAfter.length}`);
+
+/* ---- 盘心示意图（需求③）：香材剖面标本条 ----
+   只选了大类时不该出现（大类层面没有"具体香材构成"可画），
+   落到具体小项才该长出图形。旧版是枚 34px 环图，读不出画的是什么，
+   这里连"图形是不是真被画出来"一起断言，别只看容器存在。 */
+ok('只选大类时盘心没有示意图', appRoot.querySelectorAll('.hub-plate').length === 0,
+  `已有 ${appRoot.querySelectorAll('.hub-plate').length} 个`);
+
+/* 中圈第一个子家族 = 「古龙水型」（notes 只有 lemon 一味） */
+midAfter[0].dispatch('click');
+await new Promise((r) => setTimeout(r, 500));
+
+const plate = appRoot.querySelector('.hub-plate');
+ok('落到小项后盘心长出标本', !!plate);
+const plates = appRoot.querySelectorAll('.plate-svg');
+/* 一枚，不是三枚：实测 38 个小类的代表香材 32/32 同属一个家族，
+   逐味画会出来一排一模一样的图标。这条断言就是钉住那个结论的。 */
+ok('标本只画一枚（不是每味香材一枚）', plates.length === 1, `${plates.length} 枚`);
+/* 统一视框与无填充 —— 这就是"风格统一"的可断言部分。
+   缺一条，各张图之间就会出现笔法断层（有的填实、有的方头）。 */
+ok('标本是 24×24 同一视框', plates[0].getAttribute('viewBox') === '0 0 24 24',
+  plates[0].getAttribute('viewBox'));
+ok('标本无填充', plates[0].getAttribute('fill') === 'none', plates[0].getAttribute('fill'));
+
+/* 里必须真有几何。桩里塞 markup 字符串的话会被剥成纯文本，
+   容器在、图形空 —— 这是"看起来做了其实没做"的典型形态，必须抓住。 */
+const shapeCount = plates[0].querySelectorAll('circle').length
+  + plates[0].querySelectorAll('path').length + plates[0].querySelectorAll('ellipse').length;
+ok('标本里真画了几何', shapeCount >= 2, `图元数 ${shapeCount}`);
+
+/* 香材名必须落到中文 —— 和香材标签同一套取词逻辑 */
+const cap = appRoot.querySelector('.plate-cap');
+ok('标本下带香材名', !!cap && cap.textContent.length > 0, cap && cap.textContent);
+ok('香材名是中文', !!cap && !/[a-z]/i.test(cap.textContent), cap && cap.textContent);
+
+/* 图形本身是装饰，语义交给这一句。缺了它屏幕阅读器只会读出"图"。 */
+ok('标本有可读的 aria-label',
+  !!plate && /代表香材/.test(plate.getAttribute('aria-label') || ''),
+  plate && plate.getAttribute('aria-label'));
+/* 盘心必须挂上 has-glyph，否则 CSS 里 .hub-glyph 保持 display:none —— 图形等于没画 */
+const hubAfter = appRoot.querySelector('.disc-hub');
+ok('盘心挂上了 has-glyph', !!hubAfter && hubAfter.classList.contains('has-glyph'),
+  hubAfter && hubAfter.className);
+
+/* 同一家族下换个小类，图案应当保持一致 —— 这枚图编码的是"家族"，
+   不编码小类。上一版按小类 id 做哈希微差，结果古龙水型和青绿柑橘
+   算出来的瓣数完全相同，那条断言直接假失败；更重要的是那个想法本身错了：
+   小类的名字就写在盘心主词上，为同族小类画不同图标等于凭空造区别。 */
+const sigOf = () => {
+  const s = appRoot.querySelectorAll('.plate-svg')[0];
+  if (!s) return '';
+  return s.querySelectorAll('path').map((q) => q.getAttribute('d') || '').join('|')
+    + s.querySelectorAll('circle').map((q) => q.getAttribute('r') || '').join('|');
+};
+const sigCitrus = sigOf();
+/* 中圈第 3 个是「青绿柑橘」，同属 citrus */
+midAfter[2].dispatch('click');
+await new Promise((r) => setTimeout(r, 500));
+ok('同一家族下不同小类共用同一图案', sigCitrus === sigOf(),
+  `古龙水型=${sigCitrus.slice(0, 36)} 青绿柑橘=${sigOf().slice(0, 36)}`);
+/* 不断言具体是哪一味：中圈格子的顺序由 taxonomy 决定，写死「葡萄柚」
+   会把测试绑死在当前数据顺序上，数据一改就假失败。要守的是
+   「名字跟着小类变」，这才是这条断言的意义。 */
+ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textContent !== cap.textContent,
+  `${cap.textContent} → ${appRoot.querySelector('.plate-cap').textContent}`);
 
 /* 前进到第 2 步：点「下一步」 */
 const goBtn = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('下一步'));
@@ -363,8 +433,9 @@ ok('每条理由含至少一条结构性理由（家族/浓度）',
   appRoot.querySelectorAll('.reasons').every((r) => {
     const t = r.textContent;
     // 家族/浓度这两条是结构性理由，占分权重最高（52/100）。文字改过措辞，
-    // 所以这里同时认新旧两套说法 —— 但要守住「不能只靠 likedNotes 那一句」这个意思。
-    return /主体是|主调是|厚重感|浓郁度/.test(t);
+    // 所以这里认全部实际存在的说法 —— 但要守住「不能只靠 likedNotes 那一句」这个意思。
+    // 「主体就是」漏掉过一次：`主体是` 匹配不到 `主体就是`，而 `骨架` 那句同样是家族理由。
+    return /主体就是|主体是|主调是|骨架|厚重感|浓郁度/.test(t);
   }));
 ok('结果含数据来源链接',
   appRoot.querySelectorAll('a').some((a) => String(a.attrs.href || '').includes('scento')));

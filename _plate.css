@@ -1,0 +1,86 @@
+/* ============ 盘心示意图：香材剖面标本 ============
+   需求原文：「底部还需配示意图，图片风格需统一、有高级质感，
+   避免廉价感的 AI 生成图或网络扒取的劣质素材」。
+   做法是自绘线稿，不引外部素材 —— 同一视框、同一线宽、同一取色，
+   各张图之间不会出现质感断层，这是"风格统一"唯一可控的实现方式。
+
+   为什么只画一枚：实测 38 个小类的代表香材 32/32 同属一个家族
+   （白花是茉莉+晚香玉，都属 floral），逐味画会出来一排一样的图标。
+   放大一枚，才是"示意图"；一小排图标读起来仍是徽标。 */
+
+.wheel .hub-glyph {
+  display: none;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  margin-top: 6px;
+  flex: none;
+}
+.wheel .disc-hub.has-glyph .hub-glyph { display: block; }
+
+.wheel .hub-plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+}
+
+/* 线稿本体：88px。
+   stroke-width 用 viewBox 单位（0.7 / 24）而不是 px —— 上一版用
+   vector-effect:non-scaling-stroke 把线钉在 1.5px，图形一放大线就显得
+   又细又飘，正是"廉价"的来源。现在线宽跟着尺寸等比放大：
+   88px 时约 2.6px，52px 时约 1.5px，两种尺寸的视觉重量一致。 */
+.wheel .plate-svg {
+  width: 88px;
+  height: 88px;
+  flex: none;
+  fill: none;
+  stroke: rgba(255, 255, 255, .82);
+  stroke-width: .7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 细分割线：把图与说明分开，是标本图版惯用的版式，
+   也避免"图标 + 文字"挤成一块读起来像徽标。 */
+.wheel .plate-rule {
+  width: 26px;
+  height: 1px;
+  background: rgba(255, 255, 255, .28);
+  flex: none;
+}
+
+/* 香材名：12px/500，与全局最小字同档 —— 低于 12px 在手机上读不动，
+   test-contrast 有一条硬门槛守着。 */
+.wheel .plate-cap {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: .02em;
+  color: #b8b8b8;
+  text-align: center;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* 窄屏：盘心是**圆**，不是方框 —— 一行内容越靠近上下两端，可用宽度越接近 0。
+   实测 390 视口（盘心 171×171，半径 85.5）时，柱高 165 会让首行的两个角
+   （半宽 32、离圆心 80）落到 hypot=86 > 85.5 的圆外，`scrollHeight 174 > clientHeight`
+   就是这件事情在报错。柱高上限按最宽那行的半宽反推：
+   reset 半宽 37.6 → 柱高 ≤ 2×√(85.5²−37.6²) ≈ 153。
+   下面这组数值是按这条约束配的，不是随手调的。 */
+@media (max-width: 620px) {
+  .wheel .plate-svg { width: 48px; height: 48px; }
+  .wheel .hub-plate { gap: 4px; }
+  .wheel .hub-glyph { margin-top: 4px; }
+  /* 分割线是纯版式装饰，窄屏先让位给内容 */
+  .wheel .plate-rule { display: none; }
+}
+/* 360 视口半径只有 78，同名反推上限降到 136 —— 那一档名字退场，
+   图独自说话；完整清单仍在 aria-label 里。 */
+@media (max-width: 380px) {
+  .wheel .plate-svg { width: 44px; height: 44px; }
+  .wheel .hub-plate { gap: 3px; }
+  .wheel .plate-cap { display: none; }
+}
