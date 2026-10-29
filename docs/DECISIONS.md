@@ -586,6 +586,66 @@ chip 加 `data-col="liked|disliked"`，让测试也能按列定位。`test-rende
 
 ---
 
+## D35 · 反馈态补齐：写之前先证明这条选择器能生效
+
+**问题**：交互审查时列出「按下无反馈」的候选有四个 —— `.disc-hub`、`.sub-sq`、`.hub-reset`、香调两栏的标签。其中只有两个是真的。
+
+**怎么判的**（不是靠读代码猜，是跑 `document.elementFromPoint`）：
+- `.disc-hub` 基础规则里有 `pointer-events: none`，事件只由内部的 `.hub-go` / `.hub-reset` 接回去。指针落在盘心空白处，命中元素是底层的 `<svg>`，`:active` 永远为 false。**写了就是一条永不生效的死规则**，所以没写，改在注释里把这件事钉住，防止下一个人再来"补"一次。
+- 香调两栏的标签类名是 `.chip`，**根本不是 `.head`**。我先按 `.head` 写了一整套 `:active`（`translateY(1px)` + 变色），rebuild 之后 `grep -c "\.head" styles.css` 返回 **0** —— 说明这组规则从头到尾没匹配过任何元素。`.chip` 本来就有 `:active { transform: scale(.97) }` 在基础层。**整段删掉**。
+- 真缺的两个：`.sub-sq` 有 `:active` 没有 `:hover`（外圈扇区有，中圈方格没有，两层反馈语言不一致）；`.hub-reset` 有 `:hover` 没有 `:active`。
+
+**改法**（`_wheel4c.css` 追加层）：
+```css
+.wheel .disc-sector.lvl2.sub-sq:hover:not(:disabled) {
+  background: var(--bg-2);          /* #f5f5f5 */
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.wheel .disc-sector.lvl2.sub-sq:focus-visible {
+  background: var(--bg-2);
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.wheel .hub-reset:active {
+  transform: translateY(1px);
+  color: var(--ink);
+}
+@media (prefers-reduced-motion: reduce) {
+  .wheel .hub-reset:active { transform: none; }
+}
+```
+`:focus-visible` 也走同一条底色：Tab 到方格时只有一个孤零零的焦点环，没有"这块被我选中了"的归属感。
+
+**验证**（`C:/Users/16256/ego/r4c.mjs`，CDP `Input.dispatchMouseEvent` 真实指针，非 DOM 事件模拟）：
+```
+idle  bg rgb(255,255,255)  bd rgb(118,118,118)  fg rgb(61,61,61)
+hover bg rgb(245,245,245)  bd rgb(14,14,14)     fg rgb(14,14,14)
+```
+**注意**：用 `dispatchEvent(new MouseEvent('mouseover'))` 测不出来（实测 `changed:false`）——`new MouseEvent` 不带指针位置，`:hover` 伪类不触发。必须走 CDP 真实指针。
+
+**这条为什么值得记**：`pointer-events: none` 的容器上写 `:active`、类名写错导致规则整段空转，这两种失效**都不会报错**，测试也不会红——CSS 里多一段没人用的规则，一切照常。只有拿"这条选择器是否匹配到元素"去问 DOM 才发现。
+
+---
+
+## D36 · 时长档位用实测数，不用设计稿上的标称值
+
+**问题**：想收「时长档位」时，我按源码里写的字面值统计出六档：160/180/200/260/340，另加 `--t-move: 240ms`。跑 `body *` 的 computed `transitionDuration` 一看，实际生效的是 **80/160/180/200/260/340** —— 240 一次都没生效（`.disc-hub` 的 `--t-move` 在更高优先级的规则里被写死成 220ms，而 220 又被追加层覆盖成 260）。标称值和生效值两套账。
+
+**改法**：
+- 220ms → 200ms（`.label-layer` 的 opacity）。理由：220 与 200 只差 20ms，人眼分不出，且它要跟 340ms 的圆盘缩放同段起跑，慢 40ms 会读成"标签掉队"。
+- 注释改成六档的**实测值**，并写清是哪个脚本数出来的。
+
+**验证**（`r4c.mjs` 遍历 `body *`，只统计 `transitionProperty !== 'all' || duration !== 0s` 的元素）：
+```
+durations  0.08s 0.16s 0.18s 0.2s 0.26s 0.34s
+eases      linear · cubic-bezier(.32,.72,0,1) · cubic-bezier(.4,0,.2,1) · cubic-bezier(.4,0,1,1)
+```
+
+**这条为什么值得记**：分层拼 CSS（基线 + 三个追加层）之后，"我在文件里写了多少毫秒"和"浏览器实际用多少毫秒"是两件事。统计时长必须问 computed style，不能 grep 源码——grep 到的是被覆盖掉的旧值。
+
+---
+
 ## 待定（尚未决定，不假装已定）
 
 | 项 | 为什么还没定 | 什么时候该定 |

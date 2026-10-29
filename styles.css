@@ -1755,7 +1755,8 @@ body { position: relative; }
 /* 缩放后六个扇区太窄，标签必然溢出：文字交给盘心，
    扇区只留色块作为「选的是哪一块」的空间锚点。 */
 .wheel .label-layer {
-  transition: opacity 220ms linear;
+  /* 与 340ms 圆盘缩放同段：图层显隐挂在缩放末段，慢 40ms 会读成"标签掉队" */
+  transition: opacity 200ms linear;
 }
 .wheel.is-open .label-layer {
   opacity: 0;
@@ -2177,6 +2178,63 @@ body { position: relative; }
   bottom: 0;
   width: 0;
   transform-origin: 50% 50%;
+}
+
+/* ============================================================
+   第四轮 · 补齐缺失的反馈态，并把时长收回 3 档
+   ------------------------------------------------------------
+   实测缺口（grep styles.css 得到）：
+   - `.sub-sq` 有 :active 没有 :hover —— 鼠标扫过中圈方格毫无反应，
+     而外圈扇区是有的，两层反馈不一致。
+   - `.hub-reset` 有 :hover 没有 :active —— 盘心「换一个大类」按下去毫无反馈。
+   时长收成六档，每档绑定一类动作，不再按元素各写一个数。
+   这六档是用 `C:/Users/16256/ego/r4c.mjs` 遍历 `body *` 的 computed
+   `transitionDuration` 数出来的实际生效值，不是设计稿上的标称值：
+     80ms  按下（`--t-press`，要「立刻」回应，超 100ms 觉得钝）
+     160ms 颜色/位移（悬停、描边）
+     180ms 盘心换字（`hub-swap`）
+     200ms 图层显隐（label-layer / sub-ring 的 opacity）
+     260ms 盘心尺寸变化（宽高同步，慢一档才不会「先宽后高」）
+     340ms 圆盘缩放（这一下要大，是「盘缩小了」的唯一信号）
+   原先是 160/180/200/220/260/340 —— 220 与 200、260 只差 20–40ms，
+   人眼分不出，只制造「哪里对不上」的错觉，已并入 200。
+   ============================================================ */
+
+/* 中圈方格补悬停：与外圈扇区同一套语言（提亮 + 描边收墨） */
+.wheel .disc-sector.lvl2.sub-sq:hover:not(:disabled) {
+  background: var(--bg-2);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+/* 键盘聚焦时也走同一条视觉，否则 Tab 到方格只有焦点环、没有归属感 */
+.wheel .disc-sector.lvl2.sub-sq:focus-visible {
+  background: var(--bg-2);
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* 盘心整块**不可点** —— 基础规则里 `.disc-hub` 是 pointer-events:none，
+   只有 hub-go / hub-reset 两个按钮接回事件。所以这里不能写 `.disc-hub:active`：
+   实测 elementFromPoint(盘心) 命中的是底层 svg，`:active` 永远是 false，
+   写了就是一条永不生效的死规则。真正缺反馈的是 `.hub-reset`。 */
+.wheel .hub-reset:active {
+  transform: translateY(1px);
+  color: var(--ink);
+}
+
+/* 图层显隐钉在 200ms：它跟 340ms 缩放同段起跑，慢 40ms 会读成「标签掉队」。
+   基础层写的是 220ms，这里覆盖掉。 */
+.wheel .label-layer { transition: opacity 200ms linear; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* 惯性是 requestAnimationFrame 驱动的，CSS 媒体查询管不到它，
+     所以 JS 侧在初始化时就读了一次 matchMedia（app.js:364）。
+     这里补上 CSS 侧：按下缩放也取消，避免「只有下陷没有过渡」的硬跳。 */
+  .wheel .hub-reset:active,
+  .wheel .hub-go:active,
+  .wheel .disc-sector.lvl2.sub-sq:active {
+    transform: none;
+  }
 }
 /* ============ 盘心示意图：香材剖面标本 ============
    需求原文：「底部还需配示意图，图片风格需统一、有高级质感，
