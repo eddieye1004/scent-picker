@@ -2110,6 +2110,54 @@ body { position: relative; }
   .wheel.is-open .disc-hub,
   .wheel.is-open.is-picked .disc-hub { width: 50%; height: 50%; }
 }
+
+/* ---- 圆弧约束：盘心是圆，元素四角的可用宽度随高度收窄 ----
+   实测（arclimit.mjs，三视口）：展开态 hub-desc 在 1440 超 4.7px、
+   hub-go 在 390 超 5.7px / 360 超 15.8px；选定态 hub-desc 在 360 超 3px。
+   可用半宽 = sqrt(R² − (中心偏移 + 半高)²)，所以宽元素要先收宽度，
+   否则四角会顶出圆弧——矩形贴边看不出来，圆的接缝一眼就看见。 */
+.wheel.is-open .disc-hub .hub-desc { max-width: 96%; }
+.wheel .disc-hub.is-picked .hub-desc { max-width: 96%; text-wrap: pretty; }
+
+@media (max-width: 620px) {
+  /* 窄屏盘心只有 156–171px，装不下「就选「花香调」，下一步 →」这行字，
+     而且底部那栏已经写着「中圈可选，不选就按大类推荐」+ 下一步，
+     同义出口重复一次只是挤压盘心。只留底部那一处。 */
+  .wheel .hub-go { display: none; }
+  .wheel .disc-hub.is-picked .hub-desc { max-width: 88%; }
+}
+
+/* 360 档单独收一次：盘心只剩 156px，picked 态实测
+   hub-desc 137 > 弧容 129、hub-reset 75 > 弧容 61。
+   说明收窄到 82%，gap 收到 1px 把「换一个大类」整体上移 4px，
+   弧在更高处更宽，75 < 77 才放得下。1440/390 不受影响。 */
+@media (max-width: 380px) {
+  .wheel .disc-hub.is-picked .hub-desc { max-width: 82%; }
+  .wheel .disc-hub.is-picked { gap: 1px; }
+}
+
+/* 展开态（已选大类、未选小类）盘心不能出现实心黑块。
+   需求①的原话是「中间方框不要显示为黑色，应与第二层一致的浅色状态」，
+   盘底已经改成透明了，但 .hub-go 原来是 --ink 实底，230×30 的黑条压在
+   270px 的白盘上，读起来跟「盘心是黑的」没区别。
+   改成描边次要按钮：主操作是底部那条蓝按钮，盘心这个只是快捷出口。 */
+.wheel.is-open:not(.is-picked) .hub-go {
+  color: var(--ink);
+  background: transparent;
+  border-color: var(--ink);
+}
+.wheel.is-open:not(.is-picked) .hub-go:hover {
+  color: var(--bg);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+/* 盘心两个按钮原来没写 flex: none，在 flex-column 容器里被 flex-shrink
+   压过（实测 .hub-reset 内容 34px、盒子只剩 24px，「换一个大类」的下沿
+   被裁掉 10px —— 12px 字加 underline 正好压在线外）。 */
+.wheel .hub-go,
+.wheel .hub-reset { flex: none; }
+.wheel .hub-reset { line-height: 1.2; }
 /* ============ 盘心示意图：香材剖面标本 ============
    需求原文：「底部还需配示意图，图片风格需统一、有高级质感，
    避免廉价感的 AI 生成图或网络扒取的劣质素材」。
