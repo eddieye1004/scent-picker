@@ -14,27 +14,69 @@
           "id": "cologne",
           "zh": "古龙水型",
           "en": "Cologne",
-          "desc": "柑橘+草本+极淡木质，层次浅、挥发快。"
+          "desc": "柑橘+草本+极淡木质，层次浅、挥发快。",
+          "notes": [
+            "lemon"
+          ],
+          "descWheel": "柑橘+草本+极淡木质，层次浅、挥发快。"
         },
         {
           "id": "aromatic-citrus",
           "zh": "芳香柑橘",
           "en": "Aromatic Citrus",
-          "desc": "柑橘叠加薰衣草/迷迭香，带一点皂感。"
+          "desc": "柑橘叠加薰衣草/迷迭香，带一点皂感。",
+          "notes": [
+            "bergamot"
+          ],
+          "descWheel": "柑橘叠加薰衣草/迷迭香，带一点皂感。"
         },
         {
           "id": "citrus-floral",
           "zh": "柑橘花香",
           "en": "Citrus Floral",
-          "desc": "柑橘打头，中调转白花或橙花。"
+          "desc": "柑橘打头，中调转白花或橙花。",
+          "notes": [
+            "neroli / orange blossom"
+          ],
+          "descWheel": "柑橘打头，中调转白花或橙花。"
         },
         {
           "id": "green-citrus",
           "zh": "青绿柑橘",
           "en": "Green Citrus",
-          "desc": "带叶感、苦橙叶、白松香，偏冷。"
+          "desc": "带叶感、苦橙叶、白松香，偏冷。",
+          "notes": [
+            "grapefruit",
+            "petitgrain"
+          ],
+          "descWheel": "未熟的青皮，酸而带涩"
         }
-      ]
+      ],
+      "representativeNotes": [
+        "bergamot",
+        "lemon",
+        "neroli / orange blossom"
+      ],
+      "style": "开场明亮，半小时后转淡，是刚洗完手那种干净。",
+      "scenes": [
+        "通勤",
+        "夏天白天"
+      ],
+      "affinity": {
+        "floral": 0.209,
+        "woody": 0.082,
+        "amber": 0.074,
+        "fresh": 0.341,
+        "gourmand": 0.066
+      },
+      "group": "fresh",
+      "traits": [
+        "前 30 分钟最亮",
+        "留香普遍偏短",
+        "夏天与早上最稳"
+      ],
+      "avoid": "想要一整天都闻得到的人，这类傍晚就散了。",
+      "wear": "淡香水为主，出门前喷 3–4 下，午后可补一次。"
     },
     {
       "id": "floral",
@@ -47,45 +89,104 @@
           "id": "white-floral",
           "zh": "白花",
           "en": "White Floral",
-          "desc": "茉莉、晚香玉、栀子。浓郁、有存在感、易晕香。"
+          "desc": "茉莉、晚香玉、栀子。浓郁、有存在感、易晕香。",
+          "notes": [
+            "jasmine",
+            "tuberose"
+          ],
+          "descWheel": "茉莉晚香玉一类，厚且会扩"
         },
         {
           "id": "rose",
           "zh": "玫瑰",
           "en": "Rose",
-          "desc": "从清晨露水玫瑰到暗红丝绒玫瑰，跨度极大。"
+          "desc": "从清晨露水玫瑰到暗红丝绒玫瑰，跨度极大。",
+          "notes": [
+            "rose"
+          ],
+          "descWheel": "玫瑰的各种做法，从花瓣到花酱"
         },
         {
           "id": "green-floral",
           "zh": "绿叶花香",
           "en": "Green Floral",
-          "desc": "风信子、铃兰、紫罗兰叶，清透偏冷。"
+          "desc": "风信子、铃兰、紫罗兰叶，清透偏冷。",
+          "notes": [
+            "lily of the valley"
+          ],
+          "descWheel": "花带茎叶，像折断的花枝"
         },
         {
           "id": "fruity-floral",
           "zh": "果香花香",
           "en": "Fruity Floral",
-          "desc": "桃、荔枝、黑加仑叠花，甜而不腻。"
+          "desc": "桃、荔枝、黑加仑叠花，甜而不腻。",
+          "notes": [
+            "peony"
+          ],
+          "descWheel": "花底下垫着桃子梨子"
         },
         {
           "id": "powdery-floral",
           "zh": "粉感花香",
           "en": "Powdery Floral",
-          "desc": "鸢尾、紫罗兰、天芥菜，带粉笔/婴儿粉质感。"
+          "desc": "鸢尾、紫罗兰、天芥菜，带粉笔/婴儿粉质感。",
+          "notes": [
+            "iris",
+            "violet",
+            "aldehydes"
+          ],
+          "descWheel": "鸢尾、紫罗兰、天芥菜，带粉笔/婴儿粉质感。"
         },
         {
           "id": "yellow-floral",
           "zh": "黄花",
           "en": "Yellow Floral",
-          "desc": "依兰、含羞草、洋甘菊，暖而带蜜感。"
+          "desc": "依兰、含羞草、洋甘菊，暖而带蜜感。",
+          "notes": [
+            "ylang-ylang"
+          ],
+          "descWheel": "依兰、含羞草、洋甘菊，暖而带蜜感。"
         },
         {
           "id": "soliflore",
           "zh": "单一花",
           "en": "Soliflore",
-          "desc": "只做一种花，最容易建立判断力。"
+          "desc": "只做一种花，最容易建立判断力。",
+          "notes": [
+            "gardenia",
+            "magnolia",
+            "freesia",
+            "osmanthus"
+          ],
+          "descWheel": "只做一朵花，闻得到花瓣"
         }
-      ]
+      ],
+      "representativeNotes": [
+        "jasmine",
+        "rose",
+        "iris"
+      ],
+      "style": "从一朵到一整束，浓度跨度最大，白花与粉感是两条路。",
+      "scenes": [
+        "约会",
+        "正式场合"
+      ],
+      "affinity": {
+        "citrus": 0.11,
+        "woody": 0.081,
+        "amber": 0.06,
+        "fresh": 0.044,
+        "gourmand": 0.151
+      },
+      "group": "floral",
+      "traits": [
+        "白花与粉感两条路",
+        "浓度跨度最大",
+        "春夏接受度最高"
+      ],
+      "avoid": "对白花（茉莉、晚香玉）容易晕香的人要先试。",
+      "wear": "淡香精到香精都有，1–2 下就够，白花类尤其别多。"
     },
     {
       "id": "woody",
@@ -98,39 +199,92 @@
           "id": "dry-woody",
           "zh": "干燥木质",
           "en": "Dry Woody",
-          "desc": "雪松、愈创木，像铅笔屑和干燥木箱。"
+          "desc": "雪松、愈创木，像铅笔屑和干燥木箱。",
+          "notes": [
+            "cedar"
+          ],
+          "descWheel": "雪松一类，干、脆、不带水汽"
         },
         {
           "id": "sandalwood",
           "zh": "檀木",
           "en": "Sandalwood",
-          "desc": "奶感、圆润、微暖，越贴肤越舒服。"
+          "desc": "奶感、圆润、微暖，越贴肤越舒服。",
+          "notes": [
+            "sandalwood"
+          ],
+          "descWheel": "奶感、圆润、微暖，越贴肤越舒服。"
         },
         {
           "id": "vetiver",
           "zh": "香根草",
           "en": "Vetiver",
-          "desc": "干草、土壤、微苦。两极分化严重。"
+          "desc": "干草、土壤、微苦。两极分化严重。",
+          "notes": [
+            "vetiver"
+          ],
+          "descWheel": "干草、土壤、微苦。两极分化严重。"
         },
         {
           "id": "mossy",
           "zh": "苔藓木质",
           "en": "Mossy / Chypre",
-          "desc": "橡苔+柑橘，复古、有厚度。"
+          "desc": "橡苔+柑橘，复古、有厚度。",
+          "notes": [
+            "patchouli",
+            "oakmoss"
+          ],
+          "descWheel": "橡苔+柑橘，复古、有厚度。"
         },
         {
           "id": "oud",
           "zh": "乌木",
           "en": "Oud",
-          "desc": "树脂感、动物感、药感。门槛最高。"
+          "desc": "树脂感、动物感、药感。门槛最高。",
+          "notes": [
+            "oud"
+          ],
+          "descWheel": "乌木，深、动物感、留很久"
         },
         {
           "id": "woody-aromatic",
           "zh": "芳香木质",
           "en": "Woody Aromatic",
-          "desc": "薰衣草/鼠尾草+木质，干净利落。"
+          "desc": "薰衣草/鼠尾草+木质，干净利落。",
+          "notes": [
+            "juniper",
+            "rosemary",
+            "cypress",
+            "mint"
+          ],
+          "descWheel": "木头加薰衣草迷迭香，干净"
         }
-      ]
+      ],
+      "representativeNotes": [
+        "patchouli",
+        "cedar",
+        "sandalwood"
+      ],
+      "style": "干燥、有骨架，越往后越沉，是多数中性香的地基。",
+      "scenes": [
+        "正式场合",
+        "秋冬"
+      ],
+      "affinity": {
+        "citrus": 0.048,
+        "floral": 0.11,
+        "amber": 0.105,
+        "fresh": 0.245,
+        "gourmand": 0.052
+      },
+      "group": "woody",
+      "traits": [
+        "越往后越沉",
+        "骨架感强",
+        "秋冬与室内最合适"
+      ],
+      "avoid": "想要轻盈、怕\"木头味\"的人，它会显得压。",
+      "wear": "香精浓度多，喷在衣服内侧比皮肤更持久。"
     },
     {
       "id": "amber",
@@ -143,33 +297,80 @@
           "id": "spicy-amber",
           "zh": "辛香琥珀",
           "en": "Spicy Amber",
-          "desc": "肉桂、丁香、豆蔻，暖而带刺。"
+          "desc": "肉桂、丁香、豆蔻，暖而带刺。",
+          "notes": [
+            "saffron",
+            "cinnamon"
+          ],
+          "descWheel": "辛香与树脂，冬天夜里"
         },
         {
           "id": "vanilla-amber",
           "zh": "香草琥珀",
           "en": "Vanilla Amber",
-          "desc": "香草+安息香+劳丹脂，甜暖厚。"
+          "desc": "香草+安息香+劳丹脂，甜暖厚。",
+          "notes": [
+            "amber"
+          ],
+          "descWheel": "香草+安息香+劳丹脂，甜暖厚。"
         },
         {
           "id": "resinous",
           "zh": "树脂",
           "en": "Resinous",
-          "desc": "乳香、没药、安息香，教堂感。"
+          "desc": "乳香、没药、安息香，教堂感。",
+          "notes": [
+            "frankincense",
+            "myrrh"
+          ],
+          "descWheel": "乳香、没药、安息香，教堂感。"
         },
         {
           "id": "incense",
           "zh": "焚香",
           "en": "Incense",
-          "desc": "烟熏、灰烬、干燥，冷调焚香与暖调焚香差别很大。"
+          "desc": "烟熏、灰烬、干燥，冷调焚香与暖调焚香差别很大。",
+          "notes": [
+            "incense"
+          ],
+          "descWheel": "烟熏、灰烬、干燥，冷调焚香与暖调焚香差别很大。"
         },
         {
           "id": "leather",
           "zh": "皮革",
           "en": "Leather",
-          "desc": "桦木焦油、藏红花，硬朗、有攻击性。"
+          "desc": "桦木焦油、藏红花，硬朗、有攻击性。",
+          "notes": [
+            "leather"
+          ],
+          "descWheel": "皮革与烟熏，最不像\"香\"的一类"
         }
-      ]
+      ],
+      "representativeNotes": [
+        "amber",
+        "incense",
+        "leather"
+      ],
+      "style": "暖而稠，贴近皮肤才展开，冬天和夜里最稳。",
+      "scenes": [
+        "约会",
+        "夜晚"
+      ],
+      "affinity": {
+        "citrus": 0.025,
+        "floral": 0.06,
+        "woody": 0.303,
+        "fresh": 0.059,
+        "gourmand": 0.016
+      },
+      "group": "amber",
+      "traits": [
+        "暖而稠",
+        "贴近皮肤才展开",
+        "夜里与冬天最稳"
+      ],
+      "avoid": "办公室或夏天用容易闷，一喷就够。",
+      "wear": "半下到一下，点在耳后与手腕，别大面积喷。"
     },
     {
       "id": "fresh",
@@ -182,33 +383,81 @@
           "id": "aquatic",
           "zh": "水生",
           "en": "Aquatic",
-          "desc": "西瓜酮类，海水/泳池感。有人闻成黄瓜。"
+          "desc": "西瓜酮类，海水/泳池感。有人闻成黄瓜。",
+          "notes": [
+            "musk"
+          ],
+          "descWheel": "海水与西瓜酮，像刚出水"
         },
         {
           "id": "marine",
           "zh": "海洋",
           "en": "Marine",
-          "desc": "盐感、海风、湿石头。"
+          "desc": "盐感、海风、湿石头。",
+          "notes": [
+            "marine notes"
+          ],
+          "descWheel": "盐感、海风、湿石头。"
         },
         {
           "id": "green",
           "zh": "绿意",
           "en": "Green",
-          "desc": "割草、番茄叶、无花果叶。生青。"
+          "desc": "割草、番茄叶、无花果叶。生青。",
+          "notes": [
+            "fig leaf",
+            "violet leaf",
+            "galbanum"
+          ],
+          "descWheel": "草与叶，掐断的青味"
         },
         {
           "id": "fougere",
           "zh": "馥奇",
           "en": "Fougère",
-          "desc": "薰衣草+香豆素+苔藓。剃须膏/理发店感。"
+          "desc": "薰衣草+香豆素+苔藓。剃须膏/理发店感。",
+          "notes": [
+            "lavender",
+            "sage"
+          ],
+          "descWheel": "薰衣草加苔藓，老派男香骨架"
         },
         {
           "id": "tea",
           "zh": "茶香",
           "en": "Tea",
-          "desc": "绿茶、红茶、乌龙。安静、低攻击性。"
+          "desc": "绿茶、红茶、乌龙。安静、低攻击性。",
+          "notes": [
+            "green tea"
+          ],
+          "descWheel": "绿茶与红茶，薄而干净"
         }
-      ]
+      ],
+      "representativeNotes": [
+        "lavender",
+        "green tea",
+        "marine notes"
+      ],
+      "style": "水、空气与草，攻击性最低，也最难留下记忆点。",
+      "scenes": [
+        "运动",
+        "闷热天"
+      ],
+      "affinity": {
+        "citrus": 0.115,
+        "floral": 0.367,
+        "woody": 0.133,
+        "amber": 0.053,
+        "gourmand": 0.026
+      },
+      "group": "fresh",
+      "traits": [
+        "攻击性最低",
+        "扩散快、留香短",
+        "闷热天最舒服"
+      ],
+      "avoid": "想要\"有存在感\"的人，这类几乎不冒犯也不被记住。",
+      "wear": "古龙水居多，随时补喷比一次喷多更合适。"
     },
     {
       "id": "gourmand",
@@ -221,33 +470,86 @@
           "id": "vanilla-gourmand",
           "zh": "香草甜",
           "en": "Vanilla Gourmand",
-          "desc": "香草+糖+零陵香豆。"
+          "desc": "香草+糖+零陵香豆。",
+          "notes": [
+            "vanilla",
+            "tonka bean"
+          ],
+          "descWheel": "香草+糖+零陵香豆。"
         },
         {
           "id": "coffee-cocoa",
           "zh": "咖啡可可",
           "en": "Coffee / Cocoa",
-          "desc": "烘焙感、微苦，比纯甜成熟。"
+          "desc": "烘焙感、微苦，比纯甜成熟。",
+          "notes": [
+            "coffee",
+            "cocoa"
+          ],
+          "descWheel": "咖啡与可可，苦甜"
         },
         {
           "id": "fruity-gourmand",
           "zh": "果味甜",
           "en": "Fruity Gourmand",
-          "desc": "莓果、焦糖水果、棉花糖。"
+          "desc": "莓果、焦糖水果、棉花糖。",
+          "notes": [
+            "peach",
+            "apple",
+            "pear",
+            "caramel"
+          ],
+          "descWheel": "桃子苹果，甜得清爽"
         },
         {
           "id": "nutty",
           "zh": "坚果杏仁",
           "en": "Nutty",
-          "desc": "杏仁、榛子、椰奶。奶香路线。"
+          "desc": "杏仁、榛子、椰奶。奶香路线。",
+          "notes": [
+            "almond",
+            "coconut"
+          ],
+          "descWheel": "杏仁、榛子、椰奶。奶香路线。"
         },
         {
           "id": "boozy",
           "zh": "酒香",
           "en": "Boozy",
-          "desc": "朗姆、白兰地、香槟。夜晚属性强。"
+          "desc": "朗姆、白兰地、香槟。夜晚属性强。",
+          "notes": [
+            "rum",
+            "absinthe",
+            "cognac"
+          ],
+          "descWheel": "朗姆与干邑，有酒气"
         }
-      ]
+      ],
+      "representativeNotes": [
+        "vanilla",
+        "tonka bean",
+        "almond"
+      ],
+      "style": "闻起来像吃的东西，前调最讨喜，后调容易发腻。",
+      "scenes": [
+        "约会",
+        "居家"
+      ],
+      "affinity": {
+        "citrus": 0.044,
+        "floral": 0.105,
+        "woody": 0.094,
+        "amber": 0.317,
+        "fresh": 0.055
+      },
+      "group": "gourmand",
+      "traits": [
+        "前调最讨喜",
+        "甜度容易过量",
+        "秋冬与夜晚最合适"
+      ],
+      "avoid": "怕甜、或常在密闭空间的人，半下就够。",
+      "wear": "香精浓度多，一下足够，别叠在甜味护肤品上。"
     }
   ],
   "emotionMap": [

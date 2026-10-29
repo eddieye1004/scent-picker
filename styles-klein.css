@@ -1,0 +1,319 @@
+/* =====================================================================
+   克莱因蓝定稿 + 交互反馈层（v3）
+   ---------------------------------------------------------------------
+   这一整段是**追加层**，前面 1397 行是 Swiss 版原稿，一行未改。
+   回滚方式：删掉本段（从这行到文件末尾）即可完全回到原稿；
+   或用 `cp /tmp/styles.pre-klein.css styles.css`。
+
+   设计令牌全部收在这里，前面 `:root` 里的 --accent（朱红）被本段覆盖。
+   ===================================================================== */
+
+:root {
+  /* ---- 蓝：四档，各有明确的物理角色 ---- */
+  --blue:        #002FA7;  /* 主色。h1 em + 主按钮。10.69 on #fff */
+  --blue-deep:   #001A5E;  /* 暗部。渐变尾、已完成进度段、柔影色相。16.04 */
+  --blue-lift:   #3D5FC4;  /* 高光。S 从 100 降到 53 —— 降纯度的那一刀。5.78 */
+  --blue-amb:    #8A93B8;  /* 环境反光。只做 1px 描边，3.02，禁止承载文字 */
+  --blue-wash:   rgba(0, 47, 167, .07);  /* 选中扇形的水洗底 */
+
+  /* ---- 覆盖旧强调色：蓝只有两处高分量使用，其余降墨 ---- */
+  --accent:      #002FA7;
+  --accent-soft: #8A93B8;
+
+  /* ---- 圆角：用户已定 4px 基准，8px 节奏 ---- */
+  --radius: 4px;
+  --radius-sm: 2px;
+  --radius-lg: 8px;
+
+  /* ---- 动效：一条缓动、三档时长。位移永不超过 8px ---- */
+  --ease: cubic-bezier(.32, .72, 0, 1);   /* 出场：快起慢收，200-320ms */
+  --ease-in: cubic-bezier(.4, 0, 1, 1);   /* 收起：慢起快收，只给按下 */
+  --t-press: 80ms;    /* 按下。要"立刻"回应，超过 100ms 会觉得钝 */
+  --t-hover: 160ms;   /* 悬停 */
+  --t-move: 240ms;    /* 位移与层级切换 */
+
+  /* ---- 阴影：同色相不用黑，全站左上受光右下投影 ---- */
+  --sh-lift: 0 1px 0 rgba(255,255,255,.14) inset, 0 10px 30px -10px rgba(0,26,94,.42);
+  --sh-press: 0 1px 2px rgba(0,26,94,.28) inset, 0 1px 0 rgba(26,26,26,.16);
+  --sh-card: 0 1px 0 rgba(255,255,255,.9) inset, 0 10px 34px -14px rgba(0,26,94,.22);
+}
+
+/* ---------------------------------------------------------------
+   1. 蓝只留两处：封面巨标题里的强调词 + 主按钮。
+      其余原本用朱红的地方一律降成墨色/中性灰 —— 蓝稀缺才有分量。
+   --------------------------------------------------------------- */
+/* 高分量处 A：封面标题的「第一瓶」。
+   渐变裁进文字而不是纯色填充 —— 这是从"色块"变成"有厚度的墨"的关键一步：
+   135° 从主色走到暗部，左下受光、右上收暗，和全站光照方向一致。
+   background-clip:text 在 Edge/Chrome/Safari 都支持，Firefox 需要
+   下面那行 -webkit- 前缀版本，两者并存是刻意的。 */
+.masthead h1 em {
+  font-style: normal;
+  color: var(--blue);
+  background: linear-gradient(135deg, var(--blue) 0%, var(--blue) 34%, var(--blue-deep) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+/* 极端降级：不支持 background-clip:text 的引擎上，透明字会消失成空白。
+   @supports 兜底回纯主色 —— 宁可少一层渐变，也不能让标题缺字。 */
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  .masthead h1 em { color: var(--blue); -webkit-text-fill-color: currentColor; background: none; }
+}
+
+.masthead .lede em,
+.disc-hub .hub-zh,
+.fam-title,
+.pick-rank .n,
+.opt[aria-pressed="true"] .num {
+  color: var(--ink);
+}
+.pick-foot a:hover,
+footer.foot a:hover {
+  color: var(--blue);
+}
+
+/* 进度条：首段为「当前位置」用主蓝，已完成段用暗部（不是纯黑），
+   未完成用浅灰。三档明度让进度有前后。 */
+.progress i.done { background: var(--blue-deep); }
+.progress i.now  { background: var(--blue); }
+
+/* 滑块 thumb 落回墨色（蓝只在两处），拖动时才加深 */
+.scale input[type="range"]::-webkit-slider-thumb,
+.scale input[type="range"]::-moz-range-thumb {
+  background: var(--ink);
+}
+
+/* ---------------------------------------------------------------
+   2. 五态统一：默认 → 悬停 → 按下 → 聚焦 → 禁用
+      按下必须有下沉/压缩反馈，且用 --t-press（80ms）而不是通用时长。
+      所有 focus-visible 用 2px 蓝描边 + 2px 偏移，保证不与边界重叠。
+   --------------------------------------------------------------- */
+.btn,
+.chip,
+.opt,
+.disc-sector,
+.tag,
+.pick-foot a,
+footer.foot a,
+.wheel .hub-reset {
+  border-radius: var(--radius);
+}
+
+/* --- 主按钮：本色→暗部渐变、同色柔影；按下压缩而非位移 --- */
+.btn {
+  background: linear-gradient(160deg, var(--blue) 0%, var(--blue-deep) 130%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: var(--sh-lift);
+  transition: box-shadow var(--t-hover) var(--ease),
+              transform var(--t-press) var(--ease-in),
+              background-color var(--t-hover) var(--ease);
+}
+.btn:hover { background: linear-gradient(160deg, var(--blue-lift) 0%, var(--blue) 130%); border-color: transparent; }
+.btn:active {
+  transform: translateY(1px) scale(.988);   /* 1px 下沉 + 1.2% 压缩，肉眼刚好察觉 */
+  box-shadow: var(--sh-press);
+  transition-duration: var(--t-press);
+}
+.btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.btn:disabled {
+  background: var(--bg-3);
+  border-color: transparent;
+  color: var(--ink-2);        /* 原 --ink-3 在 #e8e8e8 上 5.05 过，但按"禁用也要能读"提到 ink-2 8.87 */
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--edge);
+  box-shadow: none;
+}
+.btn.ghost:hover { background: var(--bg-2); border-color: var(--ink); color: var(--ink); }
+.btn.ghost:active { transform: translateY(1px) scale(.988); box-shadow: var(--sh-press); }
+.btn.ghost:disabled { background: transparent; border-color: var(--line); color: var(--ink-2); }
+
+/* --- 选项行（.opt）：整行可点，按下压一层底 --- */
+.opt { transition: background-color var(--t-hover) var(--ease), border-color var(--t-hover) var(--ease); }
+.opt:active { background: var(--bg-3); }
+.opt[aria-pressed="true"] { border-color: var(--blue); }
+
+/* --- 香调 chip：按下时轻微内缩，选中用墨底反白 --- */
+.chip {
+  transition: background-color var(--t-hover) var(--ease),
+              border-color var(--t-hover) var(--ease),
+              color var(--t-hover) var(--ease),
+              transform var(--t-press) var(--ease-in);
+}
+.chip:active { transform: scale(.97); }
+.chip:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.chip[aria-pressed="true"].neg { background: var(--danger); border-color: var(--danger); }
+
+/* --- 圆盘扇区标签：焦点环跟着扇区走，不用外框 --- */
+.disc-sector:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+/* 选中扇区是「浅蓝水洗底 + 蓝描边」，不是墨色实底，
+   所以标签不能走反白 —— 白字落在近乎白的底上会消失（截图确认过）。
+   改用主蓝加深一档，在 7% 水洗底上仍然读得清。 */
+.wheel .disc-sector[aria-checked="true"],
+.wheel .disc-sector[aria-checked="true"] .en {
+  color: var(--blue-deep);
+}
+
+/* --- 文字链接：下划线加粗到 2px 表达悬停，不换色 --- */
+.pick-foot a,
+footer.foot a {
+  transition: color var(--t-hover) var(--ease), text-decoration-thickness var(--t-hover) var(--ease);
+}
+.pick-foot a:hover,
+footer.foot a:hover { text-decoration-thickness: 2px; }
+
+/* --- 滑块：thumb 按下放大 1.1 并保持墨色，轨道不动 --- */
+.scale input[type="range"]::-webkit-slider-thumb { transition: transform var(--t-press) var(--ease-in), background-color var(--t-hover) var(--ease); }
+.scale input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.12); }
+.scale input[type="range"]:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
+
+/* --- 盘心：径向受光 + 边缘受光，和轮盘共用一个光源 --- */
+.wheel .disc-hub {
+  border-radius: var(--radius);
+  background: radial-gradient(120% 110% at 22% 14%, #ffffff 0%, var(--bg-2) 46%, var(--bg-3) 100%);
+  border-color: var(--blue-amb);
+  box-shadow: var(--sh-card);
+  transition: width var(--t-move) var(--ease),
+              height var(--t-move) var(--ease),
+              background-color var(--t-hover) var(--ease),
+              border-color var(--t-hover) var(--ease),
+              box-shadow var(--t-hover) var(--ease);
+}
+/* 空态盘心撑到内孔内接正方形（46.2%），面积是选定态的 2.2 倍。
+   底色收白一档：此刻它只是"待选区"，不该和选定态一样重。
+   灰底 + 大面积会读成一个盖在轮盘上的灰板。 */
+.wheel .disc-hub.is-wide:not(.is-picked) {
+  background: radial-gradient(120% 110% at 24% 16%, #ffffff 0%, #fdfdfd 58%, var(--bg-2) 100%);
+  border-color: var(--edge);
+  box-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 6px 22px -16px rgba(0,26,94,.18);
+}
+/* 选定态说明是家族的 style 句子，20–26 字，在 154px 的盘心里要折成三行。
+   基础样式的 max-height:34px 只够两行半，实测在字符中间切一刀（「…那种干」）。
+   126px 可用高扣掉 kicker 14 + 主词 24 + 重新开始 20 + 三条 gap 15 = 53px，
+   给 52px 正好容纳三行 12px/1.35 = 48.6，不再切字。 */
+.wheel .disc-hub.is-picked .hub-desc { max-height: 52px; }
+/* 选定态行距收紧半档，把上面算出来的 53px 留出 1px 余量给亚像素。
+   只动 line-height 不动 font-size —— 字号已经压在 12px 下限上了。 */
+.wheel .disc-hub.is-picked .hub-desc { line-height: 1.35; }
+/* 已选定：整块翻墨（瑞士表达"确定"的惯用手法），并抬起一层 */
+.wheel .disc-hub.is-picked {
+  background: var(--ink);
+  border-color: var(--ink);
+  box-shadow: 0 1px 0 rgba(255,255,255,.10) inset, 0 14px 40px -14px rgba(0,0,0,.45);
+}
+.wheel .disc-hub.is-hover { border-color: var(--ink); }
+
+/* --- 轮盘外圈：选中用水洗底 + 主蓝描边 + 极淡同色投影 --- */
+.wheel .sector-shape,
+.wheel .mid-layer .sector-shape {
+  transition: fill var(--t-hover) var(--ease), stroke var(--t-hover) var(--ease);
+}
+.wheel .sector-g.is-on .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--blue);
+  stroke-width: 2;
+}
+
+/* ---------------------------------------------------------------
+   3. 转场：进场与区块切换共用 --ease，位移 ≤8px，只动 transform/opacity
+   --------------------------------------------------------------- */
+.fade-in {
+  animation: rise-in var(--t-move) var(--ease) both;
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 盘心换字：同一缓动，位移 4px（比区块小，因为它只是"换了个词"） */
+@keyframes hub-swap {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 结果卡片进场：第二、三张各延迟 60ms、120ms，形成阅读顺序 */
+article.pick {
+  border-radius: var(--radius);
+  animation: rise-in var(--t-move) var(--ease) both;
+}
+article.pick:nth-of-type(2) { animation-delay: 60ms; }
+article.pick:nth-of-type(3) { animation-delay: 120ms; }
+
+/* 家族详情区切换：只淡入，不位移（它在圆盘正下方，位移会撞到盘） */
+.fam-panel { animation: fade-only var(--t-hover) var(--ease) both; }
+@keyframes fade-only { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------------------------------------------------------------
+   4. 细节：光标、热区、层叠、加载形态
+   --------------------------------------------------------------- */
+/* 所有可点元素统一 pointer；禁用态统一 not-allowed（已在 .btn:disabled 定义） */
+a, button, .chip, .opt, .disc-sector, .wheel .hub-reset { cursor: pointer; }
+
+/* 热区下限：视觉可以小，命中区不能小。用伪元素向外扩，
+   不影响布局 —— 这是"44px 触达"最不侵入的写法。 */
+.pick-foot a,
+footer.foot a,
+.wheel .hub-reset {
+  position: relative;
+}
+.pick-foot a::after,
+footer.foot a::after,
+.wheel .hub-reset::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  translate: -50% -50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  /* 不设 background，靠空盒撑开命中区 */
+}
+
+/* 层叠：内容页在 grain 之上，grain 不拦截交互 */
+body { position: relative; }
+#app { position: relative; z-index: 1; }
+
+/* 滚动层次：粘性页眉会遮住锚点转场，这里不启用；改用 scroll-margin 给锚点留白 */
+:target { scroll-margin-top: 24px; }
+
+/* 骨架屏：弧线改用同一缓动，去掉呼吸感强的透明度脉动 */
+.skeleton-ring::before {
+  animation: skeleton-sweep 1.4s linear infinite;
+}
+
+/* ---------------------------------------------------------------
+   5. 自检相关：系统减少动效 / 窄屏 / 低性能
+   --------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  /* 只留 opacity 变化，位移全部取消，时长压到 1ms 而非 0 ——
+     0 会让某些浏览器把 transitionend 事件吞掉，依赖它的 JS 会挂。 */
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  .fade-in, article.pick, .fam-panel { animation: none; }
+  .btn:active, .chip:active, .btn.ghost:active { transform: none; }
+}
+
+/* 低性能设备：用粗粒度指针 + 无 hover 能力做代理判断。
+   这类设备上悬停本来就不存在，去掉 hover 位移可以省掉一层合成。 */
+@media (hover: none) {
+  .btn:hover { background: linear-gradient(160deg, var(--blue) 0%, var(--blue-deep) 130%); }
+  .chip:hover { border-color: var(--line); color: var(--ink-2); }
+  .opt:hover { background: transparent; }
+}
+
+/* 窄屏：圆角与热区不变，只收字号；蓝的用量不因屏幕小而增加 */
+@media (max-width: 620px) {
+  :root { --radius: 4px; --radius-lg: 6px; }
+  .wheel .disc-hub { border-radius: var(--radius); }
+}

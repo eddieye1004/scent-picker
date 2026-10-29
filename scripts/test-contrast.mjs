@@ -19,12 +19,23 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const CSS = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
 
-/* ---------- 解析 :root ---------- */
-const rootBlock = (CSS.match(/:root\s*\{([\s\S]*?)\}/) || [])[1] || '';
+/* ---------- 解析 :root ----------
+   必须归并**所有** :root 块，按出现顺序后者覆盖前者。
+   早先只 match 第一块，导致 styles.css 末尾追加的 v3 覆盖层里的
+   --accent / --radius 完全读不到，28 条断言一直在按旧色跑 —— 守门形同虚设。
+   这类"守门脚本自己瞎了"的 bug 比配色错误更危险：测试是绿的，但守的是别人。 */
 const VARS = {};
-for (const decl of rootBlock.split(';')) {
-  const m = decl.match(/--([\w-]+)\s*:\s*(#[0-9a-fA-F]{3,8})\s*$/);
-  if (m) VARS[m[1]] = m[2];
+for (const block of CSS.matchAll(/:root\s*\{([\s\S]*?)\}/g)) {
+  for (const decl of block[1].split(';')) {
+    const m = decl.match(/--([\w-]+)\s*:\s*(#[0-9a-fA-F]{3,8})\s*(?:!important)?\s*$/);
+    if (m) VARS[m[1]] = m[2];   // 后出现的块覆盖先出现的
+  }
+}
+// 兜底：--accent 必须真的被解析到 v3 的宝蓝，否则说明覆盖层没进 CSS
+const ACCENT_EXPECT = '#002FA7';
+if (VARS.accent && VARS.accent.toUpperCase() !== ACCENT_EXPECT) {
+  console.error(`✗ :root 归并异常：--accent 解析为 ${VARS.accent}，期望 ${ACCENT_EXPECT}（v3 覆盖层，styles.css 末尾）`);
+  process.exit(1);
 }
 
 /* ---------- WCAG 2.1 相对亮度 ---------- */
@@ -65,11 +76,16 @@ const PAIRS = [
   ['--danger on --bg', 'danger', 'bg', '.reasons li.warn'],
   ['--bg on --accent', 'bg', 'accent', '.btn 主按钮 / .chip 选中'],
   ['--bg on --danger', 'bg', 'danger', '.chip.neg 选中'],
+  // ---- 克莱因蓝四档（v3 覆盖层）。宝蓝 L 只有 33%，在浅底上比朱红更沉 ----
+  ['--blue on --bg（主色承载文字）', 'blue', 'bg', '.h1 em / .pick-foot a:hover'],
+  ['--blue-deep on --bg（暗部）', 'blue-deep', 'bg', '.progress i.done'],
+  ['--blue-lift on --bg（高光）', 'blue-lift', 'bg', '渐变起点，最小字 12px'],
   // 盘心选定态翻成实心墨块，文字全部反白。这三个是写死的十六进制，
   // 不走变量——它们在别处不会被复用，进 VARS 反而让人以为可以随便改。
   ['白 on 墨 --hub-on-ink', '#ffffff', 'ink', '.disc-hub.is-picked .hub-zh'],
   ['#a8a8a8 on 墨', '#a8a8a8', 'ink', '.disc-hub.is-picked .hub-kicker'],
   ['#c9c9c9 on 墨', '#c9c9c9', 'ink', '.disc-hub.is-picked .hub-desc'],
+  ['--ink-2 on --bg-3（禁用按钮文案）', 'ink-2', 'bg-3', '.btn:disabled'],
 ];
 
 /* ---------- 跑 ---------- */
@@ -140,6 +156,15 @@ else fails.push(`控件边界对比度不足: ${ntBad.join(' / ')}`);
 /* 反向自检：--line 必须真的低于 3，否则说明这组检查抓不到"装饰色当边框用"这个错 */
 if (ratio(VARS.line, VARS.bg) < 3) pass++;
 else fails.push('--line 竟达到 3:1，那它已经不适合当"纯装饰线"用了，复核配色');
+
+/* ---------- 环境反光色禁止承载文字 ----------
+   --blue-amb #8A93B8 在白底只有 3.02，做 1px 描边够用，做文字必崩。
+   它是四档蓝里唯一的"非文字"档，这条断言防止有人图省事把它用在正文。
+   比对时排除注释：注释里写到这个值是很正常的（本文件自己就有）。 */
+const CSS_NO_COMMENT = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+const ambAsText = [...CSS_NO_COMMENT.matchAll(/(?:^|[{;])\s*color\s*:\s*var\(--blue-amb\)/g)];
+if (ambAsText.length === 0) pass++;
+else fails.push(`--blue-amb（3.02:1）被用作文字色 ${ambAsText.length} 处，它只能做描边`);
 
 /* ---------- 字号下限：任何文字不得小于 12px ----------
    11.5px 在大写+letter-spacing 的场景下还能看，但对东亚字形偏小，
