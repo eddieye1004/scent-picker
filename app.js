@@ -7,11 +7,16 @@
  *   3. 所有解释性文字来自数据或规则，不调模型、不编内容。
  */
 import { recommend } from './src/scoring.js';
-import { usableEntries } from './src/notes.js';
+// normNote 把 taxonomy 里的 en 名（带空格、斜杠、大小写不统一）归一化后再比对。
+// 少了它 noteZhOf() 找不到对应条目，轮盘标签会退化成一串英文原名。
+import { usableEntries, normNote } from './src/notes.js';
 
 const state = {
   step: 0,
   answers: {
+    // 香型轮盘两个层级：family 是外圈大类，subfamily 是中圈子类（可只选到大类）
+    family: null,
+    subfamily: null,
     emotion: null,
     occasion: null,
     intensity: 3,
@@ -60,11 +65,11 @@ const el = (tag, attrs = {}, ...kids) => {
 /* ---------- 步骤定义 ---------- */
 const STEPS = [
   {
-    id: 'emotion',
+    id: 'family',
     kicker: '第 1 步 / 共 4 步',
-    title: '你想被别人闻成什么感觉？',
-    help: '不必懂香调。选一个你希望别人靠近你时的第一印象就行。',
-    render: renderEmotion,
+    title: '你闻着舒服的，是哪一类味道？',
+    help: '不用记名字。外圈挑大方向，中圈再收窄一层；不确定就只选外圈。',
+    render: renderFamily,
   },
   {
     id: 'occasion',
@@ -463,32 +468,421 @@ function buildDisc(items, cfg) {
   return root;
 }
 
-/* ---------- 第 1 步：情绪（圆盘）---------- */
-function renderEmotion() {
+
+/* ---------- 多层香型轮盘（第 1 步）----------
+   为什么是同心圆而不是两页问卷：
+   香水的分类本身就是树（家族 → 子家族 → 香材）。做成两页会把"我在哪一层"这个
+   信息抹掉——用户翻到第 2 页就看不见自己选的是哪个大类了。
+   同心圆把父子关系画在同一张图上：外圈是父亲，中圈是儿子，盘心写着当前走到哪。
+   香水圈流传的「香气轮盘」（4 大组 / 13 小组）本来就是这个做法。 */
+const WHEEL = {
+  vb: 480,
+  cx: 240,
+  cy: 240,
+  r1o: 228,
+  r1i: 158,   // 外圈：6 个香型家族
+  r2o: 152,
+  r2i: 106,   // 中圈：所选家族的子家族
+  // 盘心取中圈内接正方形：r2i=106 → 106×√2 = 149.9 → 149.9/480 = 31.2%，留余量取 30.6%
+  hubPct: 30.6,
+};
+
+function wheelPolar(r, deg) {
+  const rad = (deg * Math.PI) / 180;
+  return [WHEEL.cx + r * Math.cos(rad), WHEEL.cy + r * Math.sin(rad)];
+}
+
+function ringPath(rOut, rIn, a0, a1) {
+  const [x0o, y0o] = wheelPolar(rOut, a0);
+  const [x1o, y1o] = wheelPolar(rOut, a1);
+  const [x1i, y1i] = wheelPolar(rIn, a1);
+  const [x0i, y0i] = wheelPolar(rIn, a0);
+  const large = a1 - a0 > 180 ? 1 : 0;
+  return `M ${x0o.toFixed(2)} ${y0o.toFixed(2)}`
+    + ` A ${rOut} ${rOut} 0 ${large} 1 ${x1o.toFixed(2)} ${y1o.toFixed(2)}`
+    + ` L ${x1i.toFixed(2)} ${y1i.toFixed(2)}`
+    + ` A ${rIn} ${rIn} 0 ${large} 0 ${x0i.toFixed(2)} ${y0i.toFixed(2)} Z`;
+}
+
+/** 香材英文名 → 中文，供外圈标签显示典型香材。找不到就退回原文。 */
+function noteZhOf(en) {
+  const e = TAX && TAX.noteIndex ? TAX.noteIndex.entries.find((x) => normNote(x.en) === normNote(en)) : null;
+  return e ? e.zh : String(en);
+}
+
+/**
+ * @param {{
+ *   families: Array, selFamily: string|null, selSub: string|null,
+ *   onChange: (fam:object|null, sub:object|null)=>void
+ * }} cfg
+ */
+function buildWheel(cfg) {
+  const { families, onChange } = cfg;
+  let selFamily = cfg.selFamily || null;
+  let selSub = cfg.selSub || null;
+  let hoverFam = null;      // 指针停在外圈哪个家族（决定中圈显示谁的孩子）
+  let hoverSub = null;
+
+  const root = el('div', { class: 'disc wheel', role: 'group', 'aria-label': '香型轮盘' });
+  const rot = el('div', { class: 'disc-rot' });
+  root.appendChild(rot);
+
+  const svg = svgEl('svg', {
+    class: 'disc-svg',
+    viewBox: '0 0 ' + WHEEL.vb + ' ' + WHEEL.vb,
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+  rot.appendChild(svg);
+
+  /* 最外一道发丝线：把整个轮盘从背景里框出来。
+     圆盘边缘与白底之间没有界线时，大面积留白里会"漏边"。 */
+  svg.appendChild(svgEl('circle', {
+    class: 'ring-thin', cx: WHEEL.cx, cy: WHEEL.cy, r: WHEEL.r1o + 8,
+  }));
+  /* 中圈空态导轨已删除（原为一圈虚线圆）。
+     理由不是"不够好看"，是几何上无解：空态盘心撑到 r1i=158 的内接正方形，
+     半对角 156.8；而虚线要落在方框之外就得 r>=156.8，外圈内径只有 158。
+     只剩 1.2px 的容身区，怎么画都会切到方框或压到外圈。
+     它是纯装饰，删掉不加替代 —— 中圈选中后会自己长出真实扇区，不需要预告。 */
+
+  const midLayer = svgEl('g', { class: 'mid-layer' });
+  svg.appendChild(midLayer);
+
+  /* --- 盘心：三行，讲「当前在哪一层」 --- */
+  const hubKicker = el('div', { class: 'hub-kicker' }, '香型轮盘');
+  const hubZh = el('div', { class: 'hub-zh' }, '还没选');
+  const hubDesc = el('div', { class: 'hub-desc' }, '从外圈挑一个大类');
+  const hubReset = el('button', {
+    class: 'hub-reset',
+    type: 'button',
+    onclick: (ev) => {
+      ev.stopPropagation();
+      selFamily = null; selSub = null; hoverFam = null; hoverSub = null;
+      paint();
+      onChange(null, null);
+    },
+  }, '重新开始');
+  hubReset.hidden = true;
+  const hub = el('div', { class: 'disc-hub is-idle' }, hubKicker, hubZh, hubDesc, hubReset);
+  root.appendChild(hub);
+
+  /* --- 外圈：6 个家族，固定不变 --- */
+  const nFam = families.length;
+  const famStep = 360 / nFam;
+  const famStart = -90 - famStep / 2;
+  const outerG = [];
+  const outerBtn = [];
+
+  families.forEach((f, i) => {
+    const a0 = famStart + i * famStep + 1.0;
+    const a1 = famStart + (i + 1) * famStep - 1.0;
+    const g = svgEl('g', { class: 'sector-g lvl1', 'data-fam': f.id });
+    g.appendChild(svgEl('path', { class: 'sector-shape', d: ringPath(WHEEL.r1o, WHEEL.r1i, a0, a1) }));
+    svg.appendChild(g);
+    outerG.push(g);
+  });
+
+  // 标签按钮单独一层，位置固定，不随中圈重建而消失
+  // 外圈与中圈各自是一组单选，所以各自一个 radiogroup。
+  // 放在一个组里会把两层混成"12 选 1"，读屏会念错父子关系。
+  const labelLayer = el('div', { class: 'label-layer', role: 'radiogroup', 'aria-label': '香型大类' });
+  rot.appendChild(labelLayer);
+
+  function keyNav(ev, list, i) {
+    let d = 0;
+    if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') d = 1;
+    else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') d = -1;
+    else return;
+    ev.preventDefault();
+    const to = (i + d + list.length) % list.length;
+    list.forEach((b, j) => b.setAttribute('tabindex', j === to ? '0' : '-1'));
+    list[to].focus();
+  }
+
+  families.forEach((f, i) => {
+    const midDeg = famStart + (i + 0.5) * famStep;
+    const rMid = (WHEEL.r1o + WHEEL.r1i) / 2;
+    const p = wheelPolar(rMid, midDeg);
+    const btn = el('button', {
+      class: 'disc-sector lvl1',
+      type: 'button',
+      role: 'radio',
+      'aria-checked': 'false',
+      'data-fam': f.id,
+      tabindex: i === 0 ? '0' : '-1',
+      style: 'left:' + ((p[0] / WHEEL.vb) * 100).toFixed(2) + '%;top:' + ((p[1] / WHEEL.vb) * 100).toFixed(2) + '%',
+    },
+      el('span', { class: 'zh' }, f.zh),
+      // 字段名是 representativeNotes（taxonomy 里的实际键），不是 notes
+      el('span', { class: 'notes' }, (f.representativeNotes || []).slice(0, 2).map((e) => noteZhOf(e)).join('·'))
+    );
+    const enter = () => { hoverFam = f.id; hoverSub = null; paint(); };
+    const leave = () => { hoverFam = null; paint(); };
+    btn.addEventListener('mouseenter', enter);
+    btn.addEventListener('mouseleave', leave);
+    btn.addEventListener('focus', enter);
+    btn.addEventListener('blur', leave);
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      selFamily = f.id; selSub = null; hoverFam = null; hoverSub = null;
+      paint();
+      onChange(f, null);
+    });
+    btn.addEventListener('keydown', (ev) => keyNav(ev, outerBtn, i));
+    labelLayer.appendChild(btn);
+    outerBtn.push(btn);
+
+    // 扇形本体同样可点：只让标签可点的话，用户戳那一大块面积毫无反应
+    const g = outerG[i];
+    g.addEventListener('mouseenter', enter);
+    g.addEventListener('mouseleave', leave);
+    g.addEventListener('click', () => {
+      selFamily = f.id; selSub = null; hoverFam = null; hoverSub = null;
+      paint();
+      onChange(f, null);
+    });
+  });
+
+  /* --- 中圈：随焦点家族重建 --- */
+  const midLabelLayer = el('div', { class: 'label-layer mid', role: 'radiogroup', 'aria-label': '子类' });
+  rot.appendChild(midLabelLayer);
+  let midBtn = [];
+  let midSubs = null;
+
+  function buildMid(fam) {
+    midLayer.innerHTML = '';
+    midLabelLayer.innerHTML = '';
+    midBtn = [];
+    midSubs = null;
+    if (!fam) return;
+    const subs = fam.subfamilies || [];
+    if (!subs.length) return;
+    midSubs = subs;
+    const step = 360 / subs.length;
+    const start = -90 - step / 2;
+    const rMid = (WHEEL.r2o + WHEEL.r2i) / 2;
+
+    subs.forEach((s, i) => {
+      const a0 = start + i * step + 0.8;
+      const a1 = start + (i + 1) * step - 0.8;
+      const g = svgEl('g', { class: 'sector-g lvl2', 'data-sub': s.id });
+      g.appendChild(svgEl('path', { class: 'sector-shape', d: ringPath(WHEEL.r2o, WHEEL.r2i, a0, a1) }));
+      const enter = () => { hoverSub = s.id; paint(); };
+      const leave = () => { hoverSub = null; paint(); };
+      g.addEventListener('mouseenter', enter);
+      g.addEventListener('mouseleave', leave);
+      g.addEventListener('click', (ev) => { ev.stopPropagation(); chooseSub(fam, s); });
+      midLayer.appendChild(g);
+      g.__sub = s;
+
+      const p = wheelPolar(rMid, start + (i + 0.5) * step);
+      const btn = el('button', {
+        class: 'disc-sector lvl2',
+        type: 'button',
+        role: 'radio',
+        'aria-checked': 'false',
+        'data-sub': s.id,
+        tabindex: '-1',
+        style: 'left:' + ((p[0] / WHEEL.vb) * 100).toFixed(2) + '%;top:' + ((p[1] / WHEEL.vb) * 100).toFixed(2) + '%',
+      }, el('span', { class: 'zh' }, s.zh));
+      btn.addEventListener('mouseenter', enter);
+      btn.addEventListener('mouseleave', leave);
+      btn.addEventListener('focus', enter);
+      btn.addEventListener('blur', leave);
+      btn.addEventListener('click', (ev) => { ev.stopPropagation(); chooseSub(fam, s); });
+      btn.addEventListener('keydown', (ev) => keyNav(ev, midBtn, i));
+      midLabelLayer.appendChild(btn);
+      midBtn.push(btn);
+    });
+  }
+
+  function chooseSub(fam, s) {
+    selFamily = fam.id;
+    selSub = s.id;
+    hoverFam = null;
+    hoverSub = null;
+    paint();
+    onChange(fam, s);
+  }
+
+  /* --- 统一重绘：一处改动决定所有层的样子 --- */
+  let builtFor;
+  function paint() {
+    const famById = new Map(families.map((f) => [f.id, f]));
+    // 中圈跟随：选中优先，其次悬停
+    const showFamId = hoverFam || selFamily;
+    const showFam = showFamId ? famById.get(showFamId) : null;
+    if (builtFor !== showFamId) {
+      buildMid(showFam);
+      builtFor = showFamId;
+    }
+
+    // 外层：选中 > 悬停 > 其余（展开时把其余压暗，让视线收到中圈）
+    const expanded = !!showFamId;
+    outerG.forEach((g, i) => {
+      const f = families[i];
+      const on = f.id === selFamily;
+      const hot = f.id === hoverFam;
+      g.classList.toggle('is-on', on);
+      g.classList.toggle('is-hot', hot && !on);
+      g.classList.toggle('is-dim', expanded && !on && !hot);
+    });
+    outerBtn.forEach((b, i) => {
+      const f = families[i];
+      const on = f.id === selFamily;
+      b.classList.toggle('is-dim', expanded && !on && f.id !== hoverFam);
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-checked', String(on));
+      b.setAttribute('tabindex', on ? '0' : (i === 0 && !selFamily ? '0' : '-1'));
+    });
+
+    // 中圈：选中子家族填墨，悬停变浅
+    if (midSubs) {
+      const kids = Array.from(midLayer.childNodes || []);
+      kids.forEach((g) => {
+        const s = g.__sub;
+        if (!s) return;
+        const on = selSub === s.id && showFamId === selFamily;
+        const hot = hoverSub === s.id;
+        g.classList.toggle('is-on', on);
+        g.classList.toggle('is-hot', hot && !on);
+      });
+      midBtn.forEach((b, i) => {
+        const s = midSubs[i];
+        const on = selSub === s.id && showFamId === selFamily;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-checked', String(on));
+        b.setAttribute('tabindex', on ? '0' : '-1');
+      });
+    }
+
+    // 盘心：空态 / 悬停家族 / 悬停子家族 / 已选家族 / 已选子家族
+    const sub = showFam && selSub ? (showFam.subfamilies || []).find((x) => x.id === selSub) : null;
+    const hovSub = showFam && hoverSub ? (showFam.subfamilies || []).find((x) => x.id === hoverSub) : null;
+    const focusSub = hovSub || sub;
+
+    let kick;
+    let zh;
+    let desc;
+    let idle = false;
+    let picked = false;
+    if (!showFam) {
+      kick = '香型轮盘'; zh = '还没选'; desc = '从外圈挑一个大类'; idle = true;
+    } else if (focusSub) {
+      kick = hovSub ? '正在看' : '已选定';
+      zh = focusSub.zh;
+      desc = focusSub.descWheel || focusSub.desc;
+      picked = !hovSub;
+    } else {
+      kick = (hoverFam && !selFamily) ? '正在看' : '已选定';
+      zh = showFam.zh;
+      desc = showFam.style || showFam.oneLine;
+      picked = !(hoverFam && !selFamily);
+    }
+    hub.classList.toggle('is-idle', idle);
+    hub.classList.toggle('is-picked', picked);
+    // 没选家族时中圈是空的。若盘心还保持 30.6%，它会在内孔里悬空：
+    // 外侧是 158 的内孔半径，方块只有 77 的半边长，中间空出 81px 一圈白。
+    // 所以空态让盘心撑到内孔的内接正方形（46.2%），选中后再收回 30.6% 给中圈让位。
+    hub.classList.toggle('is-wide', !showFamId);
+    hub.classList.toggle('is-hover', !!(hoverFam || hoverSub));
+    if (hubZh.textContent !== zh || hubKicker.textContent !== kick) {
+      hub.classList.remove('is-swap');
+      void hub.offsetWidth;
+      hub.classList.add('is-swap');
+    }
+    hubKicker.textContent = kick;
+    hubZh.textContent = zh;
+    hubDesc.textContent = desc;
+    hubReset.hidden = !selFamily;
+  }
+
+  paint();
+  return root;
+}
+
+/* ---------- 第 1 步：香型轮盘（外圈家族 + 中圈子家族）---------- */
+function renderFamily() {
   const wrap = el('div', { class: 'fade-in' });
 
-  const lead = el('div', { class: 'stage-lead' },
+  wrap.appendChild(el('div', { class: 'stage-lead' },
     el('div', { class: 'q-kicker' }, STEPS[0].kicker),
     el('h2', { class: 'q-title' }, STEPS[0].title),
     el('p', { class: 'q-help' }, STEPS[0].help)
-  );
-  wrap.appendChild(lead);
+  ));
 
-  wrap.appendChild(buildDisc(TAX.emotionMap, {
-    label: '想被闻成什么感觉',
-    selectedId: state.answers.emotion,
-    onPick: (e) => {
-      state.answers.emotion = e.id;
-      // 620ms 不是随便定的：盘心压墨的过渡是 180ms，实测墨块在 t=180ms 才完全压黑，
-      // 而原先的 320ms 让它在 t≈369ms 就被下一题替换 —— 用户只看到闪一下。
-      // 620ms = 180ms 过渡 + 约 440ms 停留，足够看清「已选定」再走。
-      setTimeout(next, 620);
+  wrap.appendChild(buildWheel({
+    families: Object.values(TAX.families),
+    selFamily: state.answers.family,
+    selSub: state.answers.subfamily,
+    onChange: (fam, sub) => {
+      state.answers.family = fam ? fam.id : null;
+      state.answers.subfamily = sub ? sub.id : null;
+      // 轮盘是两层，选完不该立刻跳走——用户可能还想在中圈再收一层。
+      // 所以这里只更新家族说明区与底部按钮，前进由按钮控制。
+      paintFamilyPanel(fam);
+      // 底部按钮必须跟着重画：它的 disabled 与提示语都取决于"选了没有"。
+      // 只改 state 不重画的话，用户选完家族按钮还是灰的，看着像坏了。
+      const old = document.querySelector('.actions');
+      if (old && old.parentNode) {
+        const fresh = navBar('family');
+        old.parentNode.replaceChild(fresh, old);
+      }
     },
   }));
 
-  wrap.appendChild(navBar('emotion'));
+  wrap.appendChild(navBar('family'));
+  // 详情放按钮之后：先让用户能立刻前进，再给"这个大类是什么"的补充阅读。
+  // 反过来放的话，一选中家族说明区就把"下一步"顶到折叠线以下，
+  // 桌面 1440×900 实测按钮落在 1131px 处，必须滚动才点得到。
+  wrap.appendChild(familyPanel(state.answers.family));
   return wrap;
 }
+
+/** 轮盘右侧/下方的家族详情：代表香材、风格、适用场景、注意事项。 */
+function familyPanel(famId) {
+  const box = el('div', { class: 'fam-panel', 'aria-live': 'polite' });
+  box.__paint = (fam) => {
+    box.innerHTML = '';
+    if (!fam) {
+      box.classList.add('is-empty');
+      box.appendChild(el('p', { class: 'fam-empty' }, '上面转盘里挑一个大类，这里会展开它的代表香材、风格和使用场合。'));
+      return;
+    }
+    box.classList.remove('is-empty');
+    box.appendChild(el('div', { class: 'fam-head' },
+      el('span', { class: 'fam-group' }, GROUP_ZH[fam.group] || ''),
+      el('h3', { class: 'fam-title' }, fam.zh),
+      el('span', { class: 'fam-en' }, fam.en)
+    ));
+    box.appendChild(el('p', { class: 'fam-style' }, fam.style || fam.oneLine));
+
+    const rows = [
+      ['代表香材', (fam.representativeNotes || []).map((n) => noteZhOf(n)).join('、')],
+      ['三个特征', (fam.traits || []).join(' · ')],
+      ['常用在哪', (fam.scenes || []).join(' · ')],
+      ['怎么用', fam.wear || ''],
+      ['谁该绕开', fam.avoid || ''],
+    ];
+    const dl = el('dl', { class: 'fam-rows' });
+    for (const [k, v] of rows) {
+      if (!v) continue;
+      dl.appendChild(el('dt', {}, k));
+      dl.appendChild(el('dd', {}, v));
+    }
+    box.appendChild(dl);
+  };
+  box.__paint(TAX.families.find((f) => f.id === famId) || null);
+  return box;
+}
+
+function paintFamilyPanel(fam) {
+  const box = document.querySelector('.fam-panel');
+  if (box && box.__paint) box.__paint(fam);
+}
+
+const GROUP_ZH = { fresh: '清新系', floral: '花香系', woody: '木质系', amber: '琥珀系', gourmand: '美食系' };
 
 /* ---------- 第 2 步：场合（同一个圆盘，5 个扇区）---------- */
 function renderOccasion() {
@@ -722,6 +1116,16 @@ function navBar(stepId) {
   }
   bar.appendChild(el('div', { class: 'spacer' }));
 
+  if (stepId === 'family') {
+    const done = !!state.answers.family;
+    bar.appendChild(el('span', { class: 'hint' }, done ? '中圈可选，不选就按大类推荐' : '先在外圈挑一个大类'));
+    bar.appendChild(el('button', {
+      class: 'btn', type: 'button', disabled: done ? null : 'disabled',
+      onclick: next,
+    }, '下一步 →'));
+    return bar;
+  }
+
   if (stepId === 'notes') {
     bar.appendChild(el('span', { class: 'hint' }, '不选也能看结果'));
     bar.appendChild(el('button', {
@@ -757,7 +1161,7 @@ function prev() {
 }
 
 async function finish(btn) {
-  if (!state.answers.emotion) { state.step = 0; render(); return; }
+  if (!state.answers.family) { state.step = 0; render(); return; }
   if (!state.answers.occasion) { state.step = 1; render(); return; }
   // 库还没到时，这里会等它下完 —— 只有「四步全答完、但库仍在下载」才会卡到这。
   // 等待期间必须给出可见反馈：按钮换成进度文案并禁用，否则用户会连点几次。
@@ -792,7 +1196,7 @@ function setBusy(btn, text) {
 
 function restart() {
   state.step = 0;
-  state.answers = { emotion: null, occasion: null, intensity: 3, likedNotes: [], dislikedNotes: [] };
+  state.answers = { family: null, subfamily: null, emotion: null, occasion: null, intensity: 3, likedNotes: [], dislikedNotes: [] };
   state.result = null;
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -807,7 +1211,7 @@ function renderProgress() {
     const cls = i < state.step ? 'done' : i === state.step ? 'now' : '';
     bar.appendChild(el('i', { class: cls }));
   }
-  const labels = ['情绪', '场合', '浓度', '香调'];
+  const labels = ['香型', '场合', '浓度', '香调'];
   const meta = el('div', { class: 'progress-meta' },
     el('span', {}, state.step >= total ? '推荐结果' : labels[state.step]),
     el('span', {}, state.step >= total ? '完成' : `${state.step + 1} / ${total}`)
@@ -819,11 +1223,16 @@ function renderProgress() {
 function renderMasthead() {
   const isResult = state.step >= STEPS.length;
   return el('header', { class: 'masthead' },
-    el('h1', {}, isResult ? '你的三瓶候选' : '从零开始，找到第一瓶香水'),
+    // 封面标题里的「第一瓶」是全站唯一的高分量蓝色。
+    // 用 em 而不是 span：它承载的是语义强调（"第一瓶"才是这个产品的承诺），
+    // 顺带让 .masthead h1 em 这条样式有真实落点。
+    isResult
+      ? el('h1', {}, '你的三瓶候选')
+      : el('h1', {}, '从零开始，找到', el('em', {}, '第一瓶'), '香水'),
     el('p', { class: 'lede' },
       isResult
         ? '每一瓶的理由都能反推回你刚才的选择，没有一句是编的。'
-        : '不用懂前中后调。四个问题，换三个具体到型号的候选，和选它的理由。'
+        : '不用懂前中后调。转盘选香型，再定场合和浓度，换三个具体到型号的候选。'
     ),
     // 印章：纯装饰（aria-hidden），字取「香」—— 这个应用唯一的主题字。
     el('span', { class: 'seal', 'aria-hidden': 'true' }, '香')

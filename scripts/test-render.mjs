@@ -75,7 +75,7 @@ class TNode {
   addEventListener(ev, fn) { (this._listeners[ev] ||= []).push(fn); }
   dispatch(ev, payload = {}) {
     (this._listeners[ev] || []).forEach((fn) =>
-      fn({ target: this, preventDefault() {}, ...payload }));
+      fn({ target: this, preventDefault() {}, stopPropagation() {}, ...payload }));
   }
   focus() {}
   querySelectorAll(sel) {
@@ -171,7 +171,9 @@ ok('圆盘画了 6 块扇形', appRoot.querySelectorAll('.sector-shape').length 
 // 圆盘不是"看起来能点"的 SVG：命中区必须是真实 button，且键盘能进得去
 ok('扇区是真实 button', appRoot.querySelectorAll('button.disc-sector').length === 6,
   `实际 ${appRoot.querySelectorAll('button.disc-sector').length}`);
-ok('圆盘有 radiogroup 语义', appRoot.querySelectorAll('[role="radiogroup"]').length === 1);
+// 两层各自是一组单选，所以至少一个 radiogroup（外圈一个、中圈一个）
+ok('圆盘有 radiogroup 语义', appRoot.querySelectorAll('[role="radiogroup"]').length >= 1,
+  `实际 ${appRoot.querySelectorAll('[role="radiogroup"]').length}`);
 ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null);
 // 盘心是内接正方形：边长 = 内弧半径 × √2。这条守的是「方与圆咬合」这个视觉决定，
 // 缩回「内圆中间一小块」四周就会留一圈白，读起来像贴在圆盘上的卡片。
@@ -210,12 +212,35 @@ const groupHasClick = sectorGroups.every((g) => (g._listeners.click || []).lengt
 ok('每个扇形本体都绑了 click', groupHasClick,
   `绑了 click 的分组数 ${sectorGroups.filter((g) => (g._listeners.click || []).length > 0).length}/${sectorGroups.length}`);
 
-/* 点扇形本体（不是标签）推进流程 —— 等价于用户戳扇区那一大块面积。
-   这一下同时验证了「本体可点」和「点完会进入下一步」两件事。 */
+/* 点扇形本体（不是标签）选中家族 —— 等价于用户戳扇区那一大块面积。
+   注意：第 1 步改成两层轮盘后不再自动跳题（用户可能还想在中圈再收一层），
+   所以这里只断言"选中了"，前进由下面的按钮完成。 */
 sectorGroups[0].dispatch('click');
-await new Promise((r) => setTimeout(r, 800));  // 自动切题是 620ms，必须等过它
+await new Promise((r) => setTimeout(r, 400));
 
-ok('点扇形本体进入第 2 步（场合）', getStepText().includes('主要在哪里用'), getStepText().slice(0, 100));
+// 桩的 querySelectorAll 不支持 .class[attr="v"] 这种复合写法，改用 JS 过滤
+const checkedCount = appRoot.querySelectorAll('.disc-sector')
+  .filter((b) => b.getAttribute('aria-checked') === 'true').length;
+const noteTags = appRoot.querySelectorAll('.notes');
+ok('轮盘外圈标签带典型香材', noteTags.length === 6 && noteTags.every((n) => n.textContent.length > 0),
+  `带香材的标签 ${noteTags.filter((n) => n.textContent.length > 0).length}/${noteTags.length}`);
+/* 香材必须是中文。查不到中文时 noteZhOf() 会退回英文原名，
+   那种情况下标签看起来"有内容"，实际用户读不懂 —— 这条专抓它。 */
+ok('香材显示为中文而非英文原名', noteTags.every((n) => !/[a-z]/.test(n.textContent)),
+  noteTags.map((n) => n.textContent).join(' | '));
+ok('点扇形本体选中了家族', checkedCount >= 1, `选中 ${checkedCount} 个`);
+/* 选中后中圈应该长出来：这是"多级多层"的核心断言 ——
+   点外圈若只是高亮、不展开下一层，那就还是一层圆盘。 */
+const midAfter = appRoot.querySelectorAll('.disc-sector.lvl2');
+ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${midAfter.length}`);
+
+/* 前进到第 2 步：点「下一步」 */
+const goBtn = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('下一步'));
+ok('第 1 步有下一步按钮', !!goBtn);
+goBtn.dispatch('click');
+await new Promise((r) => setTimeout(r, 800));
+
+ok('进入第 2 步（场合）', getStepText().includes('主要在哪里用'), getStepText().slice(0, 100));
 const opts2 = appRoot.querySelectorAll('.disc-sector');
 ok('场合圆盘 5 个扇区', opts2.length === 5, `实际 ${opts2.length}`);
 
