@@ -255,9 +255,12 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
   ok('中圈容器不再拦截扇区点击', /\.wheel\.is-open \.sub-ring \{ pointer-events: none; \}/.test(css));
   ok('缩小后的扇区恢复可点', /\.wheel\.is-open \.sector-g \{[^}]*?pointer-events:\s*auto/.test(css)
     && /\.wheel\.is-open \.sector-g \{[^}]*?cursor:\s*pointer/.test(css));
-  ok('当前大类与可换大类在视觉上不同档',
-    /\.wheel\.is-open \.sector-g\.is-on \{ opacity: 1; \}/.test(css)
-    && /\.wheel\.is-open \.sector-g \{[^}]*?opacity:\s*\.30/.test(css));
+  /* v15：大圈在展开态整体退到 0，只有 hover / 键盘聚焦 / 盘心正在讲的那一块
+     浮回 1。所以"不同档"的判据从"当前 .30 vs 其它 1"反转成
+     "全部 0，热区 1" —— 点击换类的入口靠 hover 提示，不靠常亮。 */
+  ok('展开态大圈退到不可见但热区可回看',
+    /\.wheel\.is-open \.sector-g \{[^}]*?opacity:\s*0/.test(css)
+    && /\.wheel\.is-open \.sector-g\.is-hot,[^{]*\{[^}]*?opacity:\s*1/.test(css));
 
   /* ④ 一圈弧段依次滑出（v7 推翻了 v6 的三格弧窗 + 转动钮） */
   /* 段与段之间必须有缝，否则七段连成一条环，看不出"有七项" */
@@ -280,19 +283,47 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
      这四条守的是"退场真的存在"，不是"有没有写动画"。
      之前 subRing.innerHTML = '' 一行抹掉七段 —— DOM 里没有节点，
      CSS 再怎么写也没有东西可以动。 */
-  ok('大圈退场到幽灵态但仍可点',
-    /\.wheel\.is-open \.sector-g \{[^}]*?opacity:\s*\.30/.test(css)
+  ok('大圈退场到 0 但仍可点（消失与可点是两件事）',
+    /\.wheel\.is-open \.sector-g \{[^}]*?opacity:\s*0/.test(css)
     && /\.wheel\.is-open \.sector-g \{[^}]*?pointer-events:\s*auto/.test(css),
-    '退到 0 或 pointer-events:none 就等于封掉「中圈里点别的大类直接换」');
-  ok('进入第二圈时大圈播退场动画（按 --i 错峰）',
-    /@keyframes fanExit/.test(css)
-    && /\.wheel\.is-lifting \.sector-g \{[^}]*?animation:\s*fanExit/.test(css)
-    && /animation-delay:\s*calc\(var\(--i/.test(css));
+    'pointer-events:none 就等于封掉「中圈里点别的大类直接换」');
+  ok('进入第二圈时大圈播消失动画（按 --i 错峰）',
+    /@keyframes fanVanish/.test(css)
+    && /\.wheel\.is-lifting \.sector-g \{[^}]*?animation:\s*fanVanish/.test(css)
+    && /animation-delay:\s*calc\(var\(--i/.test(css)
+    /* 用户要的是"明确消失"，所以末帧必须落到 opacity 0，
+       停在 .30 就只能算"变淡"，实测六族会被压成同一种冷灰 */
+    && /@keyframes fanVanish \{[\s\S]{0,220}?100%\s+\{ opacity: 0;/.test(css));
   ok('返回时大圈播归位动画',
-    /@keyframes fanEnter/.test(css) && /\.wheel\.is-returning \.sector-g \{[^}]*?animation:\s*fanEnter/.test(css));
+    /@keyframes fanReturn/.test(css) && /\.wheel\.is-returning \.sector-g \{[^}]*?animation:\s*fanReturn/.test(css));
+  /* v15 新增：点击确认 vs 悬停预览必须在状态上分得开 */
+  ok('悬停不写选中状态（选择只由左键点击确定）',
+    !/hoverSub/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))
+      || /const focusSub = sub;/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8')),
+    'focusSub 若还读 hoverSub，指针划过就会换盘心主词');
+  ok('悬停只给视觉提示不改填充',
+    /\.wheel \.sub-g\.is-hot:not\(\.is-on\) \.sub-arc \{/.test(css)
+    && !/\.wheel \.sub-g\.is-hot:not\(\.is-on\) \.sub-arc \{[^}]*?fill:\s*var\(--blue\)/.test(css),
+    'hover 若用实心蓝，就看不出"哪些是确认的"');
+  ok('确认态弧段是实心蓝 + 一次脉冲',
+    /\.wheel \.sub-g\.is-on \.sub-arc \{[^}]*?fill:\s*var\(--blue\)/.test(css)
+    && /@keyframes arcConfirm/.test(css)
+    && /\.wheel \.sub-g\.is-on \.sub-arc \{[^}]*?animation:\s*arcConfirm/.test(css),
+    '没有脉冲时"点下去"与"指着看"在时间维度上分不开');
+  ok('确认态盘心加一道实心短划 + 小勾',
+    /\.wheel\.is-open \.disc-hub\.is-picked \.hub-kicker::before/.test(css)
+    && /\.wheel \.disc-hub\.is-picked \.hub-zh::after \{[^}]*?height:\s*2px/.test(css));
+  ok('窄屏展开态关掉隐藏扇区的命中区',
+    /@media \(max-width: 620px\)[\s\S]{0,2000}?\.wheel\.is-open \.sector-g \{ pointer-events: none; \}/.test(css),
+    '看不见却能点 = 误触换大类');
+  ok('中圈整条弧带同步放大（不是只把单段放大）',
+    /@keyframes ringGrow/.test(css)
+    && /\.wheel\.is-lifting \.sub-ring \{[^}]*?animation:\s*ringGrow/.test(css)
+    && /@keyframes ringGrow \{[\s\S]{0,200}?0%\s+\{ transform: scale\(\.58\)/.test(css),
+    '逐段各自动 scale 会各绕自己的包围盒，七段会互相穿插');
   ok('返回时中圈弧段反序收（不是整块消失）',
-    /@keyframes arcSlideOut/.test(css)
-    && /\.sub-ring\.is-exit \.sub-arc \{[^}]*?animation:\s*arcSlideOut/.test(css)
+    /@keyframes arcFallOut/.test(css)
+    && /\.sub-ring\.is-exit \.sub-arc \{[^}]*?animation:\s*arcFallOut/.test(css)
     && /var\(--n,\s*1\) - 1 - var\(--i/.test(css),
     '退场延时按 --n-1---i 反算；正序收会读成「又铺了一遍」');
   /* 退场期间容器不能被 :not(.is-open) 的 opacity:0 掐掉 —— 子元素的
@@ -400,18 +431,30 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
   ok('只选大类时盘心是「正在看」而非「已选定」',
     !!hubPrev && !hubPrev.classList.contains('is-picked'), hubPrev && hubPrev.className);
 }
-/* 悬停某一段：标本出现，但仍是预览态 */
+/* 悬停某一段：只加深那一段的描边，盘心一个字都不许改。
+   v15 改成"左键点击才确认"之后，这条从"悬停画标本"反转成"悬停不许动状态"
+   —— 用户原话：「箱型选择应由左键点击确定，而非鼠标悬停或拖动位置决定」。 */
 {
+  const hubBefore = appRoot.querySelector('.disc-hub');
+  const zhBefore = hubBefore.querySelector('.hub-zh').textContent;
+  const kickBefore = hubBefore.querySelector('.hub-kicker').textContent;
   const g0 = appRoot.querySelectorAll('.sub-g')[0];
   g0.dispatch('mouseenter');
-  await new Promise((r) => setTimeout(r, 200));
-  const hoverPlates = appRoot.querySelectorAll('.plate-svg');
+  await new Promise((r) => setTimeout(r, 220));
   const hubHover = appRoot.querySelector('.disc-hub');
-  ok('悬停某一段后盘心画出标本', hoverPlates.length === 1, `${hoverPlates.length} 枚`);
+  ok('悬停不改盘心主词（选择只由左键点击确定）',
+    hubHover.querySelector('.hub-zh').textContent === zhBefore
+      && hubHover.querySelector('.hub-kicker').textContent === kickBefore,
+    `${zhBefore} → ${hubHover.querySelector('.hub-zh').textContent}`);
+  ok('悬停不画标本（未确认就没有标本）',
+    appRoot.querySelectorAll('.plate-svg').length === 0,
+    `${appRoot.querySelectorAll('.plate-svg').length} 枚`);
   ok('悬停态还没到「已选定」', !!hubHover && !hubHover.classList.contains('is-picked'),
     hubHover && hubHover.className);
+  ok('悬停只给那一段挂 is-hot', g0.classList.contains('is-hot'), g0.className);
   g0.dispatch('mouseleave');
   await new Promise((r) => setTimeout(r, 150));
+  ok('鼠标移开后 is-hot 摘掉', !appRoot.querySelectorAll('.sub-g')[0].classList.contains('is-hot'));
 }
 
 /* 中圈第一个子家族 = 「古龙水型」（notes 只有 lemon 一味） */

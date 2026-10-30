@@ -35,3 +35,7 @@ shots/
 # 结论已写进 docs/DECISIONS.md 的 D40；脚本原件在 C:/Users/16256/ego/
 # （glyph.cjs / tune10.cjs / textov.cjs / rebuild-css.mjs）
 _probe/
+
+# v15 的探测产物（Edge profile 曾误入库一次，已删）
+# 脚本原件在 C:/Users/16256/ego/v15/，结论见 D41
+_v15/
