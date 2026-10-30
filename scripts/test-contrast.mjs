@@ -31,10 +31,23 @@ for (const block of CSS.matchAll(/:root\s*\{([\s\S]*?)\}/g)) {
     if (m) VARS[m[1]] = m[2];   // 后出现的块覆盖先出现的
   }
 }
-// 兜底：--accent 必须真的被解析到 v3 的宝蓝，否则说明覆盖层没进 CSS
-const ACCENT_EXPECT = '#002FA7';
-if (VARS.accent && VARS.accent.toUpperCase() !== ACCENT_EXPECT) {
-  console.error(`✗ :root 归并异常：--accent 解析为 ${VARS.accent}，期望 ${ACCENT_EXPECT}（v3 覆盖层，styles.css 末尾）`);
+/* 兜底：v3 覆盖层必须真的进到 CSS 里。
+   原来守的是 `--accent === '#002FA7'` —— 这等于把熔断绑在一个具体色值上：
+   任何配色迁移（换 accent）都会让整个测试在第 39 行 `process.exit(1)` 退出，
+   一条结果都不出，而且报错文案指向"覆盖层没进 CSS"，与真实原因（配色变了）
+   完全无关。这类"守错了对象"的门比没有门更危险：它把配色改动伪装成构建事故。
+
+   改成守**只有覆盖层才定义的结构标记**：`--ease` / `--sh-lift` / `--radius-lg`
+   这三个不在任何基础层里，只有 styles.css 末尾那个 `:root` 有。
+   它们与配色无关，换任何色板都不会误报；而覆盖层一旦丢失，三条会同时缺。 */
+const OVERRIDE_MARKERS = ['--ease', '--sh-lift', '--radius-lg'];
+/* 直接扫原文，不走 VARS —— VARS 的解析正则只认 hex 色值，
+   `--ease: cubic-bezier(...)` / `--sh-lift: 0 1px 0 ...` / `--radius-lg: 8px`
+   三条都不在里面，用 VARS 查会全部"缺失"。 */
+const missingMarkers = OVERRIDE_MARKERS.filter(
+  (k) => !new RegExp(k.replace('-', '\-') + '\s*:').test(CSS));
+if (missingMarkers.length) {
+  console.error(`✗ :root 归并异常：v3 覆盖层的标记缺失 ${missingMarkers.join(' / ')}（styles.css 末尾那个 :root 没被解析到）`);
   process.exit(1);
 }
 
