@@ -1,7 +1,9 @@
 # 改法计划 · 暖纸 + 陶土迁移（未执行）
 
+> **状态：已废弃，不要执行。** 本方案源自仓库外的交接文档，该文档已于 2026-10-30 移除；项目视觉方向此后由项目负责人独立决定（见 `PRODUCT.md` 的「视觉方向的所有权」与 `DECISIONS.md` D22 / D27）。本文件仅作历史留存，其中的色值与路径均不可作为执行依据。
+
 日期：2026-10-30 · 状态：**仅计划，未改任何代码**
-输入：`PRODUCT.md`、`~/.dsh/skills/scent-design-tokens/reference/migration-map.md`、`F:/2026-10-28-18-59-21/HANDOFF-scent-picker.md`
+输入：`PRODUCT.md`、`~/.dsh/skills/scent-design-tokens/reference/migration-map.md`、~~`HANDOFF-scent-picker.md`~~（**该文档已移出，引用失效**）
 现状代码：`styles.css` 3951 行（拼接产物，见下）、`app.js` 104,749 字节
 
 ---
