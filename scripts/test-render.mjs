@@ -287,15 +287,27 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
     /\.wheel\.is-open \.sector-g \{[^}]*?opacity:\s*0/.test(css)
     && /\.wheel\.is-open \.sector-g \{[^}]*?pointer-events:\s*auto/.test(css),
     'pointer-events:none 就等于封掉「中圈里点别的大类直接换」');
-  ok('进入第二圈时大圈播消失动画（按 --i 错峰）',
-    /@keyframes fanVanish/.test(css)
-    && /\.wheel\.is-lifting \.sector-g \{[^}]*?animation:\s*fanVanish/.test(css)
-    && /animation-delay:\s*calc\(var\(--i/.test(css)
-    /* 用户要的是"明确消失"，所以末帧必须落到 opacity 0，
-       停在 .30 就只能算"变淡"，实测六族会被压成同一种冷灰 */
-    && /@keyframes fanVanish \{[\s\S]{0,220}?100%\s+\{ opacity: 0;/.test(css));
-  ok('返回时大圈播归位动画',
-    /@keyframes fanReturn/.test(css) && /\.wheel\.is-returning \.sector-g \{[^}]*?animation:\s*fanReturn/.test(css));
+  /* v16：进入改成两拍 —— 先六个文字各自散去，再整盘收起。
+     断言因此从"一条错峰动画"变成"两条按时间先后"的链。 */
+  ok('进入第一拍：六个家族文字按 --i 错峰散去',
+    /@keyframes labelVanish/.test(css)
+    && /\.wheel\.is-lifting \.label-layer \.disc-sector\.lvl1 \{[^}]*?animation:\s*labelVanish/.test(css)
+    && /\.wheel\.is-lifting \.label-layer \.disc-sector\.lvl1 \{[^}]*?animation-delay:\s*calc\(var\(--i/.test(css));
+  ok('进入第二拍：文字散净后整盘 opacity+scale 收起',
+    /@keyframes fanCollapse/.test(css)
+    && /\.wheel\.is-lifting \.sector-g \{[^}]*?animation:\s*fanCollapse/.test(css)
+    /* 第二拍必须晚于第一拍的结束（370ms = 5×26 + 240），
+       早于此就变成"扇区和字一起掉"，不是两拍。 */
+    && /\.wheel\.is-lifting \.sector-g \{[^}]*?animation-delay:\s*370ms/.test(css)
+    && /@keyframes fanCollapse \{[\s\S]{0,200}?100%\s+\{ opacity: 0;/.test(css));
+  ok('大圈标签层在展开态真的归零（v15 漏在覆盖链里）',
+    /\.wheel\.is-open \.label-layer,[\s\S]{0,120}?opacity:\s*0/.test(css),
+    '_wheel7.css:361 写过 opacity:1，桌面端 v15 从来没退过标签');
+  ok('返回时大圈从 .80 推出（量足够看出来）',
+    /@keyframes fanPullOut/.test(css)
+    && /\.wheel\.is-returning \.sector-g \{[^}]*?animation:\s*fanPullOut/.test(css)
+    /* 起点必须 ≤ .85：v15 用 .93 只有 7% 量、在 r=228 上不足 2px，读不出"拉出" */
+    && /@keyframes fanPullOut \{[\s\S]{0,200}?0%\s+\{ opacity: 0;\s+transform: scale\(\.8/.test(css));
   /* v15 新增：点击确认 vs 悬停预览必须在状态上分得开 */
   ok('悬停不写选中状态（选择只由左键点击确定）',
     !/hoverSub/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))
@@ -305,21 +317,45 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
     /\.wheel \.sub-g\.is-hot:not\(\.is-on\) \.sub-arc \{/.test(css)
     && !/\.wheel \.sub-g\.is-hot:not\(\.is-on\) \.sub-arc \{[^}]*?fill:\s*var\(--blue\)/.test(css),
     'hover 若用实心蓝，就看不出"哪些是确认的"');
-  ok('确认态弧段是实心蓝 + 一次脉冲',
+  ok('确认态弧段是实心蓝 + 一次几何脉冲',
     /\.wheel \.sub-g\.is-on \.sub-arc \{[^}]*?fill:\s*var\(--blue\)/.test(css)
-    && /@keyframes arcConfirm/.test(css)
-    && /\.wheel \.sub-g\.is-on \.sub-arc \{[^}]*?animation:\s*arcConfirm/.test(css),
+    && /@keyframes arcPop/.test(css)
+    && /\.wheel \.sub-g\.is-on \{[^}]*?animation:\s*arcPop/.test(css),
     '没有脉冲时"点下去"与"指着看"在时间维度上分不开');
+  ok('确认脉冲不改用 filter（浅底上不可见）',
+    /@keyframes arcPop \{[\s\S]{0,200}?transform: scale\(1\.03/.test(css),
+    'v15 用 drop-shadow 做脉冲，实测在 520px 盘上肉眼不可见');
+  ok('确认脉冲不能用 fill both（会永久钉住 transform）',
+    !/\.wheel \.sub-g\.is-on \{[^}]*?arcPop[^}]*?both/.test(css),
+    'both 会让末帧 scale(1) 永久覆盖声明值，按下态就永远看不到');
   ok('确认态盘心加一道实心短划 + 小勾',
     /\.wheel\.is-open \.disc-hub\.is-picked \.hub-kicker::before/.test(css)
     && /\.wheel \.disc-hub\.is-picked \.hub-zh::after \{[^}]*?height:\s*2px/.test(css));
+  /* v16：按下态必须是显式类，不能靠 :active */
+  ok('按下态由显式类驱动（不靠 :active）',
+    /\.wheel \.sub-g\.is-pressing \{/.test(css)
+    && /is-pressing/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8')),
+    ':active 在键盘 Enter / 脚本触发 / 触屏滑动取消三种情况下全漏');
+  ok('按下态挂 .sub-g 而不是 .sub-arc',
+    /\.wheel \.sub-g\.is-pressing \{[^}]*?transform: scale\(\.93\)/.test(css),
+    '挂 .sub-arc 会被 arcFadeRise 的 both 填充钉住 transform（实测无效）');
+  ok('按下态带描边收紧（边界位移比亮度更易感知）',
+    /\.wheel \.sub-g\.is-pressing \.sub-arc \{[^}]*?stroke-width:\s*1\.6/.test(css));
+  ok('按下态有兜底释放（pointerup 落在别处也能复位）', (() => {
+    const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+    return /function releasePress/.test(appSrc)
+      && /chooseSub[\s\S]{0,200}?releasePress\(\)/.test(appSrc);
+  })());
   ok('窄屏展开态关掉隐藏扇区的命中区',
     /@media \(max-width: 620px\)[\s\S]{0,2000}?\.wheel\.is-open \.sector-g \{ pointer-events: none; \}/.test(css),
     '看不见却能点 = 误触换大类');
-  ok('中圈整条弧带同步放大（不是只把单段放大）',
-    /@keyframes ringGrow/.test(css)
-    && /\.wheel\.is-lifting \.sub-ring \{[^}]*?animation:\s*ringGrow/.test(css)
-    && /@keyframes ringGrow \{[\s\S]{0,200}?0%\s+\{ transform: scale\(\.58\)/.test(css),
+  ok('中圈整条弧带同步放大，且有可见的过冲',
+    /@keyframes ringGrowStrong/.test(css)
+    && /\.wheel\.is-lifting \.sub-ring \{[^}]*?animation:\s*ringGrowStrong/.test(css)
+    /* 起点 .52 + 峰值 1.045：单调增大只会被读成"变清晰"，
+       有过冲才读成"弹出来"（v15 用 .58→1 单调，实测观感等同淡入）。 */
+    && /@keyframes ringGrowStrong \{[\s\S]{0,260}?0%\s+\{ transform: scale\(\.52\)/.test(css)
+    && /@keyframes ringGrowStrong \{[\s\S]{0,260}?scale\(1\.045\)/.test(css),
     '逐段各自动 scale 会各绕自己的包围盒，七段会互相穿插');
   ok('返回时中圈弧段反序收（不是整块消失）',
     /@keyframes arcFallOut/.test(css)

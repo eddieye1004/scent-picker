@@ -1,0 +1,336 @@
+/* ============================================================
+   香型轮盘 v16 · 动画链路重做：标签退场 / 逐级拉出 / 可见放大 / 按下态
+   ------------------------------------------------------------
+   v15 已经有进出场，但实测（CDP 逐帧采样）三个环节名不副实：
+
+   ① 大圈「退场」只退了扇形色块，六个家族标签一个没动。
+      探针数据：进入中圈后 0–870ms，`.label-layer` 的 opacity 全程 1.00。
+      根因是覆盖链：`_wheel4.css:37` 写的是 `.wheel.is-open .label-layer
+      { opacity: 0 }`，但 `_wheel7.css:361` 又写回 `opacity: 1`
+      （v7 为了让"缩小的盘还能点"把标签显回来了）。后者后加载、同特异度，
+      于是赢。v15 只在窄屏用媒体查询盖回去，桌面从来没有标签退场。
+
+   ② 中圈「放大」数据上成立、观感上不存在。
+     探针：ringScale `.58 → 1.00` 用了 470ms，但同一 keyframes 里
+     `60% { opacity: 1 }` 让它在 252ms 就全亮 —— 先亮完、再慢慢变大。
+     人眼对亮度的积分远快于对尺寸，于是整段读成「淡入」。
+
+   ③ 确认反馈只有一层 `filter: drop-shadow` 脉冲，520px 盘上不可见。
+     探针：filter 从 `rgba(0,0,0,0)` 变到 `rgba(0,47,167,…)`，
+     但 `arcOp` 恒 1.00、没有任何几何变化 —— 没有位移就没有"按下"。
+
+   另外补上 —— 用户点名的「按下态」在 v15 里根本不存在：
+   `:active` 只在真实指针按住时生效，键盘 Enter、程序化 dispatch、
+   触屏长按都会漏；必须改成由 JS 挂的显式类。
+
+   ## 本层编排总表（全部只用 transform / opacity / filter）
+
+   | 阶段 | 元素 | 动作 | 时长 / 缓动 / 延迟 |
+   |---|---|---|---|
+   | 进·标签 | 6 个家族文字 | 各自缩到 .90 + 反向转 −3° + 淡出 | 240ms `cubic-bezier(.4,0,.9,1)`，`i×26ms` |
+   | 进·标签层 | `.label-layer` | 等 6 个都散净后整层归零 | 160ms linear，370ms 起 |
+   | 进·扇区 | 6 个 `.sector-g` | 缩到 .86 + 转 −2.4° + 淡出 | 300ms `cubic-bezier(.4,0,.95,1)`，`i×18ms` |
+   | 进·中圈 | `.sub-ring` | **`.52 → 1.045 → 1`**，先亮后撑 | 460ms `cubic-bezier(.16,1,.3,1)` |
+   | 进·弧段 | 7 段 `.sub-arc` | 只做淡入 + −2° 回正（不再 scale，避免与容器双重缩放） | 300ms linear，`120+i×30ms` |
+   | 回·中圈 | `.sub-ring` | `1 → .56` 并淡出 | 300ms `cubic-bezier(.4,0,.9,.2)` |
+   | 回·标签层 | `.label-layer` | 先整层亮起 | 140ms linear，60ms 起 |
+   | 回·标签 | 6 个家族文字 | 从 .88 推到 1（沿盘心径向放大）+ 淡入 | 320ms `cubic-bezier(.16,1,.3,1)`，`110+i×26ms` |
+   | 回·扇区 | 6 个 `.sector-g` | 从 .80 过冲 1.03 再归 1 | 340ms `cubic-bezier(.16,1,.3,1)`，`110+i×26ms` |
+   | 确认·按下 | `.sub-g.is-pressing` | `scale(.955)` + 提亮 | 140ms `cubic-bezier(.3,0,.2,1)` |
+   | 确认·强调 | `.sub-g.is-on` | `scale 1 → 1.032 → 1` | 520ms `cubic-bezier(.16,1,.3,1)` |
+
+   六条纪律：
+   1. 只动 transform / opacity（外加确认用的 filter），不碰 width/height/left/top
+      —— 那四项每帧都会触发 layout，在 520px 盘上是明确掉帧来源。
+   2. `will-change` 只写在带动画的那层类上，类在 780ms 后被摘掉，浏览器
+      随之释放合成层；常驻 `will-change` 会把整盘永久提升成独立层，反而更慢。
+   3. 两套 keyframes 一律 `both` 填充，末帧值必须与静态值一致 ——
+      否则 780ms 摘类那一刻会跳一帧（v14 踩过：标签"啪"地正回来 1.4°）。
+   4. 容器的放大与子元素的放大不能同时用 scale，否则倍率相乘、节奏打架。
+      本层把 scale 全部收在容器上，子元素只做 opacity / rotate。
+   5. 所有「退场」都靠挂在容器上的第二段动画把容器压到 0，而不是让静态值
+      立刻是 0 —— 静态 0 会让子元素动画在透明层里播，等于没播。
+   6. `prefers-reduced-motion` 下全部 `animation: none`，并把终态写死；
+      退场态不能只靠动画末帧，否则关掉动画就停在半路。
+   ============================================================ */
+
+/* ---------------- 一、大圈标签：先散文字，再收整层 ---------------- */
+
+/* 展开态：整层不可见。
+   特异度必须压过 `_wheel7.css:361` 的 `.wheel.is-open .label-layer
+   { opacity: 1; pointer-events: auto }` —— 同为 3 个类，靠加载顺序赢，
+   但为防以后有人在 w9 与 w10 之间插一层，这里补到 4 个单位。 */
+.wheel.is-open .label-layer,
+.wheel.is-open.disc .label-layer {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 进：六个文字各自散开 —— 依次缩、依次转、依次淡。
+   旋转方向与扇区相反（文字 +3°、扇区 −2.4°），
+   两者在视觉上形成"内外反向转"的分离感，不会叠成一个整体在动。 */
+.wheel.is-lifting .label-layer .disc-sector.lvl1 {
+  animation: labelVanish 240ms cubic-bezier(.4, 0, .9, 1) both;
+  animation-delay: calc(var(--i, 0) * 26ms);
+  will-change: transform, opacity;
+}
+/* `.disc-sector` 的基类 transform 是
+   `translate(-50%,-50%) rotate(calc(-1 * var(--disc-rot, 0deg)))`
+   —— 居中与反向旋转全靠它。keyframes 里必须把这三段一起写：
+   只写 scale 会把居中覆盖掉，标签每帧被推到右下角再"跳"回原位；
+   只写 translate+scale 又会在圆盘拖拽后丢掉反向旋转，文字跟着歪。
+   所以下面两组 keyframes 末帧都带着 `rotate(calc(-1 * var(--disc-rot,0deg)))`。 */
+@keyframes labelVanish {
+  0%   { opacity: 1;   transform: translate(-50%, -50%) scale(1)   rotate(calc(-1 * var(--disc-rot, 0deg))); }
+  45%  { opacity: .62; transform: translate(-50%, -50%) scale(.965) rotate(calc(-1 * var(--disc-rot, 0deg) + 1.6deg)); }
+  100% { opacity: 0;   transform: translate(-50%, -50%) scale(.90) rotate(calc(-1 * var(--disc-rot, 0deg) + 3deg)); }
+}
+
+/* 六个都散净之后，整层再压到 0。
+   370ms = 5×26（最后一块的延迟）+ 240（它的时长）。
+   提前压会让子元素动画在透明层里播；不压则容器一直占着 opacity 1，
+   虽然看不见但会参与合成。 */
+.wheel.is-lifting .label-layer {
+  animation: layerFadeOut 160ms linear both;
+  animation-delay: 370ms;
+}
+@keyframes layerFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* 回：整层先亮起，六个文字再逐级推出来（由内向外沿径向放大） */
+.wheel.is-returning .label-layer {
+  animation: layerFadeIn 140ms linear both;
+  animation-delay: 60ms;
+}
+@keyframes layerFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.wheel.is-returning .label-layer .disc-sector.lvl1 {
+  animation: labelReturn 320ms cubic-bezier(.16, 1, .3, 1) both;
+  /* 240ms 而不是 110ms：让文字排在扇区之后。
+     用户要的是"以中圈为原点、由内向外逐级渐显"——
+     现在的层级顺序是 中圈容器(0) → 弧段(100) → 家族扇区(180) → 家族文字(240)。
+     文字压在扇区上，必须后到；反过来会出现"标签浮在空处、底色随后才补上"的一帧。 */
+  animation-delay: calc(240ms + var(--i, 0) * 20ms);
+  will-change: transform, opacity;
+}
+@keyframes labelReturn {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(.88) rotate(calc(-1 * var(--disc-rot, 0deg) - 2deg)); }
+  62%  { opacity: 1; transform: translate(-50%, -50%) scale(1.015) rotate(calc(-1 * var(--disc-rot, 0deg))); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1)     rotate(calc(-1 * var(--disc-rot, 0deg))); }
+}
+
+/* ---------------- 二、大圈扇区：从 .80 推出来，量要看得出来 ----------------
+   v15 的 fanReturn 从 .93 起，只有 7% 的量，在 228px 半径的环上不足 2px，
+   读不出"拉出"。改成从 .80 起（20% 量 ≈ 14px 位移），中段过冲 1.03。 */
+.wheel.is-returning .sector-g {
+  animation: fanPullOut 340ms cubic-bezier(.16, 1, .3, 1) both;
+  /* 180ms：排在弧段之后、家族文字之前。三层延迟 100 / 180 / 240
+     构成一条从盘心到边缘的波，间隔 80 / 60ms —— 越靠外间隔越短，
+     读起来是"扩散"而不是"排队"。 */
+  animation-delay: calc(180ms + var(--i, 0) * 20ms);
+  will-change: transform, opacity;
+}
+@keyframes fanPullOut {
+  0%   { opacity: 0;   transform: scale(.80) rotate(2.6deg); }
+  58%  { opacity: 1;   transform: scale(1.03) rotate(-.6deg); }
+  100% { opacity: 1;   transform: scale(1) rotate(0deg); }
+}
+
+/* ---------------- 二·补、进入的第二拍：文字散净后，整盘再收 ----------------
+
+   用户要的是两拍，不是一拍：
+     第一拍 —— 六个文字各自错峰散去（labelVanish，0 → 370ms）；
+     第二拍 —— **全部散净之后**，大圈容器整体做一次 opacity + scale 渐隐。
+
+   v15 / v9 把扇区也做成逐块错峰淡出、与文字并行，读起来是
+   "扇区和字一起往下掉"，不是"字先散、盘再收"。这里把扇区推迟到 370ms 起、
+   并取消逐块错峰 —— 六块作为一个容器整体缩。
+
+   末帧 opacity 0 与 `_wheel9.css:40` 的静态值一致，所以 700ms 摘类时不跳帧
+   （若末帧是 .3 之类的中间值，摘类那一下会"啪"地弹回）。
+   ============================================================ */
+.wheel.is-lifting .sector-g {
+  animation: fanCollapse 200ms cubic-bezier(.4, 0, .95, 1) both;
+  animation-delay: 370ms;
+  will-change: transform, opacity;
+}
+@keyframes fanCollapse {
+  0%   { opacity: 1; transform: scale(1) rotate(0deg); }
+  100% { opacity: 0; transform: scale(.94) rotate(-1.2deg); }
+}
+
+/* ---------------- 三、中圈：把"放大"从淡入里抢回来 ----------------
+   两个改动，缺一个都没有可见放大：
+     ① 起点 .58 → **.52**，且中段过冲到 **1.045** 再回落 —— 有回落的放大
+        才被读成"弹出来"，单调增大只被读成"变清晰"；
+     ② 不透明度不再抢跑：`0% 0 / 18% 1` 之后就不再变，剩下的 380ms
+        时间里唯一在变的是尺寸。
+   缓动换成 `cubic-bezier(.16,1,.3,1)`（近指数衰减）：前 120ms 走完
+   约 60% 的行程，后面慢慢收 —— 这正是"弹出"的手感，
+   而 v15 用的 `(.2,.9,.25,1)` 前段太平，读成匀速。 */
+.wheel.is-lifting .sub-ring {
+  animation: ringGrowStrong 460ms cubic-bezier(.16, 1, .3, 1) both;
+  will-change: transform, opacity;
+}
+@keyframes ringGrowStrong {
+  0%   { transform: scale(.52);  opacity: 0; }
+  18%  { transform: scale(.72);  opacity: 1; }
+  70%  { transform: scale(1.045); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
+.wheel.is-returning .sub-ring {
+  animation: ringShrinkStrong 300ms cubic-bezier(.4, 0, .9, .2) both;
+  will-change: transform, opacity;
+}
+@keyframes ringShrinkStrong {
+  0%   { transform: scale(1);   opacity: 1; }
+  35%  { transform: scale(1.02); opacity: 1; }   /* 先轻轻顶一下再收，缓冲感 */
+  100% { transform: scale(.56); opacity: 0; }
+}
+
+/* ---------------- 四、弧段：只做淡入，不再自己 scale ----------------
+   容器已经在 .52 → 1 地放大；弧段若再从 .90 起放，两个倍率相乘
+   （.52 × .90 = .47），前 90ms 会小到看不出，然后突然追上 —— 节奏打架。
+   弧段这里只保留 −2° 回正与淡入，让"放大"这件事只有一个来源。 */
+.wheel.is-open .sub-arc {
+  animation: arcFadeRise 300ms linear both;
+  /* 100ms 起：中圈容器 0ms 起放大，弧段等它长到约 70% 再淡入，
+     否则七段一开始就在超大尺寸上全亮，放大过程被完全盖住。 */
+  animation-delay: calc(100ms + var(--i, 0) * 28ms);
+}
+@keyframes arcFadeRise {
+  from { opacity: 0; transform: rotate(-2deg); }
+  to   { opacity: 1; transform: rotate(0deg); }
+}
+
+/* ---------------- 五、按下态：显式类，不依赖 :active ----------------
+   为什么不用 `:active`：它只在"指针真的按住该元素"时成立。
+   键盘 Enter 触发、脚本 dispatch、触屏滑动取消，三种情况全都会漏，
+   而按下态的意义恰恰是"告诉用户这一次点击被接住了"——
+   漏一次就等于没有任何反馈。所以由 app.js 在 pointerdown 挂、
+   pointerup / pointercancel / pointerleave 摘，CSS 只认类。
+
+   缩放用 .955 而不是更小：弧段是 24px 厚的弯条，再小会与相邻段的缝
+   叠在一起（相邻段也在同一环上），读成"整条环在缩"而不是"这一段被按下"。 */
+/* **必须挂在 `.sub-g` 上，不能挂 `.sub-arc`** —— 实测踩到：
+   `.wheel.is-open .sub-arc { animation: arcFadeRise … both }` 的 `both`
+   会把 `transform` 钉在末帧 `rotate(0deg)`，普通声明的 `transform: scale()`
+   优先级低于 animation，按下时 transform 恒为 `matrix(1,0,0,1,0,0)`（实测）。
+   这和 v15 里 fanVanish 把 opacity 钉在 0 是同一个坑。
+   `.sub-g` 只有在 `.is-on` 时才带 arcPop，所以这里同时写 `animation: none`
+   把它也一并取消（按下已经选中的弧段时，脉冲让位给按下态）。 */
+.wheel .sub-g.is-pressing {
+  animation: none;
+  /* .93 而不是 .955：实测 .955 只让弧段包围盒从 62.4px 缩到 59.6px（−4.5%，
+     1x 下 2.8px），肉眼几乎看不出。.93 给出 −7%（4.4px），
+     再叠下面那条描边加重，才是"按下去"该有的量。 */
+  transform: scale(.93);
+  transform-origin: 240px 240px;
+  transform-box: view-box;
+  transition: transform 120ms cubic-bezier(.3, 0, .2, 1);
+  will-change: transform;
+}
+/* 按下时的提亮**必须挂 `.sub-arc`** —— filter 在弧段上，不在组上。
+   弧段的 arcFadeRise 只动 transform，不碰 filter，所以这条不会被覆盖。 */
+/* 提亮之外再压一道内描边：纯色块的亮度变化在浅底上感知度低，
+   描边从 1px 转深是"边界收紧"，人眼对边界的位移比对照度更敏感。 */
+.wheel .sub-g.is-pressing .sub-arc {
+  filter: brightness(1.08);
+  stroke: var(--blue);
+  stroke-width: 1.6;
+  transition: filter 120ms cubic-bezier(.3, 0, .2, 1),
+              stroke 120ms cubic-bezier(.3, 0, .2, 1),
+              stroke-width 120ms cubic-bezier(.3, 0, .2, 1);
+}
+/* 松开时描边要回到常态，否则按过一次的段会永久带着蓝边 */
+.wheel .sub-g .sub-arc {
+  transition: filter 90ms cubic-bezier(.3, 0, .2, 1),
+              stroke 120ms cubic-bezier(.3, 0, .2, 1),
+              stroke-width 120ms cubic-bezier(.3, 0, .2, 1),
+              fill 160ms cubic-bezier(.4, 0, .2, 1);
+}
+/* 文字按钮的居中位移在基类 `.disc-sector` 的 transform 里，
+   这里若只写 scale 会把 translate(-50%,-50%) 覆盖掉 —— 文字每帧被推到右下再弹回。
+   所以按下态必须把居中一起写上。 */
+.wheel .sub-g.is-pressing .sub-arc-btn {
+  transform: translate(-50%, -50%) scale(.955)
+             rotate(calc(-1 * var(--disc-rot, 0deg)));
+}
+/* 松开后回到常态要稍快（90ms）：按下的回应可以慢，回弹必须脆 */
+.wheel .sub-g {
+  transition: transform 90ms cubic-bezier(.3, 0, .2, 1);
+  transform-origin: 240px 240px;
+  transform-box: view-box;
+}
+
+
+/* ---------------- 六、确认强调：改成几何脉冲 ----------------
+   v15 用 `filter: drop-shadow` 做脉冲，实测在 520px 盘上不可见 ——
+   drop-shadow 的模糊从 0 到 10px，在 24px 厚的弧段上只是边缘微微发虚。
+   改成绕盘心的整段缩放：量 3.2% ≈ 在 r≈135 处产生 4.3px 径向位移，
+   这个量在 60fps 下可读，又不会把相邻段的缝推乱。
+
+   挂 `.sub-g` 而不是 `.sub-arc`：弧段身上已经常驻 `arcFadeRise`，
+   两者若同挂 `.sub-arc`，确认时会顶掉入场动画、再把旧段摘掉时
+   重播一次入场（"旧的弹一下"）。`.sub-g` 没有别的动画，独占 transform。 */
+.wheel .sub-g.is-on {
+  /* **不能用 `both`**：`both` 会让末帧的 `transform: scale(1)` 永久覆盖声明值，
+     于是"按下已选中的那一段"永远看不到 0.955（实测 transform 恒为 identity）。
+     arcPop 的末帧本来就是 identity，不填充也停在同一个位置。 */
+  animation: arcPop 520ms cubic-bezier(.16, 1, .3, 1);
+  transform-origin: 240px 240px;
+  transform-box: view-box;
+  /* 刻意不写 will-change：`.is-on` 是常驻类（确认后一直挂着），
+     写在这里等于让那一段永久独占合成层，反而拖慢同盘其它动画。
+     一次性的 520ms 脉冲不需要它 —— 浏览器对 animation 本来就会临时提升。 */
+}
+@keyframes arcPop {
+  0%   { transform: scale(1); }
+  28%  { transform: scale(1.032); }
+  100% { transform: scale(1); }
+}
+
+/* ---------------- 七、减少动效：全部关掉并把终态写死 ---------------- */
+@media (prefers-reduced-motion: reduce) {
+  .wheel.is-lifting .label-layer,
+  .wheel.is-returning .label-layer,
+  .wheel.is-lifting .label-layer .disc-sector.lvl1,
+  .wheel.is-returning .label-layer .disc-sector.lvl1,
+  .wheel.is-returning .sector-g,
+  .wheel.is-lifting .sub-ring,
+  .wheel.is-returning .sub-ring,
+  .wheel.is-open .sub-arc,
+  .wheel .sub-g.is-on,
+  .sub-ring.is-exit .sub-arc,
+  .wheel .disc-sector.lvl2.sub-arc-btn,
+  .sub-ring.is-exit .disc-sector.lvl2.sub-arc-btn {
+    animation: none;
+    will-change: auto;
+  }
+  /* 终态必须手写：动画关掉后，标签层仍要靠这条规则退场，
+     否则会停在全亮（v15 就是这么漏的：它的退场只写在窄屏媒体查询里）。 */
+  .wheel.is-open .label-layer { opacity: 0; pointer-events: none; }
+  .wheel:not(.is-open) .label-layer { opacity: 1; }
+  .wheel.is-open .sub-ring { transform: scale(1); opacity: 1; }
+  .wheel:not(.is-open) .sub-ring { transform: scale(.58); opacity: 0; }
+  .wheel.is-open .sector-g { opacity: 0; }
+  .wheel:not(.is-open) .sector-g { opacity: 1; }
+  .wheel .sub-g.is-pressing .sub-arc { transform: none; filter: none; }
+}
+
+/* ---------------- 八、窄屏：家族文字退场后不再往回浮 ----------------
+   v15 在窄屏写了一条 `.wheel.is-open:has(.sector-g.is-hot) .label-layer
+   { opacity: 1 }`，本意是"悬停某块家族时它的标签浮回"。但 v15 同时把
+   窄屏家族扇区的 `pointer-events` 关成了 none —— `.is-hot` 永远不会触发，
+   那条规则是死代码。本层删掉它，并保留"当前项"这一条（返回瞬间需要
+   高亮指示"你刚才在哪一类"）。 */
+@media (max-width: 620px) {
+  .wheel.is-open .label-layer .disc-sector.lvl1.is-on {
+    opacity: 1;
+  }
+}

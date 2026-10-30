@@ -1272,6 +1272,25 @@ function buildWheel(cfg) {
   const subRing = el('div', { class: 'sub-ring', role: 'radiogroup', 'aria-label': '子类' });
   root.appendChild(subRing);
 
+  /* 按下态的唯一释放入口。挂在 buildWheel 作用域而不是每个弧段里：
+     ① chooseSub 需要在确认时兜底释放；
+     ② 弧段每次重建都会换一批节点，逐个挂全局监听会泄漏。
+     这里只记录"当前按下的那一个"，换节点时旧引用自然失效。 */
+  let pressedNode = null;
+  function releasePress() {
+    if (!pressedNode) return;
+    pressedNode.g.classList.remove('is-pressing');
+    pressedNode.btn.classList.remove('is-pressing');
+    pressedNode = null;
+  }
+  /* 全局兜底：指针在弧段外抬起、或窗口失焦，都要把按下态收掉。
+     `pointerup` 是唯一可靠的"这一次交互结束"的信号（click 在拖拽后不派发）。 */
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pointerup', releasePress);
+    window.addEventListener('pointercancel', releasePress);
+    window.addEventListener('blur', releasePress);
+  }
+
   /* --- 第二层：一圈弧段 ---
      三代形态的演进，每一代都在修上一代的可读性问题：
      v5「tier1 铺一圈方格 + 末尾 +N」—— 一次冒出五六个词，末尾那格还要再点一次才展开；
@@ -1427,12 +1446,46 @@ function buildWheel(cfg) {
 
       const enter = () => { hoverSub = item.id; paint(); };
       const leave = () => { if (hoverSub === item.id) { hoverSub = null; paint(); } };
+
+      /* ---- 按下态：显式类，不靠 :active ----
+         `:active` 只在"指针真的按住该元素"时成立：键盘 Enter 触发、
+         脚本 dispatch、触屏滑动取消，三种情况全漏，而按下态的意义
+         恰恰是"告诉用户这一次点击被接住了"。所以由这里挂类、由
+         pointerup / pointercancel / pointerleave 三处摘。
+         挂在 `g`（弧段组）上而不是按钮上 —— 两个入口（弧段、按钮）
+         要共用同一个按下视觉，挂两处会各动各的。 */
+      const press = () => {
+        /* 先把上一个收掉：快速连点两段时，若不收，前一段会永远停在按下态
+           （它的 pointerup 早于本次 pointerdown 已经过去）。 */
+        releasePress();
+        pressedNode = { g, btn };
+        g.classList.add('is-pressing');
+        btn.classList.add('is-pressing');
+      };
+      const release = () => {
+        if (pressedNode && pressedNode.g === g) releasePress();
+      };
+      /* 按下与抬起都绑在弧段组上：鼠标在按钮上按下、拖出弧段再松开时，
+         pointerup 落在别的节点，只绑按钮会永远停在按下态。 */
+      g.addEventListener('pointerdown', press);
+      btn.addEventListener('pointerdown', (ev) => { press(); ev.stopPropagation(); });
+      g.addEventListener('pointerup', release);
+      g.addEventListener('pointercancel', release);
+      g.addEventListener('pointerleave', release);
+      /* 键盘路径没有 pointer 事件：Enter / Space 触发 click，
+         在 click 前挂一次、下一个微任务摘掉，给一次同等的按压反馈。 */
+      const keyPress = (ev) => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        press();
+        setTimeout(release, 140);
+      };
+
       btn.addEventListener('mouseenter', enter);
       btn.addEventListener('mouseleave', leave);
       btn.addEventListener('focus', enter);
-      btn.addEventListener('blur', leave);
+      btn.addEventListener('blur', () => { leave(); release(); });
+      btn.addEventListener('keydown', (ev) => { keyPress(ev); keyNav(ev, subBtns, subBtns.indexOf(btn)); });
       btn.addEventListener('click', (ev) => { ev.stopPropagation(); chooseSub(fam, item); });
-      btn.addEventListener('keydown', (ev) => keyNav(ev, subBtns, subBtns.indexOf(btn)));
       /* 弧段本身也可点：文字只有 48px 宽，弧段比它大得多，
          只让文字接事件等于把可用面积缩到三分之一。 */
       g.addEventListener('mouseenter', enter);
@@ -1448,6 +1501,11 @@ function buildWheel(cfg) {
   }
 
   function chooseSub(fam, s) {
+    /* 按下态在这里兜底释放：键盘 Enter、脚本 dispatch、以及"按下后
+       指针在弧段外抬起"三种情况都不会走到弧段自己的 pointerup，
+       不兜底就会永远停在 0.955（实测过：探针只派 pointerdown 时，
+       弧段整整 800ms 卡在 matrix(0.955)）。 */
+    releasePress();
     selFamily = fam.id;
     selSub = s.id;
     hoverFam = null;
@@ -1462,6 +1520,13 @@ function buildWheel(cfg) {
      hover 引起的重绘每天几十次，不能每次都重播一遍进出场动画。 */
   let wasOpen = null;
   let liftTimer = 0;
+
+  /* 动画链总时长，单位 ms。数值必须 ≥ CSS 里最长的一条：
+       进入 = 370（标签层起）+ 160（层淡出）= 530
+       返回 = 240 + 5×20（最后一个文字延迟）+ 320（文字时长）= 660
+     取 700 留 40ms 余量。写成常量而不是散落的 780：
+     长度一旦与 CSS 脱钩，类会提前摘掉，末帧还没到就跳回原位。 */
+  const LAYER_ANIM_MS = 700;
   function paint() {
     const famById = new Map(families.map((f) => [f.id, f]));
     /* 只有"真的选了"才缩放并铺方格；悬停只改盘心预览。
@@ -1492,7 +1557,7 @@ function buildWheel(cfg) {
       void root.offsetWidth;                  // 强制回流，同一个类连播两次时动画才会重跑
       root.classList.add(cls);
       if (liftTimer) clearTimeout(liftTimer);
-      liftTimer = setTimeout(() => { root.classList.remove(cls); liftTimer = 0; }, 780);
+      liftTimer = setTimeout(() => { root.classList.remove(cls); liftTimer = 0; }, LAYER_ANIM_MS);
     }
     wasOpen = open;
 
