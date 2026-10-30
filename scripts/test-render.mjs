@@ -349,14 +349,19 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
   ok('窄屏展开态关掉隐藏扇区的命中区',
     /@media \(max-width: 620px\)[\s\S]{0,2000}?\.wheel\.is-open \.sector-g \{ pointer-events: none; \}/.test(css),
     '看不见却能点 = 误触换大类');
-  ok('中圈整条弧带同步放大，且有可见的过冲',
+  ok('中圈整条弧带同步放大，终点占住大圈的位置',
     /@keyframes ringGrowStrong/.test(css)
     && /\.wheel\.is-lifting \.sub-ring \{[^}]*?animation:\s*ringGrowStrong/.test(css)
-    /* 起点 .52 + 峰值 1.045：单调增大只会被读成"变清晰"，
-       有过冲才读成"弹出来"（v15 用 .58→1 单调，实测观感等同淡入）。 */
-    && /@keyframes ringGrowStrong \{[\s\S]{0,260}?0%\s+\{ transform: scale\(\.52\)/.test(css)
-    && /@keyframes ringGrowStrong \{[\s\S]{0,260}?scale\(1\.045\)/.test(css),
+    /* 终点 1.43，不是 1。弧带原生 118–152、大圈 158–228：
+       1.43 让弧带落在 169–217（中线 193 = 大圈中线），才叫"占据位置"。
+       终点写成 1 时弧带只到 155，占盘直径 68%，外侧空 32%。 */
+    && /@keyframes ringGrowStrong \{[\s\S]{0,300}?100%\s+\{ transform: scale\(1\.43\)/.test(css)
+    /* 过冲：单调增大只被读成"变清晰"，有过冲才读成"弹出来" */
+    && /@keyframes ringGrowStrong \{[\s\S]{0,300}?scale\(1\.49\)/.test(css),
     '逐段各自动 scale 会各绕自己的包围盒，七段会互相穿插');
+  ok('中圈放大的静态终态与动画末帧一致（摘类不跳帧）',
+    /\.wheel\.is-open \.sub-ring \{ transform: scale\(1\.43\); \}/.test(css),
+    '动画末帧 1.43 而静态值 1 的话，700ms 摘类时会缩回去一截');
   ok('返回时中圈弧段反序收（不是整块消失）',
     /@keyframes arcFallOut/.test(css)
     && /\.sub-ring\.is-exit \.sub-arc \{[^}]*?animation:\s*arcFallOut/.test(css)

@@ -1058,7 +1058,14 @@ function buildWheel(cfg) {
      且把标签推到家族环外沿会越出盘外，所以不取。 */
   const LABEL_R = 193;
   const LABEL_R_NARROW = 200;
-  const SUB_LABEL_R_NARROW = 152;
+  /* 窄屏中圈标签半径 = 130（容器自身放大 1.43 之后 = 186 单位）。
+     v15 曾经把它外移到 152，是为了避开"标签压在盘心半径 78.7px 内"；
+     v16 起整个 .sub-ring 放大 1.43，152×1.43 = 217 单位会越出盘外
+     （实测窄屏 3 处 outBox），所以收回 130 —— 放大后落在 186 单位，
+     360 视口（盘 312px，k=0.65）实测：130 → 中心 121px + 半宽 31.5px = 152.5px，
+     而盘半径 156px、四字标签右缘实际越界 3px；收到 120 后中心 111.5px、
+     右缘 143px，留 13px 余量，同时内沿 80px 仍在盘心半径 72px 之外。 */
+  const SUB_LABEL_R_NARROW = 120;
 
   const root = el('div', { class: 'disc wheel', role: 'group', 'aria-label': '香型轮盘' });
 

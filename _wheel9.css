@@ -109,24 +109,24 @@
   transition: transform 420ms cubic-bezier(.2, .9, .25, 1),
               opacity 260ms linear;
 }
-.wheel.is-open .sub-ring { transform: scale(1); }
+.wheel.is-open .sub-ring { transform: scale(1.43); }
 /* 未展开时缩在盘心里；退场时缩回去（.is-exit 由 app.js 挂 420ms） */
-.wheel:not(.is-open) .sub-ring { transform: scale(.58); }
-.wheel.is-open .sub-ring.is-exit { transform: scale(.62); }
+.wheel:not(.is-open) .sub-ring { transform: scale(.44); }
+.wheel.is-open .sub-ring.is-exit { transform: scale(.44); }
 /* 退场期间容器不能被 :not(.is-open) 的 opacity 0 掐掉，
    否则子元素的动画在 0 不透明度里播，等于没播 */
 .wheel .sub-ring.is-exit { opacity: 1; pointer-events: none; }
 /* 入场动画链只在"刚展开"那一下挂，避免 hover 引起的高频重绘重播 */
 .wheel.is-lifting .sub-ring { animation: ringGrow 420ms cubic-bezier(.2, .9, .25, 1) both; }
 @keyframes ringGrow {
-  0%   { transform: scale(.58); opacity: .2; }
+  0%   { transform: scale(.44); opacity: .2; }
   60%  { opacity: 1; }
   100% { transform: scale(1); opacity: 1; }
 }
 .wheel.is-returning .sub-ring { animation: ringShrink 280ms cubic-bezier(.4, 0, .9, .2) both; }
 @keyframes ringShrink {
   0%   { transform: scale(1); opacity: 1; }
-  100% { transform: scale(.62); opacity: 0; }
+  100% { transform: scale(.44); opacity: 0; }
 }
 
 /* ---------------- 三、弧段与文字 ---------------- */
@@ -260,8 +260,8 @@
   .wheel.is-open .sector-g { transition-duration: 1ms; }
   /* 关掉动画后必须把两层的终态写死，否则大圈会停在 opacity 0 且无过渡 */
   .wheel.is-open .sector-g { opacity: 0; }
-  .wheel.is-open .sub-ring { transform: scale(1); }
-  .wheel:not(.is-open) .sub-ring { transform: scale(.58); }
+  .wheel.is-open .sub-ring { transform: scale(1.43); }
+  .wheel:not(.is-open) .sub-ring { transform: scale(.44); }
 }
 
 /* ---------------- 七、窄屏：三层放不下时，先让家族标签退场 ----------------
