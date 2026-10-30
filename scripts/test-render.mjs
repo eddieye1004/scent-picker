@@ -293,13 +293,19 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
     /@keyframes labelVanish/.test(css)
     && /\.wheel\.is-lifting \.label-layer \.disc-sector\.lvl1 \{[^}]*?animation:\s*labelVanish/.test(css)
     && /\.wheel\.is-lifting \.label-layer \.disc-sector\.lvl1 \{[^}]*?animation-delay:\s*calc\(var\(--i/.test(css));
-  ok('进入第二拍：文字散净后整盘 opacity+scale 收起',
+  ok('进入时扇区淡出与文字并行，且 0ms 起（不能等文字散完）',
     /@keyframes fanCollapse/.test(css)
     && /\.wheel\.is-lifting \.sector-g \{[^}]*?animation:\s*fanCollapse/.test(css)
-    /* 第二拍必须晚于第一拍的结束（370ms = 5×26 + 240），
-       早于此就变成"扇区和字一起掉"，不是两拍。 */
-    && /\.wheel\.is-lifting \.sector-g \{[^}]*?animation-delay:\s*370ms/.test(css)
+    /* **延迟必须是 0**。用户实测报过"滞后边框"：delay 370ms 时
+       0–370ms 整圈家族环全亮挂着，中圈已经在长，读成没退干净。
+       `both` 填充会把 opacity 钉在 1 直到动画真正开始，所以 delay>0
+       就等于"先亮一段时间再突然消失"。 */
+    && /\.wheel\.is-lifting \.sector-g \{[^}]*?animation-delay:\s*0ms/.test(css)
     && /@keyframes fanCollapse \{[\s\S]{0,200}?100%\s+\{ opacity: 0;/.test(css));
+  ok('凹槽环用 animation 而不是 transition（节点是新建的）',
+    /@keyframes channelIn/.test(css)
+    && /\.wheel\.is-open \.sub-channel \{[^}]*?animation:\s*channelIn/.test(css),
+    'sub-channel 插入时 is-open 已挂上，transition 没有前值可过渡，第一帧就是全亮');
   ok('大圈标签层在展开态真的归零（v15 漏在覆盖链里）',
     /\.wheel\.is-open \.label-layer,[\s\S]{0,120}?opacity:\s*0/.test(css),
     '_wheel7.css:361 写过 opacity:1，桌面端 v15 从来没退过标签');

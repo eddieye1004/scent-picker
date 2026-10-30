@@ -69,9 +69,13 @@
 /* 进：六个文字各自散开 —— 依次缩、依次转、依次淡。
    旋转方向与扇区相反（文字 +3°、扇区 −2.4°），
    两者在视觉上形成"内外反向转"的分离感，不会叠成一个整体在动。 */
+/* 时长从 240ms/i×26ms 压到 180ms/i×12ms（最长 60+180=240ms）。
+   原来最长要 370ms，加上扇区 200ms 就是 570ms —— 用户实测看到的是
+   "点完之后大圈环还挂着，过一会儿才没"。错峰保留（顺序还读得出），
+   但整条链必须在中圈长到一半之前收干净。 */
 .wheel.is-lifting .label-layer .disc-sector.lvl1 {
-  animation: labelVanish 240ms cubic-bezier(.4, 0, .9, 1) both;
-  animation-delay: calc(var(--i, 0) * 26ms);
+  animation: labelVanish 180ms cubic-bezier(.4, 0, .9, 1) both;
+  animation-delay: calc(var(--i, 0) * 12ms);
   will-change: transform, opacity;
 }
 /* `.disc-sector` 的基类 transform 是
@@ -91,8 +95,8 @@
    提前压会让子元素动画在透明层里播；不压则容器一直占着 opacity 1，
    虽然看不见但会参与合成。 */
 .wheel.is-lifting .label-layer {
-  animation: layerFadeOut 160ms linear both;
-  animation-delay: 370ms;
+  animation: layerFadeOut 90ms linear both;
+  animation-delay: 240ms;
 }
 @keyframes layerFadeOut {
   from { opacity: 1; }
@@ -140,7 +144,7 @@
   100% { opacity: 1;   transform: scale(1) rotate(0deg); }
 }
 
-/* ---------------- 二·补、进入的第二拍：文字散净后，整盘再收 ----------------
+/* ---------------- 二·补、进入：扇区与文字并行退场（扇区更快）----------------
 
    用户要的是两拍，不是一拍：
      第一拍 —— 六个文字各自错峰散去（labelVanish，0 → 370ms）；
@@ -153,14 +157,27 @@
    末帧 opacity 0 与 `_wheel9.css:40` 的静态值一致，所以 700ms 摘类时不跳帧
    （若末帧是 .3 之类的中间值，摘类那一下会"啪"地弹回）。
    ============================================================ */
+/* **扇区不能等文字散完再收**。v16 第一版把延迟写成 370ms（等 labelVanish
+   全部结束），实测出现用户报的"滞后边框"：0–370ms 整个大圈环全亮地挂在
+   那里，其中还有一块带蓝描边的选中扇区 —— 中圈都已经开始长了，外面那圈
+   还在，读成"没退干净"。查逐帧截图 t0120 能直接看到。
+
+   定稿：扇区从 40ms 就开始淡，与文字并行但更快（200ms vs 240ms），
+   到 240ms 已经归零，比文字的最后一枚（370ms）还早。
+   文字压在扇区上，先退底色反而让文字散得更清楚 ——
+   "两拍"要的是**顺序可读**，不是"前一个完全结束才允许下一个开始"。 */
+/* **延迟必须是 0**。实测：110ms 的 delay 期间 `both` 填充把扇区钉在
+   opacity 1，于是 0–110ms 那圈 158–228 的家族环全亮地挂着，中圈已经在
+   长了 —— 这就是"滞后边框"的最后一段。改成 0 起、且 150ms 就收完，
+   到大盘一半时间（230ms）时外圈已经完全干净。 */
 .wheel.is-lifting .sector-g {
-  animation: fanCollapse 200ms cubic-bezier(.4, 0, .95, 1) both;
-  animation-delay: 370ms;
+  animation: fanCollapse 150ms cubic-bezier(.4, 0, .95, 1) both;
+  animation-delay: 0ms;
   will-change: transform, opacity;
 }
 @keyframes fanCollapse {
   0%   { opacity: 1; transform: scale(1) rotate(0deg); }
-  100% { opacity: 0; transform: scale(.94) rotate(-1.2deg); }
+  100% { opacity: 0; transform: scale(.96) rotate(-1deg); }
 }
 
 /* ---------------- 三、中圈：把"放大"从淡入里抢回来 ----------------
@@ -217,6 +234,52 @@
 @keyframes arcFadeRise {
   from { opacity: 0; transform: rotate(-2deg); }
   to   { opacity: 1; transform: rotate(0deg); }
+}
+
+/* ---------------- 四·补、凹槽必须等弧段盖上来再亮 ----------------
+
+   用户报的"滞后边框"，最后一层原因在这里：`.sub-channel`（凹槽环）
+   在 `_wheel8.css` 里是 `transition: opacity 200ms linear` + `is-open` 时
+   opacity 1 —— 也就是**容器一展开它就立刻开始亮**，200ms 全亮。
+   而七段弧片要到 100ms 才开始淡入、最长到 340ms。
+
+   于是 100–300ms 之间会看到一条完整的蓝灰色圆环：弧片还没盖上，
+   槽底先亮出来 —— 那就是截图 t0120 里那圈宽蓝带，读成"大圈边框没退"。
+
+   修法：凹槽比第一段弧片晚起、并且比它更快 ——
+   130ms 起、140ms 淡入，此时第 0 段已经铺上（100ms 起 + 300ms 里已走 10%），
+   槽只在瓦片的缝里露出，不会先亮成一整圈。
+   ============================================================ */
+/* **必须用 animation，不能用 transition。**
+   `.sub-channel`（凹槽环）是 `buildSubRing()` 新建的节点：它被插入 DOM 的
+   那一刻，父级上的 `is-open` 已经在了。于是第一帧就同时算出
+   `opacity: 0`（基础规则）和 `opacity: 1`（is-open 规则），浏览器只认得
+   后者 —— transition 没有"前一个值"可以过渡，槽底从第一帧就是全亮。
+
+   实测：闭合态 DOM 里根本没有 `.sub-channel`（`querySelector` 返回 null），
+   点开之后立刻读 computed opacity 就是 1，transition 声明在但从不触发。
+
+   animation 不依赖前值：插入即播，起点由 keyframes 的 0% 决定。
+   延迟 130ms —— 此时第一段弧片（100ms 起）已经淡入到 10%，
+   槽只在瓦片的缝里露出，不会先亮成一整圈蓝环。 */
+.wheel .sub-channel {
+  opacity: 0;
+}
+.wheel.is-open .sub-channel {
+  animation: channelIn 140ms linear 130ms both;
+}
+@keyframes channelIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+/* 退场：槽要比弧片晚收（弧片 60ms 起、200ms 走完），
+   否则弧片还在、槽先没了，七段会浮在无底的白上。 */
+.wheel.is-open .sub-ring.is-exit .sub-channel {
+  animation: channelOut 120ms linear 90ms both;
+}
+@keyframes channelOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
 }
 
 /* ---------------- 五、按下态：显式类，不依赖 :active ----------------
