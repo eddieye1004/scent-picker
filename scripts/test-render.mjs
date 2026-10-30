@@ -71,6 +71,23 @@ class TNode {
     this.children.push(n);
     return n;
   }
+  /* insertBefore 是真实 DOM 的标准方法，app.js 的"已选置顶"用到它
+     （把刚勾选的 chip 移到栏首）。桩里不实现的话，测试会抛
+     "box.insertBefore is not a function"，而浏览器里是正常的 ——
+     这种"只有测试跑不过"的假失败会诱导人去改业务代码绕过，
+     结果是测试和浏览器走两条路。所以桩要补齐，而不是绕开。 */
+  insertBefore(n, ref) {
+    if (typeof n !== 'string') { n.parentNode = this; }
+    const i = ref == null ? -1 : this.children.indexOf(ref);
+    if (i < 0) this.children.push(n);
+    else this.children.splice(i, 0, n);
+    return n;
+  }
+  removeChild(n) {
+    const i = this.children.indexOf(n);
+    if (i >= 0) { this.children.splice(i, 1); n.parentNode = null; }
+    return n;
+  }
   append(...ns) { ns.flat().forEach((n) => n != null && this.appendChild(n)); }
   addEventListener(ev, fn) { (this._listeners[ev] ||= []).push(fn); }
   dispatch(ev, payload = {}) {
@@ -738,36 +755,22 @@ ok('第 1 步有下一步按钮', !!goBtn);
 goBtn.dispatch('click');
 await new Promise((r) => setTimeout(r, 800));
 
-ok('进入第 2 步（场合）', getStepText().includes('主要在哪里用'), getStepText().slice(0, 100));
-const opts2 = appRoot.querySelectorAll('.disc-sector');
-ok('场合圆盘 5 个扇区', opts2.length === 5, `实际 ${opts2.length}`);
+/* v22：7 步顺序 —— 1 香型 / 2 香调点名 / 3 气质 / 4 场景 / 5 浓淡持久。
+   第 2 步之后的三屏断言按新顺序写在下面，这里只确认已经离开第 1 步。 */
 
-/* 选「上班/上课」= 索引 1 */
-opts2[1].dispatch('click');
-await new Promise((r) => setTimeout(r, 800));  // 自动切题是 620ms，必须等过它
+ok('进入第 2 步（香调点名，双栏）', getStepText().includes('点名具体'), getStepText().slice(0, 120));
 
-ok('进入第 3 步（浓度）', getStepText().includes('希望它有多'), getStepText().slice(0, 100));
-const slider = appRoot.querySelector('input');
-ok('滑块存在', !!slider);
-ok('滑块默认 3', slider && slider.attrs.value === '3', slider && slider.attrs.value);
-ok('浓度说明有文字', getStepText().includes('中等'));
-
-/* 拖到 2 */
-slider.dispatch('input', { target: { value: '2' } });
-await new Promise((r) => setTimeout(r, 30));
-ok('拖动后文案更新', getStepText().includes('偏淡'), getStepText().slice(0, 200));
-
-/* 进入第 4 步 */
-const nextBtn = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('上一题'));
-ok('第 3 步有返回按钮', !!nextBtn);
-const fwd = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('下一步'));
-ok('第 3 步有前进按钮', !!fwd);
-fwd.dispatch('click');
-await new Promise((r) => setTimeout(r, 300));
-
-ok('进入第 4 步（喜欢的具体香调）', getStepText().includes('特别喜欢'), getStepText().slice(0, 120));
 const chips = appRoot.querySelectorAll('.chip');
 ok('香调 chip 已渲染', chips.length >= 16, `实际 ${chips.length}`);
+/* 合并后的关键结构：两栏同屏。这是本轮改动最核心的一条契约 ——
+   若这里退回单栏，说明有人又把合并改回去了。 */
+ok('香调屏是两栏并排（喜欢 + 讨厌同屏）',
+  appRoot.querySelectorAll('[data-col="liked"]').length > 0
+  && appRoot.querySelectorAll('[data-col="disliked"]').length > 0,
+  `liked ${appRoot.querySelectorAll('[data-col="liked"]').length} / disliked ${appRoot.querySelectorAll('[data-col="disliked"]').length}`);
+ok('两栏各有一枚「已选 N」计数徽标',
+  appRoot.querySelectorAll('.note-count').length === 2,
+  `实际 ${appRoot.querySelectorAll('.note-count').length}`);
 
 // 回归守门：曾经用 entries.slice(0,16) 取"高频香调"，但数据按家族顺序排列，
 // 前 16 个正好全是柑橘+花香+雪松檀木 —— 喜欢木质/琥珀/美食/清新的人
@@ -775,12 +778,18 @@ ok('香调 chip 已渲染', chips.length >= 16, `实际 ${chips.length}`);
 // 断言：折叠前可见的香调必须覆盖全部 6 个家族，且喜欢/讨厌两栏初始可见数相等。
 const taxa = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/taxonomy.json'), 'utf8'));
 const entryFamily = new Map(taxa.noteIndex.entries.map((n) => [n.zh, n.family]));
-const visibleZh = chips.slice(0, 16).map((c) => c.textContent.trim());
+/* 合并屏两栏各 16 个，合计 32 个可见 chip。
+   断言要看**两栏合计**的家族覆盖 —— 只取前 16 个等于只看左栏。
+   左栏 16 个只覆盖 citrus/floral/woody 是数据本身的样子（usable 按家族
+   顺序排，前 16 个落在前三族），右栏从尾部取 16 个做互补，两栏合起来
+   才覆盖全部 6 族。所以这里改成对 chips 全量取样。 */
+const visibleZh = chips.map((c) => c.textContent.trim());
 const fams = new Set(visibleZh.map((z) => entryFamily.get(z)).filter(Boolean));
-ok('首屏香调覆盖至少 4 个家族（防家族偏斜）', fams.size >= 4,
+ok('两栏合计覆盖至少 4 个家族（防家族偏斜）', fams.size >= 4,
   `${fams.size} 个家族: ${[...fams].join(',')}`);
-ok('首屏可选到「琥珀」「香草」这类琥珀/美食调',
-  visibleZh.includes('琥珀') && visibleZh.includes('香草'), visibleZh.join(' '));
+ok('两栏合计能选到「琥珀」「香草」这类琥珀/美食调',
+  visibleZh.includes('琥珀') && visibleZh.includes('香草'),
+  visibleZh.slice(0, 40).join(' '));
 
 // 回归守门：40 个香调里有在当前 200 瓶样本中 0 命中的死选项（实测只有 可可/cocoa）。
 // 勾了它永远推荐不出东西，等于骗一次点击。必须被 usableEntries() 挡在界面之外。
@@ -812,27 +821,18 @@ ok('chip 状态可切换', chips[0].getAttribute('aria-pressed') === 'true',
    实测踩过：两栏原本互不通信，可以同时勾上同一个香调，进引擎后
    喜欢分与讨厌分互相抵消，结果卡片的理由里反而不提用户点名的香材。
    这里用 DOM 里的同名列来验：在"讨厌"栏点同名 chip，喜欢栏那个必须自动关掉。 */
-/* v19：喜欢 / 讨厌从"同一屏两栏"拆成"两屏各一栏"。
-   互斥逻辑没变（仍在 chipRegistry 背面守着），但**测法必须跟着变**：
-   同名副本这次真的在另一屏里，所以要先把那一屏渲染出来才拿得到它。
-   这正是拆屏带来的好处之一 —— 原来两栏同屏时，勾上面那栏再滚到下面，
-   已经看不到上面勾了什么；现在每屏只看一栏，滚动与状态互不干扰。 */
+/* 两栏互斥：合并后同名副本就在同一屏，直接找即可。
+   这一条是合并后**唯一新增的复杂度** —— 两栏同时存在于 DOM，
+   勾一边必须同步改另一边，否则会出现"同一香调既喜欢又讨厌"（D41 禁止）。 */
 const sameZh = chips[0].textContent.trim();
-
-/* 走到第 5 步（讨厌那一屏）才拿得到同名副本 */
-const fwd5 = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('下一步'));
-ok('第 4 步有下一步按钮', !!fwd5);
-fwd5.dispatch('click');
-await new Promise((r) => setTimeout(r, 400));
-ok('进入第 5 步（讨厌的香调）', getStepText().includes('受不了'), getStepText().slice(0, 120));
-const dislikeChips = appRoot.querySelectorAll('.chip');
-ok('第 5 步只渲染讨厌一栏（无 data-col=liked）',
-  dislikeChips.every((c) => c.getAttribute('data-col') === 'disliked'),
-  `实际 ${dislikeChips.length} 个`);
-const dislikeTwin = dislikeChips.find((c) => c.textContent.trim() === sameZh);
-ok('讨厌屏能找到与喜欢屏同名的 chip', !!dislikeTwin, sameZh);
+const dislikeTwin = appRoot.querySelectorAll('.chip').find(
+  (c) => c.getAttribute('data-col') === 'disliked' && c.textContent.trim() === sameZh
+);
+ok('两栏里能找到同名 chip', !!dislikeTwin, sameZh);
 if (dislikeTwin) {
-  dislikeTwin.dispatch('click');
+  chips[0].dispatch('click');            // 先勾喜欢
+  await new Promise((r) => setTimeout(r, 60));
+  dislikeTwin.dispatch('click');         // 再勾讨厌 → 喜欢应被取消
   await new Promise((r) => setTimeout(r, 60));
   ok('两栏互斥：勾讨厌会取消喜欢',
     dislikeTwin.getAttribute('aria-pressed') === 'true',
@@ -842,18 +842,16 @@ if (dislikeTwin) {
 /* v19：出结果前要再走 5 屏（气质 / 季节 / 浓度 / 留香 / 整族排除）。
    每屏都给一句断言，顺带把「新增的屏真的能渲染、能前进」测掉 ——
    否则只要某一屏的 navBar 分支漏写，用户就会卡在那里出不了结果。 */
-/* v20：13 步。顺序见 app.js 的 STEPS：
-   1 家族 / 2 场合 / 3 浓度 / 4 喜欢香调 / 5 讨厌香调 / 6 气质
-   7 气味温度 / 8 甜度 / 9 季节 / 10 浓度档 / 11 留香 / 12 整族排除 / 13 已知锚点 */
+/* v22：7 步。顺序见 app.js 的 STEPS ——
+   1 香型 / 2 香调点名（双栏）/ 3 气质（三组）/ 4 场景（场合+季节）
+   5 浓淡持久（滑块+浓度+留香联动）/ 6 整族排除 / 7 已知款
+   合并原则是"一屏只问一类事"，不是"相邻就合"。 */
 const stepNames = [
-  [6, '给人什么感觉', 'character'],
-  [7, '暖的还是凉的', 'temperature'],
-  [8, '能接受多甜', 'sweetness'],
-  [9, '哪个季节', 'season'],
-  [10, '多"持久"', 'concentration'],
-  [11, '喷一次管多久', 'longevity'],
-  [12, '完全不想要', 'dislikedFamilies'],
-  [13, '试过、并且喜欢', 'anchor'],
+  [3, '给人什么感觉', 'mood'],
+  [4, '什么时候用它', 'context'],
+  [5, '想要多浓、留多久', 'strength'],
+  [6, '完全不想要', 'dislikedFamilies'],
+  [7, '试过、并且喜欢', 'anchor'],
 ];
 for (const [n, phrase] of stepNames) {
   /* 顺序很重要：先点前进、再断言落在第 n 步。

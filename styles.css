@@ -4719,3 +4719,48 @@ body { position: relative; }
 /* 换品牌时只重建这一块（不整页重绘），所以它需要一个最小高度，
    否则空态会比有内容时矮 44px，整页会跳一下。 */
 .anchor-slot { min-height: 0; }
+
+/* ---------------- 五、合并屏：香调双栏 ----------------
+   两栏并排。1440 下各占一半（360px），390 下改成单列堆叠 ——
+   窄屏并排会让每个 chip 只剩 80px，四字香调名折成两行。
+   两栏之间用一道竖线分隔，不用色块：色块会把"要"和"不要"读成
+   两个不同的卡片区，而它们其实是同一个问题的两面。 */
+.note-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 22px;
+  margin-top: 6px;
+}
+.note-grid > .note-col + .note-col {
+  border-left: 1px solid var(--line);
+  padding-left: 22px;
+}
+@media (max-width: 720px) {
+  .note-grid { grid-template-columns: minmax(0, 1fr); gap: 20px 0; }
+  .note-grid > .note-col + .note-col {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+  }
+}
+/* 栏头：标题 + 「已选 N」徽标。徽标是合并能成立的关键之一 ——
+   两栏同屏时，用户必须能立刻看出"我在这栏里已经勾了几个"，
+   否则滚到另一栏就忘了。 */
+.note-col-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.note-count {
+  flex: 0 0 auto;
+  font-size: 12px;                 /* 12px 是 test-contrast 的下限，不能再小 */
+  color: var(--ink-3);             /* 白底 6.19，三档底全过 4.5 */
+  font-variant-numeric: tabular-nums;
+}
+.note-count.is-on {
+  color: var(--blue);              /* 7.42 on 白，承载文字安全 */
+  font-weight: 600;
+}
