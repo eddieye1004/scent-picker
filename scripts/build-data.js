@@ -28,9 +28,17 @@ const TAXONOMY = path.join(ROOT, 'data', 'taxonomy.json');
 const OUT = path.join(ROOT, 'data', 'perfumes.json');
 const REJECTS = path.join(ROOT, 'data', 'perfumes.rejected.json');
 
+/* 默认**不再截断**：上游有多少条合格数据就出多少条。
+   这个常量原来默认 200，后来改成 400，两次都是人为设的上限 ——
+   而数据源里合格条目有 1228 条（1328 行减去 92 条缺三层金字塔的、
+   再减去 8 条家族映射不上的）。用户要"取消人为上限"，指的就是这个。
+   需要小样本调试时仍可 `--limit 400` 显式指定；
+   传 0 或负数同样视为"不截断"，避免误传导致产出 0 条。 */
 const LIMIT = (() => {
   const i = process.argv.indexOf('--limit');
-  return i > -1 ? parseInt(process.argv[i + 1], 10) : 200;
+  if (i < 0) return Infinity;
+  const n = parseInt(process.argv[i + 1], 10);
+  return Number.isFinite(n) && n > 0 ? n : Infinity;
 })();
 
 function readJsonl(p) {
@@ -134,7 +142,13 @@ function main() {
   // 加子家族配额的理由（实测 2026-10-28）：只按家族配额时，200 瓶里
   // 咖啡可可 0 瓶、朗姆酒 2 瓶、海水 5 瓶、茶香 5 瓶 —— 第二层点进去是空的。
   // 全量 1228 行里每个子家族都有货（最少的绿意也有 24 行），问题纯粹是抽样没分到。
-  const MIN_PER_FAMILY = Math.max(12, Math.floor(LIMIT / taxonomy.families.length / 2));
+  /* 家族保底配额。LIMIT 为 Infinity 时 Math.floor(Infinity/12) 也是 Infinity，
+     会把第一批就直接塞满整个库（每个家族都取全部候选）——
+     虽然结果正确但语义混乱。全量模式下用固定 12：保底的意义只是
+     "让每个家族不至于 0 瓶"，不是"尽量多拿"，多拿的部分由第三轮兜底。 */
+  const MIN_PER_FAMILY = Number.isFinite(LIMIT)
+    ? Math.max(12, Math.floor(LIMIT / taxonomy.families.length / 2))
+    : 12;
   const MIN_PER_SUBFAMILY = (() => {
     const i = process.argv.indexOf('--sub-quota');
     return i > -1 ? parseInt(process.argv[i + 1], 10) : 6;
@@ -199,6 +213,8 @@ function main() {
     }
   }
 
+  /* 第三轮兜底：把还没被前两轮选中的全部收进来。
+     全量模式下这就是"全收"，LIMIT 有限时补到上限为止。 */
   for (const p of accepted) {
     if (pickedArr.length >= LIMIT) break;
     if (!chosenIds.has(p.id)) { chosenIds.add(p.id); pickedArr.push(p); }
@@ -209,7 +225,7 @@ function main() {
     const rb = b.popularityRank ?? Number.MAX_SAFE_INTEGER;
     return ra !== rb ? ra - rb : a.id.localeCompare(b.id);
   });
-  const picked = pickedArr.slice(0, LIMIT);
+  const picked = Number.isFinite(LIMIT) ? pickedArr.slice(0, LIMIT) : pickedArr;
   picked.forEach((p) => { delete p._primary; });
 
   // 家族覆盖度统计（用于验证 200 瓶是否每个家族都有货）
@@ -223,9 +239,12 @@ function main() {
 
   const out = {
     meta: {
-      version: '1.0.0',
+      version: '2.0.0',
       builtAt: new Date().toISOString(),
       count: picked.length,
+      /* 全量模式要标出来，否则以后看到 count 会误以为是抽样。
+         下游 README / 页脚的「只收录 N 瓶样本」那句话也要跟着改。 */
+      fullPopulation: !Number.isFinite(LIMIT),
       sourceName: 'Scento Perfume Database',
       sourceUrl: 'https://www.scento.com/perfume-database',
       sourceRepo: 'https://github.com/Scento-com/perfume-dataset',
