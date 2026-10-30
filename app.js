@@ -1455,8 +1455,21 @@ function buildWheel(cfg) {
           + '%; --i: ' + i + '; --n: ' + n,
       }, el('span', { class: 'zh' }, item.zh));
 
-      const enter = () => { hoverSub = item.id; paint(); };
-      const leave = () => { if (hoverSub === item.id) { hoverSub = null; paint(); } };
+      /* **中圈一旦有选中项，hover 一律不再产生反馈**。
+         用户的要求：「中圈一旦被选定，无论鼠标移动到何处，中框的选择状态
+         都不应再发生变化；要重新改变选择必须左键点击」。
+         这里同时挡两件事：
+           ① 不再写 hoverSub（`is-hot` 不会出现 → 没有蓝框）；
+           ② 不再调 paint()（盘心不重绘 → 不闪）。
+         只挡视觉不挡事件：弧段的 click 仍然照常工作。 */
+      const enter = () => {
+        if (selSub) return;
+        hoverSub = item.id; paint();
+      };
+      const leave = () => {
+        if (selSub) return;
+        if (hoverSub === item.id) { hoverSub = null; paint(); }
+      };
 
       /* ---- 按下态：显式类，不靠 :active ----
          `:active` 只在"指针真的按住该元素"时成立：键盘 Enter 触发、
@@ -1520,6 +1533,8 @@ function buildWheel(cfg) {
     selFamily = fam.id;
     selSub = s.id;
     hoverFam = null;
+    /* 必须显式清空：`is-hot` 是 paint() 按 hoverSub 重算的，
+       若不清，锁类挂上后那一段仍带着上一帧的 is-hot，看起来像"锚在别的项上"。 */
     hoverSub = null;
     paint();
     onChange(fam, s);
@@ -1648,6 +1663,13 @@ function buildWheel(cfg) {
       zh = showFam.zh;
       desc = showFam.style || showFam.oneLine;
     }
+    /* CSS 里的 `.sub-g:hover` 是纯样式钩子，JS 管不到 —— 选中之后
+       指针划过去照样会让描边从 1px 变 1.4px、填充变白（实测）。
+       所以给 root 挂一个锁类，_wheel7.css 里所有 hover 规则都写成
+       `.wheel:not(.is-sub-locked) .sub-g:hover`，选中即整体失效。
+       为什么不是删掉 hover 规则：未选中时它仍是必要的"哪里能点"提示，
+       D41 明确要求悬停只给视觉提示、不改状态 —— 它不该被删，该被上锁。 */
+    root.classList.toggle('is-sub-locked', !!selSub);
     hub.classList.toggle('is-idle', idle);
     hub.classList.toggle('is-picked', picked);
     // 整盘翻深由 root 上的 is-picked 驱动：加深的是盘，不是盘心方块

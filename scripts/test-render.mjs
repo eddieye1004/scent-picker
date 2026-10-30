@@ -337,6 +337,22 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
   ok('确认态盘心加一道实心短划 + 小勾',
     /\.wheel\.is-open \.disc-hub\.is-picked \.hub-kicker::before/.test(css)
     && /\.wheel \.disc-hub\.is-picked \.hub-zh::after \{[^}]*?height:\s*2px/.test(css));
+  /* v18：中圈一旦选定，hover 不得改变任何视觉/状态 */
+  ok('中圈选中后 hover 不再写 hoverSub（JS 守卫）', (() => {
+    const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+    return /const enter = \(\) => \{\s*if \(selSub\) return;/.test(appSrc)
+      && /const leave = \(\) => \{\s*if \(selSub\) return;/.test(appSrc);
+  })(), '不挡的话，选中后指针划过去仍会挂 is-hot，描边 1px→1.4px 并带蓝框');
+  ok('中圈选中后 CSS :hover 整体失效（root 上 is-sub-locked）',
+    /root\.classList\.toggle\('is-sub-locked', !!selSub\)/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))
+    && /\.wheel:not\(\.is-sub-locked\) \.sub-g:hover/.test(css),
+    'CSS :hover 是纯样式钩子，JS 管不到，必须用锁类让它整体不匹配');
+  ok('未选中时 hover 提示仍然保留',
+    /\.wheel:not\(\.is-sub-locked\) \.sub-g:hover \.sub-arc/.test(css),
+    'hover 提示不该被删，只该在选中后被锁');
+  ok('选中时显式清空 hoverSub（避免锁上后仍带旧 is-hot）',
+    /selSub = s\.id;[\s\S]{0,160}?hoverSub = null;[\s\S]{0,80}?paint\(\)/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8')));
+
   /* v16：按下态必须是显式类，不能靠 :active */
   ok('按下态由显式类驱动（不靠 :active）',
     /\.wheel \.sub-g\.is-pressing \{/.test(css)

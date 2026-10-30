@@ -1275,3 +1275,72 @@ v16 第一版写 `animation-delay: 370ms` 想让"文字全散完再收整盘"。
 - 四视口 × 全 6 族 × 全 32 子项：`overlaps=0 / clipped=0 / outBox=0`；弧带落点 1440 为 137–246、窄屏 141–247。
 - 四套测试 286 项全绿（`test-render` 136，新增 1 条守「扇区 delay 必须 0」+ 1 条守「凹槽必须用 animation」）。
 - `_wheel11.css` 为本轮新增层。
+
+---
+
+## D44 · v18：中圈选定后 hover 必须完全失效（两个反馈 bug 的共同根因）
+
+用户报两件事：①（截图）选中「香草甜」后，指针划到「酒香」上，那一块出现了蓝色描边框；②在同一块内移动鼠标会闪动，边框被反复触发。
+
+### 根因：hover 有两条并行通路，只挡了一条
+
+中圈 `hover` 的视觉反馈走**两条互不知情的路**：
+
+| 通路 | 实现位置 | 谁控制 |
+|---|---|---|
+| **JS 通路** | `enter()/leave()` 写 `hoverSub` → `paint()` 给 `.sub-g` 挂 `is-hot` | `app.js` |
+| **CSS 通路** | `.wheel .sub-g:hover .sub-arc { … }`（`_wheel7.css` 12 处） | 浏览器，**JS 看不见** |
+
+v15 那句注释写的是「hover 只给视觉提示，不改任何状态」—— 它只改了 JS 那条路（不再写 `selSub` / 盘心主词），**CSS 那条从来没人管**。所以 `is-hot` 确实没挂（实测 `cls: "sub-g"`），但 `.sub-g:hover` 照样命中，描边从 `1px` 变 `1.4px`、填充从 `url(#gArc)` 变 `rgba(255,255,255,.92)`、`g` 上加一层 `drop-shadow`。
+
+实测（1440，选中第 1 段后把指针移到第 3 段）：
+
+| 状态 | class | stroke-width | fill |
+|---|---|---|---|
+| 选中后常态 | `sub-g` | 1px | `url("#gArc")` |
+| 选中后 hover | `sub-g`（**无 is-hot**） | **1.4px** | `rgba(255,255,255,.92)` |
+
+图片里那道蓝框就是这么来的：它是 `.sub-arc` 的 `stroke` 变粗变深，不是任何选中态。
+
+### 闪动的第二个原因：两个 hover 入口互相取消
+
+弧段（SVG `g`）和它上面的文字（HTML `button`）是两棵子树，各自绑了 `mouseenter/mouseleave`，都写同一个 `hoverSub`：
+
+```js
+const enter = () => { hoverSub = item.id; paint(); };
+const leave = () => { if (hoverSub === item.id) { hoverSub = null; paint(); } };
+```
+
+指针从弧段移到文字上时，`g` 的 `mouseleave` 先触发、把 `hoverSub` 清空，紧接着 `button` 的 `mouseenter` 又设回来 —— 同一段内来回移动就会反复触发 `paint()`。实测在同一段内来回 6 次，`.sub-g` 的 class 变更 **11 次**。这就是"闪动"。
+
+### 修法：两条通路一起挡，用同一个锁
+
+**JS 守卫**（挡通路 1，顺带解决闪动）：
+
+```js
+const enter = () => { if (selSub) return; hoverSub = item.id; paint(); };
+const leave = () => { if (selSub) return; if (hoverSub === item.id) { hoverSub = null; paint(); } };
+```
+
+`selSub` 有值就整个 return —— 既不写 `hoverSub`（不挂 `is-hot`），也不调 `paint()`（不重绘、不闪）。`click` 不经过这两个函数，切换照常。
+
+**CSS 锁**（挡通路 2）：`paint()` 里维护 `root.classList.toggle('is-sub-locked', !!selSub)`，`_wheel7.css` 里全部 8 处 hover 规则改写成：
+
+```css
+.wheel:not(.is-sub-locked) .sub-g:hover { … }
+.wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn:hover { … }
+```
+
+为什么不直接删 hover 规则：未选中时它仍是必要的"哪里能点"的提示（D41 明确要求保留）。它不该被删，该被上锁。
+
+### 验收（CDP 实测）
+
+| 场景 | 判据 | 结果 |
+|---|---|---|
+| 未选中时悬停 | 仍出 `is-hot`，`sw 1.4px` | ✅ 保留 |
+| 选中后悬停另一段 | class 仍 `sub-g`、`fill` 仍 `url("#gArc")`、`sw` 仍 `1px` | ✅ 三项全等 |
+| 同一段内来回 6 次 | class 变更次数 | **11 → 0** |
+| 选中后点另一段 | `is-on` 切到第 4 段、盘心变「粉感花香」 | ✅ 切换正常 |
+| 返回大类再展开 | `is-sub-locked` 为 false，hover 提示恢复 | ✅ 解锁正常 |
+
+四视口几何回归：`overlaps/clipped/outBox` 全 0。测试 136 → **140**（新增 4 条守这两条通路）。

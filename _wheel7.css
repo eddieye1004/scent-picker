@@ -58,11 +58,11 @@
 .wheel.is-open .sub-arc {
   animation: arcIn 340ms cubic-bezier(.32, .72, 0, 1) both;
 }
-.wheel .sub-g:hover,
+.wheel:not(.is-sub-locked) .sub-g:hover,
 .wheel .sub-g.is-hot {
   filter: drop-shadow(0 4px 9px rgba(0, 26, 94, .18));
 }
-.wheel .sub-g:hover .sub-arc,
+.wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
 .wheel .sub-g.is-hot .sub-arc {
   fill: #eef0f9;
   stroke: var(--ink-2);
@@ -124,7 +124,7 @@
   to   { opacity: 1; }
 }
 
-.wheel .disc-sector.lvl2.sub-arc-btn:hover,
+.wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn:hover,
 .wheel .disc-sector.lvl2.sub-arc-btn.is-hot { color: var(--ink); }
 .wheel .disc-sector.lvl2.sub-arc-btn.is-on { color: #ffffff; }
 .wheel .disc-sector.lvl2.sub-arc-btn:focus-visible {
@@ -418,7 +418,7 @@
   stroke-linejoin: round;
 }
 /* 悬停：整段抬起（白→近白 + 深描边反而会更糊，这里只加深描边与填充差） */
-.wheel .sub-g:hover .sub-arc,
+.wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
 .wheel .sub-g.is-hot .sub-arc {
   fill: #f4f6fc;
   stroke: var(--ink-2);
@@ -442,7 +442,7 @@
   color: var(--ink-2);
   font-weight: 600;
 }
-.wheel .disc-sector.lvl2.sub-arc-btn:hover,
+.wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn:hover,
 .wheel .disc-sector.lvl2.sub-arc-btn.is-hot {
   color: var(--ink);
 }
@@ -476,7 +476,7 @@
   fill: #ffffff;
   filter: drop-shadow(0 1px 2px rgba(0, 26, 94, .10));
 }
-.wheel .sub-g:hover .sub-arc,
+.wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
 .wheel .sub-g.is-hot .sub-arc {
   fill: #f7f9ff;
   stroke: var(--ink-2);
@@ -563,7 +563,7 @@
 
 /* 4. 中圈弧段渐变 + 下沿厚度 */
 .wheel .sub-arc { fill: url(#gArc); }
-.wheel .sub-g:hover .sub-arc,
+.wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
 .wheel .sub-g.is-hot .sub-arc { fill: url(#gArcHot); }
 .wheel .sub-g.is-on .sub-arc { fill: url(#gArcOn); }
 
@@ -747,7 +747,7 @@
   stroke-width: 1;
   filter: drop-shadow(0 1px 1px rgba(0, 26, 94, .10));
 }
-.wheel .sub-g:hover .sub-arc,
+.wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
 .wheel .sub-g.is-hot .sub-arc {
   fill: #ffffff;
   stroke: var(--ink-2);
