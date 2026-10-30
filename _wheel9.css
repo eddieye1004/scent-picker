@@ -56,10 +56,10 @@
    常态是 0，半亮读成"没退干净"。所以这里补写同档特异度的 :not() 版本，
    让 hover 真的回到 1（实测 400ms 后停在 .55 就是这条在压着）。 */
 .wheel.is-open .sector-g.is-hot,
-.wheel.is-open .sector-g:hover,
+.wheel.is-open:not(.is-sub-locked) .sector-g:hover,
 .wheel.is-open .sector-g:focus-within,
 .wheel.is-open .sector-g.is-hot:not(.is-on),
-.wheel.is-open .sector-g:hover:not(.is-on) {
+.wheel.is-open:not(.is-sub-locked) .sector-g:hover:not(.is-on) {
   animation: none;
   opacity: 1;
 }

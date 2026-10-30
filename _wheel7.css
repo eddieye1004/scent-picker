@@ -191,7 +191,7 @@
   transition: fill 160ms cubic-bezier(.4, 0, .2, 1),
               stroke 160ms cubic-bezier(.4, 0, .2, 1);
 }
-.wheel .disc-svg .sector-g:hover .sector-shape,
+.wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
 .wheel .disc-svg .sector-g.is-hot .sector-shape {
   fill: #f5f5f8;
   stroke: var(--ink);
@@ -257,7 +257,7 @@
   stroke: var(--blue);
   stroke-width: 1.5;
 }
-.wheel.is-open .sector-g:hover .sector-shape {
+.wheel.is-open:not(.is-sub-locked) .sector-g:hover .sector-shape {
   fill: #dde3f2;
   stroke: var(--ink-2);
   stroke-width: 1.8;
@@ -536,7 +536,7 @@
 
 /* 1. 家族扇区改用渐变 */
 .wheel .disc-svg .sector-shape { fill: url(#gFam); }
-.wheel .disc-svg .sector-g:hover .sector-shape,
+.wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
 .wheel .disc-svg .sector-g.is-hot .sector-shape { fill: url(#gFamHot); }
 
 /* 2. 倒角：扇区外沿 0.8px 白高光叠在描边内侧。
@@ -670,7 +670,7 @@
 .wheel .disc-svg .sector-g[data-fam="gourmand"] .sector-shape { fill: #f8f2ec; }
 
 /* 悬停：在该族本色上再提亮一档（统一乘一层白，不逐个写） */
-.wheel .disc-svg .sector-g:hover .sector-shape,
+.wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
 .wheel .disc-svg .sector-g.is-hot .sector-shape {
   fill: #ffffff;
 }
@@ -722,7 +722,7 @@
 
 /* 悬停与选中仍走两套既有语言，不新增第三套：
    悬停 = 提亮（白），选中 = 克莱因蓝 wash + 蓝描边。 */
-.wheel .disc-svg .sector-g:hover .sector-shape,
+.wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
 .wheel .disc-svg .sector-g.is-hot .sector-shape {
   fill: #ffffff;
 }

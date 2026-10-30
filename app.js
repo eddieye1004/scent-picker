@@ -1249,8 +1249,21 @@ function buildWheel(cfg) {
       el('span', { class: 'zh' }, f.zh),
       el('span', { class: 'notes' }, (f.representativeNotes || []).slice(0, 2).map((e) => noteZhOf(e)).join('·'))
     );
-    const enter = () => { hoverFam = f.id; hoverSub = null; paint(); };
-    const leave = () => { hoverFam = null; paint(); };
+    /* **中圈一旦选定小项，大圈 hover 也必须失效**。
+       用户报的第二个 case：选定「香草甜」后指针移到大圈家族环，
+       盘心被改成「点一下换到 柑橘调」、`is-picked` 被摘掉 —— 选中态直接丢了。
+       成因与中圈那对 enter/leave 完全同源：hoverFam 会进 paint() 的
+       `hoverOther` 分支，把盘心让给悬停的那个家族。
+       这里在入口就挡掉，不写 hoverFam、不调 paint()。
+       click 不经过这两个函数，换大类照常。 */
+    const enter = () => {
+      if (selSub) return;
+      hoverFam = f.id; hoverSub = null; paint();
+    };
+    const leave = () => {
+      if (selSub) return;
+      hoverFam = null; paint();
+    };
     btn.addEventListener('mouseenter', enter);
     btn.addEventListener('mouseleave', leave);
     btn.addEventListener('focus', enter);

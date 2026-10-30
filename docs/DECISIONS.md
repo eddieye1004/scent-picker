@@ -1344,3 +1344,55 @@ const leave = () => { if (selSub) return; if (hoverSub === item.id) { hoverSub =
 | 返回大类再展开 | `is-sub-locked` 为 false，hover 提示恢复 | ✅ 解锁正常 |
 
 四视口几何回归：`overlaps/clipped/outBox` 全 0。测试 136 → **140**（新增 4 条守这两条通路）。
+
+---
+
+## D45 · v18b：大圈家族 hover 是同一个 bug 的漏网一半
+
+D44 修的是中圈弧段的 hover，用户随后又报了一次：**选定「香草甜」后把指针移到大圈家族环，盘心变成「点一下换到 柑橘调」、`is-picked` 被摘掉**——选中态直接丢了。
+
+### 为什么 D44 没盖住
+
+D44 的锁 `is-sub-locked` 只串到了中圈的 `.sub-g` 与 `.sub-arc-btn`。大圈家族扇区是**另一套完全独立的 hover 机制**，同样有两条通路：
+
+| 通路 | 实现 | 数量 |
+|---|---|---|
+| JS 通路 | `enter/leave` 写 `hoverFam` → `paint()` 的 `hoverOther` 分支 | `app.js:1252` |
+| CSS 通路 | `.wheel .disc-svg .sector-g:hover .sector-shape` 等 | `_wheel7.css` 4 处 + `.wheel.is-open` 1 处 + `_wheel9.css` 2 处 |
+
+`hoverFam` 一旦有值，`paint()` 走 `hoverOther` 分支：`kick = '点一下换到'`、`zh = 悬停家族`、`picked = false` —— 这就是截图里盘心被改写的原因。
+
+### 修法：同一个锁，扩到大圈
+
+JS 侧与中圈完全同构：
+
+```js
+const enter = () => { if (selSub) return; hoverFam = f.id; hoverSub = null; paint(); };
+const leave = () => { if (selSub) return; hoverFam = null; paint(); };
+```
+
+CSS 侧把大圈 7 处 hover 规则也挂上锁：
+
+```css
+.wheel:not(.is-sub-locked) .disc-svg .sector-g:hover { … }
+.wheel.is-open:not(.is-sub-locked) .sector-g:hover { … }
+```
+
+**为什么条件是 `selSub` 而不是 `selFamily`**：只选了大类、还没选小项时，悬停别的家族应该提示"点一下换到 X"——那是 D41 要求的方向感。只有当**小项已选定**（`selSub` 有值）时，一切 hover 才该静默。
+
+### 验收：256 点全盘扫描
+
+选中「玫瑰」后，把指针按 7 圈半径（0.22 / 0.40 / 0.46 / 0.62 / 0.80 / 0.90 / 0.98）× 36 个方向 + 盘心 + 四角 + 盘外共 **256 个点**逐个停留 28ms，每个点后比对一份完整快照（`kick` / `zh` / `is-picked` / `is-on` 下标 / `is-hot` 数量 / 所有 `sub-g` 的 class）：
+
+**256 个点，状态变化 0 个。**
+
+反向验证（未选中时提示必须还在）：
+
+| 场景 | 结果 |
+|---|---|
+| 未选中，悬停中圈某段 | `is-hot` 1 个，盘心不变 ✅ |
+| 未选中，悬停大圈某族 | `is-hot` 1 个，盘心变「点一下换到 柑橘调」✅ 保留 |
+| 选中后点另一段 | `is-on` 切到第 4 段，盘心「粉感花香」✅ |
+| 选中后点大圈换族 | 中圈重建为 5 段、锁自动解除 ✅ |
+
+测试 140 → **142**（新增 2 条，分别守 JS 与 CSS 两条大圈通路）。

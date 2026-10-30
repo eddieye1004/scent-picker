@@ -353,6 +353,16 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
   ok('选中时显式清空 hoverSub（避免锁上后仍带旧 is-hot）',
     /selSub = s\.id;[\s\S]{0,160}?hoverSub = null;[\s\S]{0,80}?paint\(\)/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8')));
 
+  /* v18b：大圈家族 hover 也必须被同一个锁挡住 */
+  ok('中圈选中后大圈 hover 不写 hoverFam（JS 守卫）', (() => {
+    const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+    return /const enter = \(\) => \{\s*if \(selSub\) return;\s*hoverFam = f\.id/.test(appSrc)
+      && /const leave = \(\) => \{\s*if \(selSub\) return;\s*hoverFam = null/.test(appSrc);
+  })(), '不挡的话，选中后指针划到大圈会把盘心换成「点一下换到 X」并摘掉 is-picked，选中态直接丢');
+  ok('中圈选中后大圈 CSS :hover 也被锁', (() => {
+    return /\.wheel:not\(\.is-sub-locked\) \.disc-svg \.sector-g:hover/.test(css)
+      && /\.wheel\.is-open:not\(\.is-sub-locked\) \.sector-g:hover/.test(css);
+  })(), '大圈 hover 有 6 处 CSS 规则，只挡 JS 会留下一半');
   /* v16：按下态必须是显式类，不能靠 :active */
   ok('按下态由显式类驱动（不靠 :active）',
     /\.wheel \.sub-g\.is-pressing \{/.test(css)
