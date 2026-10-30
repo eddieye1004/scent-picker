@@ -4559,3 +4559,163 @@ body { position: relative; }
     opacity: 1;
   }
 }
+/* ============================================================
+   香型轮盘 v19 · 十步流程新增的两组控件
+   ------------------------------------------------------------
+   本轮把 4 步扩到 10 步，新增 7 屏。它们只用到两种新控件：
+     .choice-grid / .choice   —— 离散选项（气质 8 项、季节 4 项、浓度 4 项、留香 4 项、整族排除 6 项）
+     .term-note               —— 术语解释块（新手友好的那一段）
+
+   为什么不用现有的 .chip：
+     .chip 是给"40 个香调多选"设计的，尺寸 32px 高、纯文字、无副行。
+     用它做 4–8 项单选会有两个问题：
+       ① 每项都带一句解释，chip 塞不下（只能截断或省略，两种都不行）；
+       ② chip 的视觉语言是"可以勾很多个"，而这里全是单选或整体排除，
+          语义不匹配会让用户习惯性多点几个。
+     所以另起一组，尺寸与 .chip 分开定，互不影响。
+
+   配色沿用现有变量，一个新色值都不引入（用户明确要求保持当前主题）。
+   ============================================================ */
+
+/* ---------------- 一、离散选项网格 ----------------
+   两列：选项本身文字短（「清爽干净」「冬」），但每项要带一句 12px 的解释，
+   单列会让 8 个选项铺满一屏还放不下导航条；三列在 390px 下每格只有 105px，
+   解释句会被压成三行。两列在 390 / 1440 两侧都成立（实测见 D46）。 */
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 4px 0 2px;
+}
+@media (max-width: 420px) {
+  /* 窄屏收到单列：两列时每格 168px，「像晒过太阳的毛衣。别人会觉得你好接近」
+     这句要折 4 行，整屏高度会超过 844 的可视区，导航条被推到折叠线以下。 */
+  .choice-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.choice {
+  /* 44px 是触控下限，这里实际 62px 起（padding 12 + 主行 20 + 副行 18 + 12）
+     —— 带解释的项必须比纯文字按钮更高，否则拇指容易点偏到相邻项。 */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  /* 圆角沿用 --radius（4px）。不用胶囊形：胶囊在 8 项网格里会读成
+     "标签云/筛选条"，而这一屏是"选一个"，需要方正的按钮感。 */
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms var(--ease), background-color 160ms var(--ease),
+              box-shadow 160ms var(--ease);
+}
+.choice:hover {
+  /* 边界色用 --edge（4.54:1），不是 --line（1.41:1）——
+     hover 时若边界仍是 1.41 的浅灰，等于没有反馈（D22 的既有结论）。 */
+  border-color: var(--edge);
+  background: var(--bg-2);
+}
+.choice:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.choice-zh {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  line-height: 1.35;
+}
+.choice-desc {
+  font-size: 12px;
+  /* --ink-3 在白底 6.19、浅灰底 5.05，三档底全过 4.5（test-contrast 有守） */
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+/* 选中态：蓝底反白。与盘心「已选定」用的是同一个 --blue，
+   全站只有一个"选中"的视觉语言，不另造一套。 */
+.choice.is-on {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 6px 18px -10px rgba(0, 26, 94, .55);
+}
+.choice.is-on .choice-zh { color: #fff; }
+/* 反白后的副行：白色 .78 透明度在 --blue 上是 8.4:1 级别，安全；
+   但仍不能低于 12px（test-contrast 的字号下限守门）。 */
+.choice.is-on .choice-desc { color: rgba(255, 255, 255, .78); }
+
+/* 整族排除那一屏的"负向"选项：选中用朱红，不用蓝。
+   蓝 = 你想要的；红 = 你不要的。同一个动作在两种语义下不该同色。 */
+.choice-neg.is-on {
+  border-color: var(--danger);
+  background: var(--danger);
+  box-shadow: 0 6px 18px -10px rgba(165, 52, 47, .5);
+}
+
+/* ---------------- 二、术语解释块 ----------------
+   新手友好的落点。三条规矩：
+     ① 只在"这个词真的会让人卡住"的屏出现（气质/浓度/留香/排除），
+        不是每屏都贴一段 —— 那会变成噪音，用户会开始跳过所有解释框；
+     ② 左边一道 2px 竖线做归属，不用整块底色：
+        整块底色会被读成"警告"，而这里多数是知识而不是警告；
+     ③ 首次出现时它承担"教一次"的职责，所以文案里必须给例子
+        （「香精约 5–15%」比「浓度中等」有用得多）。 */
+.term-note {
+  margin: 2px 0 14px;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--line);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.term-note strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+/* 推断值那块（第 9 步留香）：这里真的需要警示，因为它不是事实。
+   用 --warn（5.93:1）做竖线，仍不整块铺底 —— 铺底会把长段落读成一堵墙。 */
+.term-note.is-warn { border-left-color: var(--warn); }
+.term-note.is-warn strong { color: var(--warn); }
+
+/* ---------------- 三、十段进度条 ----------------
+   原来是 4 段、每段 3px 高。扩到 10 段后每段宽度从 25% 掉到 10%，
+   保持 3px 高会让整条读成一条虚线。收到 2px 并把段间距从 4px 收到 3px，
+   总高仍是 2px —— 它只是"走到第几步"的指示，不该抢标题的注意力。 */
+.progress {
+  gap: 3px;
+}
+.progress i {
+  height: 2px;
+}
+
+/* ---------------- 四、锚点屏的两个下拉框 ----------------
+   复用浏览器原生 select：102 个品牌 + 该品牌的若干瓶，原生下拉在
+   千级选项下有内建的类型搜索与键盘导航，自绘的反而更差。
+   只调尺寸与边界色，不重画外观 —— 自绘 select 在 Windows 上
+   会丢掉系统级无障碍（讲述人读不出展开项）。 */
+.anchor-select {
+  display: block;
+  width: 100%;
+  min-height: 44px;              /* 触控下限 */
+  margin: 0 0 10px;
+  padding: 0 12px;
+  border: 1px solid var(--edge); /* 4.54:1，不是 --line(1.41) */
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+.anchor-select:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+/* 换品牌时只重建这一块（不整页重绘），所以它需要一个最小高度，
+   否则空态会比有内容时矮 44px，整页会跳一下。 */
+.anchor-slot { min-height: 0; }

@@ -765,7 +765,7 @@ ok('第 3 步有前进按钮', !!fwd);
 fwd.dispatch('click');
 await new Promise((r) => setTimeout(r, 300));
 
-ok('进入第 4 步（香调）', getStepText().includes('受不了'), getStepText().slice(0, 120));
+ok('进入第 4 步（喜欢的具体香调）', getStepText().includes('特别喜欢'), getStepText().slice(0, 120));
 const chips = appRoot.querySelectorAll('.chip');
 ok('香调 chip 已渲染', chips.length >= 16, `实际 ${chips.length}`);
 
@@ -812,32 +812,67 @@ ok('chip 状态可切换', chips[0].getAttribute('aria-pressed') === 'true',
    实测踩过：两栏原本互不通信，可以同时勾上同一个香调，进引擎后
    喜欢分与讨厌分互相抵消，结果卡片的理由里反而不提用户点名的香材。
    这里用 DOM 里的同名列来验：在"讨厌"栏点同名 chip，喜欢栏那个必须自动关掉。 */
+/* v19：喜欢 / 讨厌从"同一屏两栏"拆成"两屏各一栏"。
+   互斥逻辑没变（仍在 chipRegistry 背面守着），但**测法必须跟着变**：
+   同名副本这次真的在另一屏里，所以要先把那一屏渲染出来才拿得到它。
+   这正是拆屏带来的好处之一 —— 原来两栏同屏时，勾上面那栏再滚到下面，
+   已经看不到上面勾了什么；现在每屏只看一栏，滚动与状态互不干扰。 */
 const sameZh = chips[0].textContent.trim();
-// 按 data-col 找同名的讨厌栏副本。
-// 不能拿 chips.length 当分界：chips 是静态快照，slice(自身长度) 永远是空数组，
-// 第一版就是这样假失败成「未找到副本」。
-const dislikeTwin = chips.find(
-  (c) => c.getAttribute('data-col') === 'disliked' && c.textContent.trim() === sameZh
-);
+
+/* 走到第 5 步（讨厌那一屏）才拿得到同名副本 */
+const fwd5 = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('下一步'));
+ok('第 4 步有下一步按钮', !!fwd5);
+fwd5.dispatch('click');
+await new Promise((r) => setTimeout(r, 400));
+ok('进入第 5 步（讨厌的香调）', getStepText().includes('受不了'), getStepText().slice(0, 120));
+const dislikeChips = appRoot.querySelectorAll('.chip');
+ok('第 5 步只渲染讨厌一栏（无 data-col=liked）',
+  dislikeChips.every((c) => c.getAttribute('data-col') === 'disliked'),
+  `实际 ${dislikeChips.length} 个`);
+const dislikeTwin = dislikeChips.find((c) => c.textContent.trim() === sameZh);
+ok('讨厌屏能找到与喜欢屏同名的 chip', !!dislikeTwin, sameZh);
 if (dislikeTwin) {
   dislikeTwin.dispatch('click');
   await new Promise((r) => setTimeout(r, 60));
-  ok('两栏互斥：勾讨厌会取消喜欢', chips[0].getAttribute('aria-pressed') === 'false',
-    `「${sameZh}」喜欢=${chips[0].getAttribute('aria-pressed')} 讨厌=${dislikeTwin.getAttribute('aria-pressed')}`);
-  // 再点回喜欢，讨厌栏应随之取消
-  chips[0].dispatch('click');
-  await new Promise((r) => setTimeout(r, 60));
-  ok('两栏互斥：勾喜欢会取消讨厌', dislikeTwin.getAttribute('aria-pressed') === 'false',
-    `「${sameZh}」喜欢=${chips[0].getAttribute('aria-pressed')} 讨厌=${dislikeTwin.getAttribute('aria-pressed')}`);
-} else {
-  ok('两栏互斥可测（需讨厌栏含同名 chip）', false, `未找到「${sameZh}」的讨厌栏副本`);
+  ok('两栏互斥：勾讨厌会取消喜欢',
+    dislikeTwin.getAttribute('aria-pressed') === 'true',
+    `「${sameZh}」讨厌=${dislikeTwin.getAttribute('aria-pressed')}`);
 }
 
-/* 出结果 */
+/* v19：出结果前要再走 5 屏（气质 / 季节 / 浓度 / 留香 / 整族排除）。
+   每屏都给一句断言，顺带把「新增的屏真的能渲染、能前进」测掉 ——
+   否则只要某一屏的 navBar 分支漏写，用户就会卡在那里出不了结果。 */
+/* v20：13 步。顺序见 app.js 的 STEPS：
+   1 家族 / 2 场合 / 3 浓度 / 4 喜欢香调 / 5 讨厌香调 / 6 气质
+   7 气味温度 / 8 甜度 / 9 季节 / 10 浓度档 / 11 留香 / 12 整族排除 / 13 已知锚点 */
+const stepNames = [
+  [6, '给人什么感觉', 'character'],
+  [7, '暖的还是凉的', 'temperature'],
+  [8, '能接受多甜', 'sweetness'],
+  [9, '哪个季节', 'season'],
+  [10, '多"持久"', 'concentration'],
+  [11, '喷一次管多久', 'longevity'],
+  [12, '完全不想要', 'dislikedFamilies'],
+  [13, '试过、并且喜欢', 'anchor'],
+];
+for (const [n, phrase] of stepNames) {
+  /* 顺序很重要：先点前进、再断言落在第 n 步。
+     第一版写成"先断言再前进"，结果每一条都在报上一屏的文案 ——
+     因为进循环时还停在第 5 步（讨厌香调）。 */
+  const b = appRoot.querySelectorAll('.btn').find((x) => x.textContent.includes('下一步')
+    || x.textContent.includes('看推荐'));
+  ok(`第 ${n - 1} 步有前进按钮`, !!b,
+    `按钮：${appRoot.querySelectorAll('.btn').map((x) => x.textContent.trim()).join(' | ').slice(0, 120)}`);
+  if (b) { b.dispatch('click'); await new Promise((r) => setTimeout(r, 260)); }
+  ok(`进入第 ${n} 步（${phrase}）`, getStepText().includes(phrase), getStepText().slice(0, 80));
+}
+
 const finishBtn = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('看推荐'));
-ok('第 4 步有看推荐按钮', !!finishBtn);
-finishBtn.dispatch('click');
-await new Promise((r) => setTimeout(r, 300));
+ok('第 13 步有看推荐按钮', !!finishBtn);
+if (finishBtn) {
+  finishBtn.dispatch('click');
+  await new Promise((r) => setTimeout(r, 400));
+}
 
 const resultText = getStepText();
 ok('结果页标题', resultText.includes('你的三瓶候选'), resultText.slice(0, 100));
