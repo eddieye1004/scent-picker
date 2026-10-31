@@ -99,6 +99,14 @@ const RULES = {
   gourmand: null,
 };
 
+
+/* ---------- 真相源切换：若 taxonomy 里有 families[].rules，以数据为准 ---------- */
+let SOURCE = 'inline';
+for (const f of tax.families) {
+  if (f.rules && f.rules.length) { RULES[f.id] = f.rules; SOURCE = 'taxonomy'; }
+}
+console.log('规则来源：' + SOURCE);
+
 /* ---------- 判定 ---------- */
 function match(p, r) {
   if (r.must && !r.must.every((k) => has(p, k))) return false;

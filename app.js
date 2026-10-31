@@ -1887,6 +1887,93 @@ function choiceGrid(opts, current, onPick) {
   return box;
 }
 
+/* ---------- 分段控件（有序、互斥、2–5 档）----------
+   为什么不是一个可选项，而是必须与 choiceGrid 并存：
+   「冷暖」「甜度」这类问题是**有序的**（凉 → 暖、不甜 → 很甜），
+   而 choiceGrid 是 2 列网格 —— 网格表达的是"并列的几样东西"，
+   把有序档位塞进网格，第 3 档与第 4 档会被读成两件不同的事。
+   实测：卡片形态下这两组各占 145px 高，而它们只需要一行。
+
+   与 choiceGrid 的分工：
+     segControl  有序、标签 2–5 字、不需要逐项说明 → 一行等宽分段
+     choiceGrid  无序、需要逐项描述（浓度带香精百分比、气质带 15 字解释）
+
+   ARIA 用 radiogroup + radio，与 choiceGrid 同一套语义，只是视觉不同。
+   键盘按 WAI-ARIA 惯例：左右/上下方向键在组内移动并**立即选中**
+   （这是 radio 的标准行为，不是 Tab 逐个过）。 */
+function segControl(opts, current, onPick, label, onPaint) {
+  const box = el('div', {
+    class: 'seg',
+    role: 'radiogroup',
+    'aria-label': label || '',
+  });
+  const btns = [];
+  const paint = (id) => {
+    btns.forEach((b) => {
+      const mine = b.getAttribute('data-id') === id;
+      b.classList.toggle('is-on', mine);
+      b.setAttribute('aria-checked', String(mine));
+      b.setAttribute('tabindex', mine ? '0' : '-1');
+    });
+  };
+  opts.forEach((o, i) => {
+    const on = current != null && String(current) === String(o.id);
+    const b = el('button', {
+      class: 'seg-item' + (on ? ' is-on' : ''),
+      type: 'button',
+      role: 'radio',
+      'aria-checked': String(on),
+      'data-id': o.id,
+      /* roving tabindex：整组只留一个 Tab 落点。没有选中项时第一个可聚焦。 */
+      tabindex: on || (current == null && i === 0) ? '0' : '-1',
+      onclick: () => {
+        onPick(o.id);
+        paint(String(o.id));
+        if (onPaint) onPaint(o.id);
+      },
+      onkeydown: (ev) => {
+        let d = 0;
+        if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') d = 1;
+        else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') d = -1;
+        else return;
+        ev.preventDefault();
+        const to = (i + d + opts.length) % opts.length;
+        const target = btns[to];
+        onPick(opts[to].id);
+        paint(String(opts[to].id));
+        if (onPaint) onPaint(opts[to].id);
+        target.focus();
+      },
+    }, o.zh);
+    btns.push(b);
+    box.appendChild(b);
+  });
+  return box;
+}
+
+/* 分段控件旁边的「这一档是什么意思」。
+   分段的格子只有 2–4 个字，说明必须另找地方放；但也不能把全部档位的说明
+   都摊开（那正是卡片形态占 145px 的原因）。只显示当前选中那一句，
+   未选时给第一档的说明作为示例（并降低不透明度，表明"这不是你选的"）。 */
+function segHint(opts, current) {
+  const node = el('p', { class: 'seg-hint' });
+  updateSegHint(node, opts, current);
+  return node;
+}
+
+/* 点击/方向键换档后，说明文字必须跟着换。
+   第一版只让 segControl 内部 paint 按钮，说明停在旧档位 —— 实测点「微甜」
+   后下方仍写着「完全不甜」那句，是明确的错误信息。
+   做成独立函数而不是就地重写 textContent：调用处（renderMood）的闭包
+   在 segControl 之前就能持有 hint 节点，两边不必知道对方的实现。 */
+function updateSegHint(node, opts, current) {
+  if (!node) return;
+  const idx = current == null ? 0 : opts.findIndex((o) => String(o.id) === String(current));
+  const o = opts[idx < 0 ? 0 : idx];
+  node.textContent = o ? o.desc : '';
+  node.classList.toggle('is-idle', current == null);
+}
+
 /* ---------- 第 6 步：气质 ----------
    数据里 character 有 21 种，逐个列出来是灾难（新手不知道 "resinous" 是什么）。
    按「新手能自己判断」的标准收敛到 8 个，每个配一句人话解释，
@@ -2027,6 +2114,157 @@ const SWEETNESS = [
      ② 直接点名几个香调（复用第 4 步的 chip 组件）—— 适合记不住名字、
         但记得"那个有佛手柑和雪松的"的人。
    两种可以同时用，取并集当锚点。 */
+/* ---------- 可搜索组合框（E6）----------
+
+   品牌有 133 个。原生 <select> 只能滚 —— 这是整个问卷里唯一无法用键盘
+   或输入法快速到达的地方：想找 Creed 要按 c-r-e 无反应，只能用首字母跳。
+
+   为什么不用 <input list="..."> + <datalist>：datalist 的候选项在
+   Chrome/Safari/Firefox 三家的渲染、过滤规则与键盘行为都不一致，
+   且无法给候选项加"已选"标记。
+
+   这里自己拼一个：input + 列表。约束三条：
+     ① 输入即过滤（大小写不敏感、支持子串）
+     ② ↑↓ 导航、Enter 选中、Esc 关闭、Blur 关闭
+     ③ 空结果必须给出路：「没找到？直接点下面的香调」
+
+   ARIA 用 combobox 模式：input 上 role=combobox + aria-expanded +
+   aria-controls + aria-activedescendant；列表 role=listbox，项 role=option。 */
+function brandCombobox(opts) {
+  const { items, placeholder, onPick, label } = opts;
+  /* value 必须可变。
+     第一版把它当成常量解构出来，close() 里写 `input.value = value` 想"恢复成
+     已选值"，但选中之后 value 从没更新过 —— 于是选完立刻被清空，
+     表现是"点了 Creed，输入框变空白，但香水下拉确实出现了 31 个选项"。
+     实测抓到的就是这个：input.value='' 而 select 已经建好。 */
+  let value = opts.value || '';
+  const root = el('div', { class: 'combo' });
+  const listId = 'combo-list-' + Math.random().toString(36).slice(2, 8);
+
+  const input = el('input', {
+    class: 'combo-input',
+    type: 'text',
+    role: 'combobox',
+    'aria-label': label || placeholder || '',
+    'aria-expanded': 'false',
+    'aria-controls': listId,
+    'aria-autocomplete': 'list',
+    autocomplete: 'off',
+    placeholder: value || placeholder || '',
+    value: value || '',
+  });
+
+  const list = el('ul', { class: 'combo-list', id: listId, role: 'listbox' });
+  list.style.display = 'none';
+
+  let filtered = [];
+  let active = -1;
+  let opened = false;
+
+  const setActive = (i) => {
+    active = i;
+    [...list.children].forEach((li, k) => {
+      const on = k === i;
+      li.classList.toggle('is-active', on);
+      li.setAttribute('aria-selected', String(on));
+    });
+    if (i >= 0 && list.children[i]) {
+      input.setAttribute('aria-activedescendant', list.children[i].id);
+      /* 让高亮项滚进视野。block:'nearest' 不会带动整页滚动。 */
+      list.children[i].scrollIntoView({ block: 'nearest' });
+    } else {
+      input.removeAttribute('aria-activedescendant');
+    }
+  };
+
+  const close = () => {
+    opened = false;
+    list.style.display = 'none';
+    input.setAttribute('aria-expanded', 'false');
+    // 关掉时若输入框里是半截过滤词而不是已选项，恢复成已选值
+    input.value = value || '';
+  };
+
+  const open = () => {
+    opened = true;
+    list.style.display = 'block';
+    input.setAttribute('aria-expanded', 'true');
+  };
+
+  const render = (q) => {
+    const needle = String(q || '').trim().toLowerCase();
+    filtered = needle
+      ? items.filter((b) => b.toLowerCase().includes(needle))
+      : items;
+    // 上限 60：133 项全铺开会让列表高过视口，滚动反而更难找
+    const shown = filtered.slice(0, 60);
+    list.innerHTML = '';
+    if (!shown.length) {
+      list.appendChild(el('li', { class: 'combo-empty' },
+        '没找到「' + q + '」。可以直接点下面的香调，或换个拼法试试'));
+      setActive(-1);
+      return;
+    }
+    shown.forEach((b, i) => {
+      list.appendChild(el('li', {
+        class: 'combo-item' + (b === value ? ' is-on' : ''),
+        role: 'option',
+        id: listId + '-' + i,
+        'aria-selected': 'false',
+        onclick: () => { pick(b); },
+      }, b));
+    });
+    // 过滤后默认高亮第一个 —— 这样「输入 + Enter」是最短路径
+    setActive(needle ? 0 : -1);
+  };
+
+  const pick = (b) => {
+    value = b;          /* 先更新，close() 里要用它回填 */
+    input.value = b;
+    onPick(b);
+    close();
+    input.focus();
+  };
+
+  input.addEventListener('input', () => {
+    if (!opened) open();
+    render(input.value);
+  });
+  input.addEventListener('focus', () => {
+    if (!opened) { open(); render(input.value === value ? '' : input.value); }
+  });
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      if (!opened) { open(); render(input.value); return; }
+      const n = list.querySelectorAll('.combo-item').length;
+      if (!n) return;
+      const d = ev.key === 'ArrowDown' ? 1 : -1;
+      setActive((active + d + n) % n);
+      return;
+    }
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      const li = list.querySelector('.combo-item.is-active');
+      if (li) pick(li.textContent);
+      else if (filtered.length === 1) pick(filtered[0]);
+      return;
+    }
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      close();
+    }
+  });
+  input.addEventListener('blur', () => {
+    /* 用 setTimeout 而不是直接关：blur 早于点击，直接关会让点击落空。 */
+    setTimeout(() => { if (opened) close(); }, 120);
+  });
+
+  root.appendChild(input);
+  root.appendChild(list);
+  return root;
+}
+
 function renderAnchor() {
   const wrap = el('div', { class: 'fade-in' });
   const head = stepHead('anchor');
@@ -2050,26 +2288,26 @@ function renderAnchor() {
     wrap.appendChild(el('p', { class: 'q-help' }, '香水库还在加载，稍等一下再选品牌'));
   } else {
     const perfumeSlot = el('div', { class: 'anchor-slot' });
-    const selBrand = el('select', {
-      class: 'anchor-select',
-      'aria-label': '品牌',
-      onchange: (ev) => {
-        state.answers.anchorBrand = ev.target.value || null;
-        // 换品牌就清掉已选的那瓶 —— 否则会留下"Byredo 的瓶子 + Creed 的品牌"这种不一致
+    /* E6：133 个品牌换成可搜索组合框。
+       原生 select 只能滚，是全场唯一无法用输入法快速到达的地方。
+       换品牌要清掉已选的那瓶 —— 否则会出现"Byredo 的瓶子 + Creed 的品牌"。 */
+    const selBrand = brandCombobox({
+      items: brands,
+      value: state.answers.anchorBrand,
+      placeholder: `搜索品牌（共 ${brands.length} 个，输入几个字母即可）`,
+      label: '品牌',
+      onPick: (b) => {
+        state.answers.anchorBrand = b || null;
         state.answers.anchorPerfume = null;
         state.answers.anchorPerfumeNotes = [];
         /* 只重建「香水下拉」那一块，不调 render() ——
-           调 render() 会整页重绘：下拉框失焦、下面已勾的香调 chip 全部丢状态，
-           用户会以为"我刚选的东西没了"。 */
+           调 render() 会整页重绘：组合框失焦、下面已勾的香调 chip 全部丢状态。 */
         if (perfumeSlot) {
           perfumeSlot.innerHTML = '';
           perfumeSlot.appendChild(buildPerfumeSelect());
         }
       },
-    },
-      el('option', { value: '' }, `选择品牌（共 ${brands.length} 个）`),
-      ...brands.map((b) => el('option', { value: b, selected: state.answers.anchorBrand === b ? 'selected' : null }, b))
-    );
+    });
     wrap.appendChild(selBrand);
 
     function buildPerfumeSelect() {
@@ -2335,9 +2573,15 @@ function renderMood() {
 
   // ② 气味温度
   wrap.appendChild(el('div', { class: 'chips-label' }, '② 气味的冷暖（选一个，可跳过）'));
-  wrap.appendChild(choiceGrid(TEMPERATURES, state.answers.temperature, (id) => {
+  /* 3 档、2–3 字、有序 —— 这是分段控件的定义场景。
+     卡片形态下占 145px，而它只需要一行。
+     desc 挪到 term-note 里说一次（原来每张卡各带一句，3 句其实在讲同一件事）。 */
+  let tempHint = null;
+  wrap.appendChild(segControl(TEMPERATURES, state.answers.temperature, (id) => {
     state.answers.temperature = id;
-  }));
+  }, '气味的冷暖', (id) => updateSegHint(tempHint, TEMPERATURES, id)));
+  tempHint = segHint(TEMPERATURES, state.answers.temperature);
+  wrap.appendChild(tempHint);
   wrap.appendChild(el('div', { class: 'term-note' },
     el('strong', {}, '怎么判断？'),
     ' 想两个你闻过的东西：一杯热牛奶（暖）、刚剥开的橘子皮（凉）。',
@@ -2346,11 +2590,17 @@ function renderMood() {
 
   // ③ 甜度
   wrap.appendChild(el('div', { class: 'chips-label' }, '③ 能接受多甜（选一个，可跳过）'));
-  wrap.appendChild(choiceGrid(
+  /* 4 档、有序（不甜 → 很甜）。同冷暖：卡片网格是无序语法，这里是刻度语法。 */
+  let sweetHint = null;
+  wrap.appendChild(segControl(
     SWEETNESS,
     state.answers.sweetness == null ? null : String(state.answers.sweetness),
-    (id) => { state.answers.sweetness = Number(id); }
+    (id) => { state.answers.sweetness = Number(id); },
+    '能接受多甜',
+    (id) => updateSegHint(sweetHint, SWEETNESS, id)
   ));
+  sweetHint = segHint(SWEETNESS, state.answers.sweetness == null ? null : String(state.answers.sweetness));
+  wrap.appendChild(sweetHint);
   wrap.appendChild(el('div', { class: 'term-note' },
     el('strong', {}, '「晕甜」很常见：'),
     ' 有人闻到甜香会头晕恶心，这不是矫情。有过这种反应就直接选「完全不甜」。'
@@ -2484,23 +2734,75 @@ function renderStrength() {
     render();
   }));
 
-  // ③ 留香（按浓度自动给默认值，可手改）
-  wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:16px' }, '③ 留香时长'));
-  const curLong = state.answers.longevity;
-  wrap.appendChild(choiceGrid(
-    LONGEVITY.map((l) => ({
-      id: l.id,
-      zh: l.zh + (curLong != null && String(curLong) === l.id ? ' · 推断' : ''),
-      desc: l.desc,
-    })),
-    curLong == null ? null : String(curLong),
-    (id) => { state.answers.longevity = Number(id); }
-  ));
+  /* ③ 留香：由 ② 浓度推算，**不再是一组可点的单选**。
+     原来它是 4 张可点的卡，看起来和 ② 一样是"一个待回答的问题"。
+     但它不是独立问题 —— 它由浓度决定（古龙水约 2、EDT 约 3、EDP 约 4、香精约 5）。
+     让两处都能写，等于邀请用户给出一个与上一问矛盾的答案，
+     而 scoring 会同时收到两个互斥约束。
 
-  wrap.appendChild(el('div', { class: 'term-note is-warn' },
-    el('strong', {}, '留香的这一档是推断值：'),
-    ' 数据源没有实测持香时长，上面选浓度后会自动填一个按浓度推算的档位（古龙水约 2、EDT 约 3、EDP 约 4、香精约 5）。',
-    '你可以手动改成别的档，但要知道它不是实测 —— 同一瓶在干皮和油皮、冬天和夏天差别可以很大。'
+     现在：默认只读展示推算结果；要覆盖必须显式点「改」，改完保留「手动」标记。
+     这样"这是推断值"不再靠一句 term-note 提醒，而是由控件形态本身表达。 */
+  const curLong = state.answers.longevity;
+  const inferred = state.answers.concentration
+    ? CONC_TO_LONGEVITY[state.answers.concentration]
+    : null;
+  const isManual = state.answers.longevityManual === true;
+  /* 手改过就用手改值；否则用推算值。两者都不存在时留空。 */
+  const shownLong = curLong == null ? null : String(curLong);
+
+  wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:16px' },
+    '③ 留香时长' + (shownLong == null ? '（选浓度后自动给出）' : (isManual ? '（手动覆盖）' : '（由浓度推断）'))));
+
+  const longBox = el('div', { class: 'long-read' + (isManual ? ' is-manual' : '') + (shownLong == null ? ' is-empty' : '') });
+  if (shownLong == null) {
+    longBox.appendChild(el('span', { class: 'long-val is-empty' }, '先选上面的浓度'));
+  } else {
+    const L = LONGEVITY.find((l) => String(l.id) === shownLong) || LONGEVITY[0];
+    longBox.appendChild(el('span', { class: 'long-val' }, L.zh));
+    longBox.appendChild(el('span', { class: 'long-desc' }, L.desc));
+    longBox.appendChild(el('span', { class: 'long-tag' }, isManual ? '手动' : '推断'));
+  }
+  wrap.appendChild(longBox);
+
+  /* 「改」/「恢复推断」。默认收起，点开才换成 4 个按钮 —— 一次只让一个控件
+     承担输入职责，避免"又能读又能写"的含糊状态。 */
+  const longEdit = el('div', { class: 'long-edit' });
+  const paintLong = () => {
+    longEdit.innerHTML = '';
+    if (!isManual) {
+      longEdit.appendChild(el('button', {
+        class: 'btn-ghost long-btn', type: 'button',
+        onclick: () => { state.answers.longevityManual = true; render(); },
+      }, '改'));
+    } else {
+      longEdit.appendChild(el('button', {
+        class: 'btn-ghost long-btn', type: 'button',
+        onclick: () => {
+          state.answers.longevityManual = false;
+          state.answers.longevity = state.answers.concentration
+            ? CONC_TO_LONGEVITY[state.answers.concentration] : null;
+          render();
+        },
+      }, '恢复推断值'));
+    }
+  };
+  paintLong();
+  wrap.appendChild(longEdit);
+
+  /* 手动覆盖态才出现 4 个档位；平时不渲染，页面上就没有一组"看着能选"的卡。 */
+  if (isManual) {
+    wrap.appendChild(segControl(LONGEVITY.map((l) => ({ id: l.id, zh: l.zh })),
+      shownLong,
+      (id) => { state.answers.longevity = Number(id); state.answers.longevityManual = true; paintLong(); },
+      '留香时长'));
+  }
+
+  wrap.appendChild(el('div', { class: 'term-note' + (isManual ? ' is-warn' : '') },
+    el('strong', {}, isManual ? '你手动改过这一档：' : '留香的这一档是推断值：'),
+    isManual
+      ? ' 引擎会按你选的档位算，但它不是实测值。'
+      : ' 数据源没有实测持香时长，上面选浓度后会自动填一个按浓度推算的档位。'
+        + '同一瓶在干皮和油皮、冬天和夏天差别可以很大。',
   ));
 
   wrap.appendChild(navBar('strength'));

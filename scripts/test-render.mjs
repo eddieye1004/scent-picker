@@ -867,6 +867,23 @@ for (const [n, phrase] of stepNames) {
   if (b) { b.dispatch('click'); await new Promise((r) => setTimeout(r, 260)); }
   ok(`进入第 ${n} 步（${phrase}）`, getStepText().includes(phrase), getStepText().slice(0, 80));
 
+  /* E6：品牌从原生 select 换成可搜索组合框。
+     133 项原生下拉只能滚，是全场唯一无法用输入法到达的地方。 */
+  if (n === 7) {
+    const combos = appRoot.querySelectorAll('.combo-input');
+    ok('第 7 步品牌是可搜索组合框', combos.length === 1, `实际 ${combos.length}`);
+    ok('组合框是 combobox 语义',
+      combos.length === 1 && combos[0].attrs.role === 'combobox',
+      combos.length ? String(combos[0].attrs.role) : '-');
+    ok('组合框初始收起',
+      combos.length === 1 && combos[0].attrs['aria-expanded'] === 'false',
+      combos.length ? String(combos[0].attrs['aria-expanded']) : '-');
+    /* 品牌不再用原生 select —— 要留一个断言钉住，否则下次改回 select 没人拦 */
+    ok('品牌不再用原生 select',
+      appRoot.querySelectorAll('select').length === 0,
+      `实际 ${appRoot.querySelectorAll('select').length} 个 select`);
+  }
+
   /* 单选组的容器语义就在这一屏验：第 3 步（气质）是第一个用 .choice-grid 的屏。
      .choice-grid 原来只有子项 aria-pressed，容器是裸 div —— 读屏把一组单选
      念成"切换按钮"，既不知道是一组，也报不出"共几个、第几个"。
@@ -896,6 +913,25 @@ for (const [n, phrase] of stepNames) {
       g ? String(g.attrs['aria-multiselectable']) : '(无 .choice-grid)');
     ok('第 6 步不是 radiogroup（是多选）',
       !!g && g.attrs.role !== 'radiogroup', g ? String(g.attrs.role) : '-');
+  }
+  if (n === 3) {
+    /* E3/E4：冷暖（3 档）与甜度（4 档）改成分段控件。
+       判据三条：形态是 .seg、语义是 radiogroup、方向键能换档。 */
+    const segs = appRoot.querySelectorAll('.seg');
+    ok('第 3 步有 2 个分段控件（冷暖 + 甜度）', segs.length === 2, `实际 ${segs.length}`);
+    const counts = [...segs].map((x) => x.querySelectorAll('.seg-item').length);
+    ok('分段控件档位是 3 与 4', counts.join(',') === '3,4', counts.join(','));
+    ok('每个分段控件都是 radiogroup',
+      [...segs].every((x) => x.attrs.role === 'radiogroup'),
+      [...segs].map((x) => x.attrs.role).join(','));
+    /* roving tabindex：整组只留一个 Tab 落点 */
+    ok('分段控件每组只有一个 Tab 落点',
+      [...segs].every((x) => [...x.querySelectorAll('.seg-item')]
+        .filter((b) => b.attrs.tabindex === '0' || b.attrs.tabindex === 0).length === 1),
+      '有多组存在两个 0');
+    /* 说明文字要跟着选中项换 —— 第一版漏了，点「偏凉」仍显示「偏暖」那句 */
+    const hints = appRoot.querySelectorAll('.seg-hint');
+    ok('每个分段控件都带一句说明', hints.length === 2, `实际 ${hints.length}`);
   }
   if (n === 3) {
     const grid = appRoot.querySelector('.choice-grid');

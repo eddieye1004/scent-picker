@@ -213,3 +213,258 @@
   height: 10px;
   top: -4px;
 }
+
+/* ---------------- 分段控件（E3/E4）----------------
+
+   有序、互斥、2–5 档的场景。与 .choice-grid 的分工：
+     .seg        有序档位（凉→暖、不甜→很甜），一行等宽，每段只放 2–4 字
+     .choice-grid 无序、需要逐项描述
+
+   为什么必须另做一个而不是复用卡片：卡片是 2 列网格，视觉语法是"并列的几样
+   东西"；把有序档位塞进网格，第 3 档与第 4 档会被读成两件不同的事。
+   实测卡片形态下「冷暖」与「甜度」各占 145px 高，而它们只需要一行 44px。
+
+   选中态与 choiceGrid 一致（蓝底白字），这样同一屏里两个控件不会出现
+   两套选中语言。 */
+.seg {
+  display: flex;
+  width: 100%;
+  border: 1px solid var(--edge);   /* 4.54 on 白，承载控件边界 */
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg);
+}
+.seg-item {
+  appearance: none;
+  flex: 1 1 0;
+  min-width: 0;              /* 让长标签截断而不是撑破容器 */
+  min-height: 44px;          /* 触屏下限；test-contrast 也会查这一条 */
+  padding: 0 8px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color var(--t-hover) var(--ease),
+              color var(--t-hover) var(--ease);
+}
+.seg-item:first-child {
+  border-left: 0;
+}
+/* 相邻两段之间那条线同时是"分隔线"和"档位边界"。
+   悬停只提亮底色、不动边框 —— 动边框会让整行宽度抖动。 */
+@media (hover: hover) {
+  .seg-item:hover {
+    background: var(--bg-2);
+    color: var(--ink);
+  }
+}
+.seg-item.is-on {
+  background: var(--blue);
+  color: #fff;               /* 白 on #002FA7 = 10.69 */
+  font-weight: 600;
+}
+.seg-item.is-on:hover {
+  background: var(--blue-deep);
+}
+/* 键盘焦点环：内缩 2px，否则会被 .seg 的 overflow:hidden 裁掉一半 */
+.seg-item:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -3px;
+}
+.seg-item.is-on:focus-visible {
+  outline-color: #fff;
+}
+
+/* 当前档位的说明。只显示选中的那一句 —— 全部摊开就是卡片形态，
+   那正是要摆脱的 145px。未选时给第一档做示例并降低不透明度，
+   让"这不是你选的"一眼可辨。 */
+.seg-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-3);       /* 6.19 on 白，承载正文 */
+  min-height: 18px;          /* 空/满时高度一致，避免切换档位时页面上跳 */
+}
+.seg-hint.is-idle {
+  opacity: .62;              /* 视觉降级，对比度仍按 --ink-3 计，不额外降低文字色 */
+}
+
+/* 窄屏：4 段在 342px 上每段 85px，「完全不甜」4 个字约 56px，够；
+   但 320 比 342 少 22px，逐段 79px 就紧了 —— 收到 13px。 */
+@media (max-width: 380px) {
+  .seg-item {
+    font-size: 13px;
+    padding: 0 5px;
+  }
+}
+
+/* ---------------- 留香只读展示（E5）----------------
+
+   留香由浓度推算，不是独立问题。原来它是 4 张可点的卡，看起来和「浓度」
+   一样是待回答的问题；两处都能写，用户就可能给出与上一问矛盾的答案。
+   现在默认只读，要覆盖必须显式点「改」（见 renderStrength）。
+
+   形态上让它不像输入控件：无边框、浅底、左边一条 2px 竖线做"这是读数"。 */
+.long-read {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--blue-amb);   /* 3.02 : 1 */
+  background: var(--bg-2);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.long-read.is-manual {
+  border-left-color: var(--warn);           /* 5.93 : 1，手改值要显眼 */
+}
+.long-read.is-empty {
+  border-left-color: var(--line);
+  background: transparent;
+}
+.long-val {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.long-val.is-empty {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.long-desc {
+  flex: 1 1 12em;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.long-tag {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  /* 12px 是 test-contrast 的下限，不能再小 —— 这个标记是要读的文字，
+     不是装饰。原来写 11px 被断言拦下，这是对的。 */
+  font-size: 12px;
+  line-height: 17px;
+  border-radius: 2px;
+  background: var(--blue-wash);
+  color: var(--blue);                        /* 7.42 on 白 */
+}
+.long-read.is-manual .long-tag {
+  background: rgba(138, 90, 0, .10);
+  color: var(--warn);
+}
+/* 「改」/「恢复推断值」：次要按钮，不抢主操作 */
+.long-edit {
+  margin-top: 6px;
+}
+.long-btn {
+  appearance: none;
+  font-family: inherit;
+  font-size: 12px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color var(--t-hover) var(--ease), border-color var(--t-hover) var(--ease);
+}
+.long-btn:hover {
+  color: var(--ink);
+  border-color: var(--edge);
+}
+.long-btn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+/* ---------------- 可搜索组合框（E6）----------------
+
+   品牌 133 个，原生 select 只能滚。组合框 = 一个输入框 + 一张下拉列表。
+
+   两条容易踩的：
+   ① 列表要浮在文档流之上（absolute + z-index），否则会把下面的香调 chip 顶下去；
+   ② blur 早于 click —— 直接在 blur 里关列表会让"点候选项"落空。
+      实现在 JS 里用 setTimeout 120ms 兜住（见 brandCombobox）。 */
+.combo {
+  position: relative;
+  margin-top: 8px;
+  max-width: 420px;
+}
+.combo-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--edge);   /* 4.54 : 1，承载控件边界 */
+  border-radius: var(--radius);
+  transition: border-color var(--t-hover) var(--ease);
+}
+.combo-input::placeholder {
+  color: var(--ink-3);             /* 6.19 : 1，占位也当正文读 */
+}
+.combo-input:hover {
+  border-color: var(--ink-2);
+}
+.combo-input:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+  border-color: var(--blue);
+}
+.combo-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 40;
+  max-height: 260px;               /* 约 8 项，再多要滚 */
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--bg);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 30px -12px rgba(0, 26, 94, .28);
+}
+.combo-item {
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.3;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.combo-item:hover,
+.combo-item.is-active {
+  background: var(--bg-2);
+  color: var(--ink);
+}
+.combo-item.is-on {
+  color: var(--blue);
+  font-weight: 600;
+}
+.combo-item.is-on::after {
+  content: ' · 已选';
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+/* 空结果：必须给一条出路，不能只显示"无匹配" */
+.combo-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}

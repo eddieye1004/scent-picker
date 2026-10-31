@@ -10,9 +10,9 @@
 | 10 | 柑橘花香 `citrus-floral` | 至少一个：neroli / orange blossom | 63 | 14.8% |
 | 20 | 青绿柑橘 `green-citrus` | 至少一个：petitgrain / galbanum | 17 | 4.0% |
 | 30 | 芳香柑橘 `aromatic-citrus` | 至少一个：lavender / rosemary / sage / thyme / mint / basil | 61 | 14.4% |
-| 90 | 古龙水型 `cologne`（兜底） | 至少一个：bergamot / lemon / mandarin / orange / grapefruit / lime / yuzu / neroli / orange blossom / petitgrain | 196 | 46.1% |
+| 90 | 古龙水型 `cologne`（兜底） |  | 284 | 66.8% |
 
-校验：归属合计 337 / 425，未归属 **88**，多重归属 **0**（机制保证）。
+校验：归属合计 425 / 425，未归属 **0**，多重归属 **0**（机制保证）。
 
 ## 木质调 woody（534 瓶）
 
@@ -21,11 +21,11 @@
 | 10 | 乌木 `oud` | 至少一个：oud | 59 | 11.0% |
 | 20 | 芳香木质 `woody-aromatic` | 至少一个：juniper / sage | 46 | 8.6% |
 | 30 | 苔藓木质 `mossy` | 必须全中：oakmoss + patchouli | 35 | 6.6% |
-| 40 | 香根草 `vetiver` | 至少一个：vetiver；排除：sandalwood | 70 | 13.1% |
-| 50 | 檀木 `sandalwood` | 至少一个：sandalwood；排除：vetiver | 85 | 15.9% |
-| 90 | 干燥木质 `dry-woody`（兜底） | 至少一个：cedarwood / guaiac wood / vetiver / sandalwood / patchouli / oakmoss | 162 | 30.3% |
+| 40 | 檀木 `sandalwood` | 至少一个：sandalwood | 113 | 21.2% |
+| 50 | 香根草 `vetiver` | 至少一个：vetiver；排除：sandalwood | 70 | 13.1% |
+| 90 | 干燥木质 `dry-woody`（兜底） |  | 211 | 39.5% |
 
-校验：归属合计 457 / 534，未归属 **77**，多重归属 **0**（机制保证）。
+校验：归属合计 534 / 534，未归属 **0**，多重归属 **0**（机制保证）。
 
 ## 花香调 floral（789 瓶）
 
@@ -33,12 +33,12 @@
 |---|---|---|---|---|
 | 10 | 单一花 `soliflore` | 至少一个：gardenia / magnolia / freesia / osmanthus | 110 | 13.9% |
 | 20 | 粉感花香 `powdery-floral` | 至少一个：iris / heliotrope / aldehydes | 109 | 13.8% |
-| 30 | 绿叶花香 `green-floral` | (lily of the valley|hyacinth) 且 (violet leaf|galbanum) | 3 | 0.4% |
-| 40 | 果香花香 `fruity-floral` | 至少一个：peony / blackcurrant / raspberry | 89 | 11.3% |
-| 50 | 白花 `white-floral` | 至少一个：jasmine / tuberose / ylang-ylang / gardenia / magnolia | 144 | 18.3% |
-| 90 | 玫瑰 `rose`（兜底） | 至少一个：rose / geranium | 113 | 14.3% |
+| 30 | 绿叶花香 `green-floral` | 至少一个：lily of the valley / hyacinth | 36 | 4.6% |
+| 40 | 果香花香 `fruity-floral` | 至少一个：peony / blackcurrant / raspberry | 74 | 9.4% |
+| 50 | 白花 `white-floral` | 至少一个：jasmine / tuberose / ylang-ylang / gardenia / magnolia | 134 | 17.0% |
+| 90 | 玫瑰 `rose`（兜底） |  | 326 | 41.3% |
 
-校验：归属合计 568 / 789，未归属 **221**，多重归属 **0**（机制保证）。
+校验：归属合计 789 / 789，未归属 **0**，多重归属 **0**（机制保证）。
 
 ## 东方琥珀调 amber（519 瓶）
 
@@ -49,9 +49,9 @@
 | 30 | 暖焚香 `incense-warm` | 必须全中：benzoin；至少一个：incense / frankincense | 6 | 1.2% |
 | 40 | 树脂 `resinous` | 必须全中：benzoin + labdanum | 8 | 1.5% |
 | 50 | 辛香琥珀 `spicy-amber` | 至少一个：cinnamon / cardamom / saffron / clove；排除：vanilla | 74 | 14.3% |
-| 90 | 香草琥珀 `vanilla-amber`（兜底） | 至少一个：vanilla / amber / benzoin / labdanum | 211 | 40.7% |
+| 90 | 香草琥珀 `vanilla-amber`（兜底） |  | 304 | 58.6% |
 
-校验：归属合计 426 / 519，未归属 **93**，多重归属 **0**（机制保证）。
+校验：归属合计 519 / 519，未归属 **0**，多重归属 **0**（机制保证）。
 
 ## 与 taxonomy v2 现状的对比
 
@@ -82,6 +82,6 @@
 | Maison Francis Kurkdjian · Baccarat Rouge 540 | cedarwood | 干燥木质 |
 | Parfums de Marly · Layton | patchouli, guaiac wood | 干燥木质 |
 | Parfums de Marly · Delina | vetiver | 香根草 |
-| Byredo · Mojave Ghost | vetiver, sandalwood, cedarwood | 干燥木质 |
+| Byredo · Mojave Ghost | vetiver, sandalwood, cedarwood | 檀木 |
 | Maison Margiela Fragrances · Replica By the Fireplace | guaiac wood | 干燥木质 |
 | Mancera · Cedrat Boise | oakmoss, patchouli | 苔藓木质 |

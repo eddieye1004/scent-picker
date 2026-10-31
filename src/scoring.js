@@ -566,9 +566,56 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
   const topN = opts.topN ?? 3;
   const profile = buildProfile(answers, taxonomy);
 
+  /* ---------- G6：把 taxonomy 的族内判别规则接进打分 ----------
+
+     v2.1.0 给四个族（citrus / floral / woody / amber）各写了一份 rules：
+     族内优先级级联，priority 从小到大、第一个通过即归属，每条规则声明
+     must（全中）/ any（至少一个）/ not（一个都不能中）/ always（兜底）。
+
+     在此之前这些字段在 app.js / notes.js / scoring.js 里的引用数全是 0 ——
+     审计得出的分类结论停在数据层，到不了用户侧。这里先接最确定的一条：
+     互斥。即：用户选了 A 类，而这瓶香水按规则实际该归 B 类 —— 它不该排第一。
+
+     为什么不按 rules 重判族内归属：perfumes.json 没有 subfamily 字段，
+     硬重判等于把 1228 瓶的归属全部重写一遍，那是换一套打分体系（另立一轮）。
+     这里只做减法：命中兄弟类判别特征、同时本类特征也成立的，乘 0.82。
+
+     0.82 的来历：实测该系数让若干组答案里的第 1 名换成更贴的候选，
+     而第 1 与第 3 之间的分差（通常 8–14 分）不会被整体翻盘。
+     要改这个数请先重跑 scripts/probe-boundary.mjs 看排序变化。 */
+  const boundaryPenalty = (perfume) => {
+    const fam = profile.family;
+    if (!fam || !Array.isArray(fam.rules)) return 1;
+    const sub = profile.subfamily;
+    /* 只在大圈+小圈都选了时生效：没选小类就无从判断"该归哪一类" */
+    if (!sub) return 1;
+    const notes = new Set((perfume.notesAll || []).map((n) => String(n).toLowerCase()));
+    const has = (n) => notes.has(String(n).toLowerCase());
+    const hit = (list) => (list || []).some(has);
+
+    const passes = (r) => {
+      if (!r) return false;
+      if (r.always) return true;
+      if (r.must && !r.must.every(has)) return false;
+      if (r.not && r.not.some(has)) return false;
+      if (r.any && !hit(r.any)) return false;
+      return true;
+    };
+    const ordered = [...fam.rules].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+    const actual = ordered.find((r) => passes(r));
+    if (!actual || actual.id === sub.id) return 1;
+    /* 本类规则自己也没通过时不罚：数据不支持任何一类的判别特征，
+       拿一条它不满足的规则惩罚它并不公平。 */
+    const ownRule = fam.rules.find((r) => r.id === sub.id);
+    if (!passes(ownRule)) return 1;
+    return 0.82;
+  };
+
   const scored = perfumes.map((p) => {
     const r = scorePerfume(p, profile, taxonomy);
-    return { perfume: p, ...r };
+    /* opts.boundary === false 时关闭惩罚，仅供 scripts/probe-boundary.mjs 做 A/B。 */
+    const mul = opts.boundary === false ? 1 : boundaryPenalty(p);
+    return { perfume: p, ...r, score: r.score * mul, boundaryMul: mul };
   }).sort((a, b) => b.score - a.score);
 
   // 香型轮盘入口：优先只从"真的是这一族"的瓶里挑。

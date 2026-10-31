@@ -72,12 +72,17 @@ for (const c of CLASSES) {
   c.N = c.set.length;
 }
 
+
+/* 若 taxonomy 提供 families[].rules，用级联规则重算"命中 1 类 / ≥2 类" */
+const RULE_SRC = tax.families.filter((f) => f.rules && f.rules.length).map((f) => f.id);
+
 /* ---------- 冲突：同族内一瓶命中 ≥2 类 ---------- */
 const out = [];
 const L = (s = '') => out.push(s);
 L('# 冲突量化与边界规则验证');
 L('');
-L('规则语义：`requires` 组内任一命中即算命中（与审计报告 evidence3 D 节口径一致）；无 `requires` 的类按 `notes` 任一命中。');
+L('本文件量的是「级联前基线」：命中 = `requires`（组内任一）或 `notes`（任一），多类可同时命中。');
+L('它回答「不做优先级判定时，一瓶会同时落进几个类」，用来量化问题有多严重；级联后的结果见 rules-report.md（那里一瓶一属）。');
 L('');
 
 const FAMROW = [];
