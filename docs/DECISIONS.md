@@ -1567,3 +1567,113 @@ TypeError: MARKS[id] is not a function
 - 干净导出 HEAD 跑四套测试：`test-render 145 / test-contrast 34 / test-scoring 106 / test-compliance 10`，全 PASS。
 - `qa-data` 全过（上游原件 1320 行，合规断言 5 项）。
 - taxonomy / SUB_MARKS / SUB_FIT 三方各 28，双向差集为空。
+
+---
+
+## D49 · v24：八项 P0/P1 落地 —— 删死代码、合并等价函数、radiogroup、焦点恢复、CSS 源层入仓、CSS 收敛
+
+用户要求把「必须修复 4 项 + 应当优化 4 项」一次性做完。八项全部完成，四套 298 项全绿。
+
+### 1. 删死代码：−382 行（含注释）
+
+11 个函数，`app.js` 3263 → **2881 行**。删的是二阶级联的那一族：
+
+| 函数 | 行数 |
+|---|---|
+| `renderNotes` | 148（含注释） |
+| `renderIntensity` | 42 |
+| `renderCharacter` | 30 |
+| `renderSeason` | 33 |
+| `renderConcentration` | 29 |
+| `renderLongevity` | 24 |
+| `renderTemperature` | 24 |
+| `renderSweetness` | 24 |
+| `renderOccasion` | 24 |
+| `renderLikedNotes` / `renderDislikedNotes` | 各 2 |
+
+`renderNotes` 是**二阶级联死代码**：它只被两个包装调用，而那两个包装本身无人调用。
+删第一层不会报错（函数仍被引用），必须删到第二层才暴露 —— 这是删死代码最容易漏的一类。
+
+### 2. 合并逐字符等价的几何函数
+
+`polar`/`wheelPolar` 与 `annulusPath`/`ringPath` 归一后逐字符等价（各 334 字符）。
+合并后 `polar` 与 `annulusPath` 各剩 1 处定义，圆心抽成 `VB_CENTER = 240`，
+`DISC.cx/cy` 与 `WHEEL.cx/cy` 都引用它 —— 圆心值不可能一边改一边不改，
+分成两份只会掩住这种不一致。
+
+### 3. 单选组语义：role=radiogroup / role=radio / aria-checked
+
+`choiceGrid` 的容器原来是个裸 `div`，只有子项 `aria-pressed`。读屏会把一组单选
+念成「切换按钮」，既不知道是一组，也报不出「共几个、第几个」。
+
+实际受影响的**只有 7 个单选组**（第 3 步 3 个 + 第 4 步 2 个 + 第 5 步 2 个）。
+第 6 步虽然也用 `.choice-grid`，但它是多选，**不该加 radiogroup** —— 这条在改之前
+先数了一遍调用点才没有误伤。
+
+`aria-pressed` 一并保留：样式与既有断言都读它，等样式改成 `.is-on` 单源之后再摘。
+
+### 4. 切步焦点恢复：判据是「重建前焦点在不在页面里」
+
+原实现整页重建后焦点掉到 `BODY`，键盘用户每走一步都要重新 Tab 穿过页头。
+
+修法分两支，**关键是不给鼠标用户添乱**：
+- 焦点本来就在 `body`（首屏、鼠标点按钮）→ 不抢。第一版无条件 focus 第一个扇区，
+  导致新访客一进来就看见「清冷」戴着焦点环、盘心写着「正在看 清冷」。
+- 焦点本来在页面内（键盘 Enter 切屏）→ 接到新屏 `.q-title`（`tabindex="-1"`）。
+
+实测：鼠标点「下一步」→ `activeElement` 是 `BODY`；键盘 Enter → `H2.q-title`，
+`:focus-visible` 为真。
+
+**配套样式是必要的**：h2 拿到焦点后浏览器会画一圈默认黑框，标题不是控件，
+那一圈会被读成「这里能点」。改成 `outline:none` + 左侧 3px 蓝竖条（`::before`，
+负 margin 落在正文左边距外）。截图对比：改前是包住整行标题的黑框，改后是一根短竖条。
+
+### 5. CSS 源层入仓（P1-3）
+
+`styles.css` 从来不是手写的，它由 base + 11 层拼接。历史上源层和拼接脚本都在
+仓库外（`C:/Users/16256/ego/`），只有产物进了 git —— **任何克隆者改源层都会静默分叉，
+而四套测试只读产物、仍会全绿**。这是仓库内部完全看不见的失败模式。
+
+现在：`styles/src/{base,_wheel4,_wheel4c,_plate,_wheel5..12}.css` + `scripts/build-css.mjs`
+`--check`。根目录的 11 份旧副本已删（避免两份真值）。
+
+### 6. CSS 收敛：394 → 实际 235，删掉 190 条
+
+**先纠正一个数字**。之前报的「394 条被覆盖声明」是错的：旧扫描器没有区分 `@media`
+上下文，同一选择器在桌面与窄屏各写一次是**合法的条件覆盖**，被算成了死声明。
+修正后同上下文内的真实数字是 **235 条**（另有 73 条同值重复，属冗余但不影响渲染）。
+
+删除时踩到一个坑，值得记：第一版把 `@keyframes` 也当普通选择器，
+于是不同动画的同名百分比帧（`0%`/`58%`/`100%`）被归成同一选择器互相「覆盖」——
+`fanPullOut` 的 `0%` 帧被删，`test-render` 的「返回时大圈从 .80 推出」立刻红。
+`@keyframes` 必须进上下文栈。
+
+最终删除 **190 条**（源层共 6584 字节，styles.css 148,913 → 142,329，−4.4%）。
+验证方式不是「看起来没变」，是 **A/B 计算样式比对**：用删除前的源层重建一份，
+在 8090（新）与 8123（旧）两个端口各跑五态 × 两视口，比对 12 个元素 × 全部关键属性，
+**差异数 0**。
+
+### 7. 变量清理
+
+删 `--ok`（引用 0 次）。`--radius-lg` 保留：它没有 `var()` 引用，但
+`test-contrast` 用它作为「覆盖层已加载」的结构标记。
+
+### 8. 提交前自检脚本（P0-1）
+
+`scripts/check-head.mjs`：把 HEAD 干净导出到临时目录，跑四套测试，断言数低于基线就红。
+起因是 D48 那次半提交 —— 本地 `git status` 只显示「还有文件没提交」，
+四套测试跑在工作区全绿，而 HEAD 本身跑不起来。
+
+Windows 上不能依赖外部 `tar`（收到带盘符的反斜杠路径会失败），改用
+`git ls-tree -r -z` + `git cat-file blob` 逐文件写盘，只依赖 git 本身。
+实测：在未提交本轮的 3 条新断言时，它准确报出「test-render PASS 145，少于基线 148」。
+
+### 验收
+
+- `test-render 148 / test-contrast 34 / test-scoring 106 / test-compliance 10`，全 PASS 0 FAIL。
+- `qa-data` 全过。
+- `build-css --check`：in sync（142,329 字节 / 4,634 行 / 12 层）。
+- A/B 计算样式比对：差异 0。
+- 浏览器实测：首屏不抢焦点；鼠标切步焦点落 BODY；键盘切步焦点落标题且 `:focus-visible` 为真；
+  第 3 步 3 个 radiogroup / 15 个 radio / 未选时 checked 全 false / 点一个后恰 1 个 true；
+  第 6 步 radiogroup 数 0（仍是多选）。

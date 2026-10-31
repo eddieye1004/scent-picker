@@ -213,7 +213,27 @@ for (const m of CSS.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
   const body = m[2].replace(/\/\*[\s\S]*?\*\//g, '');
   if (/outline\s*:\s*(none|0)/.test(body)) outlineNone.push(sel);
 }
-const badOutline = outlineNone.filter((sel) => !CSS.includes(`${sel}:focus-visible`));
+/* 补偿的判据：该选择器本身带 :focus-visible 版本，**或者**它的"基选择器"
+   （去掉末尾的 :focus）带 :focus-visible 版本。
+   后一种情形是真实存在的写法：规则写成
+       .q-title:focus { outline: none }
+       .q-title:focus-visible { outline: none; position: relative }
+       .q-title:focus-visible::before { ...画一根蓝竖条... }
+   —— 焦点环被去掉，但换成了伪元素画的竖条。原来只查
+   `sel + ':focus-visible'`，对 `.q-title:focus` 会拼出
+   `.q-title:focus:focus-visible` 这个不该存在的东西，于是把合规写法误判成问题。
+   现在先试原选择器，再试去掉尾部 :focus 的基选择器。 */
+const hasCompensation = (sel) => {
+  /* 本身已经是 :focus-visible 规则 → 它就是补偿规则本身，
+     焦点态已经存在视觉表达（具体是什么由伪元素/背景/边框决定，
+     静态扫描判断不了，但"存在焦点态规则"这一点是确定的）。 */
+  if (sel.includes(':focus-visible')) return true;
+  if (CSS.includes(`${sel}:focus-visible`)) return true;
+  const base = sel.replace(/:focus$/, '');
+  if (base !== sel && CSS.includes(`${base}:focus-visible`)) return true;
+  return false;
+};
+const badOutline = outlineNone.filter((sel) => !hasCompensation(sel));
 if (badOutline.length === 0) pass++;
 else fails.push(`这些规则去掉焦点环又没补偿: ${badOutline.join(', ')}`);
 

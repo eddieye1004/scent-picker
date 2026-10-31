@@ -192,6 +192,7 @@ ok('扇区是真实 button', appRoot.querySelectorAll('button.disc-sector').leng
 ok('圆盘有 radiogroup 语义', appRoot.querySelectorAll('[role="radiogroup"]').length >= 1,
   `实际 ${appRoot.querySelectorAll('[role="radiogroup"]').length}`);
 ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null);
+
 // 闭合态盘心必须填满内孔：外环与盘心连成一整块圆盘。
 // 若只取内接正方形（42.7%），四周会留一圈白，读起来像「环 + 贴在环上的一张卡」。
 {
@@ -865,6 +866,20 @@ for (const [n, phrase] of stepNames) {
     `按钮：${appRoot.querySelectorAll('.btn').map((x) => x.textContent.trim()).join(' | ').slice(0, 120)}`);
   if (b) { b.dispatch('click'); await new Promise((r) => setTimeout(r, 260)); }
   ok(`进入第 ${n} 步（${phrase}）`, getStepText().includes(phrase), getStepText().slice(0, 80));
+
+  /* 单选组的容器语义就在这一屏验：第 3 步（气质）是第一个用 .choice-grid 的屏。
+     .choice-grid 原来只有子项 aria-pressed，容器是裸 div —— 读屏把一组单选
+     念成"切换按钮"，既不知道是一组，也报不出"共几个、第几个"。
+     断言写在这里而不是首屏，是因为首屏根本没有 .choice-grid。 */
+  if (n === 3) {
+    const grid = appRoot.querySelector('.choice-grid');
+    ok('第 3 步的卡片组是 radiogroup', !!grid && grid.attrs.role === 'radiogroup',
+      grid ? String(grid.attrs.role) : '(没有 .choice-grid)');
+    const radios = grid ? grid.querySelectorAll('[role="radio"]') : [];
+    ok('组内每张卡是 radio', radios.length >= 8, `实际 ${radios.length}`);
+    const checked0 = radios.filter((r) => r.attrs['aria-checked'] === 'true');
+    ok('未选时组内没有 checked', checked0.length === 0, `实际 ${checked0.length}`);
+  }
 }
 
 const finishBtn = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('看推荐'));

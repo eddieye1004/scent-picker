@@ -87,14 +87,12 @@
 /* v7 的瓦片（.sub-arc / .sub-arc-btn）自己声明 pointer-events，见 _wheel7.css；
    这里只保留容器不吃事件这一条。 */
 
-.wheel.is-open .sector-g {
-  opacity: .30;
+.wheel.is-open .sector-g {;
   pointer-events: auto;
-  cursor: pointer;
-  transition: opacity 160ms cubic-bezier(.4, 0, .2, 1);
+  cursor: pointer;;
 }
 .wheel.is-open .sector-g.is-hot:not(.is-on) { opacity: .55; }
-.wheel.is-open .sector-g.is-on { opacity: 1; }
+.wheel.is-open .sector-g.is-on {; }
 .wheel.is-open .sector-g:not(.is-on) .sector-shape {
   stroke: var(--line);
   stroke-width: 1;

@@ -38,7 +38,6 @@
   --accent-soft: #8f8f8f;  /* 仅 1px 描边，不承载文字。3.23 : 1 on --bg */
   --warn:        #8a5a00;  /* 5.93 on --bg */
   --danger:      #a4262c;  /* 7.26 on --bg */
-  --ok:          #2f5d3a;
 
   /* —— 字体 ——
      Swiss 的层级靠尺寸和字重，不靠换字体。标题与正文同一族无衬线，
@@ -131,18 +130,16 @@ body {
    没有圆点、没有勾、没有动画。 */
 .progress {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(4, 1fr);;
   margin-bottom: 10px;
 }
 .progress i {
-  display: block;
-  height: 3px;
+  display: block;;
   background: var(--bg-3);
   transition: background-color 160ms linear;
 }
-.progress i.done { background: var(--ink-3); }
-.progress i.now  { background: var(--accent); }
+.progress i.done {; }
+.progress i.now  {; }
 .progress-meta {
   display: flex;
   justify-content: space-between;
@@ -402,9 +399,7 @@ body {
 .disc-sector[aria-checked="true"] { color: var(--bg); }
 .disc-sector[aria-checked="true"] .en { color: var(--bg-3); }
 
-.disc-sector:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+.disc-sector:focus-visible {;;
 }
 
 /* 盘心：一块压在圆心上的白方块。
@@ -545,7 +540,7 @@ body {
 /* 盘心换字时的淡入：只在文字内容变化时触发（JS 加 .is-swap 再移除）。
    180ms 是因为 34% 方块本身很小，时间长了会显得黏。 */
 @keyframes hub-swap {
-  from { opacity: 0; transform: translateY(3px); }
+  from { opacity: 0;; }
   to   { opacity: 1; transform: none; }
 }
 .disc-hub.is-swap .hub-zh,
@@ -592,8 +587,7 @@ body {
   text-align: left;
   color: inherit;
   font: inherit;
-  cursor: pointer;
-  transition: background-color 160ms linear, border-color 160ms linear;
+  cursor: pointer;;
   border-radius: 0;
   min-height: 44px;
 }
@@ -626,7 +620,7 @@ body {
   padding-top: 3px;
 }
 .opt:hover .tick { opacity: 1; }
-.opt[aria-pressed="true"] { background: var(--bg-2); border-color: var(--ink); }
+.opt[aria-pressed="true"] { background: var(--bg-2);; }
 .opt[aria-pressed="true"] .tick { opacity: 1; }
 .opt[aria-pressed="true"] .num { color: var(--accent); }
 
@@ -665,8 +659,7 @@ body {
      20→22px 只有 2px 的差别，但足以让人确认「我抓住了」。 */
   transition: transform 160ms cubic-bezier(.4, 0, .2, 1), background-color 160ms linear;
 }
-.scale input[type="range"]:active::-webkit-slider-thumb {
-  transform: scale(1.1);
+.scale input[type="range"]:active::-webkit-slider-thumb {;
   background: var(--ink);
 }
 .scale input[type="range"]::-moz-range-thumb {
@@ -681,9 +674,7 @@ body {
   transform: scale(1.1);
   background: var(--ink);
 }
-.scale input[type="range"]:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.scale input[type="range"]:focus-visible {;;
 }
 .scale-ends {
   display: flex;
@@ -728,12 +719,10 @@ body {
   background: var(--bg);
   color: var(--ink-2);
   border-radius: 0;
-  cursor: pointer;
-  transition: background-color 160ms linear, color 160ms linear,
-              border-color 160ms linear;
+  cursor: pointer;;
 }
 .chip:hover { border-color: var(--ink); color: var(--ink); }
-.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chip:focus-visible {;; }
 .chip[aria-pressed="true"] {
   background: var(--ink);
   border-color: var(--ink);
@@ -783,9 +772,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--ink);
-  background: var(--ink);
-  color: var(--bg);
+  border: 1px solid var(--ink);;;
   font-family: var(--font-body);
   font-size: 16px;
   font-weight: 600;
@@ -793,12 +780,11 @@ body {
   padding: 14px 22px;
   min-height: 44px;
   border-radius: 0;
-  cursor: pointer;
-  transition: background-color 160ms linear, border-color 160ms linear;
+  cursor: pointer;;
 }
-.btn:hover { background: var(--accent); border-color: var(--accent); }
-.btn:active { transform: translateY(1px); }
-.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:hover {;; }
+.btn:active {; }
+.btn:focus-visible {; outline-offset: 2px; }
 /* 次按钮：白底墨线。Swiss 的两级按钮就是实心与描边，没有第三种。 */
 /* 次级按钮：与主按钮同高（44px 触控下限）但更轻。
    原来这两处是在 app.js 里写内联 style="padding:7px 14px;font-size:13px" 的——
@@ -812,20 +798,16 @@ body {
   width: auto;
 }
 .btn.ghost {
-  background: transparent;
-  color: var(--ink-2);
+  background: transparent;;
   border-color: var(--edge);
   font-weight: 500;
 }
-.btn.ghost:hover {
-  background: transparent;
+.btn.ghost:hover {;
   color: var(--ink);
   border-color: var(--ink);
 }
 .btn:disabled {
-  background: var(--bg-3);
-  border-color: var(--bg-3);
-  color: var(--ink-3);
+  background: var(--bg-3);;;
   cursor: not-allowed;
 }
 
@@ -903,8 +885,7 @@ article.pick {
   border-top: 2px solid var(--ink);
   padding: 22px 0 28px;
   margin-bottom: 8px;
-  background: none;
-  border-radius: 0;
+  background: none;;
   box-shadow: none;
 }
 article.pick:last-of-type { border-bottom: 1px solid var(--line); }
@@ -1089,8 +1070,7 @@ footer.foot a:hover { color: var(--accent); }
   inset: -1px;
   border-radius: 50%;
   border: 2px solid transparent;
-  border-top-color: var(--ink-3);
-  animation: skeleton-sweep 1.6s linear infinite;
+  border-top-color: var(--ink-3);;
 }
 @keyframes skeleton-sweep { to { transform: rotate(360deg); } }
 
@@ -1105,7 +1085,7 @@ footer.foot a:hover { color: var(--accent); }
 
 /* ---------- 动效与降级 ----------
    Swiss 只承认硬切。保留一个 120ms 的 fade 只是为了不闪，不用缓动曲线。 */
-.fade-in { animation: fade-in 120ms linear both; }
+.fade-in {; }
 @keyframes fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -1223,9 +1203,7 @@ footer.foot a:hover { color: var(--accent); }
 /* 盘心：套用中圈内接正方形。
    WHEEL.r2i = 106，106×√2 = 149.9，149.9/480 = 31.2%，取 30.6% 留余量。
    与旧圆盘的 42.7% 同一算法（见 app.js 顶部注释），只是半径变小。 */
-.wheel .disc-hub {
-  width: 30.6%;
-  height: 30.6%;
+.wheel .disc-hub {;;
   /* 空态展开到内孔内接正方形，选中后收回 —— 尺寸变化本身就在说"这一层出现了" */
   transition: width 220ms cubic-bezier(.4,0,.2,1),
               height 220ms cubic-bezier(.4,0,.2,1),
@@ -1240,25 +1218,20 @@ footer.foot a:hover { color: var(--accent); }
   gap: 3px;
   justify-content: center;
 }
-.wheel .disc-hub .hub-zh { font-size: 22px; line-height: 1.1; letter-spacing: -0.03em; }
+.wheel .disc-hub .hub-zh {;;; }
 .wheel .disc-hub .hub-kicker { font-size: 12px; }
 .wheel .disc-hub .hub-desc {
-  font-size: 12px;
-  line-height: 1.25;
-  max-height: 30px;
+  font-size: 12px;;;
 }
 
 /* 重新开始：盘心内唯一的按钮。只在有选择时出现 —— 空态不需要"重置" */
 .wheel .hub-reset {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: inherit;
+  appearance: none;;
+  background: transparent;;
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.02em;
-  padding: 2px 4px;
+  letter-spacing: 0.02em;;
   margin-top: 1px;
   cursor: pointer;
   text-decoration: underline;
@@ -1266,12 +1239,10 @@ footer.foot a:hover { color: var(--accent); }
   text-decoration-thickness: 1px;
   text-decoration-color: currentColor;
   opacity: .7;
-  pointer-events: auto;
-  transition: opacity 160ms linear;
+  pointer-events: auto;;
 }
 .wheel .hub-reset:hover { opacity: 1; }
-.wheel .hub-reset:focus-visible {
-  outline: 2px solid var(--accent);
+.wheel .hub-reset:focus-visible {;
   outline-offset: 1px;
   opacity: 1;
 }
@@ -1346,15 +1317,15 @@ footer.foot a:hover { color: var(--accent); }
 
 /* 窄屏：中圈与外圈的扇区都变窄，标签先收字号再收内容 */
 @media (max-width: 620px) {
-  .wheel .disc-sector.lvl1 { font-size: 14px; max-width: 26%; }
+  .wheel .disc-sector.lvl1 { font-size: 14px;; }
   .wheel .disc-sector.lvl1 .notes { font-size: 12px; -webkit-line-clamp: 1; }
   .wheel .disc-sector.lvl2 { font-size: 12px; max-width: 20%; }
   /* 360 宽时中圈半径只有 84px，中圈标签会顶到外圈标签上（实测 2 处相交）。
      再收一档宽度，让两圈之间留出可见缝隙。 */
   .wheel .disc-sector.lvl1 { max-width: 24%; }
-  .wheel .disc-hub { padding: 8px 8px 6px; gap: 2px; }
-  .wheel .disc-hub .hub-zh { font-size: 16px; }
-  .wheel .disc-hub .hub-desc { max-height: 26px; }
+  .wheel .disc-hub {;; }
+  .wheel .disc-hub .hub-zh {; }
+  .wheel .disc-hub .hub-desc {; }
   .fam-panel { margin-top: 18px; min-height: 120px; }
   .fam-title { font-size: 22px; }
   .fam-style { font-size: 14px; }
@@ -1574,15 +1545,8 @@ footer.foot a:hover { text-decoration-thickness: 2px; }
 
 /* --- 盘心：径向受光 + 边缘受光，和轮盘共用一个光源 --- */
 .wheel .disc-hub {
-  border-radius: var(--radius);
-  background: radial-gradient(120% 110% at 22% 14%, #ffffff 0%, var(--bg-2) 46%, var(--bg-3) 100%);
-  border-color: var(--blue-amb);
-  box-shadow: var(--sh-card);
-  transition: width var(--t-move) var(--ease),
-              height var(--t-move) var(--ease),
-              background-color var(--t-hover) var(--ease),
-              border-color var(--t-hover) var(--ease),
-              box-shadow var(--t-hover) var(--ease);
+  border-radius: var(--radius);;
+  border-color: var(--blue-amb);;;
 }
 /* 空态盘心撑到内孔内接正方形（46.2%），面积是选定态的 2.2 倍。
    底色收白一档：此刻它只是"待选区"，不该和选定态一样重。
@@ -1596,17 +1560,16 @@ footer.foot a:hover { text-decoration-thickness: 2px; }
    基础样式的 max-height:34px 只够两行半，实测在字符中间切一刀（「…那种干」）。
    126px 可用高扣掉 kicker 14 + 主词 24 + 重新开始 20 + 三条 gap 15 = 53px，
    给 52px 正好容纳三行 12px/1.35 = 48.6，不再切字。 */
-.wheel .disc-hub.is-picked .hub-desc { max-height: 52px; }
+.wheel .disc-hub.is-picked .hub-desc {; }
 /* 选定态行距收紧半档，把上面算出来的 53px 留出 1px 余量给亚像素。
    只动 line-height 不动 font-size —— 字号已经压在 12px 下限上了。 */
 .wheel .disc-hub.is-picked .hub-desc { line-height: 1.35; }
 /* 已选定：整块翻墨（瑞士表达"确定"的惯用手法），并抬起一层 */
 .wheel .disc-hub.is-picked {
   background: var(--ink);
-  border-color: var(--ink);
-  box-shadow: 0 1px 0 rgba(255,255,255,.10) inset, 0 14px 40px -14px rgba(0,0,0,.45);
+  border-color: var(--ink);;
 }
-.wheel .disc-hub.is-hover { border-color: var(--ink); }
+.wheel .disc-hub.is-hover {; }
 
 /* --- 轮盘外圈：选中用水洗底 + 主蓝描边 + 极淡同色投影 --- */
 .wheel .sector-shape,
@@ -1750,7 +1713,7 @@ body { position: relative; }
   transition: transform 340ms cubic-bezier(.32,.72,0,1);
   will-change: transform;
 }
-.wheel.is-open .disc-core { transform: scale(.56); }
+.wheel.is-open .disc-core {; }
 
 /* 缩放后六个扇区太窄，标签必然溢出：文字交给盘心，
    扇区只留色块作为「选的是哪一块」的空间锚点。 */
@@ -1758,9 +1721,7 @@ body { position: relative; }
   /* 与 340ms 圆盘缩放同段：图层显隐挂在缩放末段，慢 40ms 会读成"标签掉队" */
   transition: opacity 200ms linear;
 }
-.wheel.is-open .label-layer {
-  opacity: 0;
-  pointer-events: none;
+.wheel.is-open .label-layer {;;
 }
 
 /* 缩小后扇区变成一块小饼，需要一点体积才不像贴纸 */
@@ -1769,8 +1730,7 @@ body { position: relative; }
 }
 .wheel.is-open .sector-g.is-on .sector-shape {
   fill: var(--blue-wash);
-  stroke: var(--blue);
-  stroke-width: 1.5;
+  stroke: var(--blue);;
 }
 
 /* ---- 第二轮：一圈方格 ---- */
@@ -1778,24 +1738,20 @@ body { position: relative; }
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 200ms linear;
+  opacity: 0;;
 }
 .wheel.is-open .sub-ring {
-  opacity: 1;
-  pointer-events: auto;
+  opacity: 1;;
 }
 /* 手臂：铺满控件、绕中心转过 θ，方格钉在手臂顶端。
    于是所有方格落在同一半径的圆上，且不依赖任何 JS 三角函数。 */
 .wheel .sub-arm {
-  position: absolute;
-  inset: 0;
+  position: absolute;;
   pointer-events: none;
 }
 .wheel .sub-arm .sub-sq {
   position: absolute;
-  left: 50%;
-  top: 8.5%;
+  left: 50%;;
   pointer-events: auto;
   /* 文字必须保持水平：手臂转过 θ，方格反着转回来。
      反转角走 --aq 自定义属性而不是内联 transform ——
@@ -1835,11 +1791,8 @@ body { position: relative; }
   border-color: var(--ink);
   color: var(--ink);
 }
-.wheel .disc-sector.lvl2.sub-sq.is-on {
-  background: var(--blue-wash);
-  border-color: var(--blue);
-  color: var(--blue-deep);
-  box-shadow: 0 1px 0 rgba(255,255,255,.16) inset, 0 8px 20px -12px rgba(0,47,167,.42);
+.wheel .disc-sector.lvl2.sub-sq.is-on {;
+  border-color: var(--blue);;;
 }
 .wheel .disc-sector.lvl2.sub-sq:active {
   transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) scale(.97);
@@ -1858,11 +1811,8 @@ body { position: relative; }
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 12px 14px;
-  background: var(--bg);
-  border: 1px solid var(--edge);
-  border-radius: var(--radius);
-  box-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 8px 26px -18px rgba(0,26,94,.3);
+  padding: 12px 14px;;;
+  border-radius: var(--radius);;
   transition: width 260ms cubic-bezier(.32,.72,0,1),
               height 260ms cubic-bezier(.32,.72,0,1),
               background-color 200ms cubic-bezier(.4,0,.2,1),
@@ -1870,15 +1820,11 @@ body { position: relative; }
               color 200ms cubic-bezier(.4,0,.2,1);
 }
 /* 缩小态盘心可以更大：小饼直径 56%，内接正方形 39.6% */
-.wheel.is-open .disc-hub {
-  width: 38%;
-  height: 38%;
+.wheel.is-open .disc-hub {;;
 }
 
 /* 第一层选中：与方格同一档浅色，只有边框加深 */
-.wheel .disc-hub.is-hover {
-  border-color: var(--ink);
-  background: var(--bg-2);
+.wheel .disc-hub.is-hover {;;
 }
 
 /* 落到具体小项：整块压深，白字。这是全站唯一的「确定」信号 */
@@ -1893,26 +1839,20 @@ body { position: relative; }
 .wheel .disc-hub.is-picked .hub-desc { color: #c9c9c9; }
 .wheel .disc-hub.is-picked .hub-reset { color: #c9c9c9; }
 
-.wheel .disc-hub .hub-zh {
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
+.wheel .disc-hub .hub-zh {;;;;
   color: var(--ink);
 }
 .wheel .disc-hub.is-idle .hub-zh { color: var(--ink-2); }
 .wheel .disc-hub .hub-kicker { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .wheel .disc-hub .hub-desc {
   flex: none;
-  font-size: 12px;
-  line-height: 1.35;
-  max-height: 34px;
+  font-size: 12px;;;
   overflow: hidden;
   color: var(--ink-3);
   text-align: center;
 }
 /* 带示意图时说明只留两行，把高度让给环图 */
-.wheel .disc-hub.has-glyph .hub-desc { max-height: 18px; }
+.wheel .disc-hub.has-glyph .hub-desc {; }
 
 /* ---- 盘心两个按钮 ---- */
 .wheel .hub-go,
@@ -1926,22 +1866,14 @@ body { position: relative; }
   pointer-events: auto;
 }
 .wheel .hub-go {
-  margin-top: 2px;
-  padding: 7px 10px;
-  min-height: 30px;
+  margin-top: 2px;;;
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--bg);
-  background: var(--ink);
-  border: 1px solid var(--ink);
-  transition: background-color 160ms cubic-bezier(.4,0,.2,1),
-              border-color 160ms cubic-bezier(.4,0,.2,1),
-              transform 160ms cubic-bezier(.4,0,.2,1);
+  letter-spacing: -0.01em;;;;;
 }
-.wheel .hub-go:hover { background: var(--blue); border-color: var(--blue); }
-.wheel .hub-go:active { transform: translateY(1px) scale(.988); }
-.wheel .hub-go:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.wheel .hub-go:hover {; border-color: var(--blue); }
+.wheel .hub-go:active {; }
+.wheel .hub-go:focus-visible { outline: 2px solid var(--blue);; }
 
 .wheel .hub-reset {
   margin-top: 1px;
@@ -1969,11 +1901,11 @@ body { position: relative; }
 /* ---- 窄屏 ---- */
 @media (max-width: 620px) {
   .wheel { margin-top: 18px; }
-  .wheel.is-open .disc-core { transform: scale(.54); }
+  .wheel.is-open .disc-core {; }
   .wheel .disc-hub { width: 46%; height: 46%; padding: 9px 10px; gap: 3px; }
   .wheel.is-open .disc-hub { width: 44%; height: 44%; }
   .wheel .disc-hub .hub-zh { font-size: 22px; }
-  .wheel .disc-hub .hub-desc { max-height: 32px; }
+  .wheel .disc-hub .hub-desc {; }
   .wheel .disc-sector.lvl2.sub-sq {
     min-width: 58px;
     min-height: 44px;
@@ -1981,14 +1913,14 @@ body { position: relative; }
     font-size: 12px;
     letter-spacing: 0;
   }
-  .wheel .sub-arm .sub-sq { top: 10%; }
+  .wheel .sub-arm .sub-sq {; }
 
 }
 
 @media (max-width: 400px) {
-  .wheel.is-open .disc-core { transform: scale(.5); }
+  .wheel.is-open .disc-core {; }
   .wheel .disc-sector.lvl2.sub-sq { min-width: 54px; padding: 8px 6px; }
-  .wheel .sub-arm .sub-sq { top: 11%; }
+  .wheel .sub-arm .sub-sq {; }
   .wheel .disc-hub .hub-desc { max-height: 16px; }
 }
 
@@ -2019,35 +1951,25 @@ body { position: relative; }
 }
 /* 盘缩小后扇区变成一圈细片，全部压到背景层；
    只让选中的那一片留一点水洗色 —— 盘因此仍属于「哪个大类」。 */
-.wheel.is-open .sector-g { opacity: .16; }
-.wheel.is-open .sector-g.is-on { opacity: 1; }
+.wheel.is-open .sector-g {; }
+.wheel.is-open .sector-g.is-on {; }
 .wheel.is-open .sector-g.is-on .sector-shape {
   fill: var(--blue-wash);
-  stroke: var(--blue);
-  stroke-width: 1;
+  stroke: var(--blue);;
 }
 .wheel.is-open .ring-thin { opacity: 0; }
 
 /* ---- 盘心：展开后是透明文字层 ---- */
 .wheel.is-open .disc-hub {
   width: 46%;
-  height: 46%;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  gap: 4px;
+  height: 46%;;;;;;;
   justify-content: center;
 }
 /* 展开后盘心不再是方块，四角角标就变成四个悬空的直角 —— 收掉 */
 .wheel.is-open .disc-hub::before { display: none; }
 
 /* 落到具体项：整块盘翻深。加深的是盘，不是圆心。 */
-.wheel.is-open.is-picked .disc-core {
-  background: var(--ink);
-  box-shadow: 0 1px 0 rgba(255,255,255,.12) inset,
-              0 14px 34px -16px rgba(0,0,0,.5);
+.wheel.is-open.is-picked .disc-core {;;
 }
 .wheel.is-open.is-picked .disc-hub {
   /* 46% 与展开态同宽：52% 换算到 viewBox 是 r=124.8，比中圈弧段内沿
@@ -2060,13 +1982,12 @@ body { position: relative; }
   border: 0;
   border-radius: 0;
   background: transparent;
-  box-shadow: none;
-  color: var(--bg);
+  box-shadow: none;;
 }
-.wheel.is-open.is-picked .disc-hub .hub-zh { color: #ffffff; }
-.wheel.is-open.is-picked .disc-hub .hub-desc { color: #d6d6d6; }
-.wheel.is-open.is-picked .disc-hub .hub-reset { color: #c9c9c9; }
-.wheel.is-open.is-picked .disc-hub .hub-kicker { color: #b0b0b0; }
+.wheel.is-open.is-picked .disc-hub .hub-zh {; }
+.wheel.is-open.is-picked .disc-hub .hub-desc {; }
+.wheel.is-open.is-picked .disc-hub .hub-reset {; }
+.wheel.is-open.is-picked .disc-hub .hub-kicker {; }
 
 /* 未展开态：整块轮盘要读成「一块填满中间区域的实心盘」。
    做法：扇区填 --bg-2 让外环成为实体，盘心由白方块改成白色圆盘压在上面，
@@ -2101,7 +2022,7 @@ body { position: relative; }
 
 @media (max-width: 620px) {
   .wheel.is-open:not(.is-picked) .disc-hub .hub-desc { display: none; }
-  .wheel.is-open .disc-core { transform: scale(.6); }
+  .wheel.is-open .disc-core {; }
   .wheel .sub-arm .sub-sq { top: 9.8%; }
   .wheel.is-open .disc-hub,
   .wheel.is-open.is-picked .disc-hub { width: 46%; height: 46%; }
@@ -2110,7 +2031,7 @@ body { position: relative; }
    否则左右两侧的方格内边会切进盘心文字的包围盒（实测 1.25px）。
    只收盘心宽度，不缩字号 —— 12px 已是最小可读。 */
 @media (max-width: 400px) {
-  .wheel.is-open .disc-core { transform: scale(.58); }
+  .wheel.is-open .disc-core {; }
   .wheel .sub-arm .sub-sq { top: 10.3%; }
   .wheel.is-open .disc-hub,
   .wheel.is-open.is-picked .disc-hub { width: 46%; height: 46%; }
@@ -2121,7 +2042,7 @@ body { position: relative; }
    hub-go 在 390 超 5.7px / 360 超 15.8px；选定态 hub-desc 在 360 超 3px。
    可用半宽 = sqrt(R² − (中心偏移 + 半高)²)，所以宽元素要先收宽度，
    否则四角会顶出圆弧——矩形贴边看不出来，圆的接缝一眼就看见。 */
-.wheel.is-open .disc-hub .hub-desc { max-width: 96%; }
+.wheel.is-open .disc-hub .hub-desc {; }
 .wheel .disc-hub.is-picked .hub-desc { max-width: 96%; text-wrap: pretty; }
 
 @media (max-width: 620px) {
@@ -2277,8 +2198,7 @@ body { position: relative; }
   width: 88px;
   height: 88px;
   flex: none;
-  fill: none;
-  stroke: rgba(255, 255, 255, .82);
+  fill: none;;
   stroke-width: .7;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -2288,8 +2208,7 @@ body { position: relative; }
    也避免"图标 + 文字"挤成一块读起来像徽标。 */
 .wheel .plate-rule {
   width: 26px;
-  height: 1px;
-  background: rgba(255, 255, 255, .28);
+  height: 1px;;
   flex: none;
 }
 
@@ -2299,8 +2218,7 @@ body { position: relative; }
   font-size: 12px;
   font-weight: 500;
   line-height: 1.3;
-  letter-spacing: .02em;
-  color: #b8b8b8;
+  letter-spacing: .02em;;
   text-align: center;
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -2313,7 +2231,7 @@ body { position: relative; }
    reset 半宽 37.6 → 柱高 ≤ 2×√(85.5²−37.6²) ≈ 153。
    下面这组数值是按这条约束配的，不是随手调的。 */
 @media (max-width: 620px) {
-  .wheel .plate-svg { width: 48px; height: 48px; }
+  .wheel .plate-svg {;; }
   .wheel .hub-plate { gap: 4px; }
   .wheel .hub-glyph { margin-top: 4px; }
   /* 分割线是纯版式装饰，窄屏先让位给内容 */
@@ -2411,7 +2329,7 @@ body { position: relative; }
 /* 标本线稿必须跟着换底色一起换线色。
    原来写死 rgba(255,255,255,.82) 是给墨底配的；底变白之后
    白线画在白盘上等于图形消失 —— 「换底不换线」是改配色最容易漏的一处。 */
-.wheel .plate-svg { stroke: var(--ink-2); }
+.wheel .plate-svg {; }
 .wheel .plate-rule { background: var(--line); }
 .wheel .plate-cap { color: var(--ink-3); }
 
@@ -2582,14 +2500,12 @@ body { position: relative; }
 /* v7 的瓦片（.sub-arc / .sub-arc-btn）自己声明 pointer-events，见 _wheel7.css；
    这里只保留容器不吃事件这一条。 */
 
-.wheel.is-open .sector-g {
-  opacity: .30;
+.wheel.is-open .sector-g {;
   pointer-events: auto;
-  cursor: pointer;
-  transition: opacity 160ms cubic-bezier(.4, 0, .2, 1);
+  cursor: pointer;;
 }
 .wheel.is-open .sector-g.is-hot:not(.is-on) { opacity: .55; }
-.wheel.is-open .sector-g.is-on { opacity: 1; }
+.wheel.is-open .sector-g.is-on {; }
 .wheel.is-open .sector-g:not(.is-on) .sector-shape {
   stroke: var(--line);
   stroke-width: 1;
@@ -2661,8 +2577,7 @@ body { position: relative; }
 
 .wheel .sub-ring {
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 220ms cubic-bezier(.4, 0, .2, 1);
+  opacity: 0;;
 }
 .wheel.is-open .sub-ring {
   opacity: 1;
@@ -2670,7 +2585,7 @@ body { position: relative; }
   pointer-events: none;
 }
 /* v5 的虚线轨道横穿弧带，只在缝里露出几截碎线，读起来像毛刺。v7 取消。 */
-.wheel.is-open .sub-ring::before { display: none; }
+.wheel.is-open .sub-ring::before {; }
 
 .wheel .sub-svg {
   position: absolute;
@@ -2686,12 +2601,9 @@ body { position: relative; }
    白面 + 1px 中性描边 + 1px 落影。白所以立得起来，是因为它垫在一块
    更深的灰盘上（见文件后半的「盘体」）—— 白落白才是几条线拼的几何图。 */
 .wheel .sub-g {
-  filter: drop-shadow(0 1px 2px rgba(0, 26, 94, .10));
-  transition: filter 160ms cubic-bezier(.4, 0, .2, 1);
+  filter: drop-shadow(0 1px 2px rgba(0, 26, 94, .10));;
 }
-.wheel .sub-arc {
-  fill: #ffffff;
-  stroke: #d4d6e6;
+.wheel .sub-arc {;;
   stroke-width: 1;
   pointer-events: auto;
   cursor: pointer;
@@ -2702,18 +2614,15 @@ body { position: relative; }
   transition: fill 160ms cubic-bezier(.4, 0, .2, 1),
               stroke 160ms cubic-bezier(.4, 0, .2, 1);
 }
-.wheel.is-open .sub-arc {
-  animation: arcIn 340ms cubic-bezier(.32, .72, 0, 1) both;
+.wheel.is-open .sub-arc {;
 }
 .wheel:not(.is-sub-locked) .sub-g:hover,
 .wheel .sub-g.is-hot {
   filter: drop-shadow(0 4px 9px rgba(0, 26, 94, .18));
 }
 .wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
-.wheel .sub-g.is-hot .sub-arc {
-  fill: #eef0f9;
-  stroke: var(--ink-2);
-  stroke-width: 1.5;
+.wheel .sub-g.is-hot .sub-arc {;
+  stroke: var(--ink-2);;
 }
 .wheel .sub-g:active .sub-arc {
   fill: #eceef4;
@@ -2724,8 +2633,7 @@ body { position: relative; }
 .wheel .sub-g.is-on { filter: drop-shadow(0 4px 11px rgba(0, 26, 94, .24)); }
 .wheel .sub-g.is-on .sub-arc {
   fill: var(--blue);
-  stroke: var(--blue);
-  stroke-width: 1;
+  stroke: var(--blue);;
 }
 
 /* 每段延迟 55ms 依次滑出：一次全亮读起来是一块饼，
@@ -2762,8 +2670,7 @@ body { position: relative; }
      变成两行两列，既不像一个词，也压到盘心。 */
   white-space: nowrap;
   pointer-events: auto;
-  cursor: pointer;
-  animation: arcLabelIn 260ms cubic-bezier(.32, .72, 0, 1) both;
+  cursor: pointer;;
   transition: color 160ms cubic-bezier(.4, 0, .2, 1);
 }
 @keyframes arcLabelIn {
@@ -2781,10 +2688,7 @@ body { position: relative; }
 }
 
 @media (max-width: 620px) {
-  .wheel .disc-sector.lvl2.sub-arc-btn {
-    padding: 4px 5px;
-    font-size: 13px;
-    min-height: 40px;
+  .wheel .disc-sector.lvl2.sub-arc-btn {;;;
   }
 }
 @media (max-width: 400px) {
@@ -2828,19 +2732,16 @@ body { position: relative; }
 }
 /* 展开后家族盘缩到 60%，盘体本身不变 —— 盘子还在，
    只是上面那层的扇区收进去了。底座颜色随状态微调，避免整块白到发空。 */
-.wheel.is-open { background: #c6ccdf; }
+.wheel.is-open {; }
 
 /* 家族扇区：白件 */
-.wheel .disc-svg .sector-shape {
-  fill: #ffffff;
-  stroke: #d8d8de;
+.wheel .disc-svg .sector-shape {;;
   stroke-width: 1;
   transition: fill 160ms cubic-bezier(.4, 0, .2, 1),
               stroke 160ms cubic-bezier(.4, 0, .2, 1);
 }
 .wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
-.wheel .disc-svg .sector-g.is-hot .sector-shape {
-  fill: #f5f5f8;
+.wheel .disc-svg .sector-g.is-hot .sector-shape {;
   stroke: var(--ink);
   stroke-width: 1.5;
 }
@@ -2851,12 +2752,7 @@ body { position: relative; }
 }
 
 /* 盘心：白件，落在灰盘正中 */
-.wheel .disc-hub {
-  background: #ffffff;
-  border: 1px solid #e4e4ea;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, .9) inset,
-    0 12px 30px -20px rgba(0, 26, 94, .38);
+.wheel .disc-hub {;;;
 }
 .wheel .disc-hub.is-idle { background: #ffffff; }
 .wheel .disc-hub.is-hover { background: #ffffff; border-color: var(--edge); }
@@ -2893,16 +2789,14 @@ body { position: relative; }
 /* 展开态：家族盘缩成 60%，仍是白件，只是不再抢眼。
    原来用 16% 透明度让它隐身 —— 那等于告诉用户「盘子没了」，
    而第③点要的正是「盘还在，还能点」。 */
-.wheel.is-open .sector-g { opacity: 1; }
+.wheel.is-open .sector-g {; }
 .wheel.is-open .sector-g .sector-shape {
   fill: #e7ebf5;
   stroke: #ffffff;
   stroke-width: 1.5;
 }
-.wheel.is-open .sector-g.is-on .sector-shape {
-  fill: var(--blue);
-  stroke: var(--blue);
-  stroke-width: 1.5;
+.wheel.is-open .sector-g.is-on .sector-shape {;
+  stroke: var(--blue);;
 }
 .wheel.is-open:not(.is-sub-locked) .sector-g:hover .sector-shape {
   fill: #dde3f2;
@@ -2952,7 +2846,7 @@ body { position: relative; }
       在它所在高度只剩 2×√(119.5²−94²) = 145px 可用宽 —— 实测溢出 44.2px。
       而底部 navBar 已有"下一步 →"主按钮 + 一行 hint，盘心这个是同义重复，
       留着只会把主词顶偏。 */
-.wheel.is-open .label-layer { opacity: 0; pointer-events: none; }
+.wheel.is-open .label-layer {;; }
 .wheel.is-open .hub-go { display: none; }
 
 /* ---- 弧段之间要有缝 ----
@@ -2977,7 +2871,7 @@ body { position: relative; }
   stroke: var(--blue);
   stroke-width: 1.6;
 }
-.wheel.is-open .sector-g.is-on { opacity: 1; }
+.wheel.is-open .sector-g.is-on {; }
 
 /* ============================================================
    v9 三层半径归位
@@ -3000,7 +2894,7 @@ body { position: relative; }
 @media (max-width: 400px) { .wheel.is-open .disc-core { transform: none; } }
 
 /* 2. 底座轮廓跟着改回贴着家族环外沿（95%） */
-.wheel.is-open::after { inset: 5%; opacity: 1; }
+.wheel.is-open::after {; opacity: 1; }
 
 /* 3. 家族文字标签回到家族环上。
       之前藏起来是因为盘心放大到 46% 时半径 119.5 盖住了 117px 处的标签；
@@ -3011,14 +2905,13 @@ body { position: relative; }
   font-weight: 600;
   color: var(--ink-2);
 }
-.wheel.is-open .label-layer .disc-sector.lvl1.is-on {
-  color: #ffffff;
+.wheel.is-open .label-layer .disc-sector.lvl1.is-on {;
 }
 .wheel.is-open .label-layer .disc-sector.lvl1 .notes { display: none; }
 
 /* 4. 中圈弧段：带 38 单位宽，7 段并排。
       描边必须比家族环更实，否则「一层浮在另一层上」的层次读不出来。 */
-.wheel .sub-arc { stroke-width: 1.2; }
+.wheel .sub-arc {; }
 
 /* 5. 弧段标签落在 band 中央（半径 135），字号按断点收 */
 .wheel .disc-sector.lvl2.sub-arc-btn {
@@ -3059,29 +2952,23 @@ body { position: relative; }
       七段 path 首尾只差 gap（≤2.6°），1.2px 描边在中灰底上等于没有，
       整圈读成一块连续环面。改成 2px 底座色描边 = 把缝撑开成可见的槽，
       段数才数得清，也才有"一段一段滑出来"的实体感。 */
-.wheel .sub-arc {
-  stroke: #c3c9dc;
-  stroke-width: 1.6;
+.wheel .sub-arc {;;
   stroke-linejoin: round;
 }
 /* 悬停：整段抬起（白→近白 + 深描边反而会更糊，这里只加深描边与填充差） */
 .wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
-.wheel .sub-g.is-hot .sub-arc {
-  fill: #f4f6fc;
-  stroke: var(--ink-2);
-  stroke-width: 2;
+.wheel .sub-g.is-hot .sub-arc {;
+  stroke: var(--ink-2);;
 }
 /* 选中：填实蓝，描边同蓝 —— 白缝在蓝底上会显得脏 */
 .wheel .sub-g.is-on .sub-arc {
   fill: var(--blue);
-  stroke: var(--blue);
-  stroke-width: 2;
+  stroke: var(--blue);;
 }
 
 /* 3. 中圈整体落影：让它读成浮在家族盘之上的一层。
       只给容器加 filter 会连带文字一起模糊，所以落到 svg 上。 */
-.wheel .sub-svg {
-  filter: drop-shadow(0 2px 5px rgba(0, 26, 94, .13));
+.wheel .sub-svg {;
 }
 
 /* 4. 弧段文字：常态 --ink-2（不是 --ink-3，14px 小字再淡就糊） */
@@ -3099,11 +2986,7 @@ body { position: relative; }
 }
 
 /* 5. 盘心：40%，第三次抬高 —— 影子比中圈的更实 */
-.wheel .disc-hub {
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, .95) inset,
-    0 3px 10px rgba(0, 26, 94, .10),
-    0 18px 38px -22px rgba(0, 26, 94, .55);
+.wheel .disc-hub {;
 }
 
 /* ============================================================
@@ -3119,19 +3002,15 @@ body { position: relative; }
    ============================================================ */
 
 /* 弧段：纯白 + 内高光 + 落影，是这盘上最亮的一层 */
-.wheel .sub-arc {
-  fill: #ffffff;
-  filter: drop-shadow(0 1px 2px rgba(0, 26, 94, .10));
+.wheel .sub-arc {;;
 }
 .wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
-.wheel .sub-g.is-hot .sub-arc {
-  fill: #f7f9ff;
+.wheel .sub-g.is-hot .sub-arc {;
   stroke: var(--ink-2);
 }
 .wheel .sub-g.is-on .sub-arc {
   fill: var(--blue);
-  stroke: var(--blue);
-  filter: drop-shadow(0 2px 6px rgba(0, 47, 167, .28));
+  stroke: var(--blue);;
 }
 /* 去掉容器级 drop-shadow（会连带文字一起糊，且与逐段影子重复） */
 .wheel .sub-svg { filter: none; }
@@ -3146,9 +3025,7 @@ body { position: relative; }
    ============================================================ */
 
 /* 弧段：纯白瓦片，落影比家族环重一档 */
-.wheel .sub-arc {
-  fill: #ffffff;
-  filter: drop-shadow(0 2px 3px rgba(0, 26, 94, .16));
+.wheel .sub-arc {;;
 }
 
 /* 中圈容器：arcs 与家族环之间留出可见的底座缝（band 外沿 150 vs 家族 158，
@@ -3184,7 +3061,7 @@ body { position: relative; }
 /* 1. 家族扇区改用渐变 */
 .wheel .disc-svg .sector-shape { fill: url(#gFam); }
 .wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
-.wheel .disc-svg .sector-g.is-hot .sector-shape { fill: url(#gFamHot); }
+.wheel .disc-svg .sector-g.is-hot .sector-shape {; }
 
 /* 2. 倒角：扇区外沿 0.8px 白高光叠在描边内侧。
       不用 SVG 再画一圈（会多 6 个 path），用 drop-shadow 反向做：
@@ -3194,25 +3071,20 @@ body { position: relative; }
 }
 
 /* 3. 盘底面径向渐变 */
-.wheel {
-  background: url(#gBase);
+.wheel {;
 }
 /* CSS 不能直接引用 SVG 渐变（同文档也不行，除非是同源引用）——
       所以这里退回到用多层 radial-gradient 近似同一个效果。 */
-.wheel {
-  background:
-    radial-gradient(circle at 46% 42%, #cdd3e2 0%, #c3c9dc 58%, #b8bfd5 100%);
+.wheel {;
 }
-.wheel.is-open {
-  background:
-    radial-gradient(circle at 46% 42%, #d0d6e5 0%, #c6ccdf 58%, #bbc2d8 100%);
+.wheel.is-open {;
 }
 
 /* 4. 中圈弧段渐变 + 下沿厚度 */
 .wheel .sub-arc { fill: url(#gArc); }
 .wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
-.wheel .sub-g.is-hot .sub-arc { fill: url(#gArcHot); }
-.wheel .sub-g.is-on .sub-arc { fill: url(#gArcOn); }
+.wheel .sub-g.is-hot .sub-arc {; }
+.wheel .sub-g.is-on .sub-arc {; }
 
 /* 5. 中圈与家族环之间的那圈底座缝：加一道内阴影读成"凹槽" */
 .wheel .sub-ring::after {
@@ -3222,13 +3094,7 @@ body { position: relative; }
 }
 
 /* 6. 盘心：白 + 外沿白高光 + 三级落影 */
-.wheel .disc-hub {
-  background: linear-gradient(170deg, #ffffff 0%, #fdfdff 62%, #f6f8fd 100%);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, .95) inset,
-    0 -1px 0 rgba(0, 26, 94, .05) inset,
-    0 4px 12px rgba(0, 26, 94, .09),
-    0 20px 44px -24px rgba(0, 26, 94, .60);
+.wheel .disc-hub {;;
 }
 
 /* ============================================================
@@ -3242,17 +3108,9 @@ body { position: relative; }
 
 /* 外轮廓 + 三层落影：贴身细影 / 中距实影 / 远距散影。
    只写一层会显得"贴纸"，三层才有高度。 */
-.wheel::after {
-  inset: 4.9%;
-  box-shadow:
-    0 0 0 1px #a9b2cc,
-    0 0 0 1px rgba(255, 255, 255, .9) inset,
-    0 2px 3px rgba(0, 26, 94, .10),
-    0 14px 30px -18px rgba(0, 26, 94, .45),
-    0 44px 90px -56px rgba(0, 26, 94, .80);
+.wheel::after {;;
 }
-.wheel.is-open::after {
-  inset: 4.9%;
+.wheel.is-open::after {;
   opacity: 1;
 }
 
@@ -3292,9 +3150,7 @@ body { position: relative; }
 }
 
 /* 中圈弧段的倒角：上沿白高光，靠 drop-shadow 反向做 */
-.wheel .sub-arc {
-  filter: drop-shadow(0 -0.6px 0 rgba(255, 255, 255, .95))
-          drop-shadow(0 2px 3px rgba(0, 26, 94, .18));
+.wheel .sub-arc {;
 }
 
 /* ============================================================
@@ -3309,12 +3165,12 @@ body { position: relative; }
    ============================================================ */
 
 /* 六族本色（极浅，饱和 3%，明度 96–98%） */
-.wheel .disc-svg .sector-g[data-fam="citrus"]   .sector-shape { fill: #f7f8ec; }
-.wheel .disc-svg .sector-g[data-fam="floral"]   .sector-shape { fill: #f9f2f5; }
-.wheel .disc-svg .sector-g[data-fam="woody"]    .sector-shape { fill: #f4f1ed; }
-.wheel .disc-svg .sector-g[data-fam="amber"]    .sector-shape { fill: #f9f4ea; }
-.wheel .disc-svg .sector-g[data-fam="fresh"]    .sector-shape { fill: #eef6f2; }
-.wheel .disc-svg .sector-g[data-fam="gourmand"] .sector-shape { fill: #f8f2ec; }
+.wheel .disc-svg .sector-g[data-fam="citrus"]   .sector-shape {; }
+.wheel .disc-svg .sector-g[data-fam="floral"]   .sector-shape {; }
+.wheel .disc-svg .sector-g[data-fam="woody"]    .sector-shape {; }
+.wheel .disc-svg .sector-g[data-fam="amber"]    .sector-shape {; }
+.wheel .disc-svg .sector-g[data-fam="fresh"]    .sector-shape {; }
+.wheel .disc-svg .sector-g[data-fam="gourmand"] .sector-shape {; }
 
 /* 悬停：在该族本色上再提亮一档（统一乘一层白，不逐个写） */
 .wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
@@ -3336,14 +3192,7 @@ body { position: relative; }
   stroke: rgba(0, 26, 94, .13);
   stroke-width: 1;
 }
-.wheel::after {
-  box-shadow:
-    0 0 0 1px #aab3cd,
-    0 0 0 3px rgba(255, 255, 255, .85) inset,
-    0 0 0 4px rgba(0, 26, 94, .05) inset,
-    0 2px 3px rgba(0, 26, 94, .10),
-    0 16px 34px -18px rgba(0, 26, 94, .48),
-    0 48px 96px -58px rgba(0, 26, 94, .82);
+.wheel::after {;
 }
 
 /* ---- 盘心：加一道内圈发丝线，读成"表盘内的刻度圈" ---- */
@@ -3380,8 +3229,7 @@ body { position: relative; }
 }
 
 /* 2. 凹槽环：比家族盘深一档，弧段的缝里露出它 */
-.wheel .sub-channel {
-  stroke: #b4bcd2;
+.wheel .sub-channel {;
   opacity: 0;
   transition: opacity 200ms linear;
 }
@@ -3389,10 +3237,8 @@ body { position: relative; }
 
 /* 弧段：去掉逐段 drop-shadow（七段各带一层影 = 七块飘着的片），
    改成 0.8px 白内描边当受光边 + 槽本身的暗做阴影。 */
-.wheel .sub-arc {
-  stroke: rgba(255, 255, 255, .95);
-  stroke-width: 1;
-  filter: drop-shadow(0 1px 1px rgba(0, 26, 94, .10));
+.wheel .sub-arc {;
+  stroke-width: 1;;
 }
 .wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
 .wheel .sub-g.is-hot .sub-arc {
@@ -3403,8 +3249,7 @@ body { position: relative; }
 .wheel .sub-g.is-on .sub-arc {
   fill: var(--blue);
   stroke: var(--blue);
-  stroke-width: 1.2;
-  filter: drop-shadow(0 2px 5px rgba(0, 47, 167, .30));
+  stroke-width: 1.2;;
 }
 
 /* 3. 返回入口：收进圆盘包围盒的空角（圆在该角本来就是空的），
@@ -3708,9 +3553,7 @@ body { position: relative; }
 
 /* 进入：六块按 i*18ms 依次消失。末帧停在 opacity 0 —— 与上面静态值一致，
    于是类在 780ms 被摘掉时不会跳回。 */
-.wheel.is-lifting .sector-g {
-  animation: fanVanish 300ms cubic-bezier(.4, 0, .95, 1) both;
-  animation-delay: calc(var(--i, 0) * 18ms);
+.wheel.is-lifting .sector-g {;;
 }
 @keyframes fanVanish {
   0%   { opacity: 1; transform: scale(1) rotate(0deg); }
@@ -3719,8 +3562,7 @@ body { position: relative; }
 }
 
 /* 返回：从 0 浮回满亮度，中段过冲一次再归位。 */
-.wheel.is-returning .sector-g {
-  animation: fanReturn 340ms cubic-bezier(.22, 1, .36, 1) both;
+.wheel.is-returning .sector-g {;
   animation-delay: calc(120ms + var(--i, 0) * 18ms);
 }
 @keyframes fanReturn {
@@ -3754,21 +3596,20 @@ body { position: relative; }
    否则子元素的动画在 0 不透明度里播，等于没播 */
 .wheel .sub-ring.is-exit { opacity: 1; pointer-events: none; }
 /* 入场动画链只在"刚展开"那一下挂，避免 hover 引起的高频重绘重播 */
-.wheel.is-lifting .sub-ring { animation: ringGrow 420ms cubic-bezier(.2, .9, .25, 1) both; }
+.wheel.is-lifting .sub-ring {; }
 @keyframes ringGrow {
   0%   { transform: scale(.44); opacity: .2; }
   60%  { opacity: 1; }
   100% { transform: scale(1); opacity: 1; }
 }
-.wheel.is-returning .sub-ring { animation: ringShrink 280ms cubic-bezier(.4, 0, .9, .2) both; }
+.wheel.is-returning .sub-ring {; }
 @keyframes ringShrink {
   0%   { transform: scale(1); opacity: 1; }
   100% { transform: scale(.44); opacity: 0; }
 }
 
 /* ---------------- 三、弧段与文字 ---------------- */
-.wheel.is-open .sub-arc {
-  animation: arcRiseIn 340ms cubic-bezier(.22, 1, .36, 1) both;
+.wheel.is-open .sub-arc {;
   animation-delay: calc(90ms + var(--i, 0) * 34ms);
 }
 @keyframes arcRiseIn {
@@ -4763,4 +4604,30 @@ body { position: relative; }
 .note-count.is-on {
   color: var(--blue);              /* 7.42 on 白，承载文字安全 */
   font-weight: 600;
+}
+
+.q-title:focus {
+  outline: none;
+}
+/* 补偿：焦点落到标题时，左侧出现一根蓝竖条（就是上面那条 ::before）。
+   它与 :focus 同一条规则里声明 position:relative，不影响布局。 */
+.q-title:focus-visible {
+  outline: none;
+  position: relative;
+}
+.q-title:focus-visible::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 2px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--blue);
+}
+@media (max-width: 620px) {
+  .q-title:focus-visible::before {
+    left: -8px;
+    width: 2px;
+  }
 }

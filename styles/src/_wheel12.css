@@ -203,3 +203,29 @@
   color: var(--blue);              /* 7.42 on 白，承载文字安全 */
   font-weight: 600;
 }
+
+.q-title:focus {
+  outline: none;
+}
+/* 补偿：焦点落到标题时，左侧出现一根蓝竖条（就是上面那条 ::before）。
+   它与 :focus 同一条规则里声明 position:relative，不影响布局。 */
+.q-title:focus-visible {
+  outline: none;
+  position: relative;
+}
+.q-title:focus-visible::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 2px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--blue);
+}
+@media (max-width: 620px) {
+  .q-title:focus-visible::before {
+    left: -8px;
+    width: 2px;
+  }
+}

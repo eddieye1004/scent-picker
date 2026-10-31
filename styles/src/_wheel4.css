@@ -26,7 +26,7 @@
   transition: transform 340ms cubic-bezier(.32,.72,0,1);
   will-change: transform;
 }
-.wheel.is-open .disc-core { transform: scale(.56); }
+.wheel.is-open .disc-core {; }
 
 /* 缩放后六个扇区太窄，标签必然溢出：文字交给盘心，
    扇区只留色块作为「选的是哪一块」的空间锚点。 */
@@ -34,9 +34,7 @@
   /* 与 340ms 圆盘缩放同段：图层显隐挂在缩放末段，慢 40ms 会读成"标签掉队" */
   transition: opacity 200ms linear;
 }
-.wheel.is-open .label-layer {
-  opacity: 0;
-  pointer-events: none;
+.wheel.is-open .label-layer {;;
 }
 
 /* 缩小后扇区变成一块小饼，需要一点体积才不像贴纸 */
@@ -45,8 +43,7 @@
 }
 .wheel.is-open .sector-g.is-on .sector-shape {
   fill: var(--blue-wash);
-  stroke: var(--blue);
-  stroke-width: 1.5;
+  stroke: var(--blue);;
 }
 
 /* ---- 第二轮：一圈方格 ---- */
@@ -54,24 +51,20 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 200ms linear;
+  opacity: 0;;
 }
 .wheel.is-open .sub-ring {
-  opacity: 1;
-  pointer-events: auto;
+  opacity: 1;;
 }
 /* 手臂：铺满控件、绕中心转过 θ，方格钉在手臂顶端。
    于是所有方格落在同一半径的圆上，且不依赖任何 JS 三角函数。 */
 .wheel .sub-arm {
-  position: absolute;
-  inset: 0;
+  position: absolute;;
   pointer-events: none;
 }
 .wheel .sub-arm .sub-sq {
   position: absolute;
-  left: 50%;
-  top: 8.5%;
+  left: 50%;;
   pointer-events: auto;
   /* 文字必须保持水平：手臂转过 θ，方格反着转回来。
      反转角走 --aq 自定义属性而不是内联 transform ——
@@ -111,11 +104,8 @@
   border-color: var(--ink);
   color: var(--ink);
 }
-.wheel .disc-sector.lvl2.sub-sq.is-on {
-  background: var(--blue-wash);
-  border-color: var(--blue);
-  color: var(--blue-deep);
-  box-shadow: 0 1px 0 rgba(255,255,255,.16) inset, 0 8px 20px -12px rgba(0,47,167,.42);
+.wheel .disc-sector.lvl2.sub-sq.is-on {;
+  border-color: var(--blue);;;
 }
 .wheel .disc-sector.lvl2.sub-sq:active {
   transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) scale(.97);
@@ -134,11 +124,8 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 12px 14px;
-  background: var(--bg);
-  border: 1px solid var(--edge);
-  border-radius: var(--radius);
-  box-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 8px 26px -18px rgba(0,26,94,.3);
+  padding: 12px 14px;;;
+  border-radius: var(--radius);;
   transition: width 260ms cubic-bezier(.32,.72,0,1),
               height 260ms cubic-bezier(.32,.72,0,1),
               background-color 200ms cubic-bezier(.4,0,.2,1),
@@ -146,15 +133,11 @@
               color 200ms cubic-bezier(.4,0,.2,1);
 }
 /* 缩小态盘心可以更大：小饼直径 56%，内接正方形 39.6% */
-.wheel.is-open .disc-hub {
-  width: 38%;
-  height: 38%;
+.wheel.is-open .disc-hub {;;
 }
 
 /* 第一层选中：与方格同一档浅色，只有边框加深 */
-.wheel .disc-hub.is-hover {
-  border-color: var(--ink);
-  background: var(--bg-2);
+.wheel .disc-hub.is-hover {;;
 }
 
 /* 落到具体小项：整块压深，白字。这是全站唯一的「确定」信号 */
@@ -169,26 +152,20 @@
 .wheel .disc-hub.is-picked .hub-desc { color: #c9c9c9; }
 .wheel .disc-hub.is-picked .hub-reset { color: #c9c9c9; }
 
-.wheel .disc-hub .hub-zh {
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
+.wheel .disc-hub .hub-zh {;;;;
   color: var(--ink);
 }
 .wheel .disc-hub.is-idle .hub-zh { color: var(--ink-2); }
 .wheel .disc-hub .hub-kicker { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 .wheel .disc-hub .hub-desc {
   flex: none;
-  font-size: 12px;
-  line-height: 1.35;
-  max-height: 34px;
+  font-size: 12px;;;
   overflow: hidden;
   color: var(--ink-3);
   text-align: center;
 }
 /* 带示意图时说明只留两行，把高度让给环图 */
-.wheel .disc-hub.has-glyph .hub-desc { max-height: 18px; }
+.wheel .disc-hub.has-glyph .hub-desc {; }
 
 /* ---- 盘心两个按钮 ---- */
 .wheel .hub-go,
@@ -202,22 +179,14 @@
   pointer-events: auto;
 }
 .wheel .hub-go {
-  margin-top: 2px;
-  padding: 7px 10px;
-  min-height: 30px;
+  margin-top: 2px;;;
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--bg);
-  background: var(--ink);
-  border: 1px solid var(--ink);
-  transition: background-color 160ms cubic-bezier(.4,0,.2,1),
-              border-color 160ms cubic-bezier(.4,0,.2,1),
-              transform 160ms cubic-bezier(.4,0,.2,1);
+  letter-spacing: -0.01em;;;;;
 }
-.wheel .hub-go:hover { background: var(--blue); border-color: var(--blue); }
-.wheel .hub-go:active { transform: translateY(1px) scale(.988); }
-.wheel .hub-go:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.wheel .hub-go:hover {; border-color: var(--blue); }
+.wheel .hub-go:active {; }
+.wheel .hub-go:focus-visible { outline: 2px solid var(--blue);; }
 
 .wheel .hub-reset {
   margin-top: 1px;
@@ -245,11 +214,11 @@
 /* ---- 窄屏 ---- */
 @media (max-width: 620px) {
   .wheel { margin-top: 18px; }
-  .wheel.is-open .disc-core { transform: scale(.54); }
+  .wheel.is-open .disc-core {; }
   .wheel .disc-hub { width: 46%; height: 46%; padding: 9px 10px; gap: 3px; }
   .wheel.is-open .disc-hub { width: 44%; height: 44%; }
   .wheel .disc-hub .hub-zh { font-size: 22px; }
-  .wheel .disc-hub .hub-desc { max-height: 32px; }
+  .wheel .disc-hub .hub-desc {; }
   .wheel .disc-sector.lvl2.sub-sq {
     min-width: 58px;
     min-height: 44px;
@@ -257,14 +226,14 @@
     font-size: 12px;
     letter-spacing: 0;
   }
-  .wheel .sub-arm .sub-sq { top: 10%; }
+  .wheel .sub-arm .sub-sq {; }
 
 }
 
 @media (max-width: 400px) {
-  .wheel.is-open .disc-core { transform: scale(.5); }
+  .wheel.is-open .disc-core {; }
   .wheel .disc-sector.lvl2.sub-sq { min-width: 54px; padding: 8px 6px; }
-  .wheel .sub-arm .sub-sq { top: 11%; }
+  .wheel .sub-arm .sub-sq {; }
   .wheel .disc-hub .hub-desc { max-height: 16px; }
 }
 

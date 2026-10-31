@@ -170,11 +170,16 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 // 把整条内圆切成四段碎线（rIn=104 时就是这样），或者干脆顶出轮廓（盘心 42% 时实测溢出 3.2px）。
 // 取 rIn=146：146/480 = 30.42%，容得下 42% 盘心（29.70%），留 0.72% 余量；
 // 桌面盘心 34%（24.04%）余量 6.4%，约 32px——这个空隙就是盘心不"贴脸"的来源。
-const DISC = { vb: 480, cx: 240, cy: 240, rOut: 230, rIn: 146, gapDeg: 1.6 };
+/* 两个盘（第 1 步的同心轮盘、第 4 步的场合盘）视框都是 480×480、圆心都在 (240,240)。
+   原先各写一份极坐标函数，差别只有引用的常量名不同 —— 归一后逐字符等价（各 334 字符）。
+   圆心抽成一个常量：它不可能一边改一边不改，分成两份只会掩住不一致。 */
+const VB_CENTER = 240;
+
+const DISC = { vb: 480, cx: VB_CENTER, cy: VB_CENTER, rOut: 230, rIn: 146, gapDeg: 1.6 };
 
 function polar(r, deg) {
   const rad = (deg * Math.PI) / 180;
-  return [DISC.cx + r * Math.cos(rad), DISC.cy + r * Math.sin(rad)];
+  return [VB_CENTER + r * Math.cos(rad), VB_CENTER + r * Math.sin(rad)];
 }
 
 /** 环形扇区的 path。外弧顺时针、内弧逆时针，一次成闭合面。 */
@@ -540,8 +545,8 @@ function buildDisc(items, cfg) {
    香水圈流传的「香气轮盘」（4 大组 / 13 小组）本来就是这个做法。 */
 const WHEEL = {
   vb: 480,
-  cx: 240,
-  cy: 240,
+  cx: VB_CENTER,
+  cy: VB_CENTER,
   r1o: 228,
   r1i: 158,   // 外圈：6 个香型家族
   r2o: 152,
@@ -550,22 +555,6 @@ const WHEEL = {
   hubPct: 30.6,
 };
 
-function wheelPolar(r, deg) {
-  const rad = (deg * Math.PI) / 180;
-  return [WHEEL.cx + r * Math.cos(rad), WHEEL.cy + r * Math.sin(rad)];
-}
-
-function ringPath(rOut, rIn, a0, a1) {
-  const [x0o, y0o] = wheelPolar(rOut, a0);
-  const [x1o, y1o] = wheelPolar(rOut, a1);
-  const [x1i, y1i] = wheelPolar(rIn, a1);
-  const [x0i, y0i] = wheelPolar(rIn, a0);
-  const large = a1 - a0 > 180 ? 1 : 0;
-  return `M ${x0o.toFixed(2)} ${y0o.toFixed(2)}`
-    + ` A ${rOut} ${rOut} 0 ${large} 1 ${x1o.toFixed(2)} ${y1o.toFixed(2)}`
-    + ` L ${x1i.toFixed(2)} ${y1i.toFixed(2)}`
-    + ` A ${rIn} ${rIn} 0 ${large} 0 ${x0i.toFixed(2)} ${y0i.toFixed(2)} Z`;
-}
 
 /** 香材英文名 → 中文，供外圈标签显示典型香材。找不到就退回原文。 */
 function noteZhOf(en) {
@@ -1234,7 +1223,7 @@ function buildWheel(cfg) {
        写在 style 上而不是 nth-child 上 —— 家族数由数据决定（6），
        但同一套错峰逻辑要能照搬到中圈（4–7 段），CSS 里只认这一个变量。 */
     const g = svgEl('g', { class: 'sector-g lvl1', 'data-fam': f.id, style: '--i: ' + i });
-    g.appendChild(svgEl('path', { class: 'sector-shape', d: ringPath(WHEEL.r1o, WHEEL.r1i, a0, a1) }));
+    g.appendChild(svgEl('path', { class: 'sector-shape', d: annulusPath(WHEEL.r1o, WHEEL.r1i, a0, a1) }));
     svg.appendChild(g);
     outerG.push(g);
   });
@@ -1256,14 +1245,14 @@ function buildWheel(cfg) {
   families.forEach((f, i) => {
     const midDeg = famStart + (i + 0.5) * famStep;
     const rMid = LABEL_R;
-    const p = wheelPolar(rMid, midDeg);
+    const p = polar(rMid, midDeg);
     /* 同一个极角写两套坐标：桌面一套（left/top），窄屏一套（--nl / --nt）。
        窄屏盘心与大圈之间只剩约 330px（390 视口）或 310px（360），
        两行标签的中心距小于两个方框的半高之和就必然相交 —— 只收盒子不够，
        半径也得往里挪一档。半径是 JS 按视框算的（CSS 里拿不到
        "圆心到某一点的百分比"这种量），所以两套都在这里算好，
        窄屏那套交给 media query 用 var() 取。 */
-    const pn = wheelPolar(LABEL_R_NARROW, midDeg);
+    const pn = polar(LABEL_R_NARROW, midDeg);
     const px = (q, k) => ((q[k] / WHEEL.vb) * 100).toFixed(2);
     const btn = el('button', {
       class: 'disc-sector lvl1',
@@ -1471,16 +1460,16 @@ function buildWheel(cfg) {
       });
       g.appendChild(svgEl('path', {
         class: 'sub-arc',
-        d: ringPath(SUB_R2O, SUB_R2I, a0, a1),
+        d: annulusPath(SUB_R2O, SUB_R2I, a0, a1),
       }));
       svg.appendChild(g);
       subGs.push(g);
 
-      const px = wheelPolar(rMid, mid);
+      const px = polar(rMid, mid);
       /* 窄屏半径 = 124（实测网格的最佳值）。弧带中线是 135，
          窄屏把标签往里收 11 单位，是为了让它与家族标签之间留出
          两个半高的间隙 —— 详见 _wheel8.css 第七节的实测数字。 */
-      const pxm = wheelPolar(SUB_LABEL_R_NARROW, mid);
+      const pxm = polar(SUB_LABEL_R_NARROW, mid);
       const btn = el('button', {
         class: 'disc-sector lvl2 sub-arc-btn',
         type: 'button',
@@ -1832,30 +1821,6 @@ function paintFamilyPanel(fam) {
 
 const GROUP_ZH = { fresh: '清新系', floral: '花香系', woody: '木质系', amber: '琥珀系', gourmand: '美食系' };
 
-/* ---------- 第 2 步：场合（同一个圆盘，5 个扇区）---------- */
-function renderOccasion() {
-  const wrap = el('div', { class: 'fade-in' });
-
-  const lead = el('div', { class: 'stage-lead' },
-    el('div', { class: 'q-kicker' }, stepHead('occasion').kicker),
-    el('h2', { class: 'q-title' }, stepHead('occasion').title),
-    el('p', { class: 'q-help' }, stepHead('occasion').help)
-  );
-  wrap.appendChild(lead);
-
-  wrap.appendChild(buildDisc(TAX.occasionMap, {
-    label: '主要使用场合',
-    selectedId: state.answers.occasion,
-    onPick: (o) => {
-      state.answers.occasion = o.id;
-      autoNext(620);   // 与第 1 步同一节奏，两屏的手感必须一致
-    },
-  }));
-
-  wrap.appendChild(navBar('occasion'));
-  return wrap;
-}
-
 /* ---------- 第 3 步：浓郁度 ---------- */
 const INTENSITY_LABEL = {
   1: ['很淡', '只有贴很近才闻到，一两个小时后基本消失'],
@@ -1865,48 +1830,6 @@ const INTENSITY_LABEL = {
   5: ['很浓', '一两喷就够，围巾上能留好几天'],
 };
 
-function renderIntensity() {
-  const wrap = el('div', { class: 'fade-in' });
-  wrap.appendChild(el('div', { class: 'stage-lead' },
-    el('div', { class: 'q-kicker' }, stepHead('intensity').kicker),
-    el('h2', { class: 'q-title' }, stepHead('intensity').title),
-    el('p', { class: 'q-help' }, stepHead('intensity').help)
-  ));
-
-  const read = el('div', { class: 'scale-read' });
-  const updateRead = () => {
-    const v = Number(state.answers.intensity);
-    const [a, b] = INTENSITY_LABEL[v];
-    read.innerHTML = `<b>${v} / 5 · ${a}</b><br><span>${b}</span>`;
-  };
-
-  const input = el('input', {
-    type: 'range',
-    min: '1',
-    max: '5',
-    step: '1',
-    value: String(state.answers.intensity),
-    'aria-label': '浓郁度',
-    oninput: (ev) => {
-      state.answers.intensity = Number(ev.target.value);
-      updateRead();
-    },
-  });
-
-  const scale = el('div', { class: 'scale' },
-    input,
-    el('div', { class: 'scale-ends' },
-      el('span', {}, '← 清爽 / 淡'),
-      el('span', {}, '浓 / 有分量 →')
-    )
-  );
-
-  updateRead();
-  wrap.append(scale, read);
-  wrap.appendChild(navBar('intensity'));
-  return wrap;
-}
-
 /* ---------- 第 4 / 5 步：香调点名（喜欢 / 讨厌各一屏） ----------
    v19 把一个"两栏同屏"的页面拆成两屏。原因是实测出来的：
    两栏各有 40 个 chip，屏高 640px，勾完上面那栏再滚到下面时，
@@ -1914,154 +1837,6 @@ function renderIntensity() {
    一栏的动作会静默改掉另一栏的视觉 —— 用户会以为勾错了。
    拆屏之后每屏只画一栏，滚动与状态互不干扰，
    "同一香调不能既喜欢又讨厌"这条仍然由 registry 在背面守着。 */
-function renderNotes(mode) {
-  const idx = mode === 'likedNotes' ? 3 : 4;
-  const head = stepHead(mode);
-  const wrap = el('div', { class: 'fade-in' });
-  wrap.appendChild(el('div', { class: 'stage-lead' },
-    el('div', { class: 'q-kicker' }, head.kicker),
-    el('h2', { class: 'q-title' }, head.title),
-    el('p', { class: 'q-help' }, head.help)
-  ));
-
-  // 香调表要扫全库才知道哪些选项真的有货。库还没到时不能退回全表 ——
-  // 那会把 0 命中的死选项也画出来，用户点了却推荐不出东西。
-  // 改成占位 + 到货后自动重画（正常早已下完，只有慢网首访会看到）。
-  if (!DATA?.perfumes?.length) {
-    ensurePerfumes()
-      .then(() => { if (state.step === idx) render(); })
-      .catch((err) => { wrap.appendChild(el('p', { class: 'q-help' }, `香调表加载失败：${err.message}`)); });
-    wrap.appendChild(el('div', { class: 'skeleton' },
-      el('div', { class: 'skeleton-ring' }),
-      el('p', { class: 'skeleton-note' }, '正在读取香水库……')
-    ));
-    wrap.appendChild(navBar(mode));
-    return wrap;
-  }
-
-  // 40 个香调里有些在库里出现 0 次 —— 勾了它却永远推荐不出东西，等于骗一次点击。
-  const usable = getUsableNotes();
-
-  // 同一香调不能既"喜欢"又"讨厌"。两栏各建一个 en → chip 的登记表，
-  // 勾一边时直接把另一边的 chip 关掉，不靠 DOM 结构去猜是哪一栏。
-  const chipRegistry = { likedNotes: new Map(), dislikedNotes: new Map() };
-
-  const mkChips = (list, key, neg) => {
-    const zhKey = key === 'likedNotes' ? 'likedZh' : 'dislikedZh';
-    const box = el('div', { class: 'chips' });
-    list.forEach((n) => {
-      const active = state.answers[key].includes(n.en);
-      const chip = el('button', {
-        class: 'chip' + (neg && active ? ' neg' : ''),
-        type: 'button',
-        // 标出所属栏：两栏有同名香调，测试与同步逻辑都要能分辨是哪一个，
-        // 靠 DOM 顺序猜（第一个 .chips 是喜欢…）在加了隐藏折叠区之后就不成立了。
-        'data-col': neg ? 'disliked' : 'liked',
-        'aria-pressed': String(active),
-        onclick: () => {
-          const arr = state.answers[key];
-          const otherKey = key === 'likedNotes' ? 'dislikedNotes' : 'likedNotes';
-          const otherZh = key === 'likedNotes' ? 'dislikedZh' : 'likedZh';
-          const other = state.answers[otherKey];
-          const idx = arr.indexOf(n.en);
-          if (idx >= 0) {
-            arr.splice(idx, 1);
-            delete state.answers[zhKey][n.en];
-          } else {
-            arr.push(n.en);
-            state.answers[zhKey][n.en] = n.zh;  // 记住用户看到的中文名
-            // 同一香调不能既喜欢又讨厌。之前两栏互不通信，实测可以同时勾上
-            // 琥珀/香草各两次，进引擎后喜欢分与讨厌分互相抵消，理由里
-            // 反而完全不提用户点名的香材 —— 用户看到的是"我明明选了它"。
-            const oi = other.indexOf(n.en);
-            if (oi >= 0) {
-              other.splice(oi, 1);
-              delete state.answers[otherZh][n.en];
-            }
-          }
-          chip.setAttribute('aria-pressed', String(idx < 0));
-          chip.classList.toggle('neg', neg && idx < 0);
-          // 刚勾上时，把对面那栏同名 chip 关掉并同步它的视觉态
-          if (idx < 0) {
-            const twin = chipRegistry[otherKey].get(n.en);
-            if (twin) {
-              twin.setAttribute('aria-pressed', 'false');
-              twin.classList.remove('neg');
-            }
-          }
-        },
-      }, n.zh);
-      const reg = chipRegistry[key].get(n.en);
-      if (reg) chipRegistry[key].set(n.en, reg); else chipRegistry[key].set(n.en, chip);
-      box.appendChild(chip);
-    });
-    return box;
-  };
-
-  // 40 个香调一次铺开会压垮新手 → 先给 16 个，其余折叠。
-  // 但不能直接 slice(0,16)：entries 按家族顺序排列，前 16 个正好全是
-  // 柑橘+花香+雪松檀木，喜欢木质/琥珀/美食/清新的人一个可点的都没有。
-  // 改成按家族轮流取，保证每个家族都露脸，再恢复原始顺序保持版面稳定。
-  const PEEK = 16;
-  const byFamily = new Map();
-  usable.forEach((n, i) => {
-    if (!byFamily.has(n.family)) byFamily.set(n.family, []);
-    byFamily.get(n.family).push(i);
-  });
-  const picked = new Set();
-  let round = 0;
-  while (picked.size < PEEK && round < 16) {
-    for (const idxs of byFamily.values()) {
-      if (picked.size >= PEEK) break;
-      if (idxs[round] != null) picked.add(idxs[round]);
-    }
-    round += 1;
-  }
-  const order = [...picked].sort((a, b) => a - b);
-  const common = order.map((i) => usable[i]);
-  const rest = usable.filter((_, i) => !picked.has(i));
-
-  /* v19：按 mode 只画一栏。
-     原来这段是"喜欢栏 + 讨厌栏"两段几乎重复的代码（各 10 行），
-     拆屏后每屏只留一半 —— 但仍保留同一套骨架（16 个 + 折叠），
-     因为"喜欢只看到 16 个、讨厌却有 40 个"那种不对称是坑过的（见下）。 */
-  const isLiked = mode === 'likedNotes';
-  const key = isLiked ? 'likedNotes' : 'dislikedNotes';
-  const neg = !isLiked;
-
-  wrap.appendChild(el('div', { class: 'chips-label' },
-    isLiked ? '我喜欢这些味道' : '我受不了这些味道（更有效）'));
-  wrap.appendChild(mkChips(common, key, neg));
-
-  const moreBox = el('div', { class: 'chips', style: 'margin-top:8px;display:none' });
-  moreBox.appendChild(mkChips(rest, key, neg));
-  wrap.appendChild(moreBox);
-
-  const moreBtn = el('button', {
-    type: 'button',
-    class: 'btn ghost btn-more',
-    onclick: () => {
-      const hidden = moreBox.style.display === 'none';
-      moreBox.style.display = hidden ? 'flex' : 'none';
-      moreBtn.textContent = hidden ? '收起' : `展开全部 ${usable.length} 个香调`;
-    },
-  }, `展开全部 ${usable.length} 个香调`);
-  wrap.appendChild(moreBtn);
-
-  /* 这一步的一句人话解释放在 chips 下面而不是上面：
-     上面已经有 q-help，再叠一段会把 16 个 chip 推到折叠线以下，
-     而这一步的主体就是那些 chip。 */
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, isLiked ? '命名要具体：' : '排除比加分更有用：'),
-    isLiked
-      ? ' 「佛手柑」比「柑橘调」准，因为同一族里橘子、柠檬、柚子差别很大。库里有 56 种香调，先给 16 个最常用的。'
-      : ' 勾一个你确定受不了的，比勾三个"喜欢"更能提高命中率 —— 喜欢的东西往往有替代品，讨厌的东西没有。'
-  ));
-
-  wrap.appendChild(navBar(mode));
-  return wrap;
-}
-
 /* ---------- v19 新增七屏 ----------
    设计前提（已核对数据源，见 D46）：400 瓶里
      有 family / subfamily / character(21) / seasons(4) / timesOfDay(3)
@@ -2075,12 +1850,21 @@ function renderNotes(mode) {
    为什么不用 chips：chips 是给"40 个香调"那种多选场景的；
    五六个选项用 chips 会缩成一小块、点起来费劲，也塞不下解释文字。 */
 function choiceGrid(opts, current, onPick) {
-  const box = el('div', { class: 'choice-grid' });
+  /* 单选组的容器与子项语义。
+     原来只有子项带 aria-pressed，容器是个裸 div —— 读屏会念成「切换按钮」，
+     既不知道这是一组，也不知道「共几个、第几个」。
+     现在容器 role=radiogroup，子项 role=radio + aria-checked。
+     aria-pressed 一并保留：样式与既有测试都读它，删掉会牵连 .choice 的
+     选中态判断；role=radio 上的 aria-pressed 是冗余的，但无害，
+     等样式改成 .is-on 单源之后再摘。 */
+  const box = el('div', { class: 'choice-grid', role: 'radiogroup' });
   opts.forEach((o) => {
     const on = current === o.id;
     const b = el('button', {
       class: 'choice' + (on ? ' is-on' : ''),
       type: 'button',
+      role: 'radio',
+      'aria-checked': String(on),
       'aria-pressed': String(on),
       'data-id': o.id,
       onclick: () => {
@@ -2090,6 +1874,7 @@ function choiceGrid(opts, current, onPick) {
         [...box.children].forEach((c) => {
           const mine = c.getAttribute('data-id') === o.id;
           c.classList.toggle('is-on', mine);
+          c.setAttribute('aria-checked', String(mine));
           c.setAttribute('aria-pressed', String(mine));
         });
       },
@@ -2117,36 +1902,6 @@ const CHARACTER_PRESET = [
   { id: 'lazy',    zh: '贴肤慵懒', desc: '像皮肤本来的气味。存在感弱但耐闻', tags: ['musky', 'powdery', 'creamy'] },
 ];
 
-function renderCharacter() {
-  const wrap = el('div', { class: 'fade-in' });
-  wrap.appendChild(el('div', { class: 'stage-lead' },
-    el('div', { class: 'q-kicker' }, stepHead('character').kicker),
-    el('h2', { class: 'q-title' }, stepHead('character').title),
-    el('p', { class: 'q-help' }, stepHead('character').help)
-  ));
-
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '看不懂「香调家族」？'),
-    ' 家族只说明大方向（花香 / 木质 / 柑橘…），气质说的是它给人的感觉。',
-    ' 同一瓶花香，可以清冷也可以甜腻 —— 这一步就是补上那一层。'
-  ));
-
-  wrap.appendChild(choiceGrid(
-    CHARACTER_PRESET.map((c) => ({ id: c.id, zh: c.zh, desc: c.desc })),
-    state.answers.characterPreset,
-    (id) => {
-      state.answers.characterPreset = id;
-      /* 引擎侧收的是标签数组，按「命中任一」给分 ——
-         源站给每瓶打的标签本来就不统一，只认单一标签会漏掉太多。 */
-      state.answers.characterTags = (CHARACTER_PRESET.find((c) => c.id === id) || {}).tags || [];
-      autoNext(480);
-    }
-  ));
-
-  wrap.appendChild(navBar('character'));
-  return wrap;
-}
-
 /* ---------- 第 7 步：季节 ----------
    数据里 seasons 覆盖 4 季：春 382 / 夏 254 / 秋 389 / 冬 146。
    冬季只有 146 瓶 —— 这一点必须在界面上说明，否则用户选「冬」之后
@@ -2158,39 +1913,6 @@ const SEASONS = [
   { id: 'winter', zh: '冬', desc: '冷。需要能压住冷风的厚度' },
 ];
 
-function renderSeason() {
-  const wrap = el('div', { class: 'fade-in' });
-  wrap.appendChild(el('div', { class: 'stage-lead' },
-    el('div', { class: 'q-kicker' }, stepHead('season').kicker),
-    el('h2', { class: 'q-title' }, stepHead('season').title),
-    el('p', { class: 'q-help' }, stepHead('season').help)
-  ));
-
-  wrap.appendChild(el('div', { class: 'chips-label' }, '主季节'));
-  wrap.appendChild(choiceGrid(SEASONS, state.answers.season, (id) => {
-    state.answers.season = id;
-    /* 主季节换了，次选若与它相同就清掉 ——
-       否则会出现「主夏次夏」这种无意义组合。 */
-    if (state.answers.seasonSecond === id) state.answers.seasonSecond = null;
-  }));
-
-  wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:18px' }, '次选季节（可跳过）'));
-  wrap.appendChild(choiceGrid(
-    SEASONS.filter((s) => s.id !== state.answers.season),
-    state.answers.seasonSecond,
-    (id) => { state.answers.seasonSecond = id; }
-  ));
-
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '关于候选多少：'),
-    ' 库里 400 瓶按季节标注为「春 382 · 夏 254 · 秋 389 · 冬 146」。',
-    '冬天能选的最少，这是数据本身的分布，不是推荐变差了。'
-  ));
-
-  wrap.appendChild(navBar('season'));
-  return wrap;
-}
-
 /* ---------- 第 8 步：浓度 ----------
    新手最容易被浓度搞晕：EDT / EDP / Parfum 到底差在哪。
    这一屏的核心不是选项，是那张说明 —— 让用户看懂再选。
@@ -2201,35 +1923,6 @@ const CONCENTRATIONS = [
   { id: 'eau-de-parfum', zh: '淡香精 EDP', desc: '香精约 15–20%。5–8 小时，一瓶顶一天' },
   { id: 'parfum', zh: '香精 Parfum', desc: '香精约 20–30%。8 小时以上，一两喷就够' },
 ];
-
-function renderConcentration() {
-  const wrap = el('div', { class: 'fade-in' });
-  wrap.appendChild(el('div', { class: 'stage-lead' },
-    el('div', { class: 'q-kicker' }, stepHead('concentration').kicker),
-    el('h2', { class: 'q-title' }, stepHead('concentration').title),
-    el('p', { class: 'q-help' }, stepHead('concentration').help)
-  ));
-
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '先看懂再选：'),
-    ' 浓度就是「香精占整瓶的比例」。比例越高，留得越久，也越容易在密闭空间里让人不舒服。',
-    ' 日常最常见的是 EDT 与 EDP 两种。'
-  ));
-
-  wrap.appendChild(choiceGrid(CONCENTRATIONS, state.answers.concentration, (id) => {
-    state.answers.concentration = id;
-    autoNext(480);
-  }));
-
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '注意：'),
-    ' 上面的百分比是行业通行区间，不是每瓶的实测值；',
-    '库里有 52 瓶（13%）源站没标浓度，它们仍会出现在结果里，只是不参与这一项打分。'
-  ));
-
-  wrap.appendChild(navBar('concentration'));
-  return wrap;
-}
 
 /* ---------- 第 9 步：留香时长 ----------
    **这一屏的值全部是推断的。** 数据源没有持香实测字段，
@@ -2243,30 +1936,6 @@ const LONGEVITY = [
   { id: '4', zh: '5–8 小时', desc: '一个工作日。下班还能闻到' },
   { id: '5', zh: '8 小时以上', desc: '跨天。衣服上留到第二天，一两喷就够' },
 ];
-
-function renderLongevity() {
-  const wrap = el('div', { class: 'fade-in' });
-  wrap.appendChild(el('div', { class: 'stage-lead' },
-    el('div', { class: 'q-kicker' }, stepHead('longevity').kicker),
-    el('h2', { class: 'q-title' }, stepHead('longevity').title),
-    el('p', { class: 'q-help' }, stepHead('longevity').help)
-  ));
-
-  wrap.appendChild(el('div', { class: 'term-note is-warn' },
-    el('strong', {}, '这一段是推断值：'),
-    ' 数据源没有实测持香时长。下面的档位是按香水浓度推算的（古龙水约 2、EDT 约 3、EDP 约 4、香精约 5）。',
-    '它只能用来做相对比较，不等于你身上的真实表现 —— 同一瓶在干皮和油皮、冬天和夏天，差别可以很大。'
-  ));
-
-  wrap.appendChild(choiceGrid(
-    LONGEVITY.map((l) => ({ id: l.id, zh: l.zh + ' · 推断', desc: l.desc })),
-    state.answers.longevity == null ? null : String(state.answers.longevity),
-    (id) => { state.answers.longevity = Number(id); autoNext(480); }
-  ));
-
-  wrap.appendChild(navBar('longevity'));
-  return wrap;
-}
 
 /* ---------- 第 10 步：整族排除 ----------
    比逐个香调排除更快，也更符合直觉：「我不想要木质」是一句话，
@@ -2328,30 +1997,6 @@ const TEMPERATURES = [
   { id: 'neutral', zh: '中性 / 都行', desc: '不刻意偏任何一边。库里 165 瓶属于这一档' },
 ];
 
-function renderTemperature() {
-  const wrap = el('div', { class: 'fade-in' });
-  const head = stepHead('temperature');
-  wrap.appendChild(el('div', { class: 'stage-lead' },
-    el('div', { class: 'q-kicker' }, head.kicker),
-    el('h2', { class: 'q-title' }, head.title),
-    el('p', { class: 'q-help' }, head.help)
-  ));
-
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '怎么判断自己是偏暖还是偏凉？'),
-    ' 想两个你闻过的东西：一杯热牛奶（暖）、刚剥开的橘子皮（凉）。',
-    ' 如果你喜欢"闻起来像洗完澡"，多半偏凉；喜欢"像毛衣和木头"，多半偏暖。'
-  ));
-
-  wrap.appendChild(choiceGrid(TEMPERATURES, state.answers.temperature, (id) => {
-    state.answers.temperature = id;
-    autoNext(480);
-  }));
-
-  wrap.appendChild(navBar('temperature'));
-  return wrap;
-}
-
 /* ---------- 第 12 步：甜度 ----------
    甜度不是独立字段，是从 character + gourmand 家族占比推出来的（见 D47）：
      sweet×1.0 + creamy×0.7 + fruity×0.5 + powdery×0.3 + gourmand占比×1.2
@@ -2363,30 +2008,6 @@ const SWEETNESS = [
   { id: '2', zh: '中等甜', desc: '明确能闻出甜味，但不腻。果香与部分香草' },
   { id: '3', zh: '很甜', desc: '焦糖、香草、棉花糖。讨喜，但一两喷就够' },
 ];
-
-function renderSweetness() {
-  const wrap = el('div', { class: 'fade-in' });
-  const head = stepHead('sweetness');
-  wrap.appendChild(el('div', { class: 'stage-lead' },
-    el('div', { class: 'q-kicker' }, head.kicker),
-    el('h2', { class: 'q-title' }, head.title),
-    el('p', { class: 'q-help' }, head.help)
-  ));
-
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '「晕甜」是什么意思？'),
-    ' 有人闻到甜香会头晕、恶心，这很常见，不是矫情。',
-    '如果你有过这种反应，直接选「完全不甜」—— 这一屏的价值就在于把这类雷提前排掉。'
-  ));
-
-  wrap.appendChild(choiceGrid(SWEETNESS, state.answers.sweetness == null ? null : String(state.answers.sweetness), (id) => {
-    state.answers.sweetness = Number(id);
-    autoNext(480);
-  }));
-
-  wrap.appendChild(navBar('sweetness'));
-  return wrap;
-}
 
 /* ---------- 第 13 步：已知锚点（试过且喜欢的香水 / 味道） ----------
    **这一屏是整套问卷里信噪比最高的一个输入。**
@@ -2502,10 +2123,6 @@ function renderAnchor() {
   wrap.appendChild(navBar('anchor'));
   return wrap;
 }
-
-/* ---------- 两个薄包装：让第 4 / 5 步在 STEPS 里用零参签名 ---------- */
-function renderLikedNotes() { return renderNotes('likedNotes'); }
-function renderDislikedNotes() { return renderNotes('dislikedNotes'); }
 
 /* ============================================================
    合并屏 1：香调点名（第 2 步）
@@ -3198,6 +2815,12 @@ function renderFooter() {
 
 function render() {
   const app = $('#app');
+  /* 切步前记下焦点落在哪个可交互元素上。整页重建会把原节点连同焦点一起丢掉，
+     键盘用户每走一步都要从头 Tab 穿过页头才能回到题目 —— 实测切步后
+     activeElement 是 BODY。 */
+  const prevFocus = document.activeElement;
+  const hadFocusInside = prevFocus && prevFocus !== document.body && app.contains(prevFocus);
+
   app.innerHTML = '';
   app.appendChild(renderMasthead());
   app.appendChild(renderProgress());
@@ -3208,11 +2831,21 @@ function render() {
   }
   app.appendChild(renderFooter());
 
-  // 不再自动聚焦第一个扇区。
-  // 原先会 focus，导致：① 新访客一进来就看见「清冷」戴着红色焦点环、盘心写着
-  // 「正在看 清冷」，误以为已经选中；② 真正的空态（还没选）永远不出现；
-  // ③ 焦点环在鼠标用户眼里是"选中"，与真实选择态撞车。
-  // 键盘用户仍可用 Tab 进圆盘（roving tabindex 已保证进得去），不需要替他们抢焦点。
+  /* 焦点恢复分两种情况，判据是「这次重建前焦点在不在页面里」：
+
+     ① 首次渲染 / 焦点本来就在 body（鼠标用户点按钮后浏览器已把焦点放 body）：
+        不抢焦点。原先第一版会 focus 第一个扇区，导致新访客一进来就看见
+        「清冷」戴着焦点环、盘心写着「正在看 清冷」，误以为已经选中；
+        真正的空态永远不出现。
+
+     ② 焦点本来在页面内（键盘用户在按钮上按 Enter 切屏）：
+        必须把它接到新屏的标题上，否则焦点掉回 body，用户得重新 Tab。
+        标题加 tabindex="-1" 才能被程序聚焦，且不进 Tab 序列。 */
+  if (!hadFocusInside) return;
+  const title = app.querySelector('.q-title') || app.querySelector('.result-head h2');
+  if (!title) return;
+  title.setAttribute('tabindex', '-1');
+  title.focus({ preventScroll: false });
 }
 
 /* ---------- 启动 ---------- */

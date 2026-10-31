@@ -1,0 +1,1687 @@
+/* ===== 零基础香水选择器 · Swiss / International Typographic Style =====
+   设计取向：白纸、墨字、单一朱红。取瑞士国际主义排版的做法——
+   层级只靠字重、字号、留白和一条 hairline 建立，不靠阴影、圆角、渐变、装饰图形。
+
+   三条不可让步的规则，改样式前先读：
+   1. 零圆角、零阴影。需要分隔就画 1px 实线，不用卡片投影，也不用背景色块堆叠。
+   2. 主栏左对齐、贴栅格线。唯一的居中场景是圆盘那一屏（它是整页的图形重心）。
+   3. 只有一个强调色（朱红），只用于「当前状态」：选中、进行中、可点。
+      不拿它装饰，不画图标，不分区块。
+
+   全部原生 CSS，无框架，无外部字体，离线可用。
+   对比度全部实测，见 scripts/test-contrast.mjs 的 14 组 PAIRS。
+
+   ⚠️ 四条硬约束由 scripts/test-contrast.mjs 强制，改色会直接测试失败：
+     1. PAIRS 里每组前景/背景 >= 4.5:1（WCAG AA 正文）
+     2. 控件边界 --edge >= 3:1（WCAG 1.4.11）
+     3. 任何字体不小于 12px
+     4. .btn / .chip / .disc-sector / input[type=range] 都声明 min-height:44px
+*/
+
+:root {
+  /* —— 纸 —— */
+  --bg:      #ffffff;   /* 白纸。Swiss 的底就是白，不加任何质感层 */
+  --bg-2:    #f5f5f5;   /* 中性浅灰：hover 底、盘心底 */
+  --bg-3:    #e8e8e8;   /* 再深一层：未完成的进度条、禁用底 */
+  --line:    #d9d9d9;   /* 分隔线。纯装饰，不承载文字也不做控件边界（1.41:1） */
+  /* 可交互控件的边界色。--line 只有 1.41:1，画按钮边框等于没画；
+     WCAG 1.4.11 要求 >= 3:1，实测 #767676 在白底 4.54 / 浅灰底 4.17，达标。 */
+  --edge:    #767676;
+
+  /* —— 墨（全部按 WCAG 反解，见 test-contrast）—— */
+  --ink:     #0e0e0e;   /* 19.30 : 1 on --bg */
+  --ink-2:   #3d3d3d;   /* 10.86 : 1 on --bg（正文次级） */
+  --ink-3:   #616161;   /* 6.19 on --bg / 5.68 on --bg-2 / 5.05 on --bg-3（三者全过） */
+
+  /* —— 色 —— */
+  --accent:      #b3261e;  /* 朱红。6.54 : 1 on --bg，白字压其上 6.54 */
+  --accent-soft: #8f8f8f;  /* 仅 1px 描边，不承载文字。3.23 : 1 on --bg */
+  --warn:        #8a5a00;  /* 5.93 on --bg */
+  --danger:      #a4262c;  /* 7.26 on --bg */
+
+  /* —— 字体 ——
+     Swiss 的层级靠尺寸和字重，不靠换字体。标题与正文同一族无衬线，
+     中文走系统黑体（宋体在 14px 以下横画会糊）。
+     等宽只给编号、规格表、英文副标——那是「技术参数」的语气。 */
+  --font-body: "Inter", "Helvetica Neue", Helvetica, -apple-system,
+               "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+               "Source Han Sans SC", Arial, sans-serif;
+  --font-display: var(--font-body);
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+
+  --radius: 0px;
+  --maxw: 720px;
+  --discw: 520px;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* 负字距是 Swiss 的特征，不是随手加的 */
+  letter-spacing: -0.011em;
+}
+
+/* 纸纹与色晕全部去掉：那层 feTurbulence 噪点加三团径向色晕，
+   正是上一版「AI 味」的来源之一。Swiss 的底就是白纸。 */
+
+#app {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 56px 24px 96px;
+  position: relative;
+}
+#app.wide { --maxw: 900px; }
+
+@media (min-width: 1000px) {
+  #app { padding: 72px 32px 120px; }
+}
+
+/* ---------- 头部 ----------
+   Swiss 的抬头是一条顶部粗线加左对齐的大标题。
+   不用居中主视觉，不加印章，不画装饰弧。 */
+.masthead {
+  border-top: 8px solid var(--ink);
+  padding-top: 20px;
+  margin-bottom: 40px;
+}
+.masthead h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 44px;
+  line-height: 1.04;
+  font-weight: 700;
+  letter-spacing: -0.032em;
+  max-width: 15em;
+}
+.masthead .lede {
+  margin: 14px 0 0;
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1.5;
+  max-width: 34em;
+}
+.masthead .lede em {
+  font-style: normal;
+  color: var(--accent);
+}
+/* 印章元素结构上还在（app.js 会渲染），Swiss 版不用它。
+   留 display:none 而不是删 DOM，是因为删了日后想回去得改 JS。 */
+.masthead .seal { display: none; }
+
+@media (max-width: 620px) {
+  .masthead { border-top-width: 6px; padding-top: 14px; margin-bottom: 28px; }
+  .masthead h1 { font-size: 26px; letter-spacing: -0.024em; }
+  .masthead .lede { font-size: 16px; margin-top: 10px; }
+}
+
+/* ---------- 进度 ----------
+   四段等宽细条 + 下面一行小字。信息图表就长这样：
+   没有圆点、没有勾、没有动画。 */
+.progress {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);;
+  margin-bottom: 10px;
+}
+.progress i {
+  display: block;;
+  background: var(--bg-3);
+  transition: background-color 160ms linear;
+}
+.progress i.done {; }
+.progress i.now  {; }
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+  margin-bottom: 36px;
+}
+.progress-meta b { color: var(--ink-2); font-weight: 500; }
+
+@media (max-width: 620px) {
+  .progress-meta { margin-bottom: 24px; }
+}
+
+/* ---------- 问题区 ---------- */
+.q-kicker {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+.q-title {
+  margin: 0 0 10px;
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.028em;
+}
+.q-help {
+  margin: 0 0 32px;
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1.5;
+  max-width: 36em;
+}
+
+@media (max-width: 620px) {
+  .q-title { font-size: 22px; letter-spacing: -0.02em; }
+  .q-help { font-size: 16px; margin-bottom: 22px; }
+}
+
+/* 圆盘那一屏：Swiss 一般不居中，但圆盘是整页的图形重心，
+   标题跟着它居中才不别扭。这里只用 text-align，不加装饰。 */
+.stage-lead {
+  text-align: center;
+  margin-bottom: 8px;
+}
+.stage-lead .q-title { margin-bottom: 8px; }
+.stage-lead .q-help {
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 0;
+  max-width: 30em;
+}
+
+/* ---------- 圆盘 ----------
+   形状仍是 SVG，命中区仍是真实 button（见 docs/DECISIONS.md D14）。
+   这一版只换外观：去掉辉光、虚线、旋转环、渐变和放大效果。
+   扇区之间靠留白与 --edge 实线分隔，选中态靠「填黑反白」。 */
+.disc {
+  position: relative;
+  width: min(88vw, var(--discw));
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  margin: 28px auto 0;
+  /* 触屏上拖圆盘不该连带滚动页面。但圆盘在手机上占了首屏大半，
+     整块 touch-action:none 会让"在圆盘上滑动"完全无法滚动页面——比不能转盘更糟。
+     所以只在精确指针（鼠标/触控笔）上禁用默认手势；触屏保留 pan-y，
+     纵向仍可滚动页面，横向仍可拖动，且拖拽逻辑本身在触屏上已被关掉（见 app.js）。 */
+  touch-action: pan-y;
+  --disc-rot: 0deg;
+}
+@media (pointer: fine) {
+  .disc { touch-action: none; }
+}
+
+/* 可旋转层：SVG 与标签一起转。transform-origin 居中即可 ——
+   子元素用百分比定位，rotate 后仍是围绕盘心转。 */
+.disc-rot {
+  position: absolute;
+  inset: 0;
+  transform: rotate(var(--disc-rot, 0deg));
+  transform-origin: 50% 50%;
+  /* 拖拽中不要过渡，否则手指和圆盘会脱节；松手后的惯性由 JS 逐帧驱动，
+     也不该由 CSS 接管。所以这里只在「非拖拽」时给一个极短的抖动缓冲。 */
+  will-change: transform;
+}
+
+/* 拖拽中：光标抓手，扇区不响应 hover（手指划过会一路点亮，很吵）。 */
+.disc.is-dragging { cursor: grabbing; }
+.disc.is-dragging .disc-svg .sector-g:hover .sector-shape {
+  fill: var(--bg);
+  stroke: var(--edge);
+}
+
+/* 桌面端必须让圆盘受视口高度约束。
+   实测过：只按宽度算 520px 时，1366×768 / 1440×900 / 1280×800 三种笔记本上
+   圆盘底部都落在 963px，全部要滚动才能看全。62vh 是量出来的——
+   抬头 + 进度 + 问题区在紧凑模式下约占 300px，留 30px 余量。 */
+@media (min-width: 621px) {
+  .disc { width: min(88vw, var(--discw), 62vh); }
+}
+
+/* 中矮屏（≤1000px 高，含 MacBook Air 15 的 982、1440×900、1536×864）：
+   抬头与问题区一起收紧，把纵向空间还给圆盘。
+   这些值不是猜的，是逐档测到「圆盘 + 提示语都在首屏内」之后定下来的。 */
+@media (min-width: 621px) and (max-height: 1000px) {
+  #app { padding-top: 30px; }
+  .masthead { padding-top: 12px; margin-bottom: 18px; }
+  .masthead h1 { font-size: 34px; }
+  .masthead .lede { font-size: 16px; margin-top: 8px; }
+  .progress-meta { margin-bottom: 16px; }
+  .stage-lead .q-kicker { margin-bottom: 6px; }
+  .stage-lead .q-title { font-size: 26px; margin-bottom: 8px; }
+  .stage-lead .q-help { font-size: 16px; }
+  /* 62vh 在这一档被 --discw 520 顶住了，实际没生效；56vh 才真的把圆盘压下去。
+     压下去之后还要再收 action 条，否则提示语会掉出首屏（实测 900 高时差 19px）。 */
+  .disc { width: min(88vw, var(--discw), 56vh); margin-top: 6px; }
+  .actions { margin-top: 8px; padding-top: 10px; }
+  footer.foot { margin-top: 32px; }
+}
+
+/* 更矮的笔记本（≤820px 高，覆盖 1366×768 与 1280×800）：
+   62vh 这一档在这个高度上还是差 30–50px，要再压一次。
+   同时把抬头压到最小可读尺寸，把省下来的全给圆盘。 */
+@media (min-width: 621px) and (max-height: 820px) {
+  #app { padding-top: 24px; }
+  .masthead { padding-top: 10px; margin-bottom: 16px; }
+  .masthead h1 { font-size: 26px; }
+  .masthead .lede { font-size: 14px; margin-top: 8px; }
+  .progress-meta { margin-bottom: 14px; }
+  .stage-lead .q-kicker { margin-bottom: 6px; }
+  .stage-lead .q-title { font-size: 22px; margin-bottom: 6px; }
+  .stage-lead .q-help { font-size: 14px; }
+  .disc { width: min(88vw, var(--discw), 54vh); margin-top: 8px; }
+  .actions { margin-top: 16px; padding-top: 14px; }
+  footer.foot { margin-top: 28px; }
+}
+
+/* 极矮屏（≤740px 高，如 1280×720）：圆盘再让 4vh，提示语才不掉出去。 */
+@media (min-width: 621px) and (max-height: 740px) {
+  #app { padding-top: 20px; }
+  .masthead { padding-top: 8px; margin-bottom: 12px; }
+  .masthead h1 { font-size: 26px; }
+  .masthead .lede { font-size: 14px; margin-top: 6px; }
+  .progress-meta { margin-bottom: 10px; }
+  .stage-lead .q-title { font-size: 22px; margin-bottom: 4px; }
+  .stage-lead .q-help { font-size: 14px; }
+  .disc { width: min(88vw, var(--discw), 50vh); margin-top: 4px; }
+  /* 圆盘压到 360px 时盘心只有 122px，14% 的纵向内边距吃掉 34px，
+     只剩 86px 装三行字——实测 scrollHeight 138 > clientHeight 120，内容溢出。
+     这一档把纵向内边距收到 9%，字号降一级，行高收紧。 */
+  .disc-hub { padding: 8px 10px; gap: 3px; }
+  .disc-hub .hub-zh { font-size: 16px; }
+  /* 12px 是 test-contrast 强制的最小字号下限，不能降到 11px。
+     极矮屏改用「只留一行 + 省略号」来省高度，而不是缩字号。 */
+  .disc-hub .hub-desc { font-size: 12px; line-height: 1.2; max-height: 15px; }
+  .actions { margin-top: 10px; padding-top: 10px; }
+  footer.foot { margin-top: 24px; }
+}
+.disc-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.disc-svg .sector-shape {
+  fill: var(--bg);
+  stroke: var(--edge);
+  stroke-width: 1;
+  transition: fill 160ms cubic-bezier(.4, 0, .2, 1), stroke 160ms cubic-bezier(.4, 0, .2, 1);
+}
+.disc-svg .sector-g { cursor: pointer; }
+
+/* hover：描边加粗到 2px + 填充降到 --bg-3。不放大 —— 放大是拟物语言。
+   为什么必须动描边粗细：原方案只把填充换成 --bg-2(#f5f5f5)，对白底实测
+   只有 1.03:1，肉眼分辨不出来，等于没有悬停反馈。深色主题下这一步是够的
+   （深底换浅一档很明显），搬到浅底就失效了 —— 这是换肤时最容易漏掉的一类。
+   2px 描边在任何底色上都读得出来，且不引入阴影/缩放。
+   160ms + ease-out 是「立刻有反馈但不闪烁」的区间：再快（<80ms）看不出变化，
+   再慢（>200ms）鼠标横扫一排扇区会拖出尾迹。 */
+.disc-svg .sector-g:hover .sector-shape,
+.disc-svg .sector-g.is-hot .sector-shape {
+  fill: var(--bg-3);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+/* 按下：填成 --bg-3（比 hover 深一档），且不给过渡 —— 按下要瞬时。
+   若也走 160ms，手指压下去到变化发生有可感延迟，像点不动。
+   松开后过渡会把它平滑带回 hover 态。 */
+.disc-svg .sector-g:active .sector-shape {
+  fill: var(--bg-3);
+  stroke: var(--ink);
+  transition: none;
+}
+
+/* 选中：墨色实心。扇区上的文字同时转白（见 .disc-sector[aria-checked]）。
+   反差是最强的状态信号，不需要发光。 */
+.disc-svg .sector-g.is-on .sector-shape {
+  fill: var(--ink);
+  stroke: var(--ink);
+}
+
+/* 装饰环全部取消：ring-thin / ring-accent / ring-spin / ring-tick
+   在 Swiss 里都属于装饰性元素，一个不留。
+   显式关闭而不是删规则，方便日后回滚。 */
+.disc-svg .ring-thin,
+.disc-svg .ring-accent,
+.disc-svg .ring-spin,
+.disc-svg .ring-tick { display: none; }
+
+/* 扇区文字按钮：透明底，只承载标签。
+   min-width / min-height 是触控下限，不能少于 44（test-contrast 会拦）。 */
+.disc-sector {
+  position: absolute;
+  /* 标签反向旋转：圆盘可拖拽旋转后，标签必须抵消掉父层的转动，文字才是正的。
+     fallback 值要与 .disc 上的 --disc-rot 一致（0deg），否则首帧会歪。 */
+  transform: translate(-50%, -50%) rotate(calc(-1 * var(--disc-rot, 0deg)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  padding: 6px 8px;
+  min-width: 56px;
+  min-height: 44px;
+  cursor: pointer;
+  transition: color 160ms linear;
+}
+.disc-sector .en {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  transition: color 160ms linear;
+}
+/* 选中扇区上的文字反白：--bg 纯白压在 --ink #0e0e0e 上是 19.30，远超标准。
+   Swiss 里唯一允许的反白场景。 */
+.disc-sector[aria-checked="true"] { color: var(--bg); }
+.disc-sector[aria-checked="true"] .en { color: var(--bg-3); }
+
+.disc-sector:focus-visible {;;
+}
+
+/* 盘心：一块压在圆心上的白方块。
+   层次不靠投影，靠**三层边界递进**：
+     1. 外圈留白（方角到内弧的空隙，由 rIn=146 给到，桌面约 32px）
+     2. 双层边框：外 1px --edge（浅，和扇区线同一族）+ 内 1px --ink（重，立刻抓住视线）
+     3. 内容自上而下三级字阶：12 小标 → 22 主词（朱红）→ 12 说明
+   不用 box-shadow：Swiss 里投影是最先该被砍的东西，且浅灰底上投影会脏。
+   方角与内弧的关系由 DISC.rIn 保证（见 app.js 顶部注释），这里只管盒内的呼吸。 */
+.disc-hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  /* 边长 = 内弧半径 × √2，即内接正方形。
+     DISC.rIn = 146/480 = 30.42%，×1.414 = 43.0%。
+     为什么不是"比内圆小一圈"：盘心缩在内圆中央时，四周留一圈 39px 的白，
+     方块和内圈没有任何几何关系，读起来像「贴在圆盘上的一张卡片」。
+     四角正好顶到内弧之后，方与圆互相咬合，同一张图里成立。
+     留 0.3% 余量防止亚像素舍入把角标顶出弧外。 */
+  width: 42.7%;
+  height: 42.7%;
+  border-radius: 0;
+  /* 层次不靠阴影，靠边界的不对称——这是报刊栏线的做法：
+     上边 2px 墨色当"头部"，其余三边 1px 浅灰当"容器"。
+     视觉上立刻分出主次，但不引入任何拟物质感。
+     曾经用 border+outline 做双层框（offset:-5px），截图看是"错位的第二个框"，
+     不是层次——两层线离太近时人眼读成印刷套印不准。 */
+  border: 1px solid var(--edge);
+  border-top: 2px solid var(--ink);
+  background: var(--bg-2);
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  /* 内边距必须用 px，不能用百分比。
+     绝对定位元素的百分比 padding 是按**父容器的宽度**算的（这里是 .disc 的 504px），
+     写 14% 就等于上下各 70px —— 122px 的盘心直接被撑爆（实测 scrollHeight 138 > 120）。
+     这个坑很隐蔽：CSS 看起来是「相对自己留白」，实际相对父级。 */
+  padding: 14px 16px;
+  text-align: center;
+  pointer-events: none;
+  /* 内容分带：kicker 贴上、主标题居中、说明贴下。
+     三行居中时 215px 的框里只占中间 73px，上下各空 57px —— 那是"空"不是"留白"。
+     分带之后同三条文字撑满整个框高，框的大小和内容的体量对得上。 */
+  justify-content: space-between;
+  transition: border-color 180ms cubic-bezier(.4,0,.2,1),
+              background-color 180ms cubic-bezier(.4,0,.2,1);
+}
+
+/* 四角角标：8px 的 L 形短线，象限对称。
+   它的作用是让方块与圆盘的几何说同一种语言——圆盘是角度构成的，
+   角标是直角构成的，两者在同一张图上读起来像一套制图符号，而不是一个网页框。
+   用 ::before/::after 只能画两个角，所以用 background 的四段线性渐变拼四个 L。 */
+.disc-hub::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--ink-3), var(--ink-3)) left top / 8px 1px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) left top / 1px 8px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) right top / 8px 1px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) right top / 1px 8px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) left bottom / 8px 1px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) left bottom / 1px 8px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) right bottom / 8px 1px no-repeat,
+    linear-gradient(var(--ink-3), var(--ink-3)) right bottom / 1px 8px no-repeat;
+  opacity: .55;
+  transition: opacity 180ms cubic-bezier(.4,0,.2,1);
+}
+
+/* 悬停态：上边线本来已是墨色，这里把整圈边界收到墨色、底色提亮一档、
+   角标提到不透明。三个通道同时变化但都很轻，读起来是"醒了一下"而不是"换了个控件"。 */
+.disc-hub.is-hover {
+  border-color: var(--ink);
+  background: var(--bg);
+}
+.disc-hub.is-hover::before { opacity: 1; }
+
+/* 已选定：整个方块翻成实心墨块，文字反白。
+   为什么不是加粗字号：这块 215px 的方框里只有一个 22px 的词，问题不是字不够大，
+   是「体量对不上」——浅色方块压不住 504px 的圆盘，看起来像一张便签。
+   瑞士海报里表达"确定"的惯用手段就是把色块整个压黑（Müller-Brockmann 的苏黎世音乐厅
+   系列就是这个手法），比放大文字有效，也不引入任何阴影或渐变。
+   反白后对比度：白字 19.30、#a8a8a8 次级文字 8.12，都远高于 4.5。 */
+.disc-hub.is-picked {
+  background: var(--ink);
+  border-color: var(--ink);
+  border-top-color: var(--ink);
+}
+.disc-hub.is-picked::before { opacity: .9; background:
+    linear-gradient(#c9c9c9, #c9c9c9) left top / 8px 1px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) left top / 1px 8px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) right top / 8px 1px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) right top / 1px 8px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) left bottom / 8px 1px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) left bottom / 1px 8px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) right bottom / 8px 1px no-repeat,
+    linear-gradient(#c9c9c9, #c9c9c9) right bottom / 1px 8px no-repeat; }
+.disc-hub.is-picked .hub-kicker { color: #a8a8a8; }
+.disc-hub.is-picked .hub-zh { color: #ffffff; }
+.disc-hub.is-picked .hub-desc { color: #c9c9c9; }
+.disc-hub.is-picked.is-idle .hub-zh { color: #ffffff; }
+.disc-hub .hub-kicker {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+  transition: color 180ms cubic-bezier(.4,0,.2,1);
+}
+.disc-hub .hub-zh {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  color: var(--accent);
+  transition: color 180ms cubic-bezier(.4,0,.2,1);
+}
+.disc-hub .hub-desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-3);
+  /* 说明最多两行。这里不能用 -webkit-line-clamp：
+     它要配合 display:-webkit-box，而 -webkit-box 作为 flex 子项时高度会塌成 0。
+     改用 max-height 裁两行——12px × 1.4 × 2 ≈ 34px，加 1px 余量。
+     还必须写 flex: none：flex 子项默认可收缩，内容一旦超高会被压成 0 高，
+     表现出来的现象是「说明文字凭空消失」，而 CSS 里看不出任何问题。 */
+  flex: none;
+  max-height: 34px;
+  overflow: hidden;
+  transition: color 180ms cubic-bezier(.4,0,.2,1);
+}
+.disc-hub.is-idle .hub-zh { color: var(--ink-2); }
+
+/* 盘心换字时的淡入：只在文字内容变化时触发（JS 加 .is-swap 再移除）。
+   180ms 是因为 34% 方块本身很小，时间长了会显得黏。 */
+@keyframes hub-swap {
+  from { opacity: 0;; }
+  to   { opacity: 1; transform: none; }
+}
+.disc-hub.is-swap .hub-zh,
+.disc-hub.is-swap .hub-desc {
+  animation: hub-swap 180ms cubic-bezier(.2,0,.2,1) both;
+}
+
+@media (max-width: 620px) {
+  .disc { width: min(92vw, 380px); margin-top: 18px; }
+  .disc-sector { font-size: 14px; padding: 5px 6px; }
+  /* 窄屏隐藏英文副标：380px 直径的圆里两行字会撞在一起 */
+  .disc-sector .en { display: none; }
+  /* 窄屏同样取内接正方形（42.7%），不再单独缩到 38%：
+     一旦桌面是"角顶内弧"、手机是"浮在中间"，同一个组件在两种设备上
+     会读成两种东西。文字靠字号和内边距收敛，不靠缩框。 */
+  .disc-hub { padding: 10px 12px; gap: 4px; }
+  .disc-hub::before { inset: 2px; }
+  .disc-hub .hub-zh { font-size: 16px; }
+  .disc-hub .hub-kicker { letter-spacing: 0.06em; }
+  .disc-hub .hub-desc { font-size: 12px; line-height: 1.3; max-height: 32px; }
+}
+
+/* 矮屏（iPhone SE 竖屏 667px）：圆盘再压一档，保证首屏看到完整圆盘 */
+@media (max-width: 620px) and (max-height: 700px) {
+  .disc { width: min(86vw, 320px); margin-top: 12px; }
+  .disc-hub { padding: 8px 10px; }
+  .disc-hub .hub-kicker { letter-spacing: 0.04em; }
+  .disc-hub .hub-desc { display: none; }
+  .disc-hub .hub-zh { font-size: 16px; }
+}
+
+/* ---------- 通用选项条目（第 2 步的备用形态）----------
+   Swiss 的列表项之间只有一条线，hover 只换底色不位移。 */
+.options { display: flex; flex-direction: column; }
+.opt {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  gap: 14px;
+  align-items: baseline;
+  padding: 14px 12px;
+  border: 1px solid transparent;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;;
+  border-radius: 0;
+  min-height: 44px;
+}
+.opt:last-child { border-bottom: 1px solid var(--line); }
+.opt:hover { background: var(--bg-2); border-color: var(--edge); }
+.opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.opt .num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+  padding-top: 3px;
+}
+.opt .label { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.opt .desc {
+  display: block;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink-2);
+  margin-top: 3px;
+  line-height: 1.5;
+}
+.opt .tick {
+  font-size: 12px;
+  color: var(--ink-3);
+  opacity: 0;
+  transition: opacity 160ms linear;
+  padding-top: 3px;
+}
+.opt:hover .tick { opacity: 1; }
+.opt[aria-pressed="true"] { background: var(--bg-2);; }
+.opt[aria-pressed="true"] .tick { opacity: 1; }
+.opt[aria-pressed="true"] .num { color: var(--accent); }
+
+/* ---------- 滑块：一根墨线，一个方形朱红砝码 ---------- */
+.scale { padding: 8px 0 4px; }
+.scale input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  /* 元素盒子 44px 高：轨道只有 2px 是视觉，不是命中区。
+     只写 height:2px 会让触屏可点高度真的变成 2px。 */
+  height: 44px;
+  background: transparent;
+  margin: 6px 0 4px;
+  padding: 0;
+  cursor: pointer;
+}
+.scale input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--ink);
+}
+.scale input[type="range"]::-moz-range-track {
+  height: 2px;
+  background: var(--ink);
+}
+.scale input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -9px;
+  border-radius: 0;
+  background: var(--accent);
+  border: 0;
+  /* 拖动时方块轻微撑开 + 加深，是「手在捏着它」的最轻表达；
+     20→22px 只有 2px 的差别，但足以让人确认「我抓住了」。 */
+  transition: transform 160ms cubic-bezier(.4, 0, .2, 1), background-color 160ms linear;
+}
+.scale input[type="range"]:active::-webkit-slider-thumb {;
+  background: var(--ink);
+}
+.scale input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 0;
+  background: var(--accent);
+  border: 0;
+  transition: transform 160ms cubic-bezier(.4, 0, .2, 1), background-color 160ms linear;
+}
+.scale input[type="range"]:active::-moz-range-thumb {
+  transform: scale(1.1);
+  background: var(--ink);
+}
+.scale input[type="range"]:focus-visible {;;
+}
+.scale-ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+.scale-read {
+  margin-top: 24px;
+  border-top: 1px solid var(--ink);
+  padding-top: 14px;
+  font-size: 16px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.scale-read b {
+  display: inline-block;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.024em;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.scale-read span { font-size: 14px; color: var(--ink-2); }
+
+/* ---------- 香调多选 ----------
+   Swiss 的标签是方框加打字机感，不用胶囊、不用阴影。 */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-body);
+  font-size: 14px;
+  letter-spacing: -0.005em;
+  padding: 12px 14px;
+  min-height: 44px;
+  border: 1px solid var(--edge);
+  background: var(--bg);
+  color: var(--ink-2);
+  border-radius: 0;
+  cursor: pointer;;
+}
+.chip:hover { border-color: var(--ink); color: var(--ink); }
+.chip:focus-visible {;; }
+.chip[aria-pressed="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+  font-weight: 600;
+}
+/* 讨厌栏选中用危险色，与喜欢栏区分。白字压其上 7.26:1。 */
+.chip[aria-pressed="true"].neg {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--bg);
+}
+.chips-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--ink-2);
+  margin: 28px 0 10px;
+  line-height: 1.3;
+}
+/* 标签前一段 12px 短线，像规格表的引出线。
+   刻意不用 border-left 色条——那是最典型的模板 UI 痕迹。 */
+.chips-label::before {
+  content: "";
+  flex: none;
+  width: 12px;
+  height: 1px;
+  background: var(--ink);
+}
+
+/* ---------- 底部动作 ---------- */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 36px;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+.btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ink);;;
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  padding: 14px 22px;
+  min-height: 44px;
+  border-radius: 0;
+  cursor: pointer;;
+}
+.btn:hover {;; }
+.btn:active {; }
+.btn:focus-visible {; outline-offset: 2px; }
+/* 次按钮：白底墨线。Swiss 的两级按钮就是实心与描边，没有第三种。 */
+/* 次级按钮：与主按钮同高（44px 触控下限）但更轻。
+   原来这两处是在 app.js 里写内联 style="padding:7px 14px;font-size:13px" 的——
+   内联样式既绕过字阶，也绕过 test-contrast 的字号检查（它只读 styles.css）。
+   收进 CSS 后统一走 14px 档。 */
+.btn.btn-more {
+  padding: 10px 14px;
+  font-size: 14px;
+  margin-top: 12px;
+  display: inline-block;
+  width: auto;
+}
+.btn.ghost {
+  background: transparent;;
+  border-color: var(--edge);
+  font-weight: 500;
+}
+.btn.ghost:hover {;
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.btn:disabled {
+  background: var(--bg-3);;;
+  cursor: not-allowed;
+}
+
+/* 计算中：保持墨底（不要退成灰，那看起来像"不可用"而不是"正在做"），
+   右侧挂一段跳动的小方点表示忙。Swiss 不做旋转 spinner。 */
+.btn.is-busy {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+  cursor: progress;
+}
+.btn.is-busy::after {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin-left: 8px;
+  background: var(--bg);
+  animation: busy-dots 900ms steps(1, end) infinite;
+}
+@keyframes busy-dots {
+  0%, 33%   { opacity: 1; transform: translateX(0); }
+  34%, 66%  { opacity: .35; transform: translateX(3px); }
+  67%, 100% { opacity: .1; transform: translateX(6px); }
+}
+.spacer { flex: 1 1 auto; }
+.hint { font-size: 12px; color: var(--ink-3); letter-spacing: 0.02em; }
+
+/* ---------- 结果 ---------- */
+.result-head {
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 20px;
+  margin-bottom: 30px;
+}
+.result-head .eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+.result-head h2 {
+  font-size: 34px;
+  margin: 0 0 10px;
+  font-weight: 700;
+  letter-spacing: -0.028em;
+  line-height: 1.08;
+}
+.result-head p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1.5;
+}
+/* 用户画像回显：等宽小字，像规格表 */
+.result-head .profile-line {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-2);
+  letter-spacing: 0;
+}
+
+@media (max-width: 620px) {
+  .result-head h2 { font-size: 22px; letter-spacing: -0.02em; }
+}
+
+/* 候选卡：靠顶部粗线和编号建立层级，不用卡片、不用阴影、不用圆角。
+   Swiss 的列表项之间只有一条线。 */
+article.pick {
+  border-top: 2px solid var(--ink);
+  padding: 22px 0 28px;
+  margin-bottom: 8px;
+  background: none;;
+  box-shadow: none;
+}
+article.pick:last-of-type { border-bottom: 1px solid var(--line); }
+
+.pick-rank {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+/* 编号：等宽加大字号。Swiss 的编号就是信息本身，不是装饰。 */
+.pick-rank .n {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+.pick-rank .score {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-left: auto;
+  letter-spacing: 0;
+}
+
+.pick h3 {
+  margin: 0 0 4px;
+  font-size: 26px;
+  line-height: 1.14;
+  font-weight: 700;
+  letter-spacing: -0.024em;
+}
+.pick .meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink-2);
+  margin-bottom: 16px;
+}
+/* 分隔点改成竖线：Swiss 排版里中点用得少，竖线更像规格表 */
+.pick .meta .dot {
+  display: inline-block;
+  width: 1px;
+  height: 11px;
+  background: var(--edge);
+  color: transparent;
+  overflow: hidden;
+  font-size: 0;
+  text-indent: -999em;
+}
+
+/* 香调金字塔：三行两列，dt 固定列宽对齐，dd 左对齐 */
+.pyramid {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 6px 14px;
+  margin: 0 0 18px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.pyramid dt {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  font-weight: 500;
+  padding-top: 1px;
+}
+.pyramid dd { margin: 0; color: var(--ink); }
+.pyramid dd span {
+  color: var(--ink-3);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+/* 理由：短横线做项目符号，不用圆点不用勾 */
+.reasons { margin: 0; padding: 0; list-style: none; }
+.reasons li {
+  position: relative;
+  padding-left: 16px;
+  margin-bottom: 7px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.reasons li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.66em;
+  width: 8px;
+  height: 1px;
+  background: var(--ink-3);
+}
+.reasons li.warn { color: var(--danger); }
+.reasons li.warn::before { background: var(--danger); }
+
+.pick-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.pick-foot a {
+  font-size: 12px;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.pick-foot a:hover { color: var(--accent); }
+
+.tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  padding: 3px 7px;
+  border-radius: 0;
+}
+
+/* ---------- 页脚 ---------- */
+footer.foot {
+  margin-top: 56px;
+  border-top: 1px solid var(--ink);
+  padding-top: 18px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--ink-3);
+  letter-spacing: 0;
+}
+footer.foot strong { color: var(--ink-2); font-weight: 600; }
+footer.foot a {
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+footer.foot a:hover { color: var(--accent); }
+
+/* ---------- 骨架屏 ----------
+   静态版写在 index.html 里（不能由 module 注入，慢网下会晚 3 秒）。
+   这里只定义外观：一个细墨线圈 + 一道绕圈的弧，不用渐变呼吸。 */
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 48px 0 24px;
+}
+.skeleton-ring {
+  width: min(88vw, var(--discw));
+  max-width: 420px;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  position: relative;
+  background: var(--bg);
+}
+.skeleton-ring::after {
+  content: "";
+  position: absolute;
+  inset: 22%;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+}
+.skeleton-ring::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--ink-3);;
+}
+@keyframes skeleton-sweep { to { transform: rotate(360deg); } }
+
+.skeleton-note {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  text-align: center;
+  max-width: 30em;
+}
+
+/* ---------- 动效与降级 ----------
+   Swiss 只承认硬切。保留一个 120ms 的 fade 只是为了不闪，不用缓动曲线。 */
+.fade-in {; }
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+
+/* ============ 多层香型轮盘（第 1 步）============
+   三层同心：外圈家族 / 中圈子家族 / 盘心当前选择。
+   为什么同心而不是上下两栏：香型本来就是一棵树，父子画在一张图上，
+   "我在哪一层、上面的父是谁"才一直可见；分两页会把这个信息整段抹掉。 */
+
+.wheel {
+  /* 轮盘比旧圆盘多一圈，同样尺寸下扇区更窄，标签要更早收窄 */
+  --sec-fs: 15px;
+}
+
+/* 外圈与中圈之间那道空环由 r1i/r2o 的 6px 差给出，不再加额外描边 */
+.wheel .ring-thin { stroke: var(--line); fill: none; }
+.wheel .ring-guide {
+  fill: none;
+  stroke: var(--edge);
+  stroke-width: 1;
+  stroke-dasharray: 2 6;
+  transition: opacity 160ms linear;
+}
+
+/* 两层标签各自一个定位层：层本身铺满圆盘，标签用百分比落位。
+   分开是因为中圈会随焦点家族整个重建，不能牵连外圈标签。 */
+.wheel .label-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.wheel .label-layer .disc-sector { pointer-events: auto; }
+
+/* 外圈标签：中文 + 典型香材。香材那行是这一层唯一的信息增量，
+   没有它就只是 6 个色块，用户仍不知道「木质调」闻起来是什么。 */
+.wheel .disc-sector.lvl1 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  gap: 2px;
+  padding: 4px 6px;
+  max-width: 22%;
+}
+.wheel .disc-sector.lvl1 .notes {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--ink-3);
+  line-height: 1.2;
+  text-align: center;
+  /* 香材名最长「橙花·佛手柑·柠檬」在 22% 宽里会折行，
+     限制两行并允许省略 —— 宁可少显示一个，也不让标签长成方块 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  transition: color 160ms linear;
+}
+/* 中圈标签：只放中文，字号小一档，因为子家族本来就是收窄后的信息 */
+.wheel .disc-sector.lvl2 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding: 3px 5px;
+  max-width: 18%;
+}
+.wheel .disc-sector.lvl2 .zh {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-align: center;
+  line-height: 1.15;
+}
+
+/* 展开后把没选的外圈压暗：视线自动收到中圈，而不是继续被 6 个大扇区平分 */
+.wheel .sector-g.is-dim .sector-shape { opacity: .45; }
+.wheel .disc-sector.is-dim { opacity: .45; }
+
+/* 中圈扇区：默认白底；悬停浅一档；选中填墨。
+   与旧圆盘同一套三态，用户不需要学第二套反馈。 */
+.wheel .mid-layer .sector-g .sector-shape {
+  fill: var(--bg-2);
+  stroke: var(--edge);
+  stroke-width: 1;
+  transition: fill 160ms cubic-bezier(.4,0,.2,1),
+              stroke 160ms cubic-bezier(.4,0,.2,1),
+              opacity 160ms cubic-bezier(.4,0,.2,1);
+}
+.wheel .mid-layer .sector-g:hover .sector-shape,
+.wheel .mid-layer .sector-g.is-hot .sector-shape {
+  fill: var(--bg-3);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.wheel .mid-layer .sector-g.is-on .sector-shape {
+  fill: var(--ink);
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+.wheel .disc-sector.lvl2.is-on { color: var(--bg); }
+
+/* 盘心：套用中圈内接正方形。
+   WHEEL.r2i = 106，106×√2 = 149.9，149.9/480 = 31.2%，取 30.6% 留余量。
+   与旧圆盘的 42.7% 同一算法（见 app.js 顶部注释），只是半径变小。 */
+.wheel .disc-hub {;;
+  /* 空态展开到内孔内接正方形，选中后收回 —— 尺寸变化本身就在说"这一层出现了" */
+  transition: width 220ms cubic-bezier(.4,0,.2,1),
+              height 220ms cubic-bezier(.4,0,.2,1),
+              background-color 180ms cubic-bezier(.4,0,.2,1),
+              border-color 180ms cubic-bezier(.4,0,.2,1);
+}
+/* r1i = 158，158×√2 = 223.4，223.4/480 = 46.55%，留 0.35% 余量 → 46.2% */
+.wheel .disc-hub.is-wide {
+  width: 46.2%;
+  height: 46.2%;
+  padding: 10px 10px 8px;
+  gap: 3px;
+  justify-content: center;
+}
+.wheel .disc-hub .hub-zh {;;; }
+.wheel .disc-hub .hub-kicker { font-size: 12px; }
+.wheel .disc-hub .hub-desc {
+  font-size: 12px;;;
+}
+
+/* 重新开始：盘心内唯一的按钮。只在有选择时出现 —— 空态不需要"重置" */
+.wheel .hub-reset {
+  appearance: none;;
+  background: transparent;;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;;
+  margin-top: 1px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: currentColor;
+  opacity: .7;
+  pointer-events: auto;;
+}
+.wheel .hub-reset:hover { opacity: 1; }
+.wheel .hub-reset:focus-visible {;
+  outline-offset: 1px;
+  opacity: 1;
+}
+.wheel .disc-hub.is-picked .hub-reset { color: #c9c9c9; }
+
+/* ---- 家族详情区：轮盘下方，随选择更新 ----
+   放在轮盘下面而不是右边：手机上左右排会挤成两列窄条。 */
+.fam-panel {
+  margin-top: 8px;
+  border-top: 1px solid var(--ink);
+  padding-top: 14px;
+  min-height: 96px;
+  transition: opacity 160ms linear;
+}
+.fam-panel.is-empty { border-top-color: var(--line); }
+.fam-empty {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+.fam-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.fam-group {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+}
+.fam-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--accent);
+}
+.fam-en {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.fam-style {
+  margin: 0 0 10px;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.fam-rows {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 6px 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.fam-rows dt {
+  color: var(--ink-3);
+  font-weight: 500;
+  font-size: 12px;
+  padding-top: 2px;
+}
+.fam-rows dd { margin: 0; color: var(--ink-2); }
+
+/* 窄屏：中圈与外圈的扇区都变窄，标签先收字号再收内容 */
+@media (max-width: 620px) {
+  .wheel .disc-sector.lvl1 { font-size: 14px;; }
+  .wheel .disc-sector.lvl1 .notes { font-size: 12px; -webkit-line-clamp: 1; }
+  .wheel .disc-sector.lvl2 { font-size: 12px; max-width: 20%; }
+  /* 360 宽时中圈半径只有 84px，中圈标签会顶到外圈标签上（实测 2 处相交）。
+     再收一档宽度，让两圈之间留出可见缝隙。 */
+  .wheel .disc-sector.lvl1 { max-width: 24%; }
+  .wheel .disc-hub {;; }
+  .wheel .disc-hub .hub-zh {; }
+  .wheel .disc-hub .hub-desc {; }
+  .fam-panel { margin-top: 18px; min-height: 120px; }
+  .fam-title { font-size: 22px; }
+  .fam-style { font-size: 14px; }
+  .fam-rows { grid-template-columns: 56px 1fr; font-size: 14px; }
+}
+
+/* 超窄（≤400px）：360 宽是最后一档要照顾的机型。
+   实测两处问题，都只能靠"少给内容"解决，不能靠缩字号：
+     1. 中圈半径只剩 84px，外圈标签的香材行会顶到中圈标签上
+     2. 圆盘 + 标题 + 按钮合计超出 740 高度 53px */
+@media (max-width: 400px) {
+  /* 香材行在这一档让位：中圈展开后它就是两块标签打架的元凶。
+     代价是外圈只剩家族名，但用户此刻正在看中圈，外圈退成背景是合理的。 */
+  .wheel .disc-sector.lvl1 .notes { display: none; }
+  .wheel .disc-sector.lvl1 { font-size: 14px; max-width: 26%; }
+  .wheel .disc-sector.lvl2 { font-size: 12px; max-width: 26%; }
+
+  #app { padding-top: 18px; }
+  .masthead h1 { font-size: 22px; }
+  .masthead .lede { font-size: 14px; margin-top: 4px; }
+  .stage-lead { margin-top: 14px; }
+  .stage-lead .q-title { font-size: 22px; }
+  .stage-lead .q-help { font-size: 14px; margin-top: 4px; }
+  .wheel { margin-top: 10px; }
+  .actions { margin-top: 14px; }
+  .actions .hint { font-size: 12px; }
+}
+
+/* 矮屏（≤700px 高且窄）：盘心说明隐藏，靠轮盘本身表达层级 */
+@media (max-width: 620px) and (max-height: 700px) {
+  .wheel .disc-hub .hub-desc { display: none; }
+  .wheel .disc-hub { padding: 6px; justify-content: center; }
+}
+
+/* 打印：Swiss 的终点本来就是纸。去掉进度与按钮，保留信息 */
+@media print {
+  body { background: #fff; }
+  .progress, .actions, .skeleton { display: none; }
+  article.pick { break-inside: avoid; }
+}
+/* =====================================================================
+   克莱因蓝定稿 + 交互反馈层（v3）
+   ---------------------------------------------------------------------
+   这一整段是**追加层**，前面 1397 行是 Swiss 版原稿，一行未改。
+   回滚方式：删掉本段（从这行到文件末尾）即可完全回到原稿；
+   或用 `cp /tmp/styles.pre-klein.css styles.css`。
+
+   设计令牌全部收在这里，前面 `:root` 里的 --accent（朱红）被本段覆盖。
+   ===================================================================== */
+
+:root {
+  /* ---- 蓝：四档，各有明确的物理角色 ---- */
+  --blue:        #002FA7;  /* 主色。h1 em + 主按钮。10.69 on #fff */
+  --blue-deep:   #001A5E;  /* 暗部。渐变尾、已完成进度段、柔影色相。16.04 */
+  --blue-lift:   #3D5FC4;  /* 高光。S 从 100 降到 53 —— 降纯度的那一刀。5.78 */
+  --blue-amb:    #8A93B8;  /* 环境反光。只做 1px 描边，3.02，禁止承载文字 */
+  --blue-wash:   rgba(0, 47, 167, .07);  /* 选中扇形的水洗底 */
+
+  /* ---- 覆盖旧强调色：蓝只有两处高分量使用，其余降墨 ---- */
+  --accent:      #002FA7;
+  --accent-soft: #8A93B8;
+
+  /* ---- 圆角：用户已定 4px 基准，8px 节奏 ---- */
+  --radius: 4px;
+  --radius-sm: 2px;
+  --radius-lg: 8px;
+
+  /* ---- 动效：一条缓动、三档时长。位移永不超过 8px ---- */
+  --ease: cubic-bezier(.32, .72, 0, 1);   /* 出场：快起慢收，200-320ms */
+  --ease-in: cubic-bezier(.4, 0, 1, 1);   /* 收起：慢起快收，只给按下 */
+  --t-press: 80ms;    /* 按下。要"立刻"回应，超过 100ms 会觉得钝 */
+  --t-hover: 160ms;   /* 悬停 */
+  --t-move: 240ms;    /* 位移与层级切换 */
+
+  /* ---- 阴影：同色相不用黑，全站左上受光右下投影 ---- */
+  --sh-lift: 0 1px 0 rgba(255,255,255,.14) inset, 0 10px 30px -10px rgba(0,26,94,.42);
+  --sh-press: 0 1px 2px rgba(0,26,94,.28) inset, 0 1px 0 rgba(26,26,26,.16);
+  --sh-card: 0 1px 0 rgba(255,255,255,.9) inset, 0 10px 34px -14px rgba(0,26,94,.22);
+}
+
+/* ---------------------------------------------------------------
+   1. 蓝只留两处：封面巨标题里的强调词 + 主按钮。
+      其余原本用朱红的地方一律降成墨色/中性灰 —— 蓝稀缺才有分量。
+   --------------------------------------------------------------- */
+/* 高分量处 A：封面标题的「第一瓶」。
+   渐变裁进文字而不是纯色填充 —— 这是从"色块"变成"有厚度的墨"的关键一步：
+   135° 从主色走到暗部，左下受光、右上收暗，和全站光照方向一致。
+   background-clip:text 在 Edge/Chrome/Safari 都支持，Firefox 需要
+   下面那行 -webkit- 前缀版本，两者并存是刻意的。 */
+.masthead h1 em {
+  font-style: normal;
+  color: var(--blue);
+  background: linear-gradient(135deg, var(--blue) 0%, var(--blue) 34%, var(--blue-deep) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+/* 极端降级：不支持 background-clip:text 的引擎上，透明字会消失成空白。
+   @supports 兜底回纯主色 —— 宁可少一层渐变，也不能让标题缺字。 */
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  .masthead h1 em { color: var(--blue); -webkit-text-fill-color: currentColor; background: none; }
+}
+
+.masthead .lede em,
+.disc-hub .hub-zh,
+.fam-title,
+.pick-rank .n,
+.opt[aria-pressed="true"] .num {
+  color: var(--ink);
+}
+.pick-foot a:hover,
+footer.foot a:hover {
+  color: var(--blue);
+}
+
+/* 进度条：首段为「当前位置」用主蓝，已完成段用暗部（不是纯黑），
+   未完成用浅灰。三档明度让进度有前后。 */
+.progress i.done { background: var(--blue-deep); }
+.progress i.now  { background: var(--blue); }
+
+/* 滑块 thumb 落回墨色（蓝只在两处），拖动时才加深 */
+.scale input[type="range"]::-webkit-slider-thumb,
+.scale input[type="range"]::-moz-range-thumb {
+  background: var(--ink);
+}
+
+/* ---------------------------------------------------------------
+   2. 五态统一：默认 → 悬停 → 按下 → 聚焦 → 禁用
+      按下必须有下沉/压缩反馈，且用 --t-press（80ms）而不是通用时长。
+      所有 focus-visible 用 2px 蓝描边 + 2px 偏移，保证不与边界重叠。
+   --------------------------------------------------------------- */
+.btn,
+.chip,
+.opt,
+.disc-sector,
+.tag,
+.pick-foot a,
+footer.foot a,
+.wheel .hub-reset {
+  border-radius: var(--radius);
+}
+
+/* --- 主按钮：本色→暗部渐变、同色柔影；按下压缩而非位移 --- */
+.btn {
+  background: linear-gradient(160deg, var(--blue) 0%, var(--blue-deep) 130%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: var(--sh-lift);
+  transition: box-shadow var(--t-hover) var(--ease),
+              transform var(--t-press) var(--ease-in),
+              background-color var(--t-hover) var(--ease);
+}
+.btn:hover { background: linear-gradient(160deg, var(--blue-lift) 0%, var(--blue) 130%); border-color: transparent; }
+.btn:active {
+  transform: translateY(1px) scale(.988);   /* 1px 下沉 + 1.2% 压缩，肉眼刚好察觉 */
+  box-shadow: var(--sh-press);
+  transition-duration: var(--t-press);
+}
+.btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.btn:disabled {
+  background: var(--bg-3);
+  border-color: transparent;
+  color: var(--ink-2);        /* 原 --ink-3 在 #e8e8e8 上 5.05 过，但按"禁用也要能读"提到 ink-2 8.87 */
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--edge);
+  box-shadow: none;
+}
+.btn.ghost:hover { background: var(--bg-2); border-color: var(--ink); color: var(--ink); }
+.btn.ghost:active { transform: translateY(1px) scale(.988); box-shadow: var(--sh-press); }
+.btn.ghost:disabled { background: transparent; border-color: var(--line); color: var(--ink-2); }
+
+/* --- 选项行（.opt）：整行可点，按下压一层底 --- */
+.opt { transition: background-color var(--t-hover) var(--ease), border-color var(--t-hover) var(--ease); }
+.opt:active { background: var(--bg-3); }
+.opt[aria-pressed="true"] { border-color: var(--blue); }
+
+/* --- 香调 chip：按下时轻微内缩，选中用墨底反白 --- */
+.chip {
+  transition: background-color var(--t-hover) var(--ease),
+              border-color var(--t-hover) var(--ease),
+              color var(--t-hover) var(--ease),
+              transform var(--t-press) var(--ease-in);
+}
+.chip:active { transform: scale(.97); }
+.chip:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.chip[aria-pressed="true"].neg { background: var(--danger); border-color: var(--danger); }
+
+/* --- 圆盘扇区标签：焦点环跟着扇区走，不用外框 --- */
+.disc-sector:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+/* 选中扇区是「浅蓝水洗底 + 蓝描边」，不是墨色实底，
+   所以标签不能走反白 —— 白字落在近乎白的底上会消失（截图确认过）。
+   改用主蓝加深一档，在 7% 水洗底上仍然读得清。 */
+.wheel .disc-sector[aria-checked="true"],
+.wheel .disc-sector[aria-checked="true"] .en {
+  color: var(--blue-deep);
+}
+
+/* --- 文字链接：下划线加粗到 2px 表达悬停，不换色 --- */
+.pick-foot a,
+footer.foot a {
+  transition: color var(--t-hover) var(--ease), text-decoration-thickness var(--t-hover) var(--ease);
+}
+.pick-foot a:hover,
+footer.foot a:hover { text-decoration-thickness: 2px; }
+
+/* --- 滑块：thumb 按下放大 1.1 并保持墨色，轨道不动 --- */
+.scale input[type="range"]::-webkit-slider-thumb { transition: transform var(--t-press) var(--ease-in), background-color var(--t-hover) var(--ease); }
+.scale input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.12); }
+.scale input[type="range"]:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
+
+/* --- 盘心：径向受光 + 边缘受光，和轮盘共用一个光源 --- */
+.wheel .disc-hub {
+  border-radius: var(--radius);;
+  border-color: var(--blue-amb);;;
+}
+/* 空态盘心撑到内孔内接正方形（46.2%），面积是选定态的 2.2 倍。
+   底色收白一档：此刻它只是"待选区"，不该和选定态一样重。
+   灰底 + 大面积会读成一个盖在轮盘上的灰板。 */
+.wheel .disc-hub.is-wide:not(.is-picked) {
+  background: radial-gradient(120% 110% at 24% 16%, #ffffff 0%, #fdfdfd 58%, var(--bg-2) 100%);
+  border-color: var(--edge);
+  box-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 6px 22px -16px rgba(0,26,94,.18);
+}
+/* 选定态说明是家族的 style 句子，20–26 字，在 154px 的盘心里要折成三行。
+   基础样式的 max-height:34px 只够两行半，实测在字符中间切一刀（「…那种干」）。
+   126px 可用高扣掉 kicker 14 + 主词 24 + 重新开始 20 + 三条 gap 15 = 53px，
+   给 52px 正好容纳三行 12px/1.35 = 48.6，不再切字。 */
+.wheel .disc-hub.is-picked .hub-desc {; }
+/* 选定态行距收紧半档，把上面算出来的 53px 留出 1px 余量给亚像素。
+   只动 line-height 不动 font-size —— 字号已经压在 12px 下限上了。 */
+.wheel .disc-hub.is-picked .hub-desc { line-height: 1.35; }
+/* 已选定：整块翻墨（瑞士表达"确定"的惯用手法），并抬起一层 */
+.wheel .disc-hub.is-picked {
+  background: var(--ink);
+  border-color: var(--ink);;
+}
+.wheel .disc-hub.is-hover {; }
+
+/* --- 轮盘外圈：选中用水洗底 + 主蓝描边 + 极淡同色投影 --- */
+.wheel .sector-shape,
+.wheel .mid-layer .sector-shape {
+  transition: fill var(--t-hover) var(--ease), stroke var(--t-hover) var(--ease);
+}
+.wheel .sector-g.is-on .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--blue);
+  stroke-width: 2;
+}
+
+/* ---------------------------------------------------------------
+   3. 转场：进场与区块切换共用 --ease，位移 ≤8px，只动 transform/opacity
+   --------------------------------------------------------------- */
+.fade-in {
+  animation: rise-in var(--t-move) var(--ease) both;
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 盘心换字：同一缓动，位移 4px（比区块小，因为它只是"换了个词"） */
+@keyframes hub-swap {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 结果卡片进场：第二、三张各延迟 60ms、120ms，形成阅读顺序 */
+article.pick {
+  border-radius: var(--radius);
+  animation: rise-in var(--t-move) var(--ease) both;
+}
+article.pick:nth-of-type(2) { animation-delay: 60ms; }
+article.pick:nth-of-type(3) { animation-delay: 120ms; }
+
+/* 家族详情区切换：只淡入，不位移（它在圆盘正下方，位移会撞到盘） */
+.fam-panel { animation: fade-only var(--t-hover) var(--ease) both; }
+@keyframes fade-only { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------------------------------------------------------------
+   4. 细节：光标、热区、层叠、加载形态
+   --------------------------------------------------------------- */
+/* 所有可点元素统一 pointer；禁用态统一 not-allowed（已在 .btn:disabled 定义） */
+a, button, .chip, .opt, .disc-sector, .wheel .hub-reset { cursor: pointer; }
+
+/* 热区下限：视觉可以小，命中区不能小。用伪元素向外扩，
+   不影响布局 —— 这是"44px 触达"最不侵入的写法。 */
+.pick-foot a,
+footer.foot a,
+.wheel .hub-reset {
+  position: relative;
+}
+.pick-foot a::after,
+footer.foot a::after,
+.wheel .hub-reset::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  translate: -50% -50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  /* 不设 background，靠空盒撑开命中区 */
+}
+
+/* 层叠：内容页在 grain 之上，grain 不拦截交互 */
+body { position: relative; }
+#app { position: relative; z-index: 1; }
+
+/* 滚动层次：粘性页眉会遮住锚点转场，这里不启用；改用 scroll-margin 给锚点留白 */
+:target { scroll-margin-top: 24px; }
+
+/* 骨架屏：弧线改用同一缓动，去掉呼吸感强的透明度脉动 */
+.skeleton-ring::before {
+  animation: skeleton-sweep 1.4s linear infinite;
+}
+
+/* ---------------------------------------------------------------
+   5. 自检相关：系统减少动效 / 窄屏 / 低性能
+   --------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  /* 只留 opacity 变化，位移全部取消，时长压到 1ms 而非 0 ——
+     0 会让某些浏览器把 transitionend 事件吞掉，依赖它的 JS 会挂。 */
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  .fade-in, article.pick, .fam-panel { animation: none; }
+  .btn:active, .chip:active, .btn.ghost:active { transform: none; }
+}
+
+/* 低性能设备：用粗粒度指针 + 无 hover 能力做代理判断。
+   这类设备上悬停本来就不存在，去掉 hover 位移可以省掉一层合成。 */
+@media (hover: none) {
+  .btn:hover { background: linear-gradient(160deg, var(--blue) 0%, var(--blue-deep) 130%); }
+  .chip:hover { border-color: var(--line); color: var(--ink-2); }
+  .opt:hover { background: transparent; }
+}
+
+/* 窄屏：圆角与热区不变，只收字号；蓝的用量不因屏幕小而增加 */
+@media (max-width: 620px) {
+  :root { --radius: 4px; --radius-lg: 6px; }
+  .wheel .disc-hub { border-radius: var(--radius); }
+}
+
+/* hub-zh 从 18px 提到 22px 档后，选定态盘心（154.2px）内部高度被挤到 127 > 126.2，
+   文字会顶到边框。回收 padding 与 gap 补回来 —— 不缩字号，只减留白。 */
+.wheel .disc-hub.is-picked {
+  padding: 11px 13px;
+  gap: 3px;
+}
+.wheel .disc-hub.is-picked .hub-desc { max-height: 48px; }

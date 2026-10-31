@@ -83,7 +83,7 @@
 /* 标本线稿必须跟着换底色一起换线色。
    原来写死 rgba(255,255,255,.82) 是给墨底配的；底变白之后
    白线画在白盘上等于图形消失 —— 「换底不换线」是改配色最容易漏的一处。 */
-.wheel .plate-svg { stroke: var(--ink-2); }
+.wheel .plate-svg {; }
 .wheel .plate-rule { background: var(--line); }
 .wheel .plate-cap { color: var(--ink-3); }
 
