@@ -218,6 +218,20 @@ ok('扇区是真实 button', appRoot.querySelectorAll('button.disc-sector').leng
 ok('圆盘有 radiogroup 语义', appRoot.querySelectorAll('[role="radiogroup"]').length >= 1,
   `实际 ${appRoot.querySelectorAll('[role="radiogroup"]').length}`);
 ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null);
+/* ---------- U1：窄屏标签的命中垫 ----------
+   390 展开态下 .lvl1 的元素盒只有 39x26（收窄是被迫的：不收会压到中圈标签），
+   靠 ::before 铺一层透明垫扩到 44x44。断言钉住"垫子存在且够大"。
+   纯 CSS 的几何在 DOM 桩里量不到，所以这里只验规则本身写对了。 */
+{
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  ok('窄屏家族标签有 44px 高的命中垫',
+    /\.wheel\.is-open \.label-layer \.disc-sector\.lvl1::before\s*\{[^}]*height:\s*44px/.test(css),
+    '缺 .lvl1::before 的 44px 垫');
+  ok('中圈弧段标签也有命中垫',
+    /\.wheel \.disc-sector\.lvl2\.sub-arc-btn::before\s*\{[^}]*height:\s*max\(100%,\s*44px\)/.test(css),
+    '缺 .sub-arc-btn::before 的垫');
+}
+
 
 // 闭合态盘心必须填满内孔：外环与盘心连成一整块圆盘。
 // 若只取内接正方形（42.7%），四周会留一圈白，读起来像「环 + 贴在环上的一张卡」。

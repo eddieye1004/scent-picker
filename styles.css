@@ -5152,3 +5152,56 @@ body { position: relative; }
   line-height: 1.5;
   color: var(--ink-3);
 }
+
+
+/* ---------------- U1：窄屏展开态的家族标签命中区 ----------------
+
+   实测（390 视口，展开态）：`.disc-sector.lvl1` 命中区只有 **39×26**，
+   低于 WCAG 2.5.8 的 24×24、也低于移动端惯例的 44×44。
+
+   成因不是"盒子忘了写"，而是**盒子的尺寸是被迫收窄的**：
+   `_wheel8.css:201` 那条规则在 ≤620px 且展开态时把 lvl1 收到
+   `min-width:0; min-height:26px; height:26px; padding:0 2px` ——
+   不收的话 56px 的最小宽度会让三字标签在斜向位置压到中圈标签上。
+
+   所以不能直接撑大盒子（会重新压标签）。做法是把**命中区**与**视觉尺寸**分开：
+   用 ::before 铺一层透明垫，向外扩到 44px 高，但它绝对定位、不占布局，
+   不影响标签的排布位置。
+
+   为什么是 ::before 而不是 ::after：这条规则里 ::after 已经被
+   `.wheel::after` 的轮廓占用了（虽然那是 .wheel 不是 .disc-sector，
+   但同名的伪元素在阅读时容易混），用 ::before 更清楚。
+
+   透明垫的 z-index 必须低于文字：它是 .disc-sector 的子元素，
+   文字是 ::before 之外的文本节点，天然在上层，无需额外设置。 */
+@media (max-width: 620px) {
+  .wheel.is-open .label-layer .disc-sector.lvl1::before {
+    content: '';
+    position: absolute;
+    /* 以盒子中心为基准，向外扩到至少 44×44 */
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: max(100%, 44px);
+    height: 44px;
+    /* 不吃事件以外的东西：点击落在垫子上等同于点在这一格 */
+    background: transparent;
+    border-radius: 8px;
+  }
+}
+
+/* 中圈弧段的标签同样只有 37px 高（实测 77×37），一并补垫。
+   它比 lvl1 好补一点：宽度已经够，只差高度。 */
+@media (max-width: 620px) {
+  .wheel .disc-sector.lvl2.sub-arc-btn::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    background: transparent;
+    border-radius: 8px;
+  }
+}

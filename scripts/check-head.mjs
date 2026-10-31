@@ -24,7 +24,7 @@ const ROOT = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\/([
 const NODE = process.execPath;
 
 const SUITES = [
-  ['test-render.mjs', 176],
+  ['test-render.mjs', 178],
   ['test-contrast.mjs', 34],
   ['test-scoring.mjs', 106],
   ['test-compliance.mjs', 10],

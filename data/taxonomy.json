@@ -1,7 +1,7 @@
 {
-  "version": "2.1.0",
+  "version": "2.2.0",
   "authored": "2026-10-31",
-  "note": "本文件为原创编辑资产（家族/子家族划分与情绪映射为作者整理），不含任何第三方站点的描述性文字。香调名词本身属于事实性信息。 | 2026-10-28 补 notesZh：情绪锚点香调的中文名，供理由文案回显。 | 2026-10-31 v2.0.0：按 _audit/CLASSIFICATION-AUDIT-20261031.md 的 P0–P3 处置执行，32 类 → 28 类（合并 3、降级 2、拆分 1），并同步 noteIndex 与全部 notes。 | 2026-10-31 v2.1.0：四族（citrus/woody/floral/amber）新增优先级级联 rules 与每类 boundary；不增删小类，fresh/gourmand 结构未动。",
+  "note": "本文件为原创编辑资产（家族/子家族划分与情绪映射为作者整理），不含任何第三方站点的描述性文字。香调名词本身属于事实性信息。 | 2026-10-28 补 notesZh：情绪锚点香调的中文名，供理由文案回显。 | 2026-10-31 v2.0.0：按 _audit/CLASSIFICATION-AUDIT-20261031.md 的 P0–P3 处置执行，32 类 → 28 类（合并 3、降级 2、拆分 1），并同步 noteIndex 与全部 notes。 | 2026-10-31 v2.1.0：四族（citrus/woody/floral/amber）新增优先级级联 rules 与每类 boundary；不增删小类，fresh/gourmand 结构未动。 | 2026-10-31 v2.1.0：四族（citrus/woody/floral/amber）新增优先级级联 rules 与每类 boundary；不增删小类，fresh/gourmand 结构未动。 | 2026-11-01 v2.2.0：合并冷/暖焚香→焚香、香草/辛香琥珀→琥珀、芳香木质/苔藓木质/干燥木质→木质（24 类）。规则表同步重写；木质新增 sandalwood 优先于 vetiver 的显式次序。旧 note：2026-10-31 v2.1.0：四族（citrus/woody/floral/amber）新增优先级级联 rules 与每类 boundary；不增删小类，fresh/gourmand 结构未动。",
   "families": [
     {
       "id": "citrus",
@@ -21,7 +21,7 @@
             "lavender",
             "musk"
           ],
-          "descWheel": "柠檬酸亮 + 薰衣草凉 + 一点麝香",
+          "descWheel": "不是香型，是\"剩下\"：不含花、不含叶、不含草本的柑橘",
           "tier": 1,
           "boundary": {
             "check": [
@@ -38,7 +38,8 @@
               "Creed Himalaya",
               "MFK Aqua Universalis"
             ]
-          }
+          },
+          "short": "只有果皮：柠檬佛手柑的明亮，没有花没有叶没有草本"
         },
         {
           "id": "green-citrus",
@@ -51,7 +52,7 @@
             "grapefruit",
             "violet leaf"
           ],
-          "descWheel": "未熟的青皮，酸而带涩",
+          "descWheel": "苦橙叶的涩绿 · 一颗青皮",
           "tier": 1,
           "requires": [
             "petitgrain",
@@ -68,7 +69,8 @@
             "examples": [
               "Versace Pour Homme（含 petitgrain）"
             ]
-          }
+          },
+          "short": "掐断的枝：苦橙叶、白松香，涩的绿不是甜的果"
         },
         {
           "id": "citrus-floral",
@@ -76,11 +78,12 @@
           "en": "Citrus Floral",
           "desc": "柑橘打头，中调转白花：橙花是桥梁，茉莉是落点",
           "notes": [
-            "neroli / orange blossom",
+            "neroli",
+            "orange blossom",
             "jasmine",
             "orange"
           ],
-          "descWheel": "柑橘打头，中调转白花或橙花",
+          "descWheel": "橙花当桥 · 柑橘转白花",
           "tier": 1,
           "boundary": {
             "check": [
@@ -92,7 +95,8 @@
             "examples": [
               "Creed Silver Mountain Water"
             ]
-          }
+          },
+          "short": "橙花当桥：柑橘开头，中调转白花"
         },
         {
           "id": "aromatic-citrus",
@@ -105,7 +109,7 @@
             "rosemary",
             "sage"
           ],
-          "descWheel": "佛手柑 + 薰衣草迷迭香，皂感",
+          "descWheel": "薰衣草的皂 · 剃须水",
           "tier": 2,
           "requires": [
             "lavender",
@@ -123,7 +127,8 @@
             "examples": [
               "Montale Red Aoud（lavender）"
             ]
-          }
+          },
+          "short": "剃须水味：薰衣草迷迭香压上来，皂感凉"
         }
       ],
       "representativeNotes": [
@@ -485,48 +490,15 @@
           ],
           "boundary": {
             "check": [
-              "不含 oud / 杜松 / 鼠尾草 / （橡苔+广藿香）",
-              "含 sandalwood（不论是否同时含 vetiver）"
+              "不含前述任何",
+              "含 sandalwood",
+              "不含 vetiver"
             ],
             "exclude": [
-              "无（与香根草同现时归本类，见 2026-10-31 裁决）"
+              "含香根草 → 香根草"
             ],
             "examples": [
-              "Kilian Angels' Share"
-            ]
-          }
-        },
-        {
-          "id": "dry-woody",
-          "zh": "干燥木质",
-          "en": "Dry Woody",
-          "desc": "雪松、愈创木、降龙涎：像铅笔屑和干燥木箱，必须是\"纯块状干木\"",
-          "notes": [
-            "cedarwood",
-            "guaiac wood",
-            "ambroxan"
-          ],
-          "descWheel": "雪松一类，干、脆、不带水汽",
-          "tier": 1,
-          "form": "dry-block",
-          "excludes": [
-            [
-              "vetiver"
-            ],
-            [
-              "sandalwood"
-            ]
-          ],
-          "boundary": {
-            "check": [
-              "不含 oud / 杜松 / 鼠尾草 / 橡苔+广藿香 / 檀木 / 香根草"
-            ],
-            "exclude": [
-              "以上任一成立即归对应类"
-            ],
-            "examples": [
-              "MFK Baccarat Rouge 540",
-              "Parfums de Marly Layton"
+              "Kilian Angels' Share（据库内 notes 无 vetiver）"
             ]
           }
         },
@@ -550,72 +522,11 @@
               "不含 sandalwood"
             ],
             "exclude": [
-              "含檀木 → 檀木（檀木优先）"
+              "含檀木 → 檀木（优先级 50 兜到最后）",
+              "注：檀木规则含 not vetiver，故 vetiver+sandalwood 的实际归属见 priority 40 先判"
             ],
             "examples": [
               "Parfums de Marly Delina"
-            ]
-          }
-        },
-        {
-          "id": "mossy",
-          "zh": "苔藓木质",
-          "en": "Mossy / Chypre",
-          "desc": "林地上的苔与土：橡苔给苔藓土腥，广藿香给土层，佛手柑提亮（desc 写了柑橘，notes 终于补上）",
-          "notes": [
-            "oakmoss",
-            "patchouli",
-            "bergamot"
-          ],
-          "descWheel": "橡苔+柑橘，复古、有厚度",
-          "tier": 1,
-          "form": "moss-earth",
-          "requires": [
-            "oakmoss",
-            "patchouli"
-          ],
-          "boundary": {
-            "check": [
-              "不含 oud、不含杜松/鼠尾草",
-              "含 oakmoss 且含 patchouli"
-            ],
-            "exclude": [
-              "只有广藿香 → 干燥木质",
-              "只有橡苔 → 干燥木质"
-            ],
-            "examples": [
-              "Mancera Cedrat Boise"
-            ]
-          }
-        },
-        {
-          "id": "woody-aromatic",
-          "zh": "芳香木质",
-          "en": "Woody Aromatic",
-          "desc": "松林与理发店之间：杜松与鼠尾草的草本凉，压在雪松木骨架上",
-          "notes": [
-            "juniper",
-            "sage",
-            "cedarwood",
-            "rosemary"
-          ],
-          "descWheel": "木头加薰衣草迷迭香，干净",
-          "tier": 2,
-          "form": "herb-wood",
-          "requires": [
-            "juniper",
-            "sage"
-          ],
-          "boundary": {
-            "check": [
-              "不含 oud",
-              "含 juniper 或 sage"
-            ],
-            "exclude": [
-              "含橡苔 + 广藿香但无杜松/鼠尾草 → 苔藓木质"
-            ],
-            "examples": [
-              "Creed Aventus（据库内 notes）"
             ]
           }
         },
@@ -643,6 +554,48 @@
               "Montale Black Aoud"
             ]
           }
+        },
+        {
+          "id": "woody",
+          "zh": "木质",
+          "en": "Woody",
+          "desc": "除檀木与香根草之外的木质：雪松、愈创木的干裂，橡苔与广藿香的土苔，杜松与鼠尾草的草本压在木上",
+          "notes": [
+            "juniper",
+            "sage",
+            "cedarwood",
+            "rosemary",
+            "oakmoss",
+            "patchouli",
+            "bergamot",
+            "guaiac wood",
+            "ambroxan"
+          ],
+          "descWheel": "木头加薰衣草迷迭香，干净",
+          "tier": 1,
+          "form": "herb-wood",
+          "requires": [
+            "juniper",
+            "sage"
+          ],
+          "boundary": {
+            "check": [
+              "不含 oud",
+              "含 juniper 或 sage"
+            ],
+            "exclude": [
+              "含橡苔 + 广藿香但无杜松/鼠尾草 → 苔藓木质"
+            ],
+            "examples": [
+              "Creed Aventus（据库内 notes）"
+            ]
+          },
+          "representativeNotes": [],
+          "mergedFrom": [
+            "woody-aromatic",
+            "mossy",
+            "dry-woody"
+          ]
         }
       ],
       "representativeNotes": [
@@ -680,52 +633,34 @@
           "why": "乌木的树脂+动物感强度会盖掉其它木质，必须先判"
         },
         {
-          "id": "woody-aromatic",
+          "id": "sandalwood",
           "priority": 20,
           "any": [
-            "juniper",
-            "sage"
+            "sandalwood"
           ],
-          "why": "杜松/鼠尾草是\"草本压在木上\"的唯一标志，若无则不是芳香木质"
-        },
-        {
-          "id": "mossy",
-          "priority": 30,
-          "must": [
-            "oakmoss",
-            "patchouli"
-          ],
-          "why": "苔藓木质＝苔（橡苔）+ 土（广藿香）两件齐备；只有广藿香的归干燥木质"
+          "why": "檀木优先（2026-10-31 裁决）：与香根草同现时归檀木"
         },
         {
           "id": "vetiver",
-          "priority": 50,
+          "priority": 30,
           "any": [
             "vetiver"
           ],
           "not": [
             "sandalwood"
           ],
-          "why": "香根草是\"根 + 湿土\"；含檀木的一律归檀木（檀木优先），本类只收\"没有檀木的根\""
+          "why": "香根草＝根 + 湿土；含檀木的归檀木"
         },
         {
-          "id": "sandalwood",
-          "priority": 40,
-          "any": [
-            "sandalwood"
-          ],
-          "why": "檀木是\"刨花 + 乳香\"；与香根草同现时按檀木处理（2026-10-31 裁决：檀木优先）"
-        },
-        {
-          "id": "dry-woody",
+          "id": "woody",
           "priority": 90,
           "always": true,
           "fallback": true,
-          "why": "兜底：雪松/愈创木这类干裂块，以及与上述都不冲突的木质"
+          "why": "兜底木质：干裂木（雪松/愈创木）、土苔（橡苔+广藿香）、草本压木（杜松/鼠尾草）在 v2.2 合并为一类"
         }
       ],
       "rulesVersion": "2026-10-31",
-      "rulesNote": "族内优先级级联：priority 从小到大，第一个通过即归属，最后一个为兜底。判定字段：must（必须全中）/ any（至少一个）/ not（一个都不能中）/ always（无条件）。 | 2026-10-31 裁决：檀木优先于香根草（sandalwood priority 40 > vetiver 50，vetiver 单方面排除 sandalwood）。"
+      "rulesNote": "族内优先级级联：priority 从小到大，第一个通过即归属，最后一个为兜底。判定字段：must（必须全中）/ any（至少一个）/ not（一个都不能中）/ always（无条件）。"
     },
     {
       "id": "amber",
@@ -735,15 +670,19 @@
       "beginnerFriendly": 2,
       "subfamilies": [
         {
-          "id": "vanilla-amber",
-          "zh": "香草琥珀",
-          "en": "Vanilla Amber",
-          "desc": "香草在前、树脂在后：香兰素的乳甜，安息香的甜树脂，劳丹脂的深色底",
+          "id": "amber",
+          "zh": "琥珀",
+          "en": "Amber",
+          "desc": "甜暖树脂的统称：香草的奶甜、安息香与劳丹脂的膏甜、肉桂豆蔻的辛甜都归这里",
           "notes": [
             "vanilla",
             "benzoin",
             "labdanum",
-            "amber"
+            "amber",
+            "cinnamon",
+            "cardamom",
+            "saffron",
+            "clove"
           ],
           "descWheel": "香草+安息香+劳丹脂，甜暖厚",
           "tier": 1,
@@ -760,44 +699,24 @@
             "examples": [
               "MFK Grand Soir"
             ]
-          }
+          },
+          "representativeNotes": [],
+          "mergedFrom": [
+            "vanilla-amber",
+            "spicy-amber"
+          ]
         },
         {
-          "id": "spicy-amber",
-          "zh": "辛香琥珀",
-          "en": "Spicy Amber",
-          "desc": "像咬一口肉桂卷：先甜后辣，辣在鼻腔后部。肉桂是主料，豆蔻给圆，藏红花给干燥药感，丁香给\"刺\"",
-          "notes": [
-            "cinnamon",
-            "cardamom",
-            "saffron",
-            "clove"
-          ],
-          "descWheel": "辛香与树脂，冬天夜里",
-          "tier": 1,
-          "boundary": {
-            "check": [
-              "不含前述",
-              "含 cinnamon / cardamom / saffron / clove 之一",
-              "不含 vanilla"
-            ],
-            "exclude": [
-              "含香草 → 香草琥珀"
-            ],
-            "examples": [
-              "Montale Arabians Tonka（cinnamon）"
-            ]
-          }
-        },
-        {
-          "id": "incense-cold",
-          "zh": "冷焚香",
-          "en": "Cold Incense",
-          "desc": "烟与灰烬，冷调：乳香树脂在低温下烧，带教堂石头的凉；桦木给焦",
+          "id": "incense",
+          "zh": "焚香",
+          "en": "Incense",
+          "desc": "烟与树脂的一炉香：乳香、没药、安息香都可能出现，冷与暖只是甜树脂的多寡",
           "notes": [
             "incense",
             "frankincense",
-            "birch"
+            "birch",
+            "benzoin",
+            "cinnamon"
           ],
           "descWheel": "烟熏、灰烬、干燥，冷调焚香与暖调焚香差别很大",
           "tier": 1,
@@ -816,38 +735,12 @@
             "examples": [
               "Afnan Supremacy Incense"
             ]
-          }
-        },
-        {
-          "id": "incense-warm",
-          "zh": "暖焚香",
-          "en": "Warm Incense",
-          "desc": "烟与树脂，暖调：寺庙里的甜烟，树脂先于烟，香草与肉桂把烟压暖",
-          "notes": [
-            "incense",
-            "benzoin",
-            "cinnamon"
-          ],
-          "descWheel": "烟熏、灰烬、干燥，冷调焚香与暖调焚香差别很大",
-          "tier": 2,
-          "requires": [
-            "incense",
-            "benzoin"
-          ],
-          "splitFrom": "incense",
-          "boundary": {
-            "check": [
-              "不含 leather",
-              "含 incense 或 frankincense",
-              "含 benzoin"
-            ],
-            "exclude": [
-              "无"
-            ],
-            "examples": [
-              "暖焚香 6 瓶，见 rules-report.md"
-            ]
-          }
+          },
+          "representativeNotes": [],
+          "mergedFrom": [
+            "incense-cold",
+            "incense-warm"
+          ]
         },
         {
           "id": "resinous",
@@ -943,58 +836,29 @@
           "why": "皮革是结构（烟熏+药感+树脂），一旦出现会主导整个后调"
         },
         {
-          "id": "incense-cold",
+          "id": "resinous",
           "priority": 20,
-          "any": [
-            "incense",
-            "frankincense"
+          "must": [
+            "benzoin",
+            "labdanum"
           ],
-          "not": [
-            "benzoin"
-          ],
-          "why": "冷焚香＝烟 + 乳香树脂，没有甜树脂来压暖"
+          "why": "树脂只谈树脂本身：安息香 + 劳丹脂是它的最小构成"
         },
         {
-          "id": "incense-warm",
+          "id": "incense",
           "priority": 30,
           "any": [
             "incense",
             "frankincense"
           ],
-          "must": [
-            "benzoin"
-          ],
-          "why": "暖焚香＝同一炉烟里加了安息香，甜树脂把烟压暖"
+          "why": "焚香＝烟 + 乳香；冷/暖于 v2.2 合并，不再按安息香的有无区分"
         },
         {
-          "id": "resinous",
-          "priority": 40,
-          "must": [
-            "benzoin",
-            "labdanum"
-          ],
-          "why": "树脂类只谈树脂本身，安息香 + 劳丹脂是它的最小构成"
-        },
-        {
-          "id": "spicy-amber",
-          "priority": 50,
-          "any": [
-            "cinnamon",
-            "cardamom",
-            "saffron",
-            "clove"
-          ],
-          "not": [
-            "vanilla"
-          ],
-          "why": "辛香是\"肉桂/豆蔻/藏红花/丁香\"的辣；有香草的归香草琥珀"
-        },
-        {
-          "id": "vanilla-amber",
+          "id": "amber",
           "priority": 90,
           "always": true,
           "fallback": true,
-          "why": "兜底：香草与琥珀的甜暖是这一族的地基"
+          "why": "兜底琥珀：香草奶甜、安息香膏甜、肉桂豆蔻辛甜都在这里（v2.2 由香草琥珀+辛香琥珀合并）"
         }
       ],
       "rulesVersion": "2026-10-31",
@@ -1554,7 +1418,7 @@
         "zh": "雪松",
         "en": "cedar",
         "family": "woody",
-        "subfamily": "dry-woody",
+        "subfamily": "woody",
         "aliases": [
           "cedar",
           "cedarwood"
@@ -1576,7 +1440,7 @@
         "zh": "广藿香",
         "en": "patchouli",
         "family": "woody",
-        "subfamily": "mossy"
+        "subfamily": "woody"
       },
       {
         "zh": "乌木",
@@ -1588,13 +1452,13 @@
         "zh": "橡苔",
         "en": "oakmoss",
         "family": "woody",
-        "subfamily": "mossy"
+        "subfamily": "woody"
       },
       {
         "zh": "琥珀",
         "en": "amber",
         "family": "amber",
-        "subfamily": "vanilla-amber",
+        "subfamily": "amber",
         "aliases": [
           "amber",
           "ambergris",
@@ -1624,7 +1488,7 @@
         "zh": "焚香",
         "en": "incense",
         "family": "amber",
-        "subfamily": "incense-cold",
+        "subfamily": "incense",
         "aliases": [
           "incense"
         ]
@@ -1639,13 +1503,13 @@
         "zh": "藏红花",
         "en": "saffron",
         "family": "amber",
-        "subfamily": "spicy-amber"
+        "subfamily": "amber"
       },
       {
         "zh": "肉桂",
         "en": "cinnamon",
         "family": "amber",
-        "subfamily": "spicy-amber"
+        "subfamily": "amber"
       },
       {
         "zh": "香草",
@@ -1779,25 +1643,25 @@
         "zh": "杜松",
         "en": "juniper",
         "family": "woody",
-        "subfamily": "woody-aromatic"
+        "subfamily": "woody"
       },
       {
         "zh": "迷迭香",
         "en": "rosemary",
         "family": "woody",
-        "subfamily": "woody-aromatic"
+        "subfamily": "woody"
       },
       {
         "zh": "柏树",
         "en": "cypress",
         "family": "woody",
-        "subfamily": "woody-aromatic"
+        "subfamily": "woody"
       },
       {
         "zh": "薄荷",
         "en": "mint",
         "family": "woody",
-        "subfamily": "woody-aromatic"
+        "subfamily": "woody"
       },
       {
         "zh": "桃子",
@@ -1851,7 +1715,7 @@
         "zh": "安息香",
         "en": "benzoin",
         "family": "amber",
-        "subfamily": "incense-warm"
+        "subfamily": "incense"
       },
       {
         "zh": "海盐",
@@ -1990,5 +1854,7 @@
       "4": "长（5-8h）",
       "5": "很长（8h+）"
     }
-  }
+  },
+  "updated": "2026-11-01",
+  "mergeNote": "v2.2 依用户指令合并：冷焚香+暖焚香→焚香；香草琥珀+辛香琥珀→琥珀；芳香木质+苔藓木质+干燥木质→木质。28 类 → 24 类，目的是降低新手区分难度。"
 }

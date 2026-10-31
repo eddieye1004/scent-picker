@@ -778,21 +778,6 @@ const SUB_MARKS = {
   // 辛香琥珀：一枚八角，连同一只短柄。
   // 八角是"辛香"里唯一自带几何识别的原料：八枚舟形蓇葖围成一圈，
   // 这个轮廓与所有同心圆类（玫瑰/檀木/咖啡豆）都不共享。
-  'spicy-amber': () => {
-    const arms = [];
-    for (let k = 0; k < 8; k++) {
-      arms.push({
-        tag: 'path',
-        attrs: k ? { d: 'M12 12.6L12 3.6' , transform: 'rotate(' + (k * 45) + ' 12 12.6)' } : { d: 'M12 12.6L12 3.6' },
-      });
-    }
-    return [
-      ...arms,
-      { tag: 'circle', attrs: { cx: 12, cy: 12.6, r: 2.6 } },
-    ];
-  },
-  // 绿叶花香（铃兰）：弯茎上挂三枚钟形花。
-  // 钟形必须"上宽下收"；画成圆点就退化成「枝上几个点」。
   'green-floral': () => [
     { tag: 'path', attrs: { d: 'M15.8 21.4C15.8 16.4 14.4 10.8 9.6 6.2' } },
     { tag: 'path', attrs: { d: 'M15 17.6C13.4 16.4 11.4 16.6 10.2 18.2C11.4 19.8 13.4 19.8 15 17.6Z' } },
@@ -825,7 +810,7 @@ const SUB_MARKS = {
   ],
   // 干燥木质：一段躺着的木料 + 端面椭圆 + 两道干裂。
   // 干裂是"干"的唯一视觉证据，必须从外沿崩进去，不能悬在中间。
-  'dry-woody': () => [
+  woody: () => [
     { tag: 'path', attrs: { d: 'M6.6 8.6H16.4C18.4 8.6 20 10.2 20 12.2V13.4C20 15.4 18.4 17 16.4 17H6.6Z' } },
     { tag: 'ellipse', attrs: { cx: 6.6, cy: 12.8, rx: 2, ry: 4.2 } },
     { tag: 'path', attrs: { d: 'M11.6 9V12.2L9.8 14.6M15.2 9.2V11.6L16.8 13.4' } },
@@ -841,21 +826,6 @@ const SUB_MARKS = {
   ],
   // 苔藓木质：一块隆起的岩 + 坡上三簇苔。
   // 苔用"两三瓣小叶簇"而不是点阵：点阵在这个尺寸会糊成一坨脏点。
-  mossy: () => [
-    { tag: 'path', attrs: { d: 'M4 20.8C4 16.6 5.8 12.8 8.8 11C10.6 10 12.6 10.4 14 11.8C16 13.6 18 16.6 18 20.8Z' } },
-    { tag: 'path', attrs: { d: 'M7.4 13.4C6.2 12.4 5.8 10.8 6.4 9.4C7.6 10.2 8.2 11.8 7.4 13.4Z' } },
-    { tag: 'path', attrs: { d: 'M10.6 11.6C10.2 10.2 10.6 8.8 11.6 7.8C12.4 9 12.2 10.6 10.6 11.6Z' } },
-    { tag: 'path', attrs: { d: 'M13.6 11.4C14.4 10.2 15.8 9.6 17.2 9.8C16.8 11.2 15.4 12 13.6 11.4Z' } },
-  ],
-  // 芳香木质：一根斜枝 + 两片左右相对的叶。
-  // 芳香木质是"木 + 香草"的合体，枝与叶必须同时在场、各占一半。
-  'woody-aromatic': () => [
-    { tag: 'path', attrs: { d: 'M5.2 21.4C8 17.6 10.4 13.6 12 9.6' } },
-    { tag: 'path', attrs: { d: 'M12 9.6C14.6 7.8 17.4 8 19.2 10C17.4 12 14.6 12.2 12 9.6Z' } },
-    { tag: 'path', attrs: { d: 'M9.4 13.8C6.8 12.6 4.4 13.4 3.2 15.8C5.6 17 8.2 16.2 9.4 13.8Z' } },
-  ],
-  // 乌木（沉香）：一块不规则木料 + 一圈结脂旋纹。
-  // 沉香的价值在"结油"，内部必须是旋纹而不是直纹；直纹会读成普通木纹。
   oud: () => [
     { tag: 'path', attrs: { d: 'M7 6.2L16.8 5.4L19 14.6L13.6 19.8L5.6 16.4Z' } },
     { tag: 'path', attrs: { d: 'M12.4 9.4C9.8 9.4 8 11 8 13.2C8 15.4 9.8 17 12.4 17C14.6 17 16.2 15.6 16.2 13.8C16.2 12 14.6 10.8 12.8 10.8' } },
@@ -864,7 +834,7 @@ const SUB_MARKS = {
   /* ---- 东方琥珀调 ---- */
   // 香草琥珀：一根弯曲的香草荚 + 内嵌三粒籽。
   // 荚必须"细长微弯"：直的矩形会读成巧克力棒，太宽会读成叶子。
-  'vanilla-amber': () => [
+  amber: () => [
     { tag: 'path', attrs: { d: 'M13.4 3.4C15.6 8 15.8 13.4 13.8 20.2C12 19.4 10.8 17.4 10.6 14.8C10.2 10.6 11.2 6.4 13.4 3.4Z' } },
     { tag: 'circle', attrs: { cx: 12.7, cy: 8.2, r: 0.8 } },
     { tag: 'circle', attrs: { cx: 12.4, cy: 12.2, r: 0.8 } },
@@ -872,14 +842,7 @@ const SUB_MARKS = {
   ],
   // 暖焚香：香锥 + 底盘 + 两道短烟。
   // 与冷焚香的"三支直立线香"形态完全不同 —— 同族两格必须是两种结构，不是粗细差别。
-  'incense-warm': () => [
-    { tag: 'path', attrs: { d: 'M12 4.6C13.6 6.6 16 12 16 15.4C16 17.6 14.2 19 12 19C9.8 19 8 17.6 8 15.4C8 12 10.4 6.6 12 4.6Z' } },
-    { tag: 'path', attrs: { d: 'M5.4 19.6H18.6C18.6 21 15.6 21.8 12 21.8C8.4 21.8 5.4 21 5.4 19.6Z' } },
-    { tag: 'path', attrs: { d: 'M12 2.8C10.6 2 11.2 0.9 12.4 0.9M15 3.4C13.6 2.6 14.2 1.5 15.4 1.5' } },
-  ],
-  // 焚香：三支线香插在香碟上，其中一支冒出一缕烟。
-  // 用"直立的香"而不是香炉 —— 香炉会与美食调的容器撞形。
-  'incense-cold': () => [
+  incense: () => [
     { tag: 'path', attrs: { d: 'M4.4 18.8H19.6C19.6 20.4 16.2 21.4 12 21.4C7.8 21.4 4.4 20.4 4.4 18.8Z' } },
     { tag: 'path', attrs: { d: 'M9 18.6V8.4M12.6 18.6V6.2M16.2 18.6V9.6' } },
     { tag: 'path', attrs: { d: 'M12.6 4.4C11.2 3.2 12.2 2.1 13.6 2.1' } },
@@ -949,34 +912,30 @@ const SUB_MARKS = {
 };
 
 const SUB_FIT = {
-  'aquatic': [0.9091, 1.091, 0.705],
+  aquatic: [0.9091, 1.091, 0.705],
   'aromatic-citrus': [0.9511, 0.587, 0.397],
   'citrus-floral': [0.9021, 1.175, 1.265],
-  'cologne': [1.1824, -2.189, -4.318],
-  'dry-woody': [1.1364, -1.977, -2.545],
-  'fougere': [1.1218, -1.069, -3.481],
+  cologne: [1.1824, -2.189, -4.318],
+  woody: [1.1364, -1.977, -2.545],
+  fougere: [1.1218, -1.069, -3.481],
   'fruity-floral': [1.0294, -0.353, -0.353],
   'fruity-gourmand': [1.0802, -0.423, -1.935],
-  'green': [1.2324, -1.636, -3.405],
+  green: [1.2324, -1.636, -3.405],
   'green-citrus': [1.4244, -5.093, -9.447],
   'green-floral': [1.1513, -0.319, -3.888],
-  'incense-cold': [0.9067, 1.119, 1.346],
-  'incense-warm': [0.9067, 1.119, 1.346],
-  'leather': [1.2854, -3.351, -4.429],
-  'mossy': [1.25, -1.75, -5.875],
-  'oud': [1.2153, -2.948, -3.313],
+  incense: [0.9067, 1.119, 1.346],
+  leather: [1.2854, -3.351, -4.429],
+  oud: [1.2153, -2.948, -3.313],
   'powdery-floral': [1.177, 3.281, -1.182],
-  'resinous': [0.9309, 0.83, 0.83],
-  'rose': [0.9756, -0.049, 0.38],
-  'sandalwood': [1.0057, -0.069, -0.17],
-  'soliflore': [1.024, -0.288, -0.008],
-  'spicy-amber': [0.9722, 0.333, -0.25],
-  'tea': [0.9615, 0.462, 0.75],
-  'vanilla-amber': [1.0417, -1.384, -0.292],
+  resinous: [0.9309, 0.83, 0.83],
+  rose: [0.9756, -0.049, 0.38],
+  sandalwood: [1.0057, -0.069, -0.17],
+  soliflore: [1.024, -0.288, -0.008],
+  tea: [0.9615, 0.462, 0.75],
+  amber: [1.0417, -1.384, -0.292],
   'vanilla-gourmand': [1.2736, -3.284, -4.623],
-  'vetiver': [1.0417, -0.5, -1.333],
+  vetiver: [1.0417, -0.5, -1.333],
   'white-floral': [1.0294, -0.353, -1.074],
-  'woody-aromatic': [1.0938, -0.25, -4.278],
 };
 
 const PLATE_FALLBACK = [{ tag: 'circle', attrs: { cx: 12, cy: 12, r: 7.4 } }];
@@ -2696,9 +2655,29 @@ function renderMood() {
     state.answers.characterTags = Object.keys(best.tags || {});
     state.answers.characterNeg = best.neg || [];
   }
-  const suggestNote = hasEnoughSignal
-    ? el('p', { class: 'chips-note' }, '按你前面回答的冷暖与甜度，最接近的是「' + best.zh + '」——不对就换一个')
-    : null;
+  /* 提示语要说的是"系统推荐哪一项"，而用户随时可能换选。
+     第一版把它写死成 best.zh（排序首项），点选别的之后文字不变 ——
+     实测：选「雨后林地」后提示仍是「最接近的是雨后林地」，
+     用户换成「皮革烟草」时这句话就成了错的。
+     改成跟随 state.answers.characterPreset：用户自己选的，
+     就不再显示"最接近的是 X"（那句话此时已无意义），
+     只保留"这是按你前面回答推出来的"这层信息。 */
+  const suggestNote = hasEnoughSignal ? el('p', { class: 'chips-note' }) : null;
+  const paintSuggest = () => {
+    if (!suggestNote) return;
+    const cur = state.answers.characterPreset;
+    const curItem = CHARACTER_PRESET.find((c) => c.id === cur);
+    if (!curItem) { suggestNote.textContent = ''; return; }
+    if (cur === best.id) {
+      suggestNote.textContent = '按你前面回答的冷暖与甜度，最接近的是「' + best.zh + '」——不对就换一个';
+      suggestNote.classList.remove('is-chosen');
+    } else {
+      /* 用户已改选：说清"这一项是你自己挑的"，不再冒充系统推荐 */
+      suggestNote.textContent = '你选的是「' + curItem.zh + '」（系统原本推荐「' + best.zh + '」）';
+      suggestNote.classList.add('is-chosen');
+    }
+  };
+  paintSuggest();
 
   wrap.appendChild(el('div', { class: 'chips-label' }, '① 整体气质（选一个）'));
   if (suggestNote) wrap.appendChild(suggestNote);
@@ -2712,6 +2691,7 @@ function renderMood() {
          src/scoring.js 的 characterTags 按"是否命中"判断，不看权重。 */
       state.answers.characterTags = Object.keys(picked.tags || {});
       state.answers.characterNeg = picked.neg || [];
+      paintSuggest();
     }
   ));
 
