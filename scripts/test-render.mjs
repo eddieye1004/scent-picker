@@ -871,6 +871,32 @@ for (const [n, phrase] of stepNames) {
      .choice-grid 原来只有子项 aria-pressed，容器是裸 div —— 读屏把一组单选
      念成"切换按钮"，既不知道是一组，也报不出"共几个、第几个"。
      断言写在这里而不是首屏，是因为首屏根本没有 .choice-grid。 */
+  if (n === 5) {
+    /* P2-4：滑块要有 5 个落点标记，且与档位对齐。
+       位置算法必须与浏览器画滑块的一致（手柄宽 20px，可用轨道 = 宽度 − 20px），
+       否则刻度会和手柄错开 —— 这条断言只看数量与亮起项，对齐由浏览器实测覆盖。 */
+    const ticks = appRoot.querySelectorAll('.scale-tick');
+    ok('浓郁度滑块有 5 个刻度落点', ticks.length === 5, `实际 ${ticks.length}`);
+    /* 亮起项要与滑块读数一致。测试跑在隔离 DOM 桩里、拿不到 state，
+       所以从界面上读：滑块是 5 档，.scale-read 里印着「3 / 5 · 中等」。 */
+    const onTick = [...ticks].findIndex((t) => t.classList.contains('is-on')) + 1;
+    const m = getStepText().match(/(\d)\s*\/\s*5/);
+    const shown = m ? Number(m[1]) : null;
+    ok('刻度亮起项与滑块读数一致', shown !== null && onTick === shown,
+      `亮第 ${onTick} 个，界面读数是 ${shown}`);
+  }
+  if (n === 6) {
+    /* E7：这一屏是全场唯一的多选卡片组，但它和单选组共用 .choice-grid。
+       没有显式文案与 aria-multiselectable 时，视觉与读屏都说不出"可以选多个"。 */
+    const t = getStepText();
+    ok('第 6 步写明「可多选」', t.includes('可多选'), t.slice(0, 80));
+    const g = appRoot.querySelector('.choice-grid');
+    ok('第 6 步容器标了 aria-multiselectable',
+      !!g && g.attrs['aria-multiselectable'] === 'true',
+      g ? String(g.attrs['aria-multiselectable']) : '(无 .choice-grid)');
+    ok('第 6 步不是 radiogroup（是多选）',
+      !!g && g.attrs.role !== 'radiogroup', g ? String(g.attrs.role) : '-');
+  }
   if (n === 3) {
     const grid = appRoot.querySelector('.choice-grid');
     ok('第 3 步的卡片组是 radiogroup', !!grid && grid.attrs.role === 'radiogroup',

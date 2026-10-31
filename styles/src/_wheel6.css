@@ -8,7 +8,6 @@
    五、图标统一视觉尺寸与线宽，常态与选中态分开。
    ============================================================ */
 
-
 /* ============================================================
    ② 返回入口：盘外左上角
    ------------------------------------------------------------
@@ -69,7 +68,6 @@
   .wheel .wheel-back { left: -2px; top: -6px; }
 }
 
-
 /* ============================================================
    ③ 缩小后的盘：六个扇区直接点，换大类
    ------------------------------------------------------------
@@ -87,12 +85,12 @@
 /* v7 的瓦片（.sub-arc / .sub-arc-btn）自己声明 pointer-events，见 _wheel7.css；
    这里只保留容器不吃事件这一条。 */
 
-.wheel.is-open .sector-g {;
+.wheel.is-open .sector-g {
   pointer-events: auto;
-  cursor: pointer;;
+  cursor: pointer;
 }
 .wheel.is-open .sector-g.is-hot:not(.is-on) { opacity: .55; }
-.wheel.is-open .sector-g.is-on {; }
+.wheel.is-open .sector-g.is-on { }
 .wheel.is-open .sector-g:not(.is-on) .sector-shape {
   stroke: var(--line);
   stroke-width: 1;
@@ -101,7 +99,6 @@
   stroke: var(--ink-2);
   stroke-width: 1.5;
 }
-
 
 /* ============================================================
    ⑤ 图标：常态与选中态分开
@@ -141,7 +138,6 @@
    所以这里把预览态显式打开：既有图、又留着"正在看"两个字。 */
 .wheel .disc-hub.has-glyph:not(.is-picked) .hub-kicker { display: block; }
 .wheel .disc-hub.has-glyph.is-picked .hub-kicker { display: none; }
-
 
 @media (prefers-reduced-motion: reduce) {
   .wheel .wheel-back:active { transform: none; }

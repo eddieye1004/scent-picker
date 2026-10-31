@@ -342,7 +342,6 @@
   transform-box: view-box;
 }
 
-
 /* ---------------- 六、确认强调：改成几何脉冲 ----------------
    v15 用 `filter: drop-shadow` 做脉冲，实测在 520px 盘上不可见 ——
    drop-shadow 的模糊从 0 到 10px，在 24px 厚的弧段上只是边缘微微发虚。

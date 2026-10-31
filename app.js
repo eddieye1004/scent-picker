@@ -1950,7 +1950,13 @@ function renderDislikedFamilies() {
     el('p', { class: 'q-help' }, stepHead('dislikedFamilies').help)
   ));
 
-  const box = el('div', { class: 'choice-grid' });
+  /* 「可多选」必须写出来。
+     这一屏是全场唯一的多选卡片组，但视觉上与第 3/4/5 步的单选卡片组一模一样
+     （同一套 .choice / .choice-grid）。此前只有 aria-pressed 表达多选，
+     读屏能读出"已按下/未按下"，眼睛看到的却是"这些卡只能选一个"。
+     补一行组标题，同时给容器补 aria-multiselectable 让语义与视觉对齐。 */
+  wrap.appendChild(el('div', { class: 'chips-label' }, '① 完全不想要的（可多选，也可以一个都不选）'));
+  const box = el('div', { class: 'choice-grid', role: 'group', 'aria-multiselectable': 'true' });
   (TAX.families || []).forEach((f) => {
     const on = (state.answers.dislikedFamilies || []).includes(f.id);
     const b = el('button', {
@@ -2431,11 +2437,33 @@ function renderStrength() {
     'aria-label': '浓郁度',
     oninput: (ev) => { state.answers.intensity = Number(ev.target.value); updateRead(); },
   });
-  wrap.appendChild(el('div', { class: 'scale' }, input,
+  /* 5 个档位要有落点标记。
+     原来只有一个滑块 + 两端文字，中间 5 档没有任何刻度 —— 用户拖到某个位置
+     说不出自己停在第几档，只能读下方那行文字才知道。刻度把"离散 5 档"
+     这件事直接画出来，也让"档"与"档"之间不再像连续量。
+
+     位置算法必须与浏览器画滑块的算法一致，否则刻度会和手柄错开：
+     手柄宽 20px，轨道可用宽度 = 100% − 20px，手柄中心从 10px 起。
+     所以第 i 档（i=0..4）的 left = 10px + i/4 × (100% − 20px)。
+     用 calc 表达，不写死像素值 —— 390 视口轨道 342px、1440 是 656px。 */
+  const ticks = el('div', { class: 'scale-ticks', 'aria-hidden': 'true' },
+    ...[0, 1, 2, 3, 4].map((i) => el('span', {
+      class: 'scale-tick' + (Number(state.answers.intensity) === i + 1 ? ' is-on' : ''),
+      style: 'left: calc(10px + ' + (i / 4) + ' * (100% - 20px));',
+    }))
+  );
+  const scale = el('div', { class: 'scale' }, input, ticks,
     el('div', { class: 'scale-ends' },
       el('span', {}, '← 清爽 / 淡'),
       el('span', {}, '浓 / 有分量 →')
-    )));
+    ));
+  wrap.appendChild(scale);
+  /* 拖动手柄时刻度要跟着亮 —— 只改 class，不重绘整屏（重绘会让滑块失焦）。 */
+  const paintTicks = () => {
+    const v = Number(state.answers.intensity);
+    [...ticks.children].forEach((t, i) => t.classList.toggle('is-on', v === i + 1));
+  };
+  input.addEventListener('input', paintTicks);
   updateRead();
   wrap.appendChild(read);
 

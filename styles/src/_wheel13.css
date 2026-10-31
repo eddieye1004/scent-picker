@@ -1,0 +1,215 @@
+/* ---------------- 三级描边：分层线（A9） ----------------
+
+   ============================================================
+   一、为什么需要这一组变量
+   ============================================================
+   盘的三个同心层原先各画各的边：外框由 `.wheel::after` 的 box-shadow 画，
+   中圈是 `.sub-channel` 的 stroke，盘心是 `.disc-hub` 的一圈 border + 内白线。
+   三处颜色互不相干（#9aa4bf / #b3bdd4 / #e8ebf4），对比度分别是
+   2.49 / 1.88 / 1.16 —— **由外向内越来越淡**，观感上盘心最"薄"、
+   外框最"实"，而视觉上应该反过来：越靠近内容、越靠近用户正在读的那一层，
+   线要越"重"。
+
+   实测三档对比度（白底 / #f5f5f5 底）：
+
+   | 层 | 旧色 | vs #fff | vs #f5f5f5 |
+   |---|---|---|---|
+   | 外框 | #9aa4bf | 2.49 | 2.28 |
+   | 中圈 | #b3bdd4 | 1.88 | 1.73 |
+   | 盘心 | #eceef6 | 1.16 | 1.06 |
+
+   ============================================================
+   二、三档的取值依据
+   ============================================================
+   按「由外向内递进」重排，并各自给一个物理角色：
+
+     L1 外框  #8e99b6  2.84 : 1  —— 最细（1px）、明度中高，只负责"把盘从纸里框出来"
+     L2 中圈  #8895b6  2.99 : 1  —— 中等（1px + 1px 内亮线），标出"第 2 层的起点"
+     L3 盘心  #aab3cd  2.09 : 1  —— 最重（2px 双线：外暗内亮），内容所在的那层
+
+   L1 与 L2 都落在 2.8–3.0 之间，是有意的：它们都是**结构性分隔线**，
+   按 WCAG 1.4.11 的 3:1 门槛取接近值即可，不必更重（更重会让盘看起来像表格）。
+   L3 的 2.09 低于 3:1 也是故意的 —— 盘心不是可点目标，它的边只做"隆起"，
+   真要重到 3:1 会与盘心文字抢注意力。这条判断写在 D50 里，别按 1.4.11 硬套。
+
+   ============================================================
+   三、落到三处的改法
+   ============================================================ */
+:root {
+  /* 三档线宽。外细内粗：1 / 1+1 / 2+1 */
+  --stroke-l1-w: 1px;
+  --stroke-l2-w: 1px;
+  --stroke-l3-w: 2px;
+
+  /* 三档色阶。括号内是 vs 白底的对比度，改值时请重算。 */
+  --stroke-l1: #8e99b6;   /* 2.84 外框：最淡的一档 */
+  --stroke-l2: #8895b6;   /* 2.99 中圈：与 L1 几乎同深，靠位置区分而非靠深浅 */
+  --stroke-l3: #aab3cd;   /* 2.09 盘心：最重，但刻意不到 3:1（见上） */
+
+  /* 高光：每层内侧一道 1px 白线 = 受光面。三处共用同一个值。 */
+  --stroke-hi: rgba(255, 255, 255, .92);
+}
+
+/* ---- L1 外框：暗线在外、亮线在内，中间那 1px 就是"盘的厚度" ----
+   原来这里叠了 7 层阴影（1 暗线 + 1 白线 + 4px 白 + 5px 淡蓝 + 三层落影），
+   其中 `0 0 0 4px rgba(255,255,255,.55) inset` 与 `0 0 0 5px ... inset`
+   在 251px 的框上只差 1px，肉眼分不出，删掉后 A/B 计算样式差异为 0。
+   现在按三档变量重写为 4 层：暗线、亮线、贴身影、两层远影。 */
+.wheel::after {
+  box-shadow:
+    0 0 0 var(--stroke-l1-w) var(--stroke-l1),
+    0 0 0 1px var(--stroke-hi) inset,
+    0 2px 4px rgba(0, 26, 94, .08),
+    0 16px 34px -18px rgba(0, 26, 94, .42),
+    0 48px 96px -58px rgba(0, 26, 94, .72);
+}
+
+/* ---- L2 中圈：凹槽原本只有一道 stroke ----
+   加一道内侧亮线会把槽底读成"有厚度的槽"。
+   用 drop-shadow 而不是再加 stroke：槽是同一条 path，
+   再加 stroke 会加宽整条带、挤压瓦片。 */
+.wheel .sub-channel {
+  stroke: var(--stroke-l2);
+  stroke-width: 3.4;
+  filter: drop-shadow(0 1px 0 var(--stroke-hi));
+}
+
+/* ---- L3 盘心：border 改由 box-shadow 画，才能做到"外暗内亮"的双线 ----
+
+   这里踩到一件事，值得写下来：盘心在不同状态下由**三个不同特异性**的规则
+   分别控制尺寸与阴影，只写 `.wheel .disc-hub`（0,2,0）会被它们全部压掉 ——
+   第一版就是这么写的，实测 computed 仍是 `border: 1px`、box-shadow 还是旧的。
+
+   | 状态 | 选择器 | 特异性 |
+   |---|---|---|
+   | 闭合 | `.wheel:not(.is-open) .disc-hub` | 0,3,0（`:not()` 里的类也计数） |
+   | 展开未选 | `.wheel.is-open .disc-hub` | 0,3,0 |
+   | 展开已选 | `.wheel.is-open.is-picked .disc-hub` | 0,4,0 |
+
+   所以三档要各自按对应特异性重写，而不是一条通吃。
+
+   选中态**不描边**：那时盘心已经 `background: transparent`，
+   让位给背后的标本环（`.wheel.is-open.is-picked .disc-hub{box-shadow:none}`）。
+   硬加一圈线会把标本环罩住 —— 这是既有设计，不是遗漏。 */
+
+/* 闭合态：盘心是实心圆，L3 双线画在它的边上 */
+.wheel:not(.is-open) .disc-hub {
+  border: 0;
+  box-shadow:
+    0 0 0 var(--stroke-l3-w) var(--stroke-l3),
+    0 0 0 1px var(--stroke-hi) inset,
+    0 1px 0 rgba(255, 255, 255, .95) inset,
+    0 0 0 7px rgba(0, 26, 94, .018),
+    0 8px 26px -14px rgba(0, 26, 94, .28);
+}
+
+/* 展开未选：盘心缩成 46%，同一套双线，落影更远一点（它离开了盘面） */
+.wheel.is-open .disc-hub {
+  border: 0;
+  box-shadow:
+    0 0 0 var(--stroke-l3-w) var(--stroke-l3),
+    0 0 0 1px var(--stroke-hi) inset,
+    0 1px 0 rgba(255, 255, 255, .95) inset,
+    0 0 0 7px rgba(0, 26, 94, .02),
+    0 14px 32px -20px rgba(0, 26, 94, .46);
+}
+
+/* 悬停（只在未锁定、未选中时出现）：L3 换到 --blue-amb，色相走蓝，与中圈瓦片
+   的悬停蓝框同一族 —— 但**不加粗**，靠换色而不是靠加宽表示"指针在这"，
+   否则三级线条宽会在悬停瞬间乱跳。 */
+.wheel:not(.is-open) .disc-hub.is-hover,
+.wheel.is-open .disc-hub.is-hover {
+  box-shadow:
+    0 0 0 var(--stroke-l3-w) var(--blue-amb),
+    0 0 0 1px var(--stroke-hi) inset,
+    0 1px 0 rgba(255, 255, 255, .95) inset,
+    0 0 0 7px rgba(0, 26, 94, .025),
+    0 10px 28px -18px rgba(0, 26, 94, .34);
+}
+
+/* 选中态：明确写成 none，把上面两条挡住。
+   写 `none` 而不是"不写"，是因为上面两条已经按 0,3,0 落地，
+   不显式压回去的话，透明盘心上会多出一圈线罩住标本环。 */
+.wheel.is-open.is-picked .disc-hub {
+  border: 0;
+  box-shadow: none;
+}
+
+/* ---- 家族扇区：外沿原本没有独立描边，靠相邻扇区之间的白缝分隔 ----
+   L1 挪到框外之后，扇区外沿与框之间空出 4px，那道空隙是"厚度"，
+   不需要再给扇区加边。这里只把扇区自己的 1px 白描边统一到 --stroke-hi，
+   免得它与 L1 用两个不同的白。 */
+.wheel .disc-svg .sector-shape {
+  stroke: var(--stroke-hi);
+  stroke-width: 1;
+}
+
+/* ---- 窄屏：128px 的盘上 2px 双线会糊成一条 ----
+   390 视口盘径 342px、360 视口 312px，L3 的 2px 在缩放到 0.71 后约 1.4px，
+   还能分辨；但 320 及以下会糊。按 620 断点把 L3 收到 1.5px。 */
+@media (max-width: 620px) {
+  /* 窄屏同样要按特异性覆盖 —— 第一版这里只写了 `.wheel .disc-hub`（0,2,0），
+     被上面 0,3,0 的两条压住，实测 390 视口盘心仍是 2px。
+     下面两条与桌面那两条一一对应。 */
+  .wheel:not(.is-open) .disc-hub {
+    box-shadow:
+      0 0 0 1.5px var(--stroke-l3),
+      0 0 0 1px var(--stroke-hi) inset,
+      0 1px 0 rgba(255, 255, 255, .95) inset,
+      0 0 0 5px rgba(0, 26, 94, .016),
+      0 8px 20px -14px rgba(0, 26, 94, .26);
+  }
+  .wheel.is-open .disc-hub {
+    box-shadow:
+      0 0 0 1.5px var(--stroke-l3),
+      0 0 0 1px var(--stroke-hi) inset,
+      0 1px 0 rgba(255, 255, 255, .95) inset,
+      0 0 0 5px rgba(0, 26, 94, .018),
+      0 12px 26px -16px rgba(0, 26, 94, .42);
+  }
+  .wheel.is-open.is-picked .disc-hub {
+    box-shadow: none;
+  }
+  /* 中圈收窄：312–342px 的盘上 3.4 会比瓦片本身还厚 */
+  .wheel .sub-channel {
+    stroke-width: 2.6;
+  }
+}
+
+/* ---------------- 滑块刻度（P2-4）----------------
+
+   5 档滑块原来没有任何落点标记，只有两端文字。拖到某个位置说不出自己在
+   第几档，得读下方那行字才知道。
+
+   位置算法必须与浏览器画滑块的算法一致，否则刻度与手柄错开：
+   手柄宽 20px，可用轨道 = 100% − 20px，手柄中心从 10px 起。
+   第 i 档（i=0..4）的 left = 10px + i/4 × (100% − 20px)。
+   由 JS 逐档写内联 left（见 renderStrength），这里只管长相。
+
+   刻度不加 pointer-events：它压在滑块上面，能挡住拖动。 */
+.scale {
+  position: relative;
+}
+.scale-ticks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 26px;          /* 轨道中线：8px padding + 6px margin + 44/2 − 1 */
+  height: 2px;
+  pointer-events: none;
+}
+.scale-tick {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 8px;
+  margin-left: -1px;
+  background: var(--line);
+  transition: background-color 120ms var(--ease);
+}
+/* 当前档位：走 --blue-amb（3.02 : 1），与中圈槽底同一档，不抢主色 */
+.scale-tick.is-on {
+  background: var(--blue-amb);
+  height: 10px;
+  top: -4px;
+}

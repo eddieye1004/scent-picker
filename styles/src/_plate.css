@@ -35,7 +35,7 @@
   width: 88px;
   height: 88px;
   flex: none;
-  fill: none;;
+  fill: none;
   stroke-width: .7;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -45,7 +45,7 @@
    也避免"图标 + 文字"挤成一块读起来像徽标。 */
 .wheel .plate-rule {
   width: 26px;
-  height: 1px;;
+  height: 1px;
   flex: none;
 }
 
@@ -55,7 +55,7 @@
   font-size: 12px;
   font-weight: 500;
   line-height: 1.3;
-  letter-spacing: .02em;;
+  letter-spacing: .02em;
   text-align: center;
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -68,7 +68,7 @@
    reset 半宽 37.6 → 柱高 ≤ 2×√(85.5²−37.6²) ≈ 153。
    下面这组数值是按这条约束配的，不是随手调的。 */
 @media (max-width: 620px) {
-  .wheel .plate-svg {;; }
+  .wheel .plate-svg { }
   .wheel .hub-plate { gap: 4px; }
   .wheel .hub-glyph { margin-top: 4px; }
   /* 分割线是纯版式装饰，窄屏先让位给内容 */

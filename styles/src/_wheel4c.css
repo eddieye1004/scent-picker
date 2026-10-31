@@ -21,25 +21,25 @@
 }
 /* 盘缩小后扇区变成一圈细片，全部压到背景层；
    只让选中的那一片留一点水洗色 —— 盘因此仍属于「哪个大类」。 */
-.wheel.is-open .sector-g {; }
-.wheel.is-open .sector-g.is-on {; }
+.wheel.is-open .sector-g { }
+.wheel.is-open .sector-g.is-on { }
 .wheel.is-open .sector-g.is-on .sector-shape {
   fill: var(--blue-wash);
-  stroke: var(--blue);;
+  stroke: var(--blue);
 }
 .wheel.is-open .ring-thin { opacity: 0; }
 
 /* ---- 盘心：展开后是透明文字层 ---- */
 .wheel.is-open .disc-hub {
   width: 46%;
-  height: 46%;;;;;;;
+  height: 46%;
   justify-content: center;
 }
 /* 展开后盘心不再是方块，四角角标就变成四个悬空的直角 —— 收掉 */
 .wheel.is-open .disc-hub::before { display: none; }
 
 /* 落到具体项：整块盘翻深。加深的是盘，不是圆心。 */
-.wheel.is-open.is-picked .disc-core {;;
+.wheel.is-open.is-picked .disc-core {
 }
 .wheel.is-open.is-picked .disc-hub {
   /* 46% 与展开态同宽：52% 换算到 viewBox 是 r=124.8，比中圈弧段内沿
@@ -52,12 +52,12 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  box-shadow: none;;
+  box-shadow: none;
 }
-.wheel.is-open.is-picked .disc-hub .hub-zh {; }
-.wheel.is-open.is-picked .disc-hub .hub-desc {; }
-.wheel.is-open.is-picked .disc-hub .hub-reset {; }
-.wheel.is-open.is-picked .disc-hub .hub-kicker {; }
+.wheel.is-open.is-picked .disc-hub .hub-zh { }
+.wheel.is-open.is-picked .disc-hub .hub-desc { }
+.wheel.is-open.is-picked .disc-hub .hub-reset { }
+.wheel.is-open.is-picked .disc-hub .hub-kicker { }
 
 /* 未展开态：整块轮盘要读成「一块填满中间区域的实心盘」。
    做法：扇区填 --bg-2 让外环成为实体，盘心由白方块改成白色圆盘压在上面，
@@ -92,7 +92,7 @@
 
 @media (max-width: 620px) {
   .wheel.is-open:not(.is-picked) .disc-hub .hub-desc { display: none; }
-  .wheel.is-open .disc-core {; }
+  .wheel.is-open .disc-core { }
   .wheel .sub-arm .sub-sq { top: 9.8%; }
   .wheel.is-open .disc-hub,
   .wheel.is-open.is-picked .disc-hub { width: 46%; height: 46%; }
@@ -101,7 +101,7 @@
    否则左右两侧的方格内边会切进盘心文字的包围盒（实测 1.25px）。
    只收盘心宽度，不缩字号 —— 12px 已是最小可读。 */
 @media (max-width: 400px) {
-  .wheel.is-open .disc-core {; }
+  .wheel.is-open .disc-core { }
   .wheel .sub-arm .sub-sq { top: 10.3%; }
   .wheel.is-open .disc-hub,
   .wheel.is-open.is-picked .disc-hub { width: 46%; height: 46%; }
@@ -112,7 +112,7 @@
    hub-go 在 390 超 5.7px / 360 超 15.8px；选定态 hub-desc 在 360 超 3px。
    可用半宽 = sqrt(R² − (中心偏移 + 半高)²)，所以宽元素要先收宽度，
    否则四角会顶出圆弧——矩形贴边看不出来，圆的接缝一眼就看见。 */
-.wheel.is-open .disc-hub .hub-desc {; }
+.wheel.is-open .disc-hub .hub-desc { }
 .wheel .disc-hub.is-picked .hub-desc { max-width: 96%; text-wrap: pretty; }
 
 @media (max-width: 620px) {

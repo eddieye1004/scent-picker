@@ -39,6 +39,7 @@ const PARTS = [
   '_wheel10.css',
   '_wheel11.css',
   '_wheel12.css',
+  '_wheel13.css', /* 三级描边（D50）：必须最后，要压过前面各层的边框声明 */
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');

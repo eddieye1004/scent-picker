@@ -130,16 +130,16 @@ body {
    没有圆点、没有勾、没有动画。 */
 .progress {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);;
+  grid-template-columns: repeat(4, 1fr);
   margin-bottom: 10px;
 }
 .progress i {
-  display: block;;
+  display: block;
   background: var(--bg-3);
   transition: background-color 160ms linear;
 }
-.progress i.done {; }
-.progress i.now  {; }
+.progress i.done { }
+.progress i.now  { }
 .progress-meta {
   display: flex;
   justify-content: space-between;
@@ -399,7 +399,7 @@ body {
 .disc-sector[aria-checked="true"] { color: var(--bg); }
 .disc-sector[aria-checked="true"] .en { color: var(--bg-3); }
 
-.disc-sector:focus-visible {;;
+.disc-sector:focus-visible {
 }
 
 /* 盘心：一块压在圆心上的白方块。
@@ -540,7 +540,7 @@ body {
 /* 盘心换字时的淡入：只在文字内容变化时触发（JS 加 .is-swap 再移除）。
    180ms 是因为 34% 方块本身很小，时间长了会显得黏。 */
 @keyframes hub-swap {
-  from { opacity: 0;; }
+  from { opacity: 0; }
   to   { opacity: 1; transform: none; }
 }
 .disc-hub.is-swap .hub-zh,
@@ -587,7 +587,7 @@ body {
   text-align: left;
   color: inherit;
   font: inherit;
-  cursor: pointer;;
+  cursor: pointer;
   border-radius: 0;
   min-height: 44px;
 }
@@ -620,7 +620,7 @@ body {
   padding-top: 3px;
 }
 .opt:hover .tick { opacity: 1; }
-.opt[aria-pressed="true"] { background: var(--bg-2);; }
+.opt[aria-pressed="true"] { background: var(--bg-2); }
 .opt[aria-pressed="true"] .tick { opacity: 1; }
 .opt[aria-pressed="true"] .num { color: var(--accent); }
 
@@ -659,7 +659,7 @@ body {
      20→22px 只有 2px 的差别，但足以让人确认「我抓住了」。 */
   transition: transform 160ms cubic-bezier(.4, 0, .2, 1), background-color 160ms linear;
 }
-.scale input[type="range"]:active::-webkit-slider-thumb {;
+.scale input[type="range"]:active::-webkit-slider-thumb {
   background: var(--ink);
 }
 .scale input[type="range"]::-moz-range-thumb {
@@ -674,7 +674,7 @@ body {
   transform: scale(1.1);
   background: var(--ink);
 }
-.scale input[type="range"]:focus-visible {;;
+.scale input[type="range"]:focus-visible {
 }
 .scale-ends {
   display: flex;
@@ -719,10 +719,10 @@ body {
   background: var(--bg);
   color: var(--ink-2);
   border-radius: 0;
-  cursor: pointer;;
+  cursor: pointer;
 }
 .chip:hover { border-color: var(--ink); color: var(--ink); }
-.chip:focus-visible {;; }
+.chip:focus-visible { }
 .chip[aria-pressed="true"] {
   background: var(--ink);
   border-color: var(--ink);
@@ -772,7 +772,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--ink);;;
+  border: 1px solid var(--ink);
   font-family: var(--font-body);
   font-size: 16px;
   font-weight: 600;
@@ -780,11 +780,11 @@ body {
   padding: 14px 22px;
   min-height: 44px;
   border-radius: 0;
-  cursor: pointer;;
+  cursor: pointer;
 }
-.btn:hover {;; }
-.btn:active {; }
-.btn:focus-visible {; outline-offset: 2px; }
+.btn:hover { }
+.btn:active { }
+.btn:focus-visible { outline-offset: 2px; }
 /* 次按钮：白底墨线。Swiss 的两级按钮就是实心与描边，没有第三种。 */
 /* 次级按钮：与主按钮同高（44px 触控下限）但更轻。
    原来这两处是在 app.js 里写内联 style="padding:7px 14px;font-size:13px" 的——
@@ -798,16 +798,16 @@ body {
   width: auto;
 }
 .btn.ghost {
-  background: transparent;;
+  background: transparent;
   border-color: var(--edge);
   font-weight: 500;
 }
-.btn.ghost:hover {;
+.btn.ghost:hover {
   color: var(--ink);
   border-color: var(--ink);
 }
 .btn:disabled {
-  background: var(--bg-3);;;
+  background: var(--bg-3);
   cursor: not-allowed;
 }
 
@@ -885,7 +885,7 @@ article.pick {
   border-top: 2px solid var(--ink);
   padding: 22px 0 28px;
   margin-bottom: 8px;
-  background: none;;
+  background: none;
   box-shadow: none;
 }
 article.pick:last-of-type { border-bottom: 1px solid var(--line); }
@@ -1070,7 +1070,7 @@ footer.foot a:hover { color: var(--accent); }
   inset: -1px;
   border-radius: 50%;
   border: 2px solid transparent;
-  border-top-color: var(--ink-3);;
+  border-top-color: var(--ink-3);
 }
 @keyframes skeleton-sweep { to { transform: rotate(360deg); } }
 
@@ -1085,7 +1085,7 @@ footer.foot a:hover { color: var(--accent); }
 
 /* ---------- 动效与降级 ----------
    Swiss 只承认硬切。保留一个 120ms 的 fade 只是为了不闪，不用缓动曲线。 */
-.fade-in {; }
+.fade-in { }
 @keyframes fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -1100,7 +1100,6 @@ footer.foot a:hover { color: var(--accent); }
     transition-duration: 0.001ms !important;
   }
 }
-
 
 /* ============ 多层香型轮盘（第 1 步）============
    三层同心：外圈家族 / 中圈子家族 / 盘心当前选择。
@@ -1203,7 +1202,7 @@ footer.foot a:hover { color: var(--accent); }
 /* 盘心：套用中圈内接正方形。
    WHEEL.r2i = 106，106×√2 = 149.9，149.9/480 = 31.2%，取 30.6% 留余量。
    与旧圆盘的 42.7% 同一算法（见 app.js 顶部注释），只是半径变小。 */
-.wheel .disc-hub {;;
+.wheel .disc-hub {
   /* 空态展开到内孔内接正方形，选中后收回 —— 尺寸变化本身就在说"这一层出现了" */
   transition: width 220ms cubic-bezier(.4,0,.2,1),
               height 220ms cubic-bezier(.4,0,.2,1),
@@ -1218,20 +1217,20 @@ footer.foot a:hover { color: var(--accent); }
   gap: 3px;
   justify-content: center;
 }
-.wheel .disc-hub .hub-zh {;;; }
+.wheel .disc-hub .hub-zh { }
 .wheel .disc-hub .hub-kicker { font-size: 12px; }
 .wheel .disc-hub .hub-desc {
-  font-size: 12px;;;
+  font-size: 12px;
 }
 
 /* 重新开始：盘心内唯一的按钮。只在有选择时出现 —— 空态不需要"重置" */
 .wheel .hub-reset {
-  appearance: none;;
-  background: transparent;;
+  appearance: none;
+  background: transparent;
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.02em;;
+  letter-spacing: 0.02em;
   margin-top: 1px;
   cursor: pointer;
   text-decoration: underline;
@@ -1239,10 +1238,10 @@ footer.foot a:hover { color: var(--accent); }
   text-decoration-thickness: 1px;
   text-decoration-color: currentColor;
   opacity: .7;
-  pointer-events: auto;;
+  pointer-events: auto;
 }
 .wheel .hub-reset:hover { opacity: 1; }
-.wheel .hub-reset:focus-visible {;
+.wheel .hub-reset:focus-visible {
   outline-offset: 1px;
   opacity: 1;
 }
@@ -1317,15 +1316,15 @@ footer.foot a:hover { color: var(--accent); }
 
 /* 窄屏：中圈与外圈的扇区都变窄，标签先收字号再收内容 */
 @media (max-width: 620px) {
-  .wheel .disc-sector.lvl1 { font-size: 14px;; }
+  .wheel .disc-sector.lvl1 { font-size: 14px; }
   .wheel .disc-sector.lvl1 .notes { font-size: 12px; -webkit-line-clamp: 1; }
   .wheel .disc-sector.lvl2 { font-size: 12px; max-width: 20%; }
   /* 360 宽时中圈半径只有 84px，中圈标签会顶到外圈标签上（实测 2 处相交）。
      再收一档宽度，让两圈之间留出可见缝隙。 */
   .wheel .disc-sector.lvl1 { max-width: 24%; }
-  .wheel .disc-hub {;; }
-  .wheel .disc-hub .hub-zh {; }
-  .wheel .disc-hub .hub-desc {; }
+  .wheel .disc-hub { }
+  .wheel .disc-hub .hub-zh { }
+  .wheel .disc-hub .hub-desc { }
   .fam-panel { margin-top: 18px; min-height: 120px; }
   .fam-title { font-size: 22px; }
   .fam-style { font-size: 14px; }
@@ -1545,8 +1544,8 @@ footer.foot a:hover { text-decoration-thickness: 2px; }
 
 /* --- 盘心：径向受光 + 边缘受光，和轮盘共用一个光源 --- */
 .wheel .disc-hub {
-  border-radius: var(--radius);;
-  border-color: var(--blue-amb);;;
+  border-radius: var(--radius);
+  border-color: var(--blue-amb);
 }
 /* 空态盘心撑到内孔内接正方形（46.2%），面积是选定态的 2.2 倍。
    底色收白一档：此刻它只是"待选区"，不该和选定态一样重。
@@ -1560,16 +1559,16 @@ footer.foot a:hover { text-decoration-thickness: 2px; }
    基础样式的 max-height:34px 只够两行半，实测在字符中间切一刀（「…那种干」）。
    126px 可用高扣掉 kicker 14 + 主词 24 + 重新开始 20 + 三条 gap 15 = 53px，
    给 52px 正好容纳三行 12px/1.35 = 48.6，不再切字。 */
-.wheel .disc-hub.is-picked .hub-desc {; }
+.wheel .disc-hub.is-picked .hub-desc { }
 /* 选定态行距收紧半档，把上面算出来的 53px 留出 1px 余量给亚像素。
    只动 line-height 不动 font-size —— 字号已经压在 12px 下限上了。 */
 .wheel .disc-hub.is-picked .hub-desc { line-height: 1.35; }
 /* 已选定：整块翻墨（瑞士表达"确定"的惯用手法），并抬起一层 */
 .wheel .disc-hub.is-picked {
   background: var(--ink);
-  border-color: var(--ink);;
+  border-color: var(--ink);
 }
-.wheel .disc-hub.is-hover {; }
+.wheel .disc-hub.is-hover { }
 
 /* --- 轮盘外圈：选中用水洗底 + 主蓝描边 + 极淡同色投影 --- */
 .wheel .sector-shape,
