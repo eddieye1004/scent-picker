@@ -1508,3 +1508,62 @@ const LIMIT = (() => {
 - 四套 295 项全绿（test-render 145）。
 - 七步全流程实走：第 1→7 步逐屏确认标题与内容，最后到达「你的三瓶候选」。
 - 截图：`_an7/p1..p8`（已在 gitignore，结论记于此）。
+
+---
+
+## D48 · v23：taxonomy v2.0.0（32 类 → 28 类）入库，并修掉"提交了一半"的状态
+
+### 问题：HEAD 是坏的，而工作区是好的
+
+`242372b` 提交了 `app.js` 的图标改名（`incense` 拆成 `incense-cold`/`incense-warm`、删 `yellow-floral`），
+但 `data/taxonomy.json` 的 v2.0.0（32 → 28 类）留在了工作区没提交。
+结果是**仓库里那份 HEAD 跑不起来**：
+
+```
+$ git archive HEAD | tar -x -C /tmp/headtest && node scripts/test-render.mjs
+TypeError: MARKS[id] is not a function
+```
+
+`test-render.mjs:651` 的 `sig = (id) => JSON.stringify(MARKS[id]())` 在
+`allSubs` 里取到 `yellow-floral` / `incense` / `marine` / `coffee-cocoa` / `nutty` / `boozy`
+这 6 个 taxonomy 还在、图标已经改名的 key，直接抛错。**整个测试文件在第 651 行崩溃，
+后面 60 多条断言一条都没跑**。而工作区因为带着未提交的新 taxonomy，是全绿的。
+
+**教训**：`git status` 里看到 `M data/*.json` 而 `M app.js` 已经提交，
+说明这两个改动是**同一个变更的两半**，必须一起提交。判断依据不是"哪个文件归哪类"，
+而是"分开之后有没有任意一边跑不起来"。这次分开之后，坏的那一边是 HEAD ——
+最容易被漏的一侧，因为本地永远看的是工作区。
+
+### 这次的处置
+
+不新增功能，只把两半合成一个完整提交：
+
+1. `data/taxonomy.json` v1.0.0 → **v2.0.0**（28 类），按 `_audit/CLASSIFICATION-AUDIT-20261031.md`
+   的 P0–P3 处置执行：合并 3（黄花→白花、海洋→水生、坚果→香草美食）、
+   降级为标签 2（咖啡可可、酒香）、拆分 1（焚香→冷/暖）。
+   被降级与合并的类**没有丢内容**，都以 `labels[].mergedFrom` 挂在新的父类下
+   （`white-floral.labels[warm-white]`、`aquatic.labels[saline]`、
+   `vanilla-gourmand.labels[brewed|nutty|boozy]`）。
+
+2. `SUB_MARKS` / `SUB_FIT` 与 taxonomy **一一对齐**：28 / 28 / 28，
+   双向差集都为空（`taxonomy 有但图标缺` 与 `图标有但 taxonomy 没有` 均为 0 项）。
+
+3. 清掉代码与文档里写死的"32"：`app.js:581`、`app.js:1005`、`README.md` 四处、
+   `scripts/test-render.mjs` 两处注释 + 一条断言名。断言本身改成
+   `ok(\`全部 ${allSubs.length} 枚标识的图形全不相同\`, …)` ——
+   **类数由数据决定，不写死**。写死的后果不是报错，是留下一个骗人的断言名：
+   测试明明按 28 类在跑，报告上却印着"32 枚"。
+
+### 顺带记录：v2 的四个新字段目前无人消费
+
+`tier` / `requires` / `structure` / `form` / `excludes` / `compares` / `splitFrom`
+在 `app.js`、`src/notes.js`、`src/scoring.js` 里引用数全为 **0**，只有 `labels` 被
+`src/scoring.js` 用到 1 处。也就是说 v2 的"互斥/同质/可辨"判定目前只体现在数据里，
+**没有进入推荐打分**。这不是 bug（v2 的验收标准是数据层），但要在下一次改打分时
+记得把它们接进去，否则审计得出的分类收益到不了用户侧。已记入待办。
+
+### 验收
+
+- 干净导出 HEAD 跑四套测试：`test-render 145 / test-contrast 34 / test-scoring 106 / test-compliance 10`，全 PASS。
+- `qa-data` 全过（上游原件 1320 行，合规断言 5 项）。
+- taxonomy / SUB_MARKS / SUB_FIT 三方各 28，双向差集为空。

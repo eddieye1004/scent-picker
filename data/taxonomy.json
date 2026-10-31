@@ -1,7 +1,7 @@
 {
-  "version": "1.0.0",
-  "authored": "2026-10-28",
-  "note": "本文件为原创编辑资产（家族/子家族划分与情绪映射为作者整理），不含任何第三方站点的描述性文字。香调名词本身属于事实性信息。 | 2026-10-28 补 notesZh：情绪锚点香调的中文名，供理由文案回显。",
+  "version": "2.0.0",
+  "authored": "2026-10-31",
+  "note": "本文件为原创编辑资产（家族/子家族划分与情绪映射为作者整理），不含任何第三方站点的描述性文字。香调名词本身属于事实性信息。 | 2026-10-28 补 notesZh：情绪锚点香调的中文名，供理由文案回显。 | 2026-10-31 v2.0.0：按 _audit/CLASSIFICATION-AUDIT-20261031.md 的 P0–P3 处置执行，32 类 → 28 类（合并 3、降级 2、拆分 1），并同步 noteIndex 与全部 notes。",
   "families": [
     {
       "id": "citrus",
@@ -14,32 +14,43 @@
           "id": "cologne",
           "zh": "古龙水型",
           "en": "Cologne",
-          "desc": "柑橘+草本+极淡木质，层次浅、挥发快",
+          "desc": "柑橘+草本+极淡木质，三层都要有：柠檬酸亮在前、薰衣草凉在中、麝香收尾压住",
           "notes": [
-            "lemon"
+            "lemon",
+            "bergamot",
+            "lavender",
+            "musk"
           ],
-          "descWheel": "柑橘+草本+极淡木质，层次浅、挥发快",
+          "descWheel": "柠檬酸亮 + 薰衣草凉 + 一点麝香",
           "tier": 1
         },
         {
           "id": "green-citrus",
           "zh": "青绿柑橘",
           "en": "Green Citrus",
-          "desc": "带叶感、苦橙叶、白松香，偏冷",
+          "desc": "带叶感、苦橙叶、白松香，偏冷：掐断的枝比果皮更主要",
           "notes": [
+            "petitgrain",
+            "galbanum",
             "grapefruit",
-            "petitgrain"
+            "violet leaf"
           ],
           "descWheel": "未熟的青皮，酸而带涩",
-          "tier": 1
+          "tier": 1,
+          "requires": [
+            "petitgrain",
+            "galbanum"
+          ]
         },
         {
           "id": "citrus-floral",
           "zh": "柑橘花香",
           "en": "Citrus Floral",
-          "desc": "柑橘打头，中调转白花或橙花",
+          "desc": "柑橘打头，中调转白花：橙花是桥梁，茉莉是落点",
           "notes": [
-            "neroli / orange blossom"
+            "neroli / orange blossom",
+            "jasmine",
+            "orange"
           ],
           "descWheel": "柑橘打头，中调转白花或橙花",
           "tier": 1
@@ -48,12 +59,19 @@
           "id": "aromatic-citrus",
           "zh": "芳香柑橘",
           "en": "Aromatic Citrus",
-          "desc": "柑橘叠加薰衣草/迷迭香，带一点皂感",
+          "desc": "柑橘叠加薰衣草与迷迭香，带皂感：闻起来像剃须水或刚洗过的毛巾",
           "notes": [
-            "bergamot"
+            "bergamot",
+            "lavender",
+            "rosemary",
+            "sage"
           ],
-          "descWheel": "柑橘叠加薰衣草/迷迭香，带一点皂感",
-          "tier": 2
+          "descWheel": "佛手柑 + 薰衣草迷迭香，皂感",
+          "tier": 2,
+          "requires": [
+            "lavender",
+            "rosemary"
+          ]
         }
       ],
       "representativeNotes": [
@@ -93,9 +111,11 @@
           "id": "rose",
           "zh": "玫瑰",
           "en": "Rose",
-          "desc": "从清晨露水玫瑰到暗红丝绒玫瑰，跨度极大",
+          "desc": "从清晨露水玫瑰到暗红丝绒玫瑰：花瓣（rose）→ 叶（geranium）→ 青绿梗（violet leaf）三段",
           "notes": [
-            "rose"
+            "rose",
+            "geranium",
+            "violet leaf"
           ],
           "descWheel": "玫瑰的各种做法，从花瓣到花酱",
           "tier": 1
@@ -104,21 +124,36 @@
           "id": "white-floral",
           "zh": "白花",
           "en": "White Floral",
-          "desc": "茉莉、晚香玉、栀子。浓郁、有存在感、易晕香",
+          "desc": "茉莉、晚香玉、栀子、依兰。浓郁、有存在感、易晕香；依兰是\"暖白花\"那一支",
           "notes": [
             "jasmine",
-            "tuberose"
+            "tuberose",
+            "ylang-ylang"
           ],
           "descWheel": "茉莉晚香玉一类，厚且会扩",
-          "tier": 1
+          "tier": 1,
+          "labels": [
+            {
+              "id": "warm-white",
+              "zh": "暖白花",
+              "en": "Warm White Floral",
+              "notes": [
+                "ylang-ylang"
+              ],
+              "desc": "依兰、洋甘菊这一路，暖而带蜜，原先单列的\"黄花\"",
+              "mergedFrom": "yellow-floral"
+            }
+          ]
         },
         {
           "id": "fruity-floral",
           "zh": "果香花香",
           "en": "Fruity Floral",
-          "desc": "桃、荔枝、黑加仑叠花，甜而不腻",
+          "desc": "花底下垫着果：芍药是花面，黑加仑给酸，桃给圆",
           "notes": [
-            "peony"
+            "peony",
+            "blackcurrant",
+            "peach"
           ],
           "descWheel": "花底下垫着桃子梨子",
           "tier": 1
@@ -127,10 +162,11 @@
           "id": "powdery-floral",
           "zh": "粉感花香",
           "en": "Powdery Floral",
-          "desc": "鸢尾、紫罗兰、天芥菜，带粉笔/婴儿粉质感",
+          "desc": "鸢尾、紫罗兰、天芥菜、醛：粉笔感来自鸢尾根 + 醛，天芥菜给\"婴儿粉\"",
           "notes": [
             "iris",
             "violet",
+            "heliotrope",
             "aldehydes"
           ],
           "descWheel": "鸢尾、紫罗兰、天芥菜，带粉笔/婴儿粉质感",
@@ -140,29 +176,20 @@
           "id": "green-floral",
           "zh": "绿叶花香",
           "en": "Green Floral",
-          "desc": "风信子、铃兰、紫罗兰叶，清透偏冷",
+          "desc": "风信子、铃兰、紫罗兰叶，清透偏冷：花带茎叶，像折断的花枝",
           "notes": [
-            "lily of the valley"
+            "lily of the valley",
+            "hyacinth",
+            "violet leaf"
           ],
           "descWheel": "花带茎叶，像折断的花枝",
-          "tier": 2
-        },
-        {
-          "id": "yellow-floral",
-          "zh": "黄花",
-          "en": "Yellow Floral",
-          "desc": "依兰、含羞草、洋甘菊，暖而带蜜感",
-          "notes": [
-            "ylang-ylang"
-          ],
-          "descWheel": "依兰、含羞草、洋甘菊，暖而带蜜感",
           "tier": 2
         },
         {
           "id": "soliflore",
           "zh": "单一花",
           "en": "Soliflore",
-          "desc": "只做一种花，最容易建立判断力",
+          "desc": "只做一种花，且要做它的三个部位：花瓣（主体）+ 叶（茎）+ 花苞（未开的那一朵）",
           "notes": [
             "gardenia",
             "magnolia",
@@ -170,7 +197,12 @@
             "osmanthus"
           ],
           "descWheel": "只做一朵花，闻得到花瓣",
-          "tier": 2
+          "tier": 2,
+          "structure": [
+            "petal",
+            "leaf",
+            "bud"
+          ]
         }
       ],
       "representativeNotes": [
@@ -210,71 +242,106 @@
           "id": "sandalwood",
           "zh": "檀木",
           "en": "Sandalwood",
-          "desc": "奶感、圆润、微暖，越贴肤越舒服",
+          "desc": "刚刨开的檀木片 + 一杯温牛奶：前段是刨花的干爽微粉，后段是 santalol 的乳香",
           "notes": [
             "sandalwood"
           ],
           "descWheel": "奶感、圆润、微暖，越贴肤越舒服",
-          "tier": 1
+          "tier": 1,
+          "form": "resin-core",
+          "excludes": [
+            [
+              "vetiver",
+              "cedarwood"
+            ]
+          ]
         },
         {
           "id": "dry-woody",
           "zh": "干燥木质",
           "en": "Dry Woody",
-          "desc": "雪松、愈创木，像铅笔屑和干燥木箱",
+          "desc": "雪松、愈创木、降龙涎：像铅笔屑和干燥木箱，必须是\"纯块状干木\"",
           "notes": [
-            "cedar"
+            "cedarwood",
+            "guaiac wood",
+            "ambroxan"
           ],
           "descWheel": "雪松一类，干、脆、不带水汽",
-          "tier": 1
+          "tier": 1,
+          "form": "dry-block",
+          "excludes": [
+            [
+              "vetiver"
+            ],
+            [
+              "sandalwood"
+            ]
+          ]
         },
         {
           "id": "vetiver",
           "zh": "香根草",
           "en": "Vetiver",
-          "desc": "干草、土壤、微苦。两极分化严重",
+          "desc": "从土里拔出来的根：湿土 + 根须 + 一点当归药感，像雨后翻开的土",
           "notes": [
-            "vetiver"
+            "vetiver",
+            "angelica"
           ],
           "descWheel": "干草、土壤、微苦。两极分化严重",
-          "tier": 1
+          "tier": 1,
+          "form": "root",
+          "compares": "与干燥木质的分界是\"湿 vs 干\"：vetiver 带土腥湿气，cedarwood 是锯末"
         },
         {
           "id": "mossy",
           "zh": "苔藓木质",
           "en": "Mossy / Chypre",
-          "desc": "橡苔+柑橘，复古、有厚度",
+          "desc": "林地上的苔与土：橡苔给苔藓土腥，广藿香给土层，佛手柑提亮（desc 写了柑橘，notes 终于补上）",
           "notes": [
+            "oakmoss",
             "patchouli",
-            "oakmoss"
+            "bergamot"
           ],
           "descWheel": "橡苔+柑橘，复古、有厚度",
-          "tier": 1
+          "tier": 1,
+          "form": "moss-earth",
+          "requires": [
+            "oakmoss",
+            "patchouli"
+          ]
         },
         {
           "id": "woody-aromatic",
           "zh": "芳香木质",
           "en": "Woody Aromatic",
-          "desc": "薰衣草/鼠尾草+木质，干净利落",
+          "desc": "松林与理发店之间：杜松与鼠尾草的草本凉，压在雪松木骨架上",
           "notes": [
             "juniper",
-            "rosemary",
-            "cypress",
-            "mint"
+            "sage",
+            "cedarwood",
+            "rosemary"
           ],
           "descWheel": "木头加薰衣草迷迭香，干净",
-          "tier": 2
+          "tier": 2,
+          "form": "herb-wood",
+          "requires": [
+            "juniper",
+            "sage"
+          ]
         },
         {
           "id": "oud",
           "zh": "乌木",
           "en": "Oud",
-          "desc": "树脂感、动物感、药感。门槛最高",
+          "desc": "树脂感、动物感、药感各有一个出处：劳丹脂给树脂，藏红花给药感，乌木本身带动物感",
           "notes": [
-            "oud"
+            "oud",
+            "labdanum",
+            "saffron"
           ],
           "descWheel": "乌木，深、动物感、留很久",
-          "tier": 2
+          "tier": 2,
+          "form": "resin-core"
         }
       ],
       "representativeNotes": [
@@ -314,58 +381,100 @@
           "id": "vanilla-amber",
           "zh": "香草琥珀",
           "en": "Vanilla Amber",
-          "desc": "香草+安息香+劳丹脂，甜暖厚",
+          "desc": "香草在前、树脂在后：香兰素的乳甜，安息香的甜树脂，劳丹脂的深色底",
           "notes": [
+            "vanilla",
+            "benzoin",
+            "labdanum",
             "amber"
           ],
           "descWheel": "香草+安息香+劳丹脂，甜暖厚",
-          "tier": 1
+          "tier": 1,
+          "requires": [
+            "vanilla"
+          ]
         },
         {
           "id": "spicy-amber",
           "zh": "辛香琥珀",
           "en": "Spicy Amber",
-          "desc": "肉桂、丁香、豆蔻，暖而带刺",
+          "desc": "像咬一口肉桂卷：先甜后辣，辣在鼻腔后部。肉桂是主料，豆蔻给圆，藏红花给干燥药感，丁香给\"刺\"",
           "notes": [
+            "cinnamon",
+            "cardamom",
             "saffron",
-            "cinnamon"
+            "clove"
           ],
           "descWheel": "辛香与树脂，冬天夜里",
           "tier": 1
         },
         {
-          "id": "incense",
-          "zh": "焚香",
-          "en": "Incense",
-          "desc": "烟熏、灰烬、干燥，冷调焚香与暖调焚香差别很大",
+          "id": "incense-cold",
+          "zh": "冷焚香",
+          "en": "Cold Incense",
+          "desc": "烟与灰烬，冷调：乳香树脂在低温下烧，带教堂石头的凉；桦木给焦",
           "notes": [
-            "incense"
+            "incense",
+            "frankincense",
+            "birch"
           ],
           "descWheel": "烟熏、灰烬、干燥，冷调焚香与暖调焚香差别很大",
-          "tier": 1
+          "tier": 1,
+          "requires": [
+            "incense"
+          ]
+        },
+        {
+          "id": "incense-warm",
+          "zh": "暖焚香",
+          "en": "Warm Incense",
+          "desc": "烟与树脂，暖调：寺庙里的甜烟，树脂先于烟，香草与肉桂把烟压暖",
+          "notes": [
+            "incense",
+            "benzoin",
+            "cinnamon"
+          ],
+          "descWheel": "烟熏、灰烬、干燥，冷调焚香与暖调焚香差别很大",
+          "tier": 2,
+          "requires": [
+            "incense",
+            "benzoin"
+          ],
+          "splitFrom": "incense"
         },
         {
           "id": "resinous",
           "zh": "树脂",
           "en": "Resinous",
-          "desc": "乳香、没药、安息香，教堂感",
+          "desc": "三种树脂的温差：安息香甜、劳丹脂带皮革感、没药苦。不谈烟，只谈树脂本身",
           "notes": [
-            "frankincense",
+            "benzoin",
+            "labdanum",
             "myrrh"
           ],
           "descWheel": "乳香、没药、安息香，教堂感",
-          "tier": 2
+          "tier": 2,
+          "requires": [
+            "benzoin",
+            "labdanum"
+          ]
         },
         {
           "id": "leather",
           "zh": "皮革",
           "en": "Leather",
-          "desc": "桦木焦油、藏红花，硬朗、有攻击性",
+          "desc": "皮革三段：桦木焦油给烟熏皮面，藏红花给干燥药感，苏合香给甜树脂收尾",
           "notes": [
-            "leather"
+            "leather",
+            "birch",
+            "saffron",
+            "styrax"
           ],
           "descWheel": "皮革与烟熏，最不像\"香\"的一类",
-          "tier": 2
+          "tier": 2,
+          "requires": [
+            "leather"
+          ]
         }
       ],
       "representativeNotes": [
@@ -405,59 +514,84 @@
           "id": "aquatic",
           "zh": "水生",
           "en": "Aquatic",
-          "desc": "西瓜酮类，海水/泳池感。有人闻成黄瓜",
+          "desc": "西瓜酮类的海水／泳池感：melone 给水感，盐给皮肤上的干盐粒",
           "notes": [
-            "musk"
+            "calone",
+            "melon",
+            "sea salt",
+            "driftwood"
           ],
           "descWheel": "海水与西瓜酮，像刚出水",
-          "tier": 1
+          "tier": 1,
+          "labels": [
+            {
+              "id": "saline",
+              "zh": "盐感",
+              "en": "Saline",
+              "notes": [
+                "sea salt",
+                "driftwood"
+              ],
+              "desc": "海风、湿石头、盐晶，原先单列的\"海洋\"",
+              "mergedFrom": "marine"
+            }
+          ]
         },
         {
           "id": "green",
           "zh": "绿意",
           "en": "Green",
-          "desc": "割草、番茄叶、无花果叶。生青",
+          "desc": "割草、番茄叶、无花果叶：掐断的青味，没有任何花",
           "notes": [
-            "fig leaf",
             "violet leaf",
-            "galbanum"
+            "galbanum",
+            "fig",
+            "tomato leaf"
           ],
           "descWheel": "草与叶，掐断的青味",
-          "tier": 1
+          "tier": 1,
+          "excludes": [
+            [
+              "rose",
+              "jasmine",
+              "tuberose"
+            ]
+          ]
         },
         {
           "id": "fougere",
           "zh": "馥奇",
           "en": "Fougère",
-          "desc": "薰衣草+香豆素+苔藓。剃须膏/理发店感",
+          "desc": "薰衣草凉 + 干草甜 + 苔藓苦：三要素齐备才是馥奇，缺香豆素的降为\"薰衣草木质\"",
           "notes": [
             "lavender",
-            "sage"
+            "coumarin",
+            "oakmoss",
+            "tonka bean"
           ],
           "descWheel": "薰衣草加苔藓，老派男香骨架",
-          "tier": 1
+          "tier": 1,
+          "requires": [
+            "lavender",
+            "oakmoss"
+          ]
         },
         {
           "id": "tea",
           "zh": "茶香",
           "en": "Tea",
-          "desc": "绿茶、红茶、乌龙。安静、低攻击性",
+          "desc": "伯爵茶结构：茶叶的干薄为骨，佛手柑为面，茉莉为尾。不是\"绿茶的清新\"",
           "notes": [
-            "green tea"
+            "tea",
+            "bergamot",
+            "jasmine"
           ],
           "descWheel": "绿茶与红茶，薄而干净",
-          "tier": 2
-        },
-        {
-          "id": "marine",
-          "zh": "海洋",
-          "en": "Marine",
-          "desc": "盐感、海风、湿石头",
-          "notes": [
-            "marine notes"
-          ],
-          "descWheel": "盐感、海风、湿石头",
-          "tier": 2
+          "tier": 2,
+          "requires": [
+            "tea",
+            "bergamot"
+          ]
         }
       ],
       "representativeNotes": [
@@ -495,66 +629,69 @@
       "subfamilies": [
         {
           "id": "vanilla-gourmand",
-          "zh": "香草甜",
+          "zh": "香草美食",
           "en": "Vanilla Gourmand",
-          "desc": "香草+糖+零陵香豆",
+          "desc": "一支剖开的香草荚 + 一杯温奶油：豆荚给黑、酒香、微烟，奶油给乳脂与圆。甜是结果，不是定义",
           "notes": [
             "vanilla",
-            "tonka bean"
+            "tonka bean",
+            "benzoin"
           ],
           "descWheel": "香草+糖+零陵香豆",
-          "tier": 1
+          "tier": 1,
+          "requires": [
+            "vanilla"
+          ],
+          "labels": [
+            {
+              "id": "brewed",
+              "zh": "咖啡可可",
+              "en": "Coffee & Cocoa",
+              "notes": [
+                "coffee",
+                "chocolate"
+              ],
+              "desc": "烘焙线：咖啡的焦苦在前、可可在中、香草在尾",
+              "mergedFrom": "coffee-cocoa"
+            },
+            {
+              "id": "nutty",
+              "zh": "坚果",
+              "en": "Nutty",
+              "notes": [
+                "almond",
+                "coconut",
+                "praline"
+              ],
+              "desc": "乳脂线：杏仁、椰奶、果仁糖",
+              "mergedFrom": "nutty"
+            },
+            {
+              "id": "boozy",
+              "zh": "酒香",
+              "en": "Boozy",
+              "notes": [
+                "rum",
+                "cognac"
+              ],
+              "desc": "朗姆、干邑，夜晚属性强",
+              "mergedFrom": "boozy"
+            }
+          ]
         },
         {
           "id": "fruity-gourmand",
-          "zh": "果味甜",
+          "zh": "果味美食",
           "en": "Fruity Gourmand",
-          "desc": "莓果、焦糖水果、棉花糖",
+          "desc": "莓果、焦糖水果、棉花糖：黑加仑的酸先到，苹果梨子给圆，焦糖给焦边",
           "notes": [
-            "peach",
+            "blackcurrant",
             "apple",
-            "pear",
+            "peach",
             "caramel"
           ],
           "descWheel": "桃子苹果，甜得清爽",
           "tier": 1
-        },
-        {
-          "id": "coffee-cocoa",
-          "zh": "咖啡可可",
-          "en": "Coffee / Cocoa",
-          "desc": "烘焙感、微苦，比纯甜成熟",
-          "notes": [
-            "coffee",
-            "cocoa"
-          ],
-          "descWheel": "咖啡与可可，苦甜",
-          "tier": 1
-        },
-        {
-          "id": "nutty",
-          "zh": "坚果杏仁",
-          "en": "Nutty",
-          "desc": "杏仁、榛子、椰奶。奶香路线",
-          "notes": [
-            "almond",
-            "coconut"
-          ],
-          "descWheel": "杏仁、榛子、椰奶。奶香路线",
-          "tier": 2
-        },
-        {
-          "id": "boozy",
-          "zh": "酒香",
-          "en": "Boozy",
-          "desc": "朗姆、白兰地、香槟。夜晚属性强",
-          "notes": [
-            "rum",
-            "absinthe",
-            "cognac"
-          ],
-          "descWheel": "朗姆与干邑，有酒气",
-          "tier": 2
         }
       ],
       "representativeNotes": [
@@ -914,7 +1051,7 @@
         "zh": "依兰",
         "en": "ylang-ylang",
         "family": "floral",
-        "subfamily": "yellow-floral"
+        "subfamily": "white-floral"
       },
       {
         "zh": "雪松",
@@ -990,7 +1127,7 @@
         "zh": "焚香",
         "en": "incense",
         "family": "amber",
-        "subfamily": "incense",
+        "subfamily": "incense-cold",
         "aliases": [
           "incense"
         ]
@@ -1029,31 +1166,31 @@
         "zh": "咖啡",
         "en": "coffee",
         "family": "gourmand",
-        "subfamily": "coffee-cocoa"
+        "subfamily": "vanilla-gourmand"
       },
       {
         "zh": "可可",
         "en": "cocoa",
         "family": "gourmand",
-        "subfamily": "coffee-cocoa"
+        "subfamily": "vanilla-gourmand"
       },
       {
         "zh": "杏仁",
         "en": "almond",
         "family": "gourmand",
-        "subfamily": "nutty"
+        "subfamily": "vanilla-gourmand"
       },
       {
         "zh": "椰子",
         "en": "coconut",
         "family": "gourmand",
-        "subfamily": "nutty"
+        "subfamily": "vanilla-gourmand"
       },
       {
         "zh": "朗姆酒",
         "en": "rum",
         "family": "gourmand",
-        "subfamily": "boozy"
+        "subfamily": "vanilla-gourmand"
       },
       {
         "zh": "麝香",
@@ -1070,7 +1207,7 @@
         "zh": "海水",
         "en": "marine notes",
         "family": "fresh",
-        "subfamily": "marine",
+        "subfamily": "aquatic",
         "aliases": [
           "marine",
           "sea notes",
@@ -1205,13 +1342,37 @@
         "zh": "苦艾",
         "en": "absinthe",
         "family": "gourmand",
-        "subfamily": "boozy"
+        "subfamily": "vanilla-gourmand"
       },
       {
         "zh": "干邑",
         "en": "cognac",
         "family": "gourmand",
-        "subfamily": "boozy"
+        "subfamily": "vanilla-gourmand"
+      },
+      {
+        "zh": "安息香",
+        "en": "benzoin",
+        "family": "amber",
+        "subfamily": "incense-warm"
+      },
+      {
+        "zh": "海盐",
+        "en": "sea salt",
+        "family": "fresh",
+        "subfamily": "aquatic"
+      },
+      {
+        "zh": "西瓜酮",
+        "en": "calone",
+        "family": "fresh",
+        "subfamily": "aquatic"
+      },
+      {
+        "zh": "香豆素",
+        "en": "coumarin",
+        "family": "fresh",
+        "subfamily": "fougere"
       }
     ]
   },

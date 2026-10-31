@@ -1,0 +1,1094 @@
+[
+ {
+  "fam": "citrus",
+  "famZh": "柑橘调",
+  "id": "cologne",
+  "zh": "古龙水型",
+  "N": 320,
+  "Nbroad": 320,
+  "famN": 425,
+  "share": 0.7529,
+  "coreRate": 0.5344,
+  "exclusiveRate": 0.1375,
+  "maxOverlap": 0.987,
+  "nearest": "芳香柑橘",
+  "nearestInter": 222,
+  "zeroNotes": [],
+  "top3": [
+   "orange 15%",
+   "lavender 14%",
+   "apple 12%"
+  ],
+  "examples": [
+   "Creed Aventus",
+   "Creed Silver Mountain Water",
+   "Maison Francis Kurkdjian Aqua Universalis",
+   "Frédéric Malle Musc Ravageur"
+  ],
+  "w1": 87,
+  "w05": 146,
+  "wLow": 87,
+  "S": {
+   "mutual": 1,
+   "homo": 4,
+   "sem": 4,
+   "cov": 5,
+   "mis": 1,
+   "dist": 1
+  },
+  "total": 16
+ },
+ {
+  "fam": "citrus",
+  "famZh": "柑橘调",
+  "id": "green-citrus",
+  "zh": "青绿柑橘",
+  "N": 75,
+  "Nbroad": 75,
+  "famN": 425,
+  "share": 0.1765,
+  "coreRate": 0.1333,
+  "exclusiveRate": 0.1467,
+  "maxOverlap": 0.8,
+  "nearest": "古龙水型",
+  "nearestInter": 60,
+  "zeroNotes": [],
+  "top3": [
+   "grapefruit 65%",
+   "petitgrain 35%",
+   "neroli 16%"
+  ],
+  "examples": [
+   "Versace Pour Homme",
+   "Creed Himalaya",
+   "Trussardi Riflesso",
+   "Floris London No.89"
+  ],
+  "w1": 34,
+  "w05": 35,
+  "wLow": 6,
+  "S": {
+   "mutual": 1,
+   "homo": 1,
+   "sem": 5,
+   "cov": 3,
+   "mis": 1,
+   "dist": 1
+  },
+  "total": 12
+ },
+ {
+  "fam": "citrus",
+  "famZh": "柑橘调",
+  "id": "citrus-floral",
+  "zh": "柑橘花香",
+  "N": 176,
+  "Nbroad": 176,
+  "famN": 425,
+  "share": 0.4141,
+  "coreRate": 0.1761,
+  "exclusiveRate": 0.1705,
+  "maxOverlap": 0.818,
+  "nearest": "古龙水型",
+  "nearestInter": 144,
+  "zeroNotes": [],
+  "top3": [
+   "orange 30%",
+   "peach 15%",
+   "apple 14%"
+  ],
+  "examples": [
+   "Creed Aventus",
+   "Creed Silver Mountain Water",
+   "Armaf Club de Nuit Intense Man",
+   "Burberry Her"
+  ],
+  "w1": 53,
+  "w05": 65,
+  "wLow": 58,
+  "S": {
+   "mutual": 1,
+   "homo": 1,
+   "sem": 4,
+   "cov": 5,
+   "mis": 1,
+   "dist": 2
+  },
+  "total": 14
+ },
+ {
+  "fam": "citrus",
+  "famZh": "柑橘调",
+  "id": "aromatic-citrus",
+  "zh": "芳香柑橘",
+  "N": 225,
+  "Nbroad": 225,
+  "famN": 425,
+  "share": 0.5294,
+  "coreRate": 0.1822,
+  "exclusiveRate": 0.0044,
+  "maxOverlap": 0.987,
+  "nearest": "古龙水型",
+  "nearestInter": 222,
+  "zeroNotes": [],
+  "top3": [
+   "lavender 20%",
+   "grapefruit 14%",
+   "orange 13%"
+  ],
+  "examples": [
+   "Creed Aventus",
+   "Creed Silver Mountain Water",
+   "Maison Francis Kurkdjian Aqua Universalis",
+   "Frédéric Malle Musc Ravageur"
+  ],
+  "w1": 71,
+  "w05": 114,
+  "wLow": 40,
+  "S": {
+   "mutual": 1,
+   "homo": 2,
+   "sem": 4,
+   "cov": 5,
+   "mis": 1,
+   "dist": 1
+  },
+  "total": 14
+ },
+ {
+  "fam": "floral",
+  "famZh": "花香调",
+  "id": "rose",
+  "zh": "玫瑰",
+  "N": 318,
+  "Nbroad": 318,
+  "famN": 789,
+  "share": 0.403,
+  "coreRate": 0.1195,
+  "exclusiveRate": 0.3208,
+  "maxOverlap": 0.747,
+  "nearest": "绿叶花香",
+  "nearestInter": 62,
+  "zeroNotes": [],
+  "top3": [
+   "geranium 20%",
+   "iris 15%",
+   "ylang-ylang 12%"
+  ],
+  "examples": [
+   "Guerlain Shalimar",
+   "Guerlain Mitsouko",
+   "Frédéric Malle Portrait of a Lady",
+   "Parfums de Marly Delina"
+  ],
+  "w1": 174,
+  "w05": 95,
+  "wLow": 49,
+  "S": {
+   "mutual": 1,
+   "homo": 1,
+   "sem": 5,
+   "cov": 5,
+   "mis": 1,
+   "dist": 3
+  },
+  "total": 16
+ },
+ {
+  "fam": "floral",
+  "famZh": "花香调",
+  "id": "white-floral",
+  "zh": "白花",
+  "N": 287,
+  "Nbroad": 287,
+  "famN": 789,
+  "share": 0.3638,
+  "coreRate": 0.2439,
+  "exclusiveRate": 0.2997,
+  "maxOverlap": 0.527,
+  "nearest": "单一花",
+  "nearestInter": 58,
+  "zeroNotes": [],
+  "top3": [
+   "ylang-ylang 24%",
+   "tuberose 19%",
+   "iris 17%"
+  ],
+  "examples": [
+   "Guerlain Shalimar",
+   "Creed Aventus",
+   "Maison Francis Kurkdjian Baccarat Rouge 540",
+   "Guerlain Mitsouko"
+  ],
+  "w1": 181,
+  "w05": 73,
+  "wLow": 33,
+  "S": {
+   "mutual": 2,
+   "homo": 2,
+   "sem": 5,
+   "cov": 5,
+   "mis": 1,
+   "dist": 2
+  },
+  "total": 17
+ },
+ {
+  "fam": "floral",
+  "famZh": "花香调",
+  "id": "fruity-floral",
+  "zh": "果香花香",
+  "N": 153,
+  "Nbroad": 153,
+  "famN": 789,
+  "share": 0.1939,
+  "coreRate": 0.1242,
+  "exclusiveRate": 0.1634,
+  "maxOverlap": 0.542,
+  "nearest": "玫瑰",
+  "nearestInter": 83,
+  "zeroNotes": [],
+  "top3": [
+   "blackcurrant 41%",
+   "peach 40%",
+   "peony 31%"
+  ],
+  "examples": [
+   "Creed Aventus",
+   "Guerlain Mitsouko",
+   "Frédéric Malle Portrait of a Lady",
+   "Creed Silver Mountain Water"
+  ],
+  "w1": 90,
+  "w05": 48,
+  "wLow": 15,
+  "S": {
+   "mutual": 2,
+   "homo": 1,
+   "sem": 5,
+   "cov": 4,
+   "mis": 1,
+   "dist": 2
+  },
+  "total": 15
+ },
+ {
+  "fam": "floral",
+  "famZh": "花香调",
+  "id": "powdery-floral",
+  "zh": "粉感花香",
+  "N": 174,
+  "Nbroad": 174,
+  "famN": 789,
+  "share": 0.2205,
+  "coreRate": 0.1782,
+  "exclusiveRate": 0.2529,
+  "maxOverlap": 0.5,
+  "nearest": "玫瑰",
+  "nearestInter": 87,
+  "zeroNotes": [],
+  "top3": [
+   "iris 56%",
+   "violet 36%",
+   "heliotrope 18%"
+  ],
+  "examples": [
+   "Guerlain Shalimar",
+   "Byredo Gypsy Water",
+   "Byredo Bal d'Afrique",
+   "Amouage Reflection Man"
+  ],
+  "w1": 75,
+  "w05": 63,
+  "wLow": 36,
+  "S": {
+   "mutual": 2,
+   "homo": 1,
+   "sem": 5,
+   "cov": 4,
+   "mis": 1,
+   "dist": 2
+  },
+  "total": 15
+ },
+ {
+  "fam": "floral",
+  "famZh": "花香调",
+  "id": "green-floral",
+  "zh": "绿叶花香",
+  "N": 83,
+  "Nbroad": 83,
+  "famN": 789,
+  "share": 0.1052,
+  "coreRate": 0.0482,
+  "exclusiveRate": 0.0723,
+  "maxOverlap": 0.747,
+  "nearest": "玫瑰",
+  "nearestInter": 62,
+  "zeroNotes": [],
+  "top3": [
+   "lily of the valley 67%",
+   "violet leaf 29%",
+   "iris 19%"
+  ],
+  "examples": [
+   "Creed Green Irish Tweed",
+   "Parfums de Marly Pegasus",
+   "Tiziana Terenzi Kirke",
+   "Maison Margiela Fragrances Replica Lazy Sunday Morning"
+  ],
+  "w1": 42,
+  "w05": 21,
+  "wLow": 20,
+  "S": {
+   "mutual": 1,
+   "homo": 1,
+   "sem": 5,
+   "cov": 3,
+   "mis": 1,
+   "dist": 1
+  },
+  "total": 12
+ },
+ {
+  "fam": "floral",
+  "famZh": "花香调",
+  "id": "soliflore",
+  "zh": "单一花",
+  "N": 110,
+  "Nbroad": 110,
+  "famN": 789,
+  "share": 0.1394,
+  "coreRate": 0.1091,
+  "exclusiveRate": 0.1727,
+  "maxOverlap": 0.527,
+  "nearest": "白花",
+  "nearestInter": 58,
+  "zeroNotes": [],
+  "top3": [
+   "magnolia 32%",
+   "gardenia 32%",
+   "freesia 30%"
+  ],
+  "examples": [
+   "Jo Malone London English Pear & Freesia",
+   "Viktor&Rolf Flowerbomb",
+   "Chloé Nomade",
+   "Moschino Toy Boy"
+  ],
+  "w1": 86,
+  "w05": 18,
+  "wLow": 6,
+  "S": {
+   "mutual": 2,
+   "homo": 1,
+   "sem": 4,
+   "cov": 3,
+   "mis": 1,
+   "dist": 2
+  },
+  "total": 13
+ },
+ {
+  "fam": "woody",
+  "famZh": "木质调",
+  "id": "sandalwood",
+  "zh": "檀木",
+  "N": 153,
+  "Nbroad": 153,
+  "famN": 534,
+  "share": 0.2865,
+  "coreRate": 0,
+  "exclusiveRate": 0.1111,
+  "maxOverlap": 0.693,
+  "nearest": "苔藓木质",
+  "nearestInter": 106,
+  "zeroNotes": [],
+  "top3": [
+   "cardamom 18%",
+   "nutmeg 17%",
+   "oakmoss 16%"
+  ],
+  "examples": [
+   "Kilian Paris Angels' Share",
+   "Frédéric Malle Portrait of a Lady",
+   "Amouage Reflection Man",
+   "Frédéric Malle Musc Ravageur"
+  ],
+  "w1": 72,
+  "w05": 53,
+  "wLow": 28,
+  "S": {
+   "mutual": 1,
+   "homo": 1,
+   "sem": 4,
+   "cov": 5,
+   "mis": 1,
+   "dist": 1
+  },
+  "total": 13
+ },
+ {
+  "fam": "woody",
+  "famZh": "木质调",
+  "id": "dry-woody",
+  "zh": "干燥木质",
+  "N": 238,
+  "Nbroad": 238,
+  "famN": 534,
+  "share": 0.4457,
+  "coreRate": 0.0966,
+  "exclusiveRate": 0.0378,
+  "maxOverlap": 0.891,
+  "nearest": "芳香木质",
+  "nearestInter": 205,
+  "zeroNotes": [],
+  "top3": [
+   "cardamom 18%",
+   "oakmoss 18%",
+   "lavender 15%"
+  ],
+  "examples": [
+   "Maison Francis Kurkdjian Baccarat Rouge 540",
+   "Parfums de Marly Layton",
+   "Byredo Bal d'Afrique",
+   "Amouage Reflection Man"
+  ],
+  "w1": 122,
+  "w05": 60,
+  "wLow": 56,
+  "S": {
+   "mutual": 1,
+   "homo": 1,
+   "sem": 5,
+   "cov": 5,
+   "mis": 1,
+   "dist": 1
+  },
+  "total": 14
+ },
+ {
+  "fam": "woody",
+  "famZh": "木质调",
+  "id": "vetiver",
+  "zh": "香根草",
+  "N": 144,
+  "Nbroad": 144,
+  "famN": 534,
+  "share": 0.2697,
+  "coreRate": 0.0208,
+  "exclusiveRate": 0.0694,
+  "maxOverlap": 0.66,
+  "nearest": "苔藓木质",
+  "nearestInter": 95,
+  "zeroNotes": [],
+  "top3": [
+   "pepper 20%",
+   "lavender 19%",
+   "leather 17%"
+  ],
+  "examples": [
+   "Byredo Bal d'Afrique",
+   "Parfums de Marly Delina",
+   "Amouage Reflection Man",
+   "Byredo Mojave Ghost"
+  ],
+  "w1": 81,
+  "w05": 42,
+  "wLow": 21,
+  "S": {
+   "mutual": 1,
+   "homo": 1,
+   "sem": 5,
+   "cov": 4,
+   "mis": 1,
+   "dist": 1
+  },
+  "total": 13
+ },
+ {
+  "fam": "woody",
+  "famZh": "木质调",
+  "id": "mossy",
+  "zh": "苔藓木质",
+  "N": 333,
+  "Nbroad": 333,
+  "famN": 534,
+  "share": 0.6236,
+  "coreRate": 0.3724,
+  "exclusiveRate": 0.1952,
+  "maxOverlap": 0.693,
+  "nearest": "檀木",
+  "nearestInter": 106,
+  "zeroNotes": [],
+  "top3": [
+   "oakmoss 23%",
+   "cardamom 18%",
+   "pepper 17%"
+  ],
+  "examples": [
+   "Creed Aventus",
+   "Parfums de Marly Layton",
+   "Frédéric Malle Portrait of a Lady",
+   "Byredo Bal d'Afrique"
+  ],
+  "w1": 147,
+  "w05": 95,
+  "wLow": 91,
+  "S": {
+   "mutual": 1,
+   "homo": 3,
+   "sem": 5,
+   "cov": 5,
+   "mis": 1,
+   "dist": 2
+  },
+  "total": 17
+ },
+ {
+  "fam": "woody",
+  "famZh": "木质调",
+  "id": "woody-aromatic",
+  "zh": "芳香木质",
+  "N": 230,
+  "Nbroad": 230,
+  "famN": 534,
+  "share": 0.4307,
+  "coreRate": 0.1304,
+  "exclusiveRate": 0.0217,
+  "maxOverlap": 0.891,
+  "nearest": "干燥木质",
+  "nearestInter": 205,
+  "zeroNotes": [],
+  "top3": [
+   "oakmoss 18%",
+   "cardamom 17%",
+   "leather 14%"
+  ],
+  "examples": [
+   "Creed Aventus",
+   "Maison Francis Kurkdjian Baccarat Rouge 540",
+   "Byredo Bal d'Afrique",
+   "Amouage Reflection Man"
+  ],
+  "w1": 115,
+  "w05": 58,
+  "wLow": 57,
+  "S": {
+   "mutual": 1,
+   "homo": 1,
+   "sem": 4,
+   "cov": 5,
+   "mis": 1,
+   "dist": 1
+  },
+  "total": 13
+ },
+ {
+  "fam": "woody",
+  "famZh": "木质调",
+  "id": "oud",
+  "zh": "乌木",
+  "N": 135,
+  "Nbroad": 135,
+  "famN": 534,
+  "share": 0.2528,
+  "coreRate": 0.2519,
+  "exclusiveRate": 0.1704,
+  "maxOverlap": 0.63,
+  "nearest": "苔藓木质",
+  "nearestInter": 85,
+  "zeroNotes": [],
+  "top3": [
+   "saffron 52%",
+   "oud 44%",
+   "labdanum 30%"
+  ],
+  "examples": [
+   "Maison Francis Kurkdjian Baccarat Rouge 540",
+   "Yves Saint Laurent La Nuit de L'Homme",
+   "Parfums de Marly Herod",
+   "Montale Black Aoud"
+  ],
+  "w1": 41,
+  "w05": 36,
+  "wLow": 58,
+  "S": {
+   "mutual": 1,
+   "homo": 2,
+   "sem": 5,
+   "cov": 4,
+   "mis": 1,
+   "dist": 2
+  },
+  "total": 15
+ },
+ {
+  "fam": "amber",
+  "famZh": "东方琥珀调",
+  "id": "vanilla-amber",
+  "zh": "香草琥珀",
+  "N": 340,
+  "Nbroad": 340,
+  "famN": 519,
+  "share": 0.6551,
+  "coreRate": 0.3235,
+  "exclusiveRate": 0.3676,
+  "maxOverlap": 0.95,
+  "nearest": "树脂",
+  "nearestInter": 95,
+  "zeroNotes": [],
+  "top3": [
+   "cardamom 15%",
+   "labdanum 15%",
+   "saffron 14%"
+  ],
+  "examples": [
+   "Guerlain Shalimar",
+   "Byredo Gypsy Water",
+   "Parfums de Marly Layton",
+   "Maison Francis Kurkdjian Grand Soir"
+  ],
+  "w1": 48,
+  "w05": 108,
+  "wLow": 184,
+  "S": {
+   "mutual": 1,
+   "homo": 3,
+   "sem": 4,
+   "cov": 5,
+   "mis": 1,
+   "dist": 3
+  },
+  "total": 17
+ },
+ {
+  "fam": "amber",
+  "famZh": "东方琥珀调",
+  "id": "spicy-amber",
+  "zh": "辛香琥珀",
+  "N": 184,
+  "Nbroad": 184,
+  "famN": 519,
+  "share": 0.3545,
+  "coreRate": 0.2446,
+  "exclusiveRate": 0.0815,
+  "maxOverlap": 0.668,
+  "nearest": "香草琥珀",
+  "nearestInter": 123,
+  "zeroNotes": [],
+  "top3": [
+   "cardamom 43%",
+   "saffron 38%",
+   "cinnamon 35%"
+  ],
+  "examples": [
+   "Parfums de Marly Layton",
+   "Kilian Paris Angels' Share",
+   "Maison Margiela Fragrances Replica By the Fireplace",
+   "Montale Arabians Tonka"
+  ],
+  "w1": 17,
+  "w05": 89,
+  "wLow": 78,
+  "S": {
+   "mutual": 1,
+   "homo": 2,
+   "sem": 5,
+   "cov": 5,
+   "mis": 1,
+   "dist": 1
+  },
+  "total": 15
+ },
+ {
+  "fam": "amber",
+  "famZh": "东方琥珀调",
+  "id": "incense-cold",
+  "zh": "冷焚香",
+  "N": 89,
+  "Nbroad": 89,
+  "famN": 519,
+  "share": 0.1715,
+  "coreRate": 0.0225,
+  "exclusiveRate": 0.0449,
+  "maxOverlap": 0.708,
+  "nearest": "香草琥珀",
+  "nearestInter": 63,
+  "zeroNotes": [],
+  "top3": [
+   "incense 52%",
+   "frankincense 44%",
+   "leather 27%"
+  ],
+  "examples": [
+   "Byredo Gypsy Water",
+   "Parfums de Marly Herod",
+   "Mancera Red Tobacco",
+   "Amouage Gold Man"
+  ],
+  "w1": 30,
+  "w05": 37,
+  "wLow": 22,
+  "S": {
+   "mutual": 1,
+   "homo": 1,
+   "sem": 5,
+   "cov": 3,
+   "mis": 1,
+   "dist": 1
+  },
+  "total": 12
+ },
+ {
+  "fam": "amber",
+  "famZh": "东方琥珀调",
+  "id": "incense-warm",
+  "zh": "暖焚香",
+  "N": 136,
+  "Nbroad": 136,
+  "famN": 519,
+  "share": 0.262,
+  "coreRate": 0.1544,
+  "exclusiveRate": 0,
+  "maxOverlap": 0.816,
+  "nearest": "香草琥珀",
+  "nearestInter": 111,
+  "zeroNotes": [],
+  "top3": [
+   "cinnamon 48%",
+   "benzoin 35%",
+   "incense 34%"
+  ],
+  "examples": [
+   "Byredo Gypsy Water",
+   "Kilian Paris Angels' Share",
+   "Maison Francis Kurkdjian Grand Soir",
+   "Lattafa Khamrah"
+  ],
+  "w1": 29,
+  "w05": 64,
+  "wLow": 43,
+  "S": {
+   "mutual": 1,
+   "homo": 1,
+   "sem": 5,
+   "cov": 4,
+   "mis": 1,
+   "dist": 1
+  },
+  "total": 13
+ },
+ {
+  "fam": "amber",
+  "famZh": "东方琥珀调",
+  "id": "resinous",
+  "zh": "树脂",
+  "N": 100,
+  "Nbroad": 100,
+  "famN": 519,
+  "share": 0.1927,
+  "coreRate": 0.22,
+  "exclusiveRate": 0,
+  "maxOverlap": 0.95,
+  "nearest": "香草琥珀",
+  "nearestInter": 95,
+  "zeroNotes": [],
+  "top3": [
+   "labdanum 50%",
+   "benzoin 48%",
+   "myrrh 25%"
+  ],
+  "examples": [
+   "Maison Francis Kurkdjian Grand Soir",
+   "Yves Saint Laurent La Nuit de L'Homme",
+   "Lattafa Khamrah",
+   "Maison Francis Kurkdjian Oud Satin Mood"
+  ],
+  "w1": 35,
+  "w05": 44,
+  "wLow": 21,
+  "S": {
+   "mutual": 1,
+   "homo": 2,
+   "sem": 5,
+   "cov": 4,
+   "mis": 1,
+   "dist": 1
+  },
+  "total": 14
+ },
+ {
+  "fam": "amber",
+  "famZh": "东方琥珀调",
+  "id": "leather",
+  "zh": "皮革",
+  "N": 138,
+  "Nbroad": 138,
+  "famN": 519,
+  "share": 0.2659,
+  "coreRate": 0.1159,
+  "exclusiveRate": 0.1087,
+  "maxOverlap": 0.667,
+  "nearest": "香草琥珀",
+  "nearestInter": 92,
+  "zeroNotes": [],
+  "top3": [
+   "leather 53%",
+   "saffron 51%",
+   "oud 26%"
+  ],
+  "examples": [
+   "Montale Arabians Tonka",
+   "Mancera Red Tobacco",
+   "Afnan 9 PM Elixir",
+   "Kenzo Kenzo Homme"
+  ],
+  "w1": 20,
+  "w05": 60,
+  "wLow": 58,
+  "S": {
+   "mutual": 1,
+   "homo": 1,
+   "sem": 4,
+   "cov": 4,
+   "mis": 1,
+   "dist": 1
+  },
+  "total": 12
+ },
+ {
+  "fam": "fresh",
+  "famZh": "清新调",
+  "id": "aquatic",
+  "zh": "水生",
+  "N": 17,
+  "Nbroad": 17,
+  "famN": 698,
+  "share": 0.0244,
+  "coreRate": 0,
+  "exclusiveRate": 0.2941,
+  "maxOverlap": 0.471,
+  "nearest": "茶香",
+  "nearestInter": 8,
+  "zeroNotes": [],
+  "top3": [
+   "salt 53%",
+   "mint 29%",
+   "melon 29%"
+  ],
+  "examples": [
+   "Jo Malone London Wood Sage & Sea Salt",
+   "Armaf Club de Nuit Iconic",
+   "James Heeley Sel Marin",
+   "Orto Parisi Megamare"
+  ],
+  "w1": 9,
+  "w05": 3,
+  "wLow": 5,
+  "S": {
+   "mutual": 2,
+   "homo": 1,
+   "sem": 4,
+   "cov": 1,
+   "mis": 1,
+   "dist": 2
+  },
+  "total": 11
+ },
+ {
+  "fam": "fresh",
+  "famZh": "清新调",
+  "id": "green",
+  "zh": "绿意",
+  "N": 51,
+  "Nbroad": 51,
+  "famN": 698,
+  "share": 0.0731,
+  "coreRate": 0.0392,
+  "exclusiveRate": 0.3922,
+  "maxOverlap": 0.471,
+  "nearest": "茶香",
+  "nearestInter": 24,
+  "zeroNotes": [],
+  "top3": [
+   "violet leaf 41%",
+   "fig 35%",
+   "galbanum 22%"
+  ],
+  "examples": [
+   "Creed Green Irish Tweed",
+   "Parfums de Marly Pegasus",
+   "Trussardi Riflesso",
+   "Nishane Wūlóng Chá"
+  ],
+  "w1": 19,
+  "w05": 9,
+  "wLow": 23,
+  "S": {
+   "mutual": 2,
+   "homo": 1,
+   "sem": 5,
+   "cov": 2,
+   "mis": 1,
+   "dist": 3
+  },
+  "total": 14
+ },
+ {
+  "fam": "fresh",
+  "famZh": "清新调",
+  "id": "fougere",
+  "zh": "馥奇",
+  "N": 247,
+  "Nbroad": 247,
+  "famN": 698,
+  "share": 0.3539,
+  "coreRate": 0.1862,
+  "exclusiveRate": 0.3887,
+  "maxOverlap": 0.583,
+  "nearest": "茶香",
+  "nearestInter": 144,
+  "zeroNotes": [],
+  "top3": [
+   "lavender 51%",
+   "oakmoss 31%",
+   "cardamom 15%"
+  ],
+  "examples": [
+   "Creed Aventus",
+   "Parfums de Marly Layton",
+   "Kilian Paris Angels' Share",
+   "Byredo Bal d'Afrique"
+  ],
+  "w1": 77,
+  "w05": 35,
+  "wLow": 135,
+  "S": {
+   "mutual": 2,
+   "homo": 2,
+   "sem": 4,
+   "cov": 5,
+   "mis": 1,
+   "dist": 3
+  },
+  "total": 17
+ },
+ {
+  "fam": "fresh",
+  "famZh": "清新调",
+  "id": "tea",
+  "zh": "茶香",
+  "N": 381,
+  "Nbroad": 381,
+  "famN": 698,
+  "share": 0.5458,
+  "coreRate": 0.2441,
+  "exclusiveRate": 0.5748,
+  "maxOverlap": 0.583,
+  "nearest": "馥奇",
+  "nearestInter": 144,
+  "zeroNotes": [],
+  "top3": [
+   "lavender 18%",
+   "oakmoss 14%",
+   "grapefruit 11%"
+  ],
+  "examples": [
+   "Creed Aventus",
+   "Maison Francis Kurkdjian Baccarat Rouge 540",
+   "Byredo Gypsy Water",
+   "Parfums de Marly Layton"
+  ],
+  "w1": 68,
+  "w05": 42,
+  "wLow": 271,
+  "S": {
+   "mutual": 2,
+   "homo": 2,
+   "sem": 4,
+   "cov": 5,
+   "mis": 3,
+   "dist": 4
+  },
+  "total": 20
+ },
+ {
+  "fam": "gourmand",
+  "famZh": "美食调",
+  "id": "vanilla-gourmand",
+  "zh": "香草美食",
+  "N": 222,
+  "Nbroad": 222,
+  "famN": 340,
+  "share": 0.6529,
+  "coreRate": 0.2342,
+  "exclusiveRate": 0.6712,
+  "maxOverlap": 0.589,
+  "nearest": "果味美食",
+  "nearestInter": 73,
+  "zeroNotes": [],
+  "top3": [
+   "lavender 12%",
+   "blackcurrant 11%",
+   "apple 11%"
+  ],
+  "examples": [
+   "Guerlain Shalimar",
+   "Creed Aventus",
+   "Parfums de Marly Layton",
+   "Kilian Paris Angels' Share"
+  ],
+  "w1": 107,
+  "w05": 86,
+  "wLow": 29,
+  "S": {
+   "mutual": 2,
+   "homo": 2,
+   "sem": 5,
+   "cov": 5,
+   "mis": 3,
+   "dist": 4
+  },
+  "total": 21
+ },
+ {
+  "fam": "gourmand",
+  "famZh": "美食调",
+  "id": "fruity-gourmand",
+  "zh": "果味美食",
+  "N": 124,
+  "Nbroad": 124,
+  "famN": 340,
+  "share": 0.3647,
+  "coreRate": 0.2177,
+  "exclusiveRate": 0.4113,
+  "maxOverlap": 0.589,
+  "nearest": "香草美食",
+  "nearestInter": 73,
+  "zeroNotes": [],
+  "top3": [
+   "apple 41%",
+   "blackcurrant 35%",
+   "peach 30%"
+  ],
+  "examples": [
+   "Creed Aventus",
+   "Parfums de Marly Layton",
+   "Frédéric Malle Portrait of a Lady",
+   "Creed Silver Mountain Water"
+  ],
+  "w1": 25,
+  "w05": 62,
+  "wLow": 37,
+  "S": {
+   "mutual": 2,
+   "homo": 2,
+   "sem": 5,
+   "cov": 5,
+   "mis": 2,
+   "dist": 3
+  },
+  "total": 19
+ }
+]

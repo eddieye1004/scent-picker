@@ -554,7 +554,7 @@ await new Promise((r) => setTimeout(r, 500));
 const plate = appRoot.querySelector('.hub-plate');
 ok('落到小项后盘心长出标本', !!plate);
 const plates = appRoot.querySelectorAll('.plate-svg');
-/* 一枚，不是三枚：实测 38 个小类的代表香材 32/32 同属一个家族，
+/* 一枚，不是三枚：实测每个小类的代表香材全部同属一个家族，
    逐味画会出来一排一模一样的图标。这条断言就是钉住那个结论的。 */
 ok('标本只画一枚（不是每味香材一枚）', plates.length === 1, `${plates.length} 枚`);
 /* 统一视框与无填充 —— 这就是"风格统一"的可断言部分。
@@ -621,7 +621,9 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
 /* 不断言具体是哪一味：中圈格子的顺序由 taxonomy 决定，写死「葡萄柚」
    会把测试绑死在当前数据顺序上，数据一改就假失败。要守的是
    「名字跟着小类变」，这才是这条断言的意义。 */
-/* ---- 32 枚标识：数据完整性 + 两两不撞形 ---- */
+/* ---- 每类一枚标识：数据完整性 + 两两不撞形 ----
+   类数不写死：taxonomy 加类/减类时这里跟着走，
+   写死会在改分类体系时留下一句骗人的断言名。 */
 {
   const appJs = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
   const s0 = appJs.indexOf('const SUB_MARKS');
@@ -656,7 +658,7 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
     if (seen.has(k)) dup.push(`${seen.get(k)} / ${s.id}`);
     else seen.set(k, s.id);
   }
-  ok('32 枚标识的图形全不相同', dup.length === 0, dup.join(' ; '));
+  ok(`全部 ${allSubs.length} 枚标识的图形全不相同`, dup.length === 0, dup.join(' ; '));
   /* 同族内部尤其不能撞：外圈一次只展开一族，用户看到的永远只有同族那几格，
      跨族撞形用户看不见，同族撞形就是「两格长得一样」。 */
   const dupSameFam = [];
