@@ -40,6 +40,7 @@ const PARTS = [
   '_wheel11.css',
   '_wheel12.css',
   '_wheel13.css', /* 三级描边（D50）：必须最后，要压过前面各层的边框声明 */
+  '_wheel14.css', /* 深色模式（D4）：媒体查询，只在 prefers-color-scheme: dark 下生效 */
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');

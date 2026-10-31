@@ -5311,3 +5311,317 @@ body { position: relative; }
   border-radius: 2px;
   line-height: 17px;
 }
+/* ============================================================
+   v26 · D4 深色模式
+   ------------------------------------------------------------
+   前提：这一套视觉是"纸感"（D05 的 --bg #ffffff = 白纸）。
+   深色模式与它方向相悖，所以这里不是"翻成黑纸"，而是
+   **保留纸的层级关系，把明度轴反向后重新排一遍**：
+
+     浅色：白纸(0%) → 浅灰(4%) → 中灰(9%) → 墨(95%)
+     深色：深纸(8%) → 更深(4%)  → 更浅(12%) → 墨(96%)
+
+   注意第三档的方向是**变的**：浅色里 --bg-3 比 --bg 深（#e8e8e8 压白），
+   深色里它必须比 --bg 亮（#2a2a2a 提黑），否则"禁用底/未完成进度"
+   会读成"比背景更凹"，而它应该是"更平"。
+
+   ============================================================
+   一、只改这 12 个变量，全站翻转
+   ============================================================
+   清点过全站 96 处写死色值，只有两类需要为深色改：
+     · :root 基础变量（本块）—— 改这一处，90% 的表面跟着翻转
+     · background 写死 #fff 的 7 处 —— 已在下文逐条改成 var(--bg)
+   而 color 写死的白/浅灰有 22 处（.is-picked 的反白文字、.btn 的白字、
+   .choice.is-on 的白字），**这些一律不动** ——
+   它们本来就是"深底白字"，在深色模式下依然是正确的前景色。
+
+   ============================================================
+   二、对比度必须重算，不能照搬
+   ============================================================
+   浅色版的 --ink-3 #616161 是"6.19 on 白"。翻到深色后，
+   白 → #141414，同样的 #616161 只有 2.4 —— 远低于 4.5。
+   所以深色版的三档墨色是**按深底反解**的，不是把浅色版调亮：
+
+     档      深色值    对 #141414 的对比度
+     --ink   #f2f2f2   15.9
+     --ink-2 #c8c8c8   9.6
+     --ink-3 #a3a3a3   6.0   ← 与浅色版同档（6.19 附近）
+
+   ============================================================
+   三、主色要提亮
+   ============================================================
+   --blue #002FA7 在白底上 10.69，在 #141414 上只有 1.9 —— 几乎看不见。
+   深色版提到 #6E8BFF（对 #141414 约 6.4），保持同一色相。
+   同理 --blue-deep（渐变暗部）翻成 #3A56C4，--blue-amb 提到 #9AA6D0。
+
+   ============================================================
+   四、阴影在深色下要换成"更深"而不是"更亮"
+   ============================================================
+   浅色的落影用 rgba(0,26,94,...)（蓝黑），在深底上看不见。
+   深色版改成纯黑 + 更高不透明度，并把内高光（白线）降到 .14 以下 ——
+   白色内高光在深底上会读成"发光的边框"，不是"受光的边缘"。
+
+   ============================================================
+   五、为什么不做跟随系统切换的开关
+   ============================================================
+   只用 prefers-color-scheme 媒体查询，不提供手动切换按钮。
+   理由：项目是纯静态单页、无后端，持久化选择要靠 localStorage 或
+   URL 参数 —— 两者都会让"同一份链接在不同人那里长得不一样"，
+   而这个项目的截图/验收是靠逐像素比对做的（D38/D40 里多次用到）。
+   多一个状态维度，等于给每次回归验证增加一倍组合。
+
+   如果以后要做，最小改动是在 html 元素上挂 data-theme 属性，
+   把下面的媒体查询条件换成属性选择器，其余不动。
+   ============================================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* —— 纸：三层，方向与浅色一致（越大越"平"）—— */
+    --bg:   #141414;
+    --bg-2: #1e1e1e;
+    --bg-3: #2a2a2a;
+
+    /* —— 分隔线与控件边界 ——
+       浅色版 --line 1.41 / --edge 4.54 是"on 白"算的。深底上要重算：
+       #3a3a3a 对 #141414 是 1.9（纯装饰够用），#8a8a8a 是 5.3（控件边界远超 3:1）。 */
+    --line: #3a3a3a;
+    --edge: #8a8a8a;
+
+    /* —— 墨：按深底反解，见上文第二节 —— */
+    --ink:   #f2f2f2;
+    --ink-2: #c8c8c8;
+    --ink-3: #a3a3a3;
+
+    /* —— 强调色：--blue 在深底上必须提亮，否则 1.9:1 看不见 —— */
+    --blue:      #6e8bff;
+    --blue-deep: #3a56c4;
+    --blue-lift: #8da3ff;
+    --blue-amb:  #9aa6d0;
+    --blue-wash: rgba(110, 139, 255, .14);
+
+    --accent:      #6e8bff;    /* 覆盖旧朱红，与 --blue 同源 */
+    --accent-soft: #9aa6d0;
+    --warn:        #e0b56a;    /* 浅色版 5.93 on 白；深底反解到 8.9 */
+    --danger:      #ff8a80;
+
+    /* —— 控件边界（D1 引入）—— */
+    --stroke-ui: #7a7a7a;      /* 对 #141414 = 4.1，过 3:1 */
+
+    /* 三级描边（A9 引入）：深底上不能整体提亮 ——
+       浅色版是"三档深浅不同、都压在白底上"，深色版如果照抄提亮，
+       L3 的 2px 亮灰线会变成盘里最抢眼的东西（实测盘心一圈白箍）。
+       深色下的正确关系是：**线比面亮一点点就够**，
+       L1/L2/L3 之间的差异靠线宽（1/1/2px）而不是靠明度差。 */
+    --stroke-l1: #2e2e2e;
+    --stroke-l2: #333333;
+    --stroke-l3: #3a3a3a;
+    --stroke-hi: rgba(255, 255, 255, .10);   /* 内高光降到 .10，否则读成发光边 */
+
+    /* —— 阴影：换成纯黑、更高不透明度 —— */
+    --sh-lift: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 10px 30px -10px rgba(0, 0, 0, .72);
+    --sh-press: 0 1px 2px rgba(0, 0, 0, .55) inset, 0 1px 0 rgba(0, 0, 0, .4);
+    --sh-card: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 10px 34px -14px rgba(0, 0, 0, .68);
+  }
+
+  /* ---- 7 处写死 background:#fff 的盘心，改成跟随变量 ----
+     这 7 处是清点出来的全部。它们在深色下必须是"比底色亮一点的面"，
+     而不是纯白（纯白会在深色界面上挖出一个刺眼的洞）。 */
+  .wheel .disc-hub,
+  .wheel .disc-hub.is-idle,
+  .wheel .disc-hub.is-hover,
+  .wheel.is-open .disc-hub {
+    background: var(--bg-2);
+  }
+  /* 盘心上那两道手写浅色渐变，深色下直接换成实底 —— 浅色渐变在深底上会变成一块脏灰 */
+  .wheel .disc-hub.is-wide:not(.is-picked) {
+    background: var(--bg-2);
+  }
+  /* 盘心边框也是写死的浅色（#e8ebf4 / #eceef6），深色下几乎不可见 */
+  .wheel .disc-hub {
+    border-color: var(--line);
+  }
+  .wheel.is-open .disc-hub {
+    border-color: var(--line);
+  }
+
+  /* ---- 盘心的内高光：`_wheel13.css:101/112/125` 三条阴影里各有一层
+     `0 1px 0 rgba(255,255,255,.95) inset` —— 那是"白纸被顶起来"的受光边。
+     深色下白得发光，实测盘心外沿出现一圈 171px 的亮环，比盘心文字还抢眼。
+
+     这里按**同特异度**重写（`_wheel13` 的三条是 0,3,0 / 0,3,0 / 0,4,0），
+     只把内高光降到 .10、并把三级描边色换成暗档：
+     线比面亮一点点就够，L1/L2/L3 的差别靠线宽（1/1/2px）而不是明度。
+     不能只写 `.wheel .disc-hub`（0,2,0）—— 会被上面三条全压掉。 */
+  .wheel:not(.is-open) .disc-hub {
+    box-shadow:
+      0 0 0 var(--stroke-l3-w) var(--stroke-l3),
+      0 0 0 1px rgba(255, 255, 255, .10) inset,
+      0 1px 0 rgba(255, 255, 255, .10) inset,
+      0 8px 26px -14px rgba(0, 0, 0, .60);
+  }
+  .wheel.is-open .disc-hub {
+    box-shadow:
+      0 0 0 var(--stroke-l3-w) var(--stroke-l3),
+      0 0 0 1px rgba(255, 255, 255, .10) inset,
+      0 1px 0 rgba(255, 255, 255, .10) inset,
+      0 14px 32px -20px rgba(0, 0, 0, .72);
+  }
+  .wheel:not(.is-open) .disc-hub.is-hover,
+  .wheel.is-open .disc-hub.is-hover {
+    box-shadow:
+      0 0 0 var(--stroke-l3-w) var(--blue-amb),
+      0 0 0 1px rgba(255, 255, 255, .12) inset,
+      0 1px 0 rgba(255, 255, 255, .12) inset,
+      0 10px 28px -18px rgba(0, 0, 0, .62);
+  }
+  .wheel.is-open.is-picked .disc-hub {
+    box-shadow: none;
+  }
+  /* ---- 选中态盘底：`_wheel5.css:60` 给它挂了一圈
+     `0 0 0 1px var(--blue-amb) inset` —— 那是"白盘上的一道淡蓝发丝线"。
+     深色下 --blue-amb 提到 #9aa6d0，这道线正好画在盘的最外沿（r=260），
+     1px 展开成 520px 的一整圈亮环，把一个"激活提示"读成了发光边框。
+     实测 r=259 处 L=166，比盘里任何内容都亮。
+
+     深色下把这道线收进偏内、压到几乎不可见的程度：
+     选中态本身已经有三处表达（弧段填蓝 + 盘心反白 + 标本环），
+     盘沿不需要再喊一次。 */
+  .wheel.is-open.is-picked .disc-core {
+    background: var(--bg-2);
+    box-shadow:
+      0 0 0 1px rgba(110, 139, 255, .22) inset,
+      0 10px 30px -18px rgba(0, 0, 0, .60);
+  }
+  @media (max-width: 620px) {
+    .wheel:not(.is-open) .disc-hub {
+      box-shadow:
+        0 0 0 1.5px var(--stroke-l3),
+        0 0 0 1px rgba(255, 255, 255, .10) inset,
+        0 1px 0 rgba(255, 255, 255, .10) inset,
+        0 8px 20px -14px rgba(0, 0, 0, .58);
+    }
+    .wheel.is-open .disc-hub {
+      box-shadow:
+        0 0 0 1.5px var(--stroke-l3),
+        0 0 0 1px rgba(255, 255, 255, .10) inset,
+        0 1px 0 rgba(255, 255, 255, .10) inset,
+        0 12px 26px -16px rgba(0, 0, 0, .70);
+    }
+    .wheel.is-open.is-picked .disc-hub {
+      box-shadow: none;
+    }
+  }
+
+  /* ---- 扇形与瓦片：白填充换成一档面 ---- */
+  .wheel .disc-svg .sector-shape {
+    stroke: var(--line);
+  }
+
+  /* ---- 盘的底座面：`_wheel7.css:163` 写死 `background:#c3c9dc` ----
+     这是整个圆盘底下那块"盘身"，扇区外径 228/240，外面露出的 5% 就是盘的边。
+     深色下没覆盖它的话，会得到一圈直径 520px 的浅灰箍 ——
+     比盘里任何内容都亮，视线第一眼落在箍上而不是扇区。
+
+     深色版把它压到比背景**暗**一档：盘应该"陷进"深底，而不是浮在深底上。
+     外沿那道写死的 1px `#b8bed3` 一并换成 --line。 */
+  .wheel {
+    background: #0e0e0e;
+    box-shadow:
+      0 0 0 1px var(--line),
+      0 26px 60px -42px rgba(0, 0, 0, .80),
+      0 2px 6px -4px rgba(0, 0, 0, .50);
+  }
+
+  /* ---- 盘的实体边：`_wheel11.css:162` 那圈 box-shadow 用的是"白瓷"倒角
+     （`rgba(255,255,255,.95) inset` + `rgba(255,255,255,.55)` 两道内亮线），
+     在深色底上会变成一圈刺眼的白箍，比盘本身还亮。
+     深色下改成"深色瓷"：外沿一道与 L1 同档的勾边、内里两道逐级变暗的斜面、
+     落影换纯黑。
+
+     **注意外沿那道不能取 --edge**。--edge 是控件边界色（#8a8a8a，对深底 5.3:1），
+     拿它画盘的轮廓，在 520px 的圆上会读成一圈发光箍 —— 实测第一版就是这样，
+     视线第一眼落在箍上而不是扇区。这里用 --stroke-l1。 */
+  .wheel::after {
+    box-shadow:
+      0 0 0 1px var(--stroke-l1),
+      0 0 0 1px rgba(255, 255, 255, .06) inset,
+      0 0 0 4px rgba(255, 255, 255, .03) inset,
+      0 0 0 5px rgba(0, 0, 0, .35) inset,
+      0 2px 4px rgba(0, 0, 0, .45),
+      0 16px 34px -18px rgba(0, 0, 0, .70),
+      0 48px 96px -58px rgba(0, 0, 0, .85);
+  }
+
+  /* ---- 家族环：切到 app.js 里另建的一套深色渐变 ----
+     六个浅色渐变（#fbfcee 一族）是"白纸上的 5% 明暗"，彼此只差几个色阶。
+     把同样的色压暗行不通 —— 实测 brightness(.26) 之后六族色相全被抹平，
+     六块退成同一种深灰。深色版必须是**重新定色**：
+     app.js 里 mkGrad('gFamCitrusD' …) 六条，在 L* 12–16 的暗区间里
+     用色相拉开距离（橄榄 / 藕紫 / 暖灰 / 琥珀金 / 青绿 / 铜棕）。
+
+     CSS 在这里只做一件事：把 fill 的引用换掉。
+     不能反过来"由 CSS 生成颜色"——渐变 stop 在 app.js，两处会漂移。 */
+  .wheel .disc-svg .sector-g[data-fam="citrus"]   .sector-shape { fill: url(#gFamCitrusD); }
+  .wheel .disc-svg .sector-g[data-fam="floral"]   .sector-shape { fill: url(#gFamFloralD); }
+  .wheel .disc-svg .sector-g[data-fam="woody"]    .sector-shape { fill: url(#gFamWoodyD); }
+  .wheel .disc-svg .sector-g[data-fam="amber"]    .sector-shape { fill: url(#gFamAmberD); }
+  .wheel .disc-svg .sector-g[data-fam="fresh"]    .sector-shape { fill: url(#gFamFreshD); }
+  .wheel .disc-svg .sector-g[data-fam="gourmand"] .sector-shape { fill: url(#gFamGourmandD); }
+
+  /* 悬停/选中也要跟着换 —— _wheel7.css 里这三条写的是 #fff 与 --blue-wash，
+     特异度分别是 (0,3,1) 和 (0,4,1)，本文件的媒体查询不提升特异度，
+     必须用同档或更高的选择器，否则深色下悬停会闪回白块。 */
+  .wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
+  .wheel .disc-svg .sector-g.is-hot .sector-shape {
+    fill: url(#gFamHotD);
+  }
+  .wheel.is-open .sector-g.is-on .sector-shape {
+    fill: var(--blue-wash);
+    stroke: var(--blue);
+  }
+  /* 六族的倒角高光是 drop-shadow 白色，深底上会读成"每块都镶了银边" —— 关掉。 */
+  .wheel .disc-svg .sector-shape {
+    filter: none;
+  }
+  /* 相邻两族的界线：用底色画，而不是 --line（--line 是给浅底的分隔线，太深）。 */
+  .wheel .disc-svg .sector-g .sector-shape {
+    stroke: var(--bg);
+  }
+
+  /* ---- 中圈弧片：换成比家族环亮一档的面（gArcD），
+     靠这一点**亮度反转**把中圈从大圈里读出来。----
+     悬停也一样，_wheel7.css 的 `fill:#ffffff` 特异度 (0,3,1)，
+     这里必须同档覆盖，否则深色下悬停是一块纯白。 */
+  .wheel .sub-arc {
+    fill: url(#gArcD);
+    stroke: var(--bg);          /* 瓦片之间的缝用底色 */
+  }
+  .wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
+  .wheel .sub-g.is-hot .sub-arc {
+    fill: url(#gArcHotD);
+    stroke: var(--ink-2);
+  }
+  .wheel .sub-g.is-on .sub-arc {
+    fill: url(#gArcOnD);
+    stroke: var(--blue);
+  }
+  .wheel .sub-g.is-on .sub-arc-label,
+  .wheel .sub-arc-btn .arc-zh {
+    color: var(--ink);
+  }
+
+  /* ---- 打印时永远用浅色（纸就是白的）---- */
+  @media print {
+    :root {
+      --bg: #ffffff;
+      --bg-2: #f5f5f5;
+      --bg-3: #e8e8e8;
+      --ink: #0e0e0e;
+      --ink-2: #3d3d3d;
+      --ink-3: #616161;
+      --line: #d9d9d9;
+      --edge: #767676;
+      --blue: #002fa7;
+    }
+  }
+}

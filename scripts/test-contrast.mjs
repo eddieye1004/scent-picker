@@ -24,11 +24,25 @@ const CSS = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
    早先只 match 第一块，导致 styles.css 末尾追加的 v3 覆盖层里的
    --accent / --radius 完全读不到，28 条断言一直在按旧色跑 —— 守门形同虚设。
    这类"守门脚本自己瞎了"的 bug 比配色错误更危险：测试是绿的，但守的是别人。 */
+/* 变量表：只收浅色（默认）那一套。
+   D4 加了深色模式后，深色块里的 :root 也匹配 /:root\s*\{/ ——
+   于是 --accent-soft 被深色版覆盖，断言仍拿它和白底算比值，
+   报出 2.40 < 3.0 的假失败。深色块有自己的底（#141414），不可与白底混算。
+
+   判别：看这个 :root 块之前最近的 @media 条件里有没有 prefers-color-scheme: dark。 */
+const isDarkBlock = (index) => {
+  const before = CSS.slice(0, index);
+  const lastMedia = before.lastIndexOf('@media');
+  if (lastMedia < 0) return false;
+  return /prefers-color-scheme\s*:\s*dark/.test(CSS.slice(lastMedia, index));
+};
+
 const VARS = {};
 for (const block of CSS.matchAll(/:root\s*\{([\s\S]*?)\}/g)) {
+  if (isDarkBlock(block.index)) continue;   // 深色块不参与浅色断言
   for (const decl of block[1].split(';')) {
     const m = decl.match(/--([\w-]+)\s*:\s*(#[0-9a-fA-F]{3,8})\s*(?:!important)?\s*$/);
-    if (m) VARS[m[1]] = m[2];   // 后出现的块覆盖先出现的
+    if (m) VARS[m[1]] = m[2];
   }
 }
 /* 兜底：v3 覆盖层必须真的进到 CSS 里。
