@@ -3261,10 +3261,29 @@ function renderResult() {
 
   results.forEach((r, i) => {
     const p = r.perfume;
-    const art = el('article', { class: 'pick' });
+    /* 第 1 名要有独立于百分比的视觉身份。
+       原来三张卡用同一套样式，只有「匹配度 40% / 40% / 39%」这几个数字区分 ——
+       差值 1 个百分点时说「这是最匹配的」没有说服力，用户也没法一眼看出
+       该先试哪一瓶。加 is-top 后：卡头加深、左侧竖条、徽标，三重信号。
+       注意不放大字号 —— 26px 的名字已经在窄屏折行，再大就断。 */
+    /* 「最匹配」只在第 1 名**真的**领先时才标。
+       实测踩到：一组完整答案下三瓶原始分完全相同（score 173.9 / 173.9 / 173.9，
+       分差 0.0），三张卡都显示「匹配度 63%」。这时候把第一张标成「最匹配」
+       是在编一个不存在的排序 —— 三瓶一样匹配，凭什么是它。
+
+       判据用原始 score 差而不是 matchPct：matchPct 经过四舍五入，
+       0.4 分的差距会被抹平；而 score 是浮点数，差多少就是多少。
+       阈值 0.5 分：低于它算不上"更匹配"，读者也不会认。 */
+    const topScore = results[0].score;
+    const tied = results.length > 1 && Math.abs(topScore - results[1].score) < 0.5;
+    const isTop = i === 0 && !tied;
+    const art = el('article', { class: 'pick' + (isTop ? ' is-top' : '') });
 
     art.appendChild(el('div', { class: 'pick-rank' },
       el('span', { class: 'n' }, `候选 ${String(i + 1).padStart(2, '0')}`),
+      isTop ? el('span', { class: 'top-badge' }, '最匹配') : null,
+      /* 并列时把话说清楚：不是"这三个一样好"，而是"评分规则分不出高下" */
+      (i === 0 && tied) ? el('span', { class: 'tie-badge' }, '与后两瓶并列') : null,
       el('span', { class: 'score' }, `匹配度 ${r.matchPct}%`)
     ));
 

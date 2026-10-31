@@ -5251,3 +5251,63 @@ body { position: relative; }
 .choice.is-on {
   border-color: var(--blue);
 }
+
+/* ---------------- D2：结果页第 1 名的视觉身份 ----------------
+
+   三张卡原来同权重。区分只有「匹配度 40% / 40% / 39%」这串数字 ——
+   差 1 个百分点就是第 1 名，用户看不出该先试哪瓶。
+   加三重信号，都不靠放大字号（26px 的名字在窄屏已经折行）。
+
+   ① 左侧竖条：与「留香只读」那条同一种语言（.long-read 用 border-left），
+      全站「这是重点」的统一表达，不引入新的语法。
+   ② 卡头徽标：.top-badge，蓝色描边小标签，紧跟在「候选 01」后面。
+   ③ 上边框加深：article.pick 原本就是 2px --ink，is-top 再给它加一道
+      落影，让它从后两张卡里"浮"出来一点点。
+
+   为什么不做整卡描边加粗：三张卡是并列列表，第 1 张描一圈会读成"弹窗"。
+   左边竖条 + 徽标已经够，且不破坏列表感。 */
+.pick.is-top {
+  position: relative;
+  padding-left: 16px;
+  border-left: 3px solid var(--blue);
+  box-shadow: -1px 0 0 rgba(0, 47, 167, .12);
+}
+.top-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  font-family: var(--font-body);
+  font-size: 12px;                /* 12px 是 test-contrast 的下限 */
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;           /* 覆盖 .pick-rank 的 uppercase */
+  color: var(--blue);             /* 7.42 on 白 */
+  background: var(--blue-wash);
+  border: 1px solid var(--blue-amb);   /* 3.02 : 1 */
+  border-radius: 2px;
+  line-height: 17px;
+}
+/* 窄屏：竖条收窄，内缩量也跟着减，否则正文宽度只剩 300px */
+@media (max-width: 620px) {
+  .pick.is-top {
+    padding-left: 10px;
+    border-left-width: 2px;
+  }
+}
+
+/* 并列徽标：三瓶分数相同时，第 1 名不标「最匹配」，改标「与后两瓶并列」。
+   用中性灰而不是蓝 —— 它说的不是"这个更好"，而是"评分规则分不出高下"。
+   这是数据的诚实话，不该用主色去强调。 */
+.tie-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--ink-3);            /* 6.19 on 白 */
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  line-height: 17px;
+}

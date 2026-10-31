@@ -1020,6 +1020,25 @@ const resultText = getStepText();
 ok('结果页标题', resultText.includes('你的三瓶候选'), resultText.slice(0, 100));
 const picks = appRoot.querySelectorAll('.pick');
 ok('吐出 3 瓶', picks.length === 3, `实际 ${picks.length}`);
+/* ---------- D2：第 1 名的视觉身份，且不许在并列时撒谎 ----------
+   实测踩到：一组完整答案下三瓶原始分完全相同（173.9/173.9/173.9，分差 0.0），
+   三张卡都显示「匹配度 63%」。此时把第 1 张标成「最匹配」是在编造排序。
+   断言两条：① 至多一张 is-top；② 并列时不标最匹配、改标并列徽标。 */
+{
+  const tops = appRoot.querySelectorAll('.pick.is-top');
+  ok('第 1 名至多一张卡被标为最匹配', tops.length <= 1, `实际 ${tops.length}`);
+  const badges = appRoot.querySelectorAll('.top-badge');
+  const ties = appRoot.querySelectorAll('.tie-badge');
+  ok('最匹配徽标至多一枚', badges.length <= 1, `实际 ${badges.length}`);
+  ok('最匹配与并列徽标不同时出现（互斥）',
+    !(badges.length && ties.length),
+    `最匹配 ${badges.length} 枚、并列 ${ties.length} 枚`);
+  /* 至少要有一种"哪瓶更好"的表达 —— 要么最匹配，要么明说并列 */
+  ok('结果页对排名有明确交代',
+    badges.length + ties.length >= 1,
+    '既没有最匹配也没有并列说明，用户无法判断该先试哪瓶');
+}
+
 ok('有前中后调表', appRoot.querySelectorAll('.pyramid').length === 3);
 ok('有推荐理由', appRoot.querySelectorAll('.reasons').length === 3);
 ok('每条理由数量 >=1',
