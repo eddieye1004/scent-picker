@@ -237,6 +237,30 @@ const badOutline = outlineNone.filter((sel) => !hasCompensation(sel));
 if (badOutline.length === 0) pass++;
 else fails.push(`这些规则去掉焦点环又没补偿: ${badOutline.join(', ')}`);
 
+/* ---------- D1：可点卡片的边界对比度 ----------
+   .choice 是 <button>，边框即控件边界，WCAG 1.4.11 要求 >= 3:1。
+   修前它用 --line #d9d9d9 只有 1.41 —— 白底上几乎看不出卡片边界，
+   只能靠间距猜；hover 才升到 4.54，但那对键盘用户等于没有。
+   修后统一到 --stroke-ui。这条断言钉住它不许回退。 */
+/* test-contrast 用的是 pass/fails 计数，没有 ok() 辅助函数 ——
+   照搬 test-render 的 ok() 会 ReferenceError（已踩过）。 */
+{
+  const m = CSS.match(/--stroke-ui:\s*(#[0-9a-fA-F]{6})/);
+  if (!m) {
+    fails.push('未定义控件边界色 --stroke-ui');
+  } else {
+    pass++;                                        // 定义了
+    const r = ratio(m[1], '#ffffff');
+    if (r >= 3) pass++;
+    else fails.push(`--stroke-ui 白底对比 ${r.toFixed(2)} < 3.0 (WCAG 1.4.11)`);
+    const r2 = ratio(m[1], '#f5f5f5');
+    if (r2 >= 3) pass++;
+    else fails.push(`--stroke-ui 在 #f5f5f5 上对比 ${r2.toFixed(2)} < 3.0`);
+  }
+  if (/\.choice \{[^}]*border-color:\s*var\(--stroke-ui\)/.test(CSS)) pass++;
+  else fails.push('.choice 边框未引用 --stroke-ui（仍用 --line，1.41:1 不达标）');
+}
+
 /* ---------- 触控目标尺寸：可点元素不得小于 44px 高 ----------
    起因：用本机 Edge 跑真实渲染后实测，.chip 只有 39px、.btn 只有 37px、
    滑块 input 只有 2px（只设了 height:2px 当轨道，命中区也一起变成 2px）。

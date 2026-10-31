@@ -39,7 +39,8 @@
               "MFK Aqua Universalis"
             ]
           },
-          "short": "只有果皮：柠檬佛手柑的明亮，没有花没有叶没有草本"
+          "short": "柑橘调里\"只剩果皮\"的一类：柠檬/佛手柑的明亮，没有花、没有叶、没有草本",
+          "label": "纯柑橘"
         },
         {
           "id": "green-citrus",
@@ -70,7 +71,8 @@
               "Versace Pour Homme（含 petitgrain）"
             ]
           },
-          "short": "掐断的枝：苦橙叶、白松香，涩的绿不是甜的果"
+          "short": "掐断的枝：苦橙叶与白松香，涩的绿，不是甜的果",
+          "label": "苦橙叶"
         },
         {
           "id": "citrus-floral",
@@ -96,7 +98,8 @@
               "Creed Silver Mountain Water"
             ]
           },
-          "short": "橙花当桥：柑橘开头，中调转白花"
+          "short": "橙花当桥：柑橘开头，中调转白花，茉莉收尾",
+          "label": "橙花柑橘"
         },
         {
           "id": "aromatic-citrus",
@@ -128,7 +131,8 @@
               "Montale Red Aoud（lavender）"
             ]
           },
-          "short": "剃须水味：薰衣草迷迭香压上来，皂感凉"
+          "short": "薰衣草迷迭香压上来，像剃须水或刚洗过的毛巾",
+          "label": "皂感柑橘"
         }
       ],
       "representativeNotes": [
