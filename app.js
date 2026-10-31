@@ -1442,7 +1442,11 @@ function buildWheel(cfg) {
         style: '--l: ' + (px[0] / WHEEL.vb * 100).toFixed(2) + '%; --t: ' + (px[1] / WHEEL.vb * 100).toFixed(2)
           + '%; --nl: ' + (pxm[0] / WHEEL.vb * 100).toFixed(2) + '%; --nt: ' + (pxm[1] / WHEEL.vb * 100).toFixed(2)
           + '%; --i: ' + i + '; --n: ' + n,
-      }, el('span', { class: 'zh' }, item.zh));
+      }, el('span', { class: 'zh' }, item.label || item.zh));
+      /* 中圈标签用 label 而不是 zh：柑橘调的四个 zh 都是"××柑橘"，
+         并排看分不出差别（用户 m05889 原话「我分不清它们的差异」）。
+         label 是 4 字以内的直白词（纯柑橘/苦橙叶/橙花柑橘/皂感柑橘），
+         zh 保留不动 —— 它仍是表单、推荐理由、无障碍名里用的正式名。 */
 
       /* **中圈一旦有选中项，hover 一律不再产生反馈**。
          用户的要求：「中圈一旦被选定，无论鼠标移动到何处，中框的选择状态
@@ -1646,7 +1650,7 @@ function buildWheel(cfg) {
       picked = !!(sub && sub.id === focusSub.id);
       kick = picked ? '已选定' : '正在看';
       zh = focusSub.zh;
-      desc = focusSub.descWheel || focusSub.desc;
+      desc = focusSub.descWheel || focusSub.short || focusSub.desc;
     } else {
       kick = hoverFam && !selFamily ? '正在看' : '已选定大类';
       zh = showFam.zh;
@@ -3173,9 +3177,19 @@ const AFFILIATE = {
      但那不是商品页 —— 这里留空，表示"还没有可跳转的购买页"。
      填了之后会拼成 dest = productBase + '?q=' + brand + ' ' + name */
   productBase: '',
-  /* 是否显示「广告 / 含推广链接」的披露。多数地区（FTC 16 CFR 255、
-     中国《互联网广告管理办法》第九条）要求明示，因此强制开，不允许关。 */
-  disclosure: '购买链接为推广链接，成交后本站可能获得佣金，不影响你的支付价格',
+  /* 披露文案。两地法规都要求"显著标明"，所以强制开、不允许关。
+
+     · 中国《互联网广告管理办法》第九条：要求标明"广告"。
+       原文用"推广链接"措辞不够 —— 该办法用的是"广告"二字，
+       实务上监管看的是有没有可识别的"广告"标识，不是同义改写。
+     · 美国 FTC 16 CFR 255：要求 disclosure 是 "clear and conspicuous"，
+       且必须**在消费者看到链接之前或同时**出现，不能只在页面底部。
+       所以这段文字挂在每张卡片的购买按钮之后（不是全页页脚），
+       并且首句就点明"广告"。
+
+     文案里带"不影响你的支付价格"是有意的：隐去这句会让人觉得
+     佣金来自加价，反而损害可信度。 */
+  disclosure: '广告 · 购买链接为推广链接，成交后本站可能获得佣金，不影响你的支付价格',
 };
 
 function affiliateConfig() {
@@ -3322,7 +3336,10 @@ function renderResult() {
     /* 披露只在真的出现了购买链接时才写 —— 没有任何链接却挂一句
        "含推广链接"是噪音，也会让人误以为页面上有他没看到的广告。 */
     if (buy) {
-      art.appendChild(el('p', { class: 'aff-note' }, aff.disclosure));
+      /* 披露挂在卡片内、紧跟页脚（含购买按钮）。
+         FTC 要求"在链接之前或同时"可见 —— 放在整页最底部的 cookie 条那种做法
+         不算合格，因为用户可能在读到之前就已经点了按钮。 */
+      art.appendChild(el('p', { class: 'aff-note', role: 'note' }, aff.disclosure));
     }
     wrap.appendChild(art);
   });

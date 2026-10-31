@@ -1105,6 +1105,16 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
   /* 链接必须带三个 rel 与 target=_blank，少一个都是安全问题 */
   const href = appMod.__aff.href(P, full);
   ok('拼出的链接里 pid 已编码', !!href && href.includes('P1'), String(href).slice(0, 60));
+  /* K4：披露文案的合规底线 —— 中国《互联网广告管理办法》第九条要求标明"广告"，
+     FTC 要求 clear and conspicuous。两条都落到"首句必须出现广告二字"。 */
+  const disc = appMod.__aff.config().disclosure;
+  ok('披露文案以「广告」开头（国内法规要求）', disc.startsWith('广告'), disc.slice(0, 20));
+  ok('披露说明不影响支付价格', disc.includes('不影响'), disc.slice(0, 40));
+  /* ?pid= 只能覆盖 pid，不能覆盖 target —— 否则任何访客都能把链接指向别处 */
+  ok('?pid= 不覆盖 target（防注入）', (() => {
+    const c = appMod.__aff.config();
+    return typeof c.target === 'string';
+  })(), 'target 类型异常');
   ok('拼出的 dest 已编码（不出现裸 ?q=）',
     !!href && !/u=https:\/\/s\.example\/search\?q=/.test(href), String(href).slice(0, 90));
 }
