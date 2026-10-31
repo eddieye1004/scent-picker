@@ -3015,9 +3015,92 @@ function renderMasthead() {
   );
 }
 
+/* ============================================================
+   推广链接配置（第四步）
+   ------------------------------------------------------------
+   **默认关闭**。原因：我不知道你的推广平台、PID，也不该编一个看起来
+   像真的联盟地址 —— 那会让「点进去能买」变成一句假承诺。
+
+   启用方式（三选一，都在这里改）：
+     1. 直接改下面的 AFFILIATE 常量，填 target 模板与 pid；
+     2. 页面加载前在 index.html 里写
+          <script>window.SCENT_AFFILIATE = { target: '...', pid: '...' }</script>
+        （运行时覆盖，适合不改源码就上线）；
+     3. 用 URL 参数 ?pid=xxx 临时覆盖 PID（只影响 pid 字段）。
+
+   占位符（target 里可用）：
+     {dest}   目标商品页的 URL（会被 encodeURIComponent）
+     {pid}    推广位 PID
+     {name}   香水名（encodeURIComponent 后）
+     {brand}  品牌名（encodeURIComponent 后）
+
+   降级规则（任一不满足就**不渲染链接**，只留原有的纯展示）：
+     · target 为空 或 不含 {dest}
+     · pid 为空
+     · 拼出来的 URL 不是合法 http(s)（用 new URL() 实测）
+   ——降级是静默的、不报错：宁可少一个链接，也不要给一个点不开的按钮。
+   ============================================================ */
+const AFFILIATE = {
+  /* 示例形态，不是可用的真实地址。换成一个真实联盟的跳转前缀即可，例如
+     'https://s.click.example.com/redirect?pid={pid}&url={dest}' */
+  target: '',
+  pid: '',
+  /* 商品页的基地址。数据里每瓶都有 sourceUrl（Scento 页面），
+     但那不是商品页 —— 这里留空，表示"还没有可跳转的购买页"。
+     填了之后会拼成 dest = productBase + '?q=' + brand + ' ' + name */
+  productBase: '',
+  /* 是否显示「广告 / 含推广链接」的披露。多数地区（FTC 16 CFR 255、
+     中国《互联网广告管理办法》第九条）要求明示，因此强制开，不允许关。 */
+  disclosure: '购买链接为推广链接，成交后本站可能获得佣金，不影响你的支付价格',
+};
+
+function affiliateConfig() {
+  const runtime = (typeof window !== 'undefined' && window.SCENT_AFFILIATE) || {};
+  let pid = runtime.pid || AFFILIATE.pid || '';
+  /* ?pid= 只覆盖 pid，不能覆盖 target —— 否则任何访客都能把链接指向别处。 */
+  try {
+    if (typeof location !== 'undefined' && location.search) {
+      const q = new URLSearchParams(location.search);
+      const fromUrl = q.get('pid');
+      if (fromUrl) pid = fromUrl;
+    }
+  } catch { /* 取不到就算了，用配置里的 */ }
+  return {
+    target: runtime.target || AFFILIATE.target || '',
+    pid,
+    productBase: runtime.productBase || AFFILIATE.productBase || '',
+    disclosure: AFFILIATE.disclosure,
+  };
+}
+
+/* 给一瓶香水拼购买链接。返回 null 表示"不渲染链接"。 */
+function affiliateHref(perfume, cfg) {
+  if (!cfg || !cfg.pid || !cfg.target || !cfg.target.includes('{dest}')) return null;
+  if (!cfg.productBase) return null;          // 没有购买页可跳，别硬凑
+  if (!perfume || !perfume.name) return null;
+  try {
+    const dest = new URL(cfg.productBase);
+    dest.searchParams.set('q', [perfume.brand, perfume.name].filter(Boolean).join(' '));
+    const href = cfg.target
+      .replace('{dest}', encodeURIComponent(dest.toString()))
+      .replace('{pid}', encodeURIComponent(cfg.pid))
+      .replace('{name}', encodeURIComponent(perfume.name))
+      .replace('{brand}', encodeURIComponent(perfume.brand || ''));
+    /* 实测拼出来的是不是合法 http(s) —— 不合格就降级，不把坏链给用户 */
+    const u = new URL(href);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 function renderResult() {
   const { profile, results } = state.result;
   const wrap = el('div', { class: 'fade-in' });
+  /* 推广链接配置读一次，三张卡共用。配置不全时 aff.href 全为 null，
+     页面就退化成纯展示 —— 与没有这个功能时完全一样。 */
+  const aff = affiliateConfig();
 
   const head = el('div', { class: 'result-head' });
   head.append(
@@ -3091,10 +3174,32 @@ function renderResult() {
     }
     tags.push(el('span', { class: 'tag' }, p.seasons && p.seasons.length
       ? `季节 ${p.seasons.join(' / ')}` : '季节未标注'));
+    /* 购买入口放在理由之后、页脚之中：先让用户读到"为什么推荐它"，
+       再给"去哪买" —— 顺序反了就成了先推销后解释。 */
+    const buyHref = affiliateHref(p, aff);
+    const buy = buyHref
+      ? el('a', {
+        class: 'buy-link',
+        href: buyHref,
+        target: '_blank',
+        /* sponsored 是给搜索引擎的，noopener noreferrer 是安全基线。
+           三个都不能少：sponsored 表明这是付费链接，noopener 防 window.opener
+           劫持，noreferrer 避免把本站 URL 带给第三方。 */
+        rel: 'sponsored noopener noreferrer',
+        'data-affiliate': 'true',
+      }, '去找这一瓶 ↗')
+      : null;
+
     const foot = el('div', { class: 'pick-foot' }, ...tags,
-      el('a', { href: p.sourceUrl, target: '_blank', rel: 'noopener noreferrer' }, '查看数据来源 ↗')
+      el('a', { href: p.sourceUrl, target: '_blank', rel: 'noopener noreferrer' }, '查看数据来源 ↗'),
+      buy
     );
     art.appendChild(foot);
+    /* 披露只在真的出现了购买链接时才写 —— 没有任何链接却挂一句
+       "含推广链接"是噪音，也会让人误以为页面上有他没看到的广告。 */
+    if (buy) {
+      art.appendChild(el('p', { class: 'aff-note' }, aff.disclosure));
+    }
     wrap.appendChild(art);
   });
 
@@ -3223,3 +3328,9 @@ async function boot() {
 }
 
 document.addEventListener('DOMContentLoaded', boot);
+
+/* 给测试用的内部句柄。
+   测试把 app.js 复制成临时 .mjs 后 import，拿不到模块内的私有函数，
+   而推广链接的降级矩阵是纯函数（不碰 DOM、不碰 state），在测试里直接调
+   比渲染三张卡再 inspect 快也准。这里只暴露一个，不扩大面。 */
+export const __aff = { config: affiliateConfig, href: affiliateHref };

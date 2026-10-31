@@ -468,3 +468,56 @@
   line-height: 1.5;
   color: var(--ink-3);
 }
+
+/* ---------------- 推广链接与披露（第四步）----------------
+
+   购买入口只在配置完整时出现（见 app.js 的 affiliateConfig）。
+   形态上要比「查看数据来源」更显眼 —— 前者是用户的目标动作，后者是溯源。
+   但也不能做成大色块按钮：它排在推荐理由之后，抢了主色会让整页变成商品页。 */
+.buy-link,
+/* 必须带上 .pick-foot 前缀再写一次。
+   `.pick-foot a`（0,1,1 + 元素 = 0,1,1）比单独的 `.buy-link`（0,1,0）特异性高，
+   实测第一条规则被它压掉：文字变深色、并带上 1px 下划线 ——
+   蓝底深字几乎看不清。这不是"样式没写"，是"写了但斗不过"。 */
+.pick-foot .buy-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 12px;
+  margin-left: auto;               /* 推到页脚右侧，与数据来源分开 */
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--blue);
+  border-radius: var(--radius);
+  text-decoration: none;             /* 压掉 .pick-foot a 的下划线 */
+  transition: background-color var(--t-hover) var(--ease);
+}
+.pick-foot .buy-link {
+  color: #fff;
+  text-decoration: none;
+  font-size: 13px;
+}
+.buy-link:hover {
+  background: var(--blue-deep);
+  color: #fff;
+}
+.buy-link:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+/* 披露：必须可读（12px 下限、6.19:1），但不能比正文更显眼。
+   放在卡片最底部、整卡宽度，不挤在页脚那一行里 —— 它说的是整张卡的性质。 */
+.aff-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);             /* 白底 6.19，达标 */
+}
+/* 页脚有购买按钮时，把它推到右侧的那条规则要让 tags 先撑开 */
+.pick-foot {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}

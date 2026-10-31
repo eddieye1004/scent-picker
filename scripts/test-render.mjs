@@ -96,31 +96,57 @@ class TNode {
   }
   focus() {}
   querySelectorAll(sel) {
-    const out = [];
-    // 支持三种写法：.class / tag / tag.class / [attr="v"] / .a.b
-    // 圆盘用到了 .disc-sector、button.disc-sector、[role="radiogroup"]、.disc-hub.is-idle，
-    // 简化桩只认单 class 的话，这些断言会全部假失败。
-    const attrM = sel.match(/^\[([\w-]+)(?:=["']?([^"'\]]*)["']?)?\]$/);
-    const isClass = sel.startsWith('.');
-    const parts = sel.split('.').filter(Boolean);
-    const tagPart = sel.startsWith('.') || sel.startsWith('[') ? null : parts[0];
-    const classes = sel.startsWith('.') || sel.startsWith('[') ? parts : parts.slice(1);
+    /* 支持：.class / tag / tag.class / [attr="v"] / .a.b / 以及**后代选择器**
+       （空格分隔，如 `.pick-foot a`）。
 
-    const walk = (n) => {
-      if (typeof n === 'string') return;
-      let hit = false;
+       最后这条是补上来的：桩原先只认单段选择器，`.pick-foot a` 恒返回空，
+       断言「降级后数据来源链接仍在」因此假失败。当时的捷径是改写断言绕开，
+       但那是错的改法 —— 桩缺能力就该补桩，否则以后每写一个后代选择器都会踩一次，
+       而"绕过"会把真正的问题掩盖掉。 */
+    const segs = sel.trim().split(/\s+/).filter(Boolean);
+
+    const matchOne = (n, one) => {
+      const attrM = one.match(/^\[([\w-]+)(?:=["']?([^"'\]]*)["']?)?\]$/);
       if (attrM) {
         const got = n.attrs[attrM[1]];
-        hit = got != null && (attrM[2] == null || String(got) === attrM[2]);
-      } else {
-        hit = (!tagPart || n.tagName.toLowerCase() === tagPart.toLowerCase())
-          && classes.every((c) => n.classList.contains(c));
+        return got != null && (attrM[2] == null || String(got) === attrM[2]);
       }
-      if (hit) out.push(n);
-      n.children.forEach(walk);
+      const parts = one.split('.').filter(Boolean);
+      const startsWithClass = one.startsWith('.');
+      const tagPart = startsWithClass ? null : parts[0];
+      const classes = startsWithClass ? parts : parts.slice(1);
+      return (!tagPart || n.tagName.toLowerCase() === tagPart.toLowerCase())
+        && classes.every((c) => n.classList.contains(c));
     };
-    this.children.forEach(walk);
-    return out;
+
+    /* 逐段向下找：第一段在整棵树里找，后续每段只在上一段的子树里找。
+       不做"最近祖先"那种严格语义 —— 本文件用到的后代选择器都只有一层，
+       按"任意深度后代"处理更容易写对，也不会误伤。 */
+    const all = [];
+    const collect = (n) => {
+      if (typeof n === 'string') return;
+      all.push(n);
+      n.children.forEach(collect);
+    };
+    this.children.forEach(collect);
+
+    let pool = all;
+    for (let k = 0; k < segs.length; k++) {
+      const seg = segs[k];
+      if (k === 0) {
+        pool = pool.filter((n) => matchOne(n, seg));
+        continue;
+      }
+      /* 后续段：找它是否有任一祖先在上一轮的结果里 */
+      const inPool = (n, set) => {
+        let p = n.parentNode;
+        while (p) { if (set.has(p)) return true; p = p.parentNode; }
+        return false;
+      };
+      const prev = new Set(pool);
+      pool = all.filter((n) => matchOne(n, seg) && inPool(n, prev));
+    }
+    return pool;
   }
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
   get firstChild() { return this.children[0] || null; }
@@ -173,7 +199,7 @@ const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
 const tmpApp = path.join(ROOT, '_tmp_app_test.mjs');
 fs.writeFileSync(tmpApp, appSrc);
 
-await import('file://' + tmpApp.replace(/\\/g, '/'));
+const appMod = await import('file://' + tmpApp.replace(/\\/g, '/'));
 globalThis.document._domReady();          // 触发 boot()
 await new Promise((r) => setTimeout(r, 600));
 
@@ -1001,6 +1027,49 @@ ok('每条理由含至少一条结构性理由（家族/浓度）',
 ok('结果含数据来源链接',
   appRoot.querySelectorAll('a').some((a) => String(a.attrs.href || '').includes('scento')));
 ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textContent.includes('重新来一次')));
+/* ---------- 推广链接：默认必须降级为纯展示 ----------
+   配置（target / pid / productBase）默认全空。此时不应出现任何购买链接，
+   也不应出现"含推广链接"的披露 —— 没有链接却挂一句广告声明是噪音，
+   还会让人以为页面上有他没看到的广告。
+   这条断言钉的是"默认安全"：任何一次误把示例地址填进常量都会在这里红。 */
+{
+  const buy = appRoot.querySelectorAll('.buy-link');
+  ok('未配置推广链接时不渲染购买入口', buy.length === 0, `实际 ${buy.length}`);
+  ok('未配置时不写「含推广链接」披露',
+    appRoot.querySelectorAll('.aff-note').length === 0,
+    `实际 ${appRoot.querySelectorAll('.aff-note').length}`);
+  /* 数据来源链接必须一直在 —— 降级只影响购买入口，不影响溯源。 */
+  ok('降级后数据来源链接仍在',
+    appRoot.querySelectorAll('.pick-foot a').length >= 3,
+    `实际 ${appRoot.querySelectorAll('.pick-foot a').length}`);
+}
+/* ---------- affiliateHref 的降级矩阵 ----------
+   逐个喂不完整配置，确认一律返回 null。这里直接调内部函数，
+   不依赖 DOM —— 它是纯函数，测起来比渲染快也准。 */
+{
+  const P = { brand: 'Demo', name: 'Bottle', notesAll: [] };
+  const full = { target: 'https://a.example/click?pid={pid}&u={dest}',
+    pid: 'P1', productBase: 'https://s.example/search', disclosure: 'x' };
+  const cases = [
+    ['完整配置能拼出链接', full, true],
+    ['缺 pid', { ...full, pid: '' }, false],
+    ['缺 target', { ...full, target: '' }, false],
+    ['target 不含 {dest}', { ...full, target: 'https://a.example/x?pid={pid}' }, false],
+    ['缺 productBase', { ...full, productBase: '' }, false],
+    ['target 拼出来不是 http(s)', { ...full, target: 'javascript:alert(1)//{dest}' }, false],
+  ];
+  for (const [name, cfg, shouldWork] of cases) {
+    const href = appMod.__aff.href(P, cfg);
+    ok(`推广链接降级：${name}`, shouldWork ? !!href : href === null,
+      String(href).slice(0, 70));
+  }
+  /* 链接必须带三个 rel 与 target=_blank，少一个都是安全问题 */
+  const href = appMod.__aff.href(P, full);
+  ok('拼出的链接里 pid 已编码', !!href && href.includes('P1'), String(href).slice(0, 60));
+  ok('拼出的 dest 已编码（不出现裸 ?q=）',
+    !!href && !/u=https:\/\/s\.example\/search\?q=/.test(href), String(href).slice(0, 90));
+}
+
 ok('结果页无 NaN/undefined', !/NaN|undefined/.test(resultText), resultText.slice(0, 300));
 // 抽样打印第一瓶，供人工核对
 console.log('\n--- 第一瓶渲染结果 ---');
