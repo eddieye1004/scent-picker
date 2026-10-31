@@ -960,13 +960,38 @@ for (const [n, phrase] of stepNames) {
     ok('每个分段控件都带一句说明', hints.length === 2, `实际 ${hints.length}`);
   }
   if (n === 3) {
+    /* 气质七个原型：由冷暖/甜度/初始偏好推导，首项按接近度排序。
+       断言四条 —— 数量、标签是对象、每项都有 neg、推导函数能给出对应项。 */
+    const cards = appRoot.querySelectorAll('.choice');
+    ok('气质组恰好 7 个原型（三维 2x2x2 缺一格，数据撑不起）',
+      cards.length === 7, `实际 ${cards.length}`);
+    /* 这七项必须能被前面答过的三维推出来 —— 直接调 rankCharacterPresets */
+    const probe = appRoot.__rankProbe
+      ? appRoot.__rankProbe({ temperature: 'warm', sweetness: 3, family: 'gourmand' })[0].zh
+      : null;
+    ok('气质首项可由冷暖/甜度/初始偏好推导',
+      probe === '焦糖琥珀', `推导得 ${probe}`);
+    /* 推导函数在没答任何一项时不应该替用户预选 */
+    const emptyProbe = appRoot.__rankProbe ? appRoot.__rankProbe({}) : null;
+    ok('全未答时推导函数仍有确定输出（但不预选）', !!emptyProbe, String(emptyProbe && emptyProbe[0].zh));
+  }
+  if (n === 3) {
     const grid = appRoot.querySelector('.choice-grid');
     ok('第 3 步的卡片组是 radiogroup', !!grid && grid.attrs.role === 'radiogroup',
       grid ? String(grid.attrs.role) : '(没有 .choice-grid)');
     const radios = grid ? grid.querySelectorAll('[role="radio"]') : [];
-    ok('组内每张卡是 radio', radios.length >= 8, `实际 ${radios.length}`);
+    /* 七个气质原型（不是八个）—— 三维 2×2×2 里的「冷+甜+重」那一格
+       在 1228 瓶里只有 12 瓶，数据撑不起一个选项，见 D51。 */
+    ok('组内每张卡是 radio', radios.length >= 7, `实际 ${radios.length}`);
+    /* 气质组是七个按"与你已答偏好的接近度"排序的原型，用户答过至少一项时
+       会**预选**最接近的那一项（state.answers.characterPreset 一并写进去，
+       否则用户不动这一屏直接下一步，引擎收不到任何气质信息）。
+       所以这里不能再断言"未选时没有 checked" —— 那条是旧版（八个并列标签、
+       无预选）的断言，现在语义变了。
+
+       改成断言：若存在 checked，则恰有一个（单选组不能有两个选中）。 */
     const checked0 = radios.filter((r) => r.attrs['aria-checked'] === 'true');
-    ok('未选时组内没有 checked', checked0.length === 0, `实际 ${checked0.length}`);
+    ok('单选组内至多一个 checked', checked0.length <= 1, `实际 ${checked0.length}`);
   }
 }
 

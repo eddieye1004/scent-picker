@@ -225,6 +225,9 @@ export function buildProfile(answers, taxonomy) {
        所以这里有两种入口：characterTags（新）与 character（旧单值）。
        命中任一即算命中；家族回退用第一个 tag 的映射表。 */
     characterTags: Array.isArray(answers.characterTags) ? answers.characterTags : [],
+    /* 气质原型的"禁止标签"（D51）。命中即扣分 —— 没有它，
+       fresh 这类高频标签同时喂给好几项，实测两两重合高达 61%。 */
+    characterNeg: Array.isArray(answers.characterNeg) ? answers.characterNeg : [],
     temperature: answers.temperature || null,
     sweetness: answers.sweetness != null ? Number(answers.sweetness) : null,
     /* 锚点：优先用"某瓶香水"，它的 notesAll 比手点的几个香调更完整；
@@ -425,6 +428,13 @@ export function scorePerfume(p, profile, taxonomy) {
       const ratio = tot > 0 ? clamp01(acc / tot) : 0;
       // 门槛 0.5：低于它就是"沾一点"，不该拿分（与 familyPick 的 0.4 同一思路）
       if (ratio >= 0.5) { cScore = WEIGHTS.character * 0.6 * ratio; how = 'family'; }
+    }
+    /* 禁止标签：命中一个扣 22% 的性格分，最低归零。
+       数值来自实测（scripts/probe-character.mjs）：不加这一步，七个原型
+       两两重合最高 61%、并列 33%；加 -0.22/个后降到 43%、并列 14%。 */
+    if (cScore > 0 && profile.characterNeg.length) {
+      const bad = profile.characterNeg.filter((t) => ch.includes(t)).length;
+      if (bad) cScore = Math.max(0, cScore * (1 - 0.22 * bad));
     }
     if (cScore > 0) {
       score += cScore;

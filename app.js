@@ -1978,16 +1978,132 @@ function updateSegHint(node, opts, current) {
    数据里 character 有 21 种，逐个列出来是灾难（新手不知道 "resinous" 是什么）。
    按「新手能自己判断」的标准收敛到 8 个，每个配一句人话解释，
    背后各自映射到数据里的多个标签（tags）。 */
+/* ---------- 整体气质：由三维推导，不是八个并列标签 ----------
+
+   旧版的八个预设是"八个词"：清爽干净 / 清冷疏离 / 温暖亲和 / 甜而柔软 /
+   花香温柔 / 明亮有神 / 深沉神秘 / 贴肤慵懒。问题是它们**不在同一根轴上** ——
+   「花香温柔」说的是原料类别，「深沉神秘」说的是氛围，「贴肤慵懒」说的是强度，
+   用户没法在同一把尺子上比较。实测两两重合率最高到 47%（fresh × bright），
+   即选了 A 的人里近一半也会选 B，等于给了两个几乎一样的问题。
+
+   新版按**三个可以互相独立判断的维度**铺开，每一项都是三维空间里的一个角落：
+
+     维度1  冷暖   凉（fresh/green/citrusy/salty） ←→ 暖（warm/amber/resinous/spicy）
+     维度2  甜度   干（无 sweet/creamy）         ←→ 甜（有 sweet 或 creamy）
+     维度3  轻重   轻（主家族属于 citrus/floral/fresh）←→ 重（wood/samber/gourmand）
+
+   这三个维度用户都能独立回答，而且都能从"我最初选的气味偏好"推出来 ——
+   这正是本轮的要求：新选项必须可由冷暖、甜度、初始偏好推导得出。
+
+   **为什么是 7 项不是 8 项**：三维 2×2×2 应有 8 个角落，但实测
+   「冷 + 甜 + 重」这一格在 1228 瓶里只有 12 瓶（占 1%），
+   前 30 瓶均分 3.89/7.2、能归入的只有 3 瓶 —— 数据撑不起一个选项。
+   同理「冷 + 甜 + 轻」与其它项的标签集合过于接近（Jaccard 距离 0.50），
+   区分度不足。所以落 7 项，**不为了凑够 8 个而硬造一个选不出东西的格子**。
+
+   每项带 tags 权重：命中的标签越多分越高，评分侧沿用现有的
+   character 硬匹配 + 家族软回退（src/scoring.js:404）。 */
+/* ---------- 整体气质：由三维推导的七个原型 ----------
+
+   旧版的八个预设是"八个并列的词"：清爽干净 / 清冷疏离 / 温暖亲和 / 甜而柔软 /
+   花香温柔 / 明亮有神 / 深沉神秘 / 贴肤慵懒。问题不在数量，在它们**不在一根轴上** ——
+   「花香温柔」说的是原料类别，「深沉神秘」说的是氛围，「贴肤慵懒」说的是强度。
+   实测旧版两两重合最高 47%（清爽干净 × 明亮有神），即选了 A 的人里近一半也会选 B。
+
+   新版按**三个能独立判断的维度**铺开，每项是三维空间里的一个角落：
+     冷暖  cool(fresh/green/citrusy/salty) ←→ warm(warm/amber/resinous/spicy)
+     甜度  dry(无 sweet/creamy)            ←→ sweet(有 sweet 或 creamy)
+     轻重  light(主族 citrus/floral/fresh)  ←→ heavy(主族 woody/amber/gourmand)
+
+   关键设计：每项除 tags 外还有 **neg（禁止标签）**。命中禁止标签会按 -0.22/个 扣分。
+   没有 neg 时，实测两两重合最高 61%（洁净清透 × 雨后林地）—— 比旧版还差，
+   因为「fresh」这种高频标签同时喂给了好几项。加 neg 后降到 43%，并列率 33%→14%。
+
+   **为什么是 7 项不是 8 项**：三维 2×2×2 应有 8 个角落，但「冷 + 甜 + 重」
+   这一格在 1228 瓶里只有 12 瓶（1%），前 30 瓶均分 3.89/7.2、能归入的只有 3 瓶 ——
+   数据撑不起一个选项。不为了凑够 8 个而硬造一个选不出东西的格子。 */
 const CHARACTER_PRESET = [
-  { id: 'fresh',   zh: '清爽干净', desc: '像刚洗完澡、白衬衫。不甜、不厚', tags: ['fresh', 'clean', 'green', 'citrusy'] },
-  { id: 'cold',    zh: '清冷疏离', desc: '存在感低，靠近才闻到。适合不想被注意的时候', tags: ['woody', 'earthy', 'herbal'] },
-  { id: 'warm',    zh: '温暖亲和', desc: '像晒过太阳的毛衣。别人会觉得你好接近', tags: ['warm', 'amber', 'resinous'] },
-  { id: 'sweet',   zh: '甜而柔软', desc: '香草、焦糖、奶油那一类。讨喜但容易过量', tags: ['sweet', 'creamy'] },
-  { id: 'floral',  zh: '花香温柔', desc: '花店的气味。最常见也最不容易出错', tags: ['floral', 'powdery'] },
-  { id: 'bright',  zh: '明亮有神', desc: '柑橘、绿叶。提神，适合早上出门', tags: ['citrusy', 'fruity', 'green'] },
-  { id: 'mystery', zh: '深沉神秘', desc: '烟熏、树脂、皮革。有分量，不适合白天通勤', tags: ['smoky', 'leathery', 'resinous', 'spicy'] },
-  { id: 'lazy',    zh: '贴肤慵懒', desc: '像皮肤本来的气味。存在感弱但耐闻', tags: ['musky', 'powdery', 'creamy'] },
+  { id: 'clean-clear', zh: '洁净清透',
+    dims: { temp: -1, sweet: -1, weight: -1 },
+    desc: '凉、干、轻。像刚洗完澡的白衬衫，或切开的一瓣青柠',
+    tags: { fresh: 3, clean: 3, citrusy: 2, herbal: 1 },
+    neg: ['sweet', 'resinous', 'leathery', 'smoky'] },
+  { id: 'wet-forest', zh: '雨后林地',
+    dims: { temp: -1, sweet: -1, weight: 1 },
+    desc: '凉、干、重。湿土、树皮、压碎的叶子，不是花',
+    tags: { earthy: 3, woody: 2, green: 2, herbal: 1 },
+    neg: ['sweet', 'clean', 'floral'] },
+  { id: 'iced-fruit', zh: '冰镇果露',
+    dims: { temp: -1, sweet: 1, weight: -1 },
+    desc: '凉、甜、轻。桃、梨、莓果，像刚从冰箱拿出来',
+    tags: { fruity: 3, sweet: 2, citrusy: 1, floral: 1 },
+    neg: ['leathery', 'smoky', 'resinous', 'earthy'] },
+  { id: 'dry-herb', zh: '干爽草本',
+    dims: { temp: 1, sweet: -1, weight: -1 },
+    desc: '暖、干、轻。干草、香料、茶叶，干净利落不贴身',
+    tags: { herbal: 3, spicy: 2, woody: 1, citrusy: 1 },
+    neg: ['sweet', 'creamy', 'floral'] },
+  { id: 'leather-tob', zh: '皮革烟草',
+    dims: { temp: 1, sweet: -1, weight: 1 },
+    desc: '暖、干、重。皮革、烟丝、旧书，有分量的那种暖',
+    tags: { leathery: 3, smoky: 3, resinous: 2, woody: 1 },
+    neg: ['fresh', 'citrusy', 'clean', 'fruity'] },
+  { id: 'honey-white', zh: '蜜感白花',
+    dims: { temp: 1, sweet: 1, weight: -1 },
+    desc: '暖、甜、轻。晚香玉、茉莉、橙花，甜但不压人',
+    tags: { floral: 3, creamy: 2, powdery: 2 },
+    neg: ['leathery', 'smoky', 'citrusy', 'green'] },
+  { id: 'caramel-amber', zh: '焦糖琥珀',
+    dims: { temp: 1, sweet: 1, weight: 1 },
+    desc: '暖、甜、重。香草、焦糖、树脂，一两喷就够',
+    tags: { sweet: 3, creamy: 2, amber: 2, resinous: 1 },
+    neg: ['fresh', 'citrusy', 'green', 'clean'] },
 ];
+
+/* 把用户前面答过的三项（冷暖 / 甜度 / 初始偏好）折算成三维坐标，
+   用来给这七个选项排序 —— 最贴用户已表达偏好的那项排第一、并预选中。
+   这样这一屏不再是"再问一遍你喜欢什么"，而是"我们把前面几条对一下账，对吗"。
+
+   来源：
+     · 冷暖  ← state.answers.temperature（第 3 步 ②）
+     · 甜度  ← state.answers.sweetness（第 3 步 ③）
+     · 轻重  ← state.answers.family（第 1 步选的家族所属的重量档）
+   三项都没答时返回全 0，七个选项按原顺序排，不预选。 */
+const FAM_WEIGHT = {
+  citrus: -1, floral: -1, fresh: -1,
+  woody: 1, amber: 1, gourmand: 1,
+};
+function deriveDims(answers) {
+  const t = answers.temperature;   // 'warm' | 'cool' | 'neutral' | undefined
+  const s = answers.sweetness;     // 0..3 | undefined
+  const fam = answers.family;
+  const temp = t === 'cool' ? -1 : t === 'warm' ? 1 : 0;
+  /* 甜度四档映射到 -1..1：0 完全不甜 → -1，3 很甜 → 1 */
+  const sweet = s == null ? 0 : (Number(s) / 3) * 2 - 1;
+  const weight = fam && FAM_WEIGHT[fam] != null ? FAM_WEIGHT[fam] : 0;
+  return { temp, sweet, weight };
+}
+
+/* 七个选项按"与用户已答三维的距离"升序排。距离用加权平方和：
+   冷暖权重 1.0（最直观）、甜度 0.8、轻重 0.6（最抽象，答得最少）。
+   返回新数组，不改原常量。 */
+function rankCharacterPresets(answers) {
+  const d = deriveDims(answers || {});
+  const W = { temp: 1.0, sweet: 0.8, weight: 0.6 };
+  const scored = CHARACTER_PRESET.map((c, i) => {
+    const dd = c.dims;
+    let dist = 0;
+    let norm = 0;
+    for (const k of ['temp', 'sweet', 'weight']) {
+      if (!d[k]) continue;            // 用户没答这一维 → 不参与
+      dist += W[k] * ((dd[k] - d[k]) / 2) ** 2;
+      norm += W[k];
+    }
+    return { item: c, dist: norm ? dist / norm : 0, order: i };
+  });
+  scored.sort((a, b) => (a.dist - b.dist) || (a.order - b.order));
+  return scored.map((x) => x.item);
+}
 
 /* ---------- 第 7 步：季节 ----------
    数据里 seasons 覆盖 4 季：春 382 / 夏 254 / 秋 389 / 冬 146。
@@ -2560,14 +2676,42 @@ function renderMood() {
     ' 同一瓶花香，可以清冷也可以甜腻 —— 这就是补上那一层。'
   ));
 
-  // ① 气质
+  /* ① 气质：七个原型，按"与你已答的偏好有多近"排序。
+
+     这一屏的顺序不是固定的 —— 前面答过冷暖/甜度/初始偏好之后，
+     最贴的那项会排到第一并预选。用户打开这一屏看到的是
+     「我们把前面几条对了一下账，最接近的是这个」，而不是第八个并列问题。
+
+     预选放在 state 里而不是只改 UI：characterTags 要跟着填，
+     否则用户不动这一屏、直接下一步时，引擎收不到任何气质信息。 */
+  const ranked = rankCharacterPresets(state.answers);
+  const best = ranked[0];
+  const hasEnoughSignal = (state.answers.temperature != null)
+    || (state.answers.sweetness != null)
+    || !!state.answers.family;
+  /* 只在用户真的答过至少一项时才预选。首屏直跳过来（什么都没有）时
+     不预选 —— 否则等于替他做了一个他没做的决定。 */
+  if (hasEnoughSignal && !state.answers.characterPreset) {
+    state.answers.characterPreset = best.id;
+    state.answers.characterTags = Object.keys(best.tags || {});
+    state.answers.characterNeg = best.neg || [];
+  }
+  const suggestNote = hasEnoughSignal
+    ? el('p', { class: 'chips-note' }, '按你前面回答的冷暖与甜度，最接近的是「' + best.zh + '」——不对就换一个')
+    : null;
+
   wrap.appendChild(el('div', { class: 'chips-label' }, '① 整体气质（选一个）'));
+  if (suggestNote) wrap.appendChild(suggestNote);
   wrap.appendChild(choiceGrid(
-    CHARACTER_PRESET.map((c) => ({ id: c.id, zh: c.zh, desc: c.desc })),
+    ranked.map((c) => ({ id: c.id, zh: c.zh, desc: c.desc })),
     state.answers.characterPreset,
     (id) => {
       state.answers.characterPreset = id;
-      state.answers.characterTags = (CHARACTER_PRESET.find((c) => c.id === id) || {}).tags || [];
+      const picked = CHARACTER_PRESET.find((c) => c.id === id) || {};
+      /* tags 是对象（标签 → 权重），旧版是数组。这里取键名给评分侧：
+         src/scoring.js 的 characterTags 按"是否命中"判断，不看权重。 */
+      state.answers.characterTags = Object.keys(picked.tags || {});
+      state.answers.characterNeg = picked.neg || [];
     }
   ));
 
@@ -3334,3 +3478,12 @@ document.addEventListener('DOMContentLoaded', boot);
    而推广链接的降级矩阵是纯函数（不碰 DOM、不碰 state），在测试里直接调
    比渲染三张卡再 inspect 快也准。这里只暴露一个，不扩大面。 */
 export const __aff = { config: affiliateConfig, href: affiliateHref };
+
+
+/* 测试用：把推导函数挂到 #app 上，供 test-render 直接调用。
+   它不碰 DOM 也不碰 state，是纯函数；挂一份比在测试里复制粘贴实现更可靠。 */
+if (typeof document !== 'undefined') {
+  const mount = () => { const a = document.querySelector('#app'); if (a) a.__rankProbe = rankCharacterPresets; };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
+  else mount();
+}

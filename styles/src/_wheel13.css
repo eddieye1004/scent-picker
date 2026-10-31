@@ -521,3 +521,13 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* 气质区的建议提示（第五步）：一行灰字，说明"为什么第一项是这个"。
+   它不是错误提示也不是必读说明，所以用 --ink-3 而不是 --ink-2，
+   并与选项卡拉开 6px，避免被读成第一张卡的标题。 */
+.chips-note {
+  margin: -2px 0 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
