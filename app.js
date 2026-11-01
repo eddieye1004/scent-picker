@@ -2823,12 +2823,50 @@ function renderContext() {
     onPick: (o) => { state.answers.occasion = o.id; },
   }));
 
-  wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:18px' }, '② 主季节'));
-  wrap.appendChild(choiceGrid(SEASONS, state.answers.season, (id) => {
-    state.answers.season = id;
-    if (state.answers.seasonSecond === id) state.answers.seasonSecond = null;
-  }));
+  /* ② 主季节 —— 从 2×2 卡片网格改成单行分段控件。
+     原因不是"更好看"，是**它被圆盘挤出了首屏**：
+     实测 1440×900 时「② 主季节」的标签落在 top=849、网格 top=875、
+     视口 900 —— 用户滚下去才能看见第二问，而这一屏的标题是
+     「什么时候用它？」。1366×768 更糟（标签 727、网格 753）。
 
+     为什么不缩圆盘：场合圆盘是本屏的主交互，缩它会把它降级成次要件；
+     而且 base.css 那四档高度断点（62/56/54/50vh）已经把它压到接近下限。
+
+     为什么换成 segControl 而不是别的：
+       1. 季节是 4 个**有序且等长**的短词（春/夏/秋/冬），
+          这正是分段控件（刻度语法）的定义场景；卡片网格是无序语法。
+       2. 第 3 步的冷暖、甜度已经是同一形态，本屏复用它 = 全站一种语法。
+       3. 高度从 145px 压到 46px，配合 `_wheel17.css` 的边距收缩，
+          季节这一问整体进首屏（1440 实测 seg 841..887，视口 900）。
+
+     代价：每季那句解释（「花开、微湿…」）从卡片里消失了。
+       用 segHint 补回来 —— 选中后下方一句说明当前季，与第 3 步同构。 */
+  const seasonOpts = SEASONS;
+  let seasonHint = null;
+  wrap.appendChild(el('div', { class: 'chips-label' }, '② 主季节'));
+  wrap.appendChild(segControl(seasonOpts, state.answers.season, (id) => {
+    state.answers.season = id;
+    /* 主季节与次选季节不能同一个：切主季节时把冲突的次选清掉。
+       这条联动原来写在 choiceGrid 的回调里，换控件时必须一起搬过来，
+       否则用户会得到「主=春 次=春」这种自相矛盾的答案。 */
+    if (state.answers.seasonSecond === id) state.answers.seasonSecond = null;
+  }, '主季节', (id) => updateSegHint(seasonHint, seasonOpts, id)));
+  /* 未选时不能用 segHint 的默认行为：它会把第一项（春）那句解释当成
+     "当前值"显示出来，配上 is-idle 的降级透明度，读起来像
+     「你选了春，只是没高亮」—— 这是错误信息。
+     实际影响比第 3 步更明显：冷暖/甜度那一屏下方紧跟着 term-note，
+     用户能读出"这是在讲怎么判断"；本屏下方直接是 ③ 次选季节，
+     一句「花开、微湿」孤零零挂着，只能读成"已选春"。
+     所以这里在未选时说一句真正的指引，选中后才换成该季解释。 */
+  seasonHint = segHint(seasonOpts, state.answers.season);
+  if (state.answers.season == null) {
+    seasonHint.textContent = '按你打算主要在哪个季节用选一个；不确定就跳过，不答不扣分。';
+  }
+  wrap.appendChild(seasonHint);
+
+  /* 次选季节：3 项（排除主季节），仍然用胶囊 —— 它本来就是"可选补一个"，
+     不需要每项都带解释。这里保留 choiceGrid 是因为它会随主季节变化重建，
+     而 segControl 的 roving tabindex 在项数变化时还要重算，收益不值。 */
   wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:12px' }, '次选季节（可跳过）'));
   wrap.appendChild(choiceGrid(
     SEASONS.filter((x) => x.id !== state.answers.season),

@@ -43,6 +43,7 @@ const PARTS = [
   '_wheel14.css', /* 深色模式（D4）：媒体查询，只在 prefers-color-scheme: dark 下生效 */
   '_wheel15.css', /* 选中态横向溢出（v27）：在视口层裁掉 .sub-ring 缩放后的空盒 */
   '_wheel16.css', /* 控件边界统一（D1 扩展）：2 个只有 1px 边的控件提到 --stroke-ui */
+  '_wheel17.css', /* 场景屏纵向预算（U2）：只在该屏收边距，其余 6 屏不动 */
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');
