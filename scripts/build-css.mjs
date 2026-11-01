@@ -42,6 +42,7 @@ const PARTS = [
   '_wheel13.css', /* 三级描边（D50）：必须最后，要压过前面各层的边框声明 */
   '_wheel14.css', /* 深色模式（D4）：媒体查询，只在 prefers-color-scheme: dark 下生效 */
   '_wheel15.css', /* 选中态横向溢出（v27）：在视口层裁掉 .sub-ring 缩放后的空盒 */
+  '_wheel16.css', /* 控件边界统一（D1 扩展）：2 个只有 1px 边的控件提到 --stroke-ui */
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');

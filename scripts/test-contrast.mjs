@@ -183,6 +183,51 @@ for (const [label, fgk, bgk, where] of NON_TEXT_REQUIRED) {
 if (ntBad.length === 0) pass++;
 else fails.push(`控件边界对比度不足: ${ntBad.join(' / ')}`);
 
+/* ---------- 控件边界：--stroke-ui 必须自己过 3:1 ----------
+   D1 上一轮把 .choice 从 --line 提到 --stroke-ui，但 --stroke-ui 本身
+   没进过 NON_TEXT —— 也就是说「--stroke-ui 到底达不达标」一直没被守过，
+   只是当时手工量过一次。
+   v28 又新增两处引用（.wheel-back / .long-btn），这两处都只有 1px 边、
+   没有填充，边框就是它们的全部边界，所以这一条必须变成断言。 */
+{
+  const ui = VARS['stroke-ui'];
+  const bg = VARS['bg'];
+  const bg2 = VARS['bg-2'];
+  if (!ui) {
+    fails.push('--stroke-ui 缺失：控件边界统一没有生效');
+  } else {
+    const r1 = ratio(ui, bg);
+    const r2 = ratio(ui, bg2);
+    if (r1 < 3) fails.push(`--stroke-ui on --bg = ${r1.toFixed(2)} < 3.0`);
+    else pass++;
+    // #f5f5f5 是 .choice / .tag 的宿主底，也要过
+    if (r2 < 3) fails.push(`--stroke-ui on --bg-2 = ${r2.toFixed(2)} < 3.0`);
+    else pass++;
+  }
+}
+
+/* ---------- 只在 1px 边上存在的控件，必须引用 --stroke-ui ----------
+   逐个守选择器而不是守颜色：颜色会被别的规则覆盖，
+   而"这一条规则里写的是哪个变量"是能直接读出来的结构事实。
+   写错成 var(--line) 会立刻红（--line 是 1.41）。 */
+{
+  const mustUseStrokeUi = [
+    ['.wheel-back', '盘角「← 重选大类」，只有 1px 边、无填充'],
+    ['.long-btn', '第 5 步「改 / 恢复推断值」，30px 高、只有 1px 边'],
+  ];
+  for (const [sel, why] of mustUseStrokeUi) {
+    // 找到含该选择器的最后一个规则块，读它的 border-color
+    let at = CSS.lastIndexOf(sel + ' {');
+    if (at < 0) at = CSS.lastIndexOf(sel + ' {');
+    if (at < 0) { fails.push(`${sel} 规则不存在（${why}）`); continue; }
+    const open = CSS.indexOf('{', at);
+    const close = CSS.indexOf('}', open);
+    const body = CSS.slice(open, close);
+    if (/border-color\s*:\s*var\(--stroke-ui\)/.test(body)) pass++;
+    else fails.push(`${sel} 的 border-color 不是 var(--stroke-ui)（${why}）；实际：${(body.match(/border-color\s*:[^;]*/) || ['无'])[0]}`);
+  }
+}
+
 /* 反向自检：--line 必须真的低于 3，否则说明这组检查抓不到"装饰色当边框用"这个错 */
 if (ratio(VARS.line, VARS.bg) < 3) pass++;
 else fails.push('--line 竟达到 3:1，那它已经不适合当"纯装饰线"用了，复核配色');
