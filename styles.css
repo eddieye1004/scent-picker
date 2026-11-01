@@ -1383,6 +1383,14 @@ footer.foot a:hover { color: var(--accent); }
   --blue-amb:    #8A93B8;  /* 环境反光。只做 1px 描边，3.02，禁止承载文字 */
   --blue-wash:   rgba(0, 47, 167, .07);  /* 选中扇形的水洗底 */
 
+  /* ---- 填充蓝：专门当「压白字的底色」----
+     浅色下与 --blue 同值（#002FA7 对白字本来就是 10.69，一个变量够了）。
+     深色下两者必须分开：--blue 要提亮才看得见（文字），
+     而承白字的底要够深才撑得起白字，方向相反。详见 _wheel14.css 顶部。 */
+  --fill-blue:      #002FA7;
+  --fill-blue-deep: #001A5E;
+  --fill-blue-lift: #3D5FC4;
+
   /* ---- 覆盖旧强调色：蓝只有两处高分量使用，其余降墨 ---- */
   --accent:      #002FA7;
   --accent-soft: #8A93B8;
@@ -1469,7 +1477,7 @@ footer.foot a,
 
 /* --- 主按钮：本色→暗部渐变、同色柔影；按下压缩而非位移 --- */
 .btn {
-  background: linear-gradient(160deg, var(--blue) 0%, var(--blue-deep) 130%);
+  background: linear-gradient(160deg, var(--fill-blue) 0%, var(--fill-blue-deep) 130%);
   border-color: transparent;
   color: #fff;
   box-shadow: var(--sh-lift);
@@ -1477,7 +1485,7 @@ footer.foot a,
               transform var(--t-press) var(--ease-in),
               background-color var(--t-hover) var(--ease);
 }
-.btn:hover { background: linear-gradient(160deg, var(--blue-lift) 0%, var(--blue) 130%); border-color: transparent; }
+.btn:hover { background: linear-gradient(160deg, var(--fill-blue-lift) 0%, var(--fill-blue) 130%); border-color: transparent; }
 .btn:active {
   transform: translateY(1px) scale(.988);   /* 1px 下沉 + 1.2% 压缩，肉眼刚好察觉 */
   box-shadow: var(--sh-press);
@@ -1666,7 +1674,7 @@ body { position: relative; }
 /* 低性能设备：用粗粒度指针 + 无 hover 能力做代理判断。
    这类设备上悬停本来就不存在，去掉 hover 位移可以省掉一层合成。 */
 @media (hover: none) {
-  .btn:hover { background: linear-gradient(160deg, var(--blue) 0%, var(--blue-deep) 130%); }
+  .btn:hover { background: linear-gradient(160deg, var(--fill-blue) 0%, var(--fill-blue-deep) 130%); }
   .chip:hover { border-color: var(--line); color: var(--ink-2); }
   .opt:hover { background: transparent; }
 }
@@ -1895,7 +1903,7 @@ body { position: relative; }
   background: var(--bg);
   border-color: var(--bg);
 }
-.wheel .disc-hub.is-picked .hub-go:hover { background: var(--blue-lift); border-color: var(--blue-lift); color: #fff; }
+.wheel .disc-hub.is-picked .hub-go:hover { background: var(--fill-blue-lift); border-color: var(--blue-lift); color: #fff; }
 
 /* ---- 窄屏 ---- */
 @media (max-width: 620px) {
@@ -2316,7 +2324,7 @@ body { position: relative; }
 
 /* 选中的方格填实：整盘里唯一一块高对比面积，一眼定位 */
 .wheel .disc-sector.lvl2.sub-sq.is-on {
-  background: var(--blue);
+  background: var(--fill-blue);
   border-color: var(--blue);
   color: #ffffff;
   box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset,
@@ -2807,7 +2815,7 @@ body { position: relative; }
   padding: 0 14px;
   border: 0;
   border-radius: 999px;
-  background: var(--blue);
+  background: var(--fill-blue);
   color: #ffffff;
   font-size: 12px;
   font-weight: 600;
@@ -2817,9 +2825,9 @@ body { position: relative; }
               box-shadow 160ms cubic-bezier(.4, 0, .2, 1),
               transform 120ms cubic-bezier(.4, 0, .2, 1);
 }
-.wheel .hub-go:hover { background: var(--blue-deep); }
+.wheel .hub-go:hover { background: var(--fill-blue-deep); }
 .wheel .hub-go:active {
-  background: var(--blue-deep);
+  background: var(--fill-blue-deep);
   box-shadow: 0 2px 6px -6px rgba(0, 26, 94, .55);
   transform: translateY(1px);
 }
@@ -4470,7 +4478,7 @@ body { position: relative; }
    全站只有一个"选中"的视觉语言，不另造一套。 */
 .choice.is-on {
   border-color: var(--blue);
-  background: var(--blue);
+  background: var(--fill-blue);
   color: #fff;
   box-shadow: 0 6px 18px -10px rgba(0, 26, 94, .55);
 }
@@ -4887,12 +4895,12 @@ body { position: relative; }
   }
 }
 .seg-item.is-on {
-  background: var(--blue);
+  background: var(--fill-blue);
   color: #fff;               /* 白 on #002FA7 = 10.69 */
   font-weight: 600;
 }
 .seg-item.is-on:hover {
-  background: var(--blue-deep);
+  background: var(--fill-blue-deep);
 }
 /* 键盘焦点环：内缩 2px，否则会被 .seg 的 overflow:hidden 裁掉一半 */
 .seg-item:focus-visible {
@@ -5110,7 +5118,7 @@ body { position: relative; }
   font-size: 13px;
   font-weight: 600;
   color: #fff;
-  background: var(--blue);
+  background: var(--fill-blue);
   border-radius: var(--radius);
   text-decoration: none;             /* 压掉 .pick-foot a 的下划线 */
   transition: background-color var(--t-hover) var(--ease);
@@ -5121,7 +5129,7 @@ body { position: relative; }
   font-size: 13px;
 }
 .buy-link:hover {
-  background: var(--blue-deep);
+  background: var(--fill-blue-deep);
   color: #fff;
 }
 .buy-link:focus-visible {
@@ -5378,8 +5386,8 @@ body { position: relative; }
   :root {
     /* —— 纸：三层，方向与浅色一致（越大越"平"）—— */
     --bg:   #141414;
-    --bg-2: #1e1e1e;
-    --bg-3: #2a2a2a;
+    --bg-2: #2a2a2a;   /* L*17.1 —— 盘心（最上层，浮起件）*/
+    --bg-3: #323232;   /* L*20.8 —— 悬停/次要面 */
 
     /* —— 分隔线与控件边界 ——
        浅色版 --line 1.41 / --edge 4.54 是"on 白"算的。深底上要重算：
@@ -5403,6 +5411,26 @@ body { position: relative; }
     --accent-soft: #9aa6d0;
     --warn:        #e0b56a;    /* 浅色版 5.93 on 白；深底反解到 8.9 */
     --danger:      #ff8a80;
+
+    /* ---- 填充蓝：与上面的 --blue 分开，这是第一版没写对的地方 ----
+       --blue 在浅色版 #002FA7 同时干两件事：
+         (a) 当**文字色**（h1 em、分数、链接）—— 对白底 10.69
+         (b) 当**填充底色**，上面压白字（选中卡片、分段控件、主按钮）—— 同样 10.69
+       浅色下不需要区分。但深色下这两件事的最优解**方向相反**：
+         (a) 要亮：压在 #141414 上的蓝字必须提亮才看得见 → #6e8bff（6.4:1）
+         (b) 要暗：承白字的底必须够深才撑得起白字 → #6e8bff 上白字只有 **3.09**
+
+       第一版偷懒只改了一个 --blue，于是所有「蓝底白字」全部掉到 3.09：
+       选中卡片 .choice.is-on、分段控件 .seg-item.is-on、主按钮 .btn、
+       购买链接 .buy-link、盘心「就它了」.hub-go、选中方格 .sub-sq.is-on。
+       扫描确认：22 条 blue 背景规则里 **8 条压着白字**。
+
+       拆成两个变量后各走各的：
+         --blue      只当文字/描边（深色 #6e8bff）
+         --fill-blue 专当压白字的底（深色 #4059d6 → 白字 5.80，对底 3.17） */
+    --fill-blue:      #4059d6;   /* 白字 5.80，对 #141414 3.17 —— 既亮得出来又压得住字 */
+    --fill-blue-deep: #2f42a8;   /* 白字 8.36，渐变暗部 */
+    --fill-blue-lift: #4f68df;   /* 白字 4.86，悬停高光 */
 
     /* —— 控件边界（D1 引入）—— */
     --stroke-ui: #7a7a7a;      /* 对 #141414 = 4.1，过 3:1 */
@@ -5438,10 +5466,10 @@ body { position: relative; }
   }
   /* 盘心边框也是写死的浅色（#e8ebf4 / #eceef6），深色下几乎不可见 */
   .wheel .disc-hub {
-    border-color: var(--line);
+    border-color: #3d3d3d;    /* 盘心 L*17 上的边，比 --line 亮一档 */
   }
   .wheel.is-open .disc-hub {
-    border-color: var(--line);
+    border-color: #3d3d3d;
   }
 
   /* ---- 盘心的内高光：`_wheel13.css:101/112/125` 三条阴影里各有一层
@@ -5530,6 +5558,36 @@ body { position: relative; }
       0 0 0 1px var(--line),
       0 26px 60px -42px rgba(0, 0, 0, .80),
       0 2px 6px -4px rgba(0, 0, 0, .50);
+  }
+
+  /* ---- 盘面本体：两处写死的浅色径向渐变 ----
+     `_wheel7.css:556` 闭合态 `#d2d8e6 → #b3bbd2`、
+     `_wheel7.css:564` 展开态 `#d5dbe9 → #b6bed5`。
+     这两处是"盘的瓷砖面"，闭合态占满 520px 直径，
+     深色下若不覆盖就是一整块直径 520px 的浅灰圆（实测 rgb(213,219,233)，
+     上面的族名白字只有 1.24:1 —— 六族名全看不见）。
+
+     深色版保留那个"内凹"的方向：中心略亮、外沿略暗（各差 6 个明度档），
+     但整体压到 #1a1a1a 一带，比 --bg #141414 亮一档 = "盘是浮起来的浅色件"。
+     注意展开态要比闭合态**再暗一点**：中圈弧片是 #1e1e1e，
+     盘底若与它同亮就读不出层级。 */
+  .wheel {
+    background: radial-gradient(circle at 47% 43%,
+      #1d1d1d 0%,   /* L*10.8 */
+      #1a1a1a 52%,  /* L*9.3  —— 层序基准 */
+      #171717 88%,  /* L*7.7  */
+      #151515 100%);/* L*7.0  */
+    box-shadow:
+      0 0 0 1px #333333,
+      0 26px 60px -42px rgba(0, 0, 0, .9),
+      0 2px 6px -4px rgba(0, 0, 0, .6);
+  }
+  .wheel.is-open {
+    background: radial-gradient(circle at 47% 43%,
+      #222222 0%,   /* L*13.0 */
+      #1e1e1e 52%,  /* L*11.3 */
+      #1a1a1a 88%,  /* L*9.3  */
+      #181818 100%);/* L*8.5  */
   }
 
   /* ---- 盘的实体边：`_wheel11.css:162` 那圈 box-shadow 用的是"白瓷"倒角

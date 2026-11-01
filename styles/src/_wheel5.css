@@ -71,7 +71,7 @@
 
 /* 选中的方格填实：整盘里唯一一块高对比面积，一眼定位 */
 .wheel .disc-sector.lvl2.sub-sq.is-on {
-  background: var(--blue);
+  background: var(--fill-blue);
   border-color: var(--blue);
   color: #ffffff;
   box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset,

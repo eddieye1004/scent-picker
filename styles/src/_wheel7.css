@@ -254,7 +254,7 @@
   padding: 0 14px;
   border: 0;
   border-radius: 999px;
-  background: var(--blue);
+  background: var(--fill-blue);
   color: #ffffff;
   font-size: 12px;
   font-weight: 600;
@@ -264,9 +264,9 @@
               box-shadow 160ms cubic-bezier(.4, 0, .2, 1),
               transform 120ms cubic-bezier(.4, 0, .2, 1);
 }
-.wheel .hub-go:hover { background: var(--blue-deep); }
+.wheel .hub-go:hover { background: var(--fill-blue-deep); }
 .wheel .hub-go:active {
-  background: var(--blue-deep);
+  background: var(--fill-blue-deep);
   box-shadow: 0 2px 6px -6px rgba(0, 26, 94, .55);
   transform: translateY(1px);
 }

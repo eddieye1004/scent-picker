@@ -80,7 +80,7 @@
    全站只有一个"选中"的视觉语言，不另造一套。 */
 .choice.is-on {
   border-color: var(--blue);
-  background: var(--blue);
+  background: var(--fill-blue);
   color: #fff;
   box-shadow: 0 6px 18px -10px rgba(0, 26, 94, .55);
 }

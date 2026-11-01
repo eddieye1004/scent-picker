@@ -209,7 +209,7 @@
   background: var(--bg);
   border-color: var(--bg);
 }
-.wheel .disc-hub.is-picked .hub-go:hover { background: var(--blue-lift); border-color: var(--blue-lift); color: #fff; }
+.wheel .disc-hub.is-picked .hub-go:hover { background: var(--fill-blue-lift); border-color: var(--blue-lift); color: #fff; }
 
 /* ---- 窄屏 ---- */
 @media (max-width: 620px) {

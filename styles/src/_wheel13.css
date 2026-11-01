@@ -266,12 +266,12 @@
   }
 }
 .seg-item.is-on {
-  background: var(--blue);
+  background: var(--fill-blue);
   color: #fff;               /* 白 on #002FA7 = 10.69 */
   font-weight: 600;
 }
 .seg-item.is-on:hover {
-  background: var(--blue-deep);
+  background: var(--fill-blue-deep);
 }
 /* 键盘焦点环：内缩 2px，否则会被 .seg 的 overflow:hidden 裁掉一半 */
 .seg-item:focus-visible {
@@ -489,7 +489,7 @@
   font-size: 13px;
   font-weight: 600;
   color: #fff;
-  background: var(--blue);
+  background: var(--fill-blue);
   border-radius: var(--radius);
   text-decoration: none;             /* 压掉 .pick-foot a 的下划线 */
   transition: background-color var(--t-hover) var(--ease);
@@ -500,7 +500,7 @@
   font-size: 13px;
 }
 .buy-link:hover {
-  background: var(--blue-deep);
+  background: var(--fill-blue-deep);
   color: #fff;
 }
 .buy-link:focus-visible {

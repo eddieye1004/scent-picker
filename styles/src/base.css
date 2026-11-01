@@ -1383,6 +1383,14 @@ footer.foot a:hover { color: var(--accent); }
   --blue-amb:    #8A93B8;  /* 环境反光。只做 1px 描边，3.02，禁止承载文字 */
   --blue-wash:   rgba(0, 47, 167, .07);  /* 选中扇形的水洗底 */
 
+  /* ---- 填充蓝：专门当「压白字的底色」----
+     浅色下与 --blue 同值（#002FA7 对白字本来就是 10.69，一个变量够了）。
+     深色下两者必须分开：--blue 要提亮才看得见（文字），
+     而承白字的底要够深才撑得起白字，方向相反。详见 _wheel14.css 顶部。 */
+  --fill-blue:      #002FA7;
+  --fill-blue-deep: #001A5E;
+  --fill-blue-lift: #3D5FC4;
+
   /* ---- 覆盖旧强调色：蓝只有两处高分量使用，其余降墨 ---- */
   --accent:      #002FA7;
   --accent-soft: #8A93B8;
@@ -1469,7 +1477,7 @@ footer.foot a,
 
 /* --- 主按钮：本色→暗部渐变、同色柔影；按下压缩而非位移 --- */
 .btn {
-  background: linear-gradient(160deg, var(--blue) 0%, var(--blue-deep) 130%);
+  background: linear-gradient(160deg, var(--fill-blue) 0%, var(--fill-blue-deep) 130%);
   border-color: transparent;
   color: #fff;
   box-shadow: var(--sh-lift);
@@ -1477,7 +1485,7 @@ footer.foot a,
               transform var(--t-press) var(--ease-in),
               background-color var(--t-hover) var(--ease);
 }
-.btn:hover { background: linear-gradient(160deg, var(--blue-lift) 0%, var(--blue) 130%); border-color: transparent; }
+.btn:hover { background: linear-gradient(160deg, var(--fill-blue-lift) 0%, var(--fill-blue) 130%); border-color: transparent; }
 .btn:active {
   transform: translateY(1px) scale(.988);   /* 1px 下沉 + 1.2% 压缩，肉眼刚好察觉 */
   box-shadow: var(--sh-press);
@@ -1666,7 +1674,7 @@ body { position: relative; }
 /* 低性能设备：用粗粒度指针 + 无 hover 能力做代理判断。
    这类设备上悬停本来就不存在，去掉 hover 位移可以省掉一层合成。 */
 @media (hover: none) {
-  .btn:hover { background: linear-gradient(160deg, var(--blue) 0%, var(--blue-deep) 130%); }
+  .btn:hover { background: linear-gradient(160deg, var(--fill-blue) 0%, var(--fill-blue-deep) 130%); }
   .chip:hover { border-color: var(--line); color: var(--ink-2); }
   .opt:hover { background: transparent; }
 }
