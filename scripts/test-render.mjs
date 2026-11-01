@@ -1107,7 +1107,8 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
   const searchNotes = appRoot.querySelectorAll('.link-note');
 
   /* 默认配置（三件套全空）→ 只能走第 ③ 档 */
-  ok('未配置佣金时仍有搜索兜底入口', buy.length === 3, `实际 ${buy.length}`);
+  /* 双平台：每瓶在京东 + 淘宝各一个，3 瓶 × 2 = 6 */
+  ok('未配置佣金时仍有搜索兜底入口（双平台 3×2）', buy.length === 6, `实际 ${buy.length}`);
   ok('搜索兜底不是佣金链接（data-affiliate=false）',
     buy.every((a) => String(a.attrs['data-affiliate']) === 'false'),
     buy.map((a) => a.attrs['data-affiliate']).join(','));
@@ -1127,10 +1128,11 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
   /* 没有佣金 → 一句「广告」披露都不能有。挂了就是假广告。 */
   ok('未配置佣金时不写「广告」披露', notes.length === 0, `实际 ${notes.length}`);
   /* 但要说清"这是搜索页不是商品页"，否则用户点进去会以为被骗 */
-  ok('搜索兜底附一句"不是商品页"的说明', searchNotes.length === 3, `实际 ${searchNotes.length}`);
+  /* 披露是**每张卡一条**（说的是这张卡的性质），不是每个按钮一条 */
+  ok('搜索兜底附一句"不是商品页"的说明（每卡一条）', searchNotes.length === 3, `实际 ${searchNotes.length}`);
   ok('搜索说明里点明平台名',
-    searchNotes.every((n) => /京东|淘宝|天猫|拼多多/.test(n.textContent)),
-    searchNotes.map((n) => n.textContent.slice(0, 20)).join(' | '));
+    searchNotes.every((n) => /京东/.test(n.textContent) && /淘宝/.test(n.textContent)),
+    searchNotes.map((n) => n.textContent.slice(0, 30)).join(' | '));
 
   /* 数据来源链接必须一直在 —— 降级只影响购买入口，不影响溯源。 */
   ok('降级后数据来源链接仍在',
@@ -1166,9 +1168,10 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
   ok('披露文案以「广告」开头（国内法规要求）', disc.startsWith('广告'), disc.slice(0, 20));
   ok('披露说明不影响支付价格', disc.includes('不影响'), disc.slice(0, 40));
   /* ?pid= 只能覆盖 pid，不能覆盖 target —— 否则任何访客都能把链接指向别处 */
+  /* ?pid= 只覆盖 pid，绝不覆盖 target —— 否则任何访客都能把链接指向别处 */
   ok('?pid= 不覆盖 target（防注入）', (() => {
     const c = appMod.__aff.config();
-    return typeof c.target === 'string';
+    return typeof c.jd.target === 'string' && typeof c.taobao.target === 'string';
   })(), 'target 类型异常');
   ok('拼出的 dest 已编码（不出现裸 ?q=）',
     !!href && !/u=https:\/\/s\.example\/search\?q=/.test(href), String(href).slice(0, 90));
@@ -1180,16 +1183,23 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
    所以每一档都要单独钉住，不能只测最终渲染出来的那一个。 */
 {
   const P = { id: 'demo-bottle', brand: 'Demo', name: 'Bottle' };
+  /* v29 起 cfg 按平台分组：{ jd:{target,pid,productBase}, taobao:{...}, searchPlatforms:[...] } */
   const paidCfg = {
-    target: 'https://a.example/click?pid={pid}&u={dest}',
-    pid: 'P1', productBase: 'https://s.example/search',
-    platform: 'jd', disclosure: '广告 · x',
+    jd: { target: 'https://a.example/click?pid={pid}&u={dest}', pid: 'P1', productBase: 'https://s.example/search' },
+    taobao: { target: '', pid: '', productBase: '' },
+    searchPlatforms: ['jd', 'taobao'],
+    disclosure: '广告 · x',
   };
-  const freeCfg = { target: '', pid: '', productBase: '', platform: 'jd', disclosure: '广告 · x' };
+  const freeCfg = {
+    jd: { target: '', pid: '', productBase: '' },
+    taobao: { target: '', pid: '', productBase: '' },
+    searchPlatforms: ['jd'],
+    disclosure: '广告 · x',
+  };
   const A = appMod.__aff;
 
   /* ① 三件套齐全 → direct，即使直达表里也有这一瓶（佣金优先） */
-  A.setLinks({ platform: 'jd', links: { 'demo-bottle': 'https://item.jd.com/1.html' } });
+  A.setLinks({ jd: { 'demo-bottle': 'https://item.jd.com/1.html' } });
   const d = A.link(P, paidCfg);
   ok('三档优先级：有佣金时走 direct', !!d && d.kind === 'direct', d && d.kind);
   ok('direct 文案说「买」', !!d && /买/.test(d.label), d && d.label);
@@ -1212,9 +1222,10 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
     s && decodeURIComponent(s.href).slice(0, 90));
 
   /* 没有平台就拼不出搜索页 —— 不许硬凑 */
-  ok('未指定平台时不渲染搜索链接',
-    A.link(P, Object.assign({}, freeCfg, { platform: '' })) === null,
-    String(A.link(P, Object.assign({}, freeCfg, { platform: '' }))));
+  /* 平台列表为空 → 一个链接都不出（不硬凑） */
+  const noPlat = Object.assign({}, freeCfg, { searchPlatforms: [] });
+  ok('searchPlatforms 为空时不渲染任何链接', A.links(P, noPlat).length === 0,
+    JSON.stringify(A.links(P, noPlat)));
 
   /* 四个平台的模板都必须含 {q} 且替换后合法 */
   const plats = A.platforms;
@@ -1229,10 +1240,20 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
   }), '');
 
   /* 坏链不能透传：直达表里塞 javascript: 必须被拒并退回 search */
-  A.setLinks({ platform: 'jd', links: { 'demo-bottle': 'javascript:alert(1)' } });
+  A.setLinks({ jd: { 'demo-bottle': 'javascript:alert(1)' } });
   const bad = A.link(P, freeCfg);
   ok('直达表里的 javascript: 链接被拒，退回 search',
     !!bad && bad.kind === 'search', bad && bad.kind);
+
+  /* 双平台：两个都配了搜索 → 返回两条，顺序与 searchPlatforms 一致 */
+  const both = A.links(P, Object.assign({}, freeCfg, { searchPlatforms: ['jd', 'taobao'] }));
+  ok('双平台各出一条链接', both.length === 2, JSON.stringify(both.map((x) => x.platform)));
+  ok('平台顺序与配置一致',
+    both.map((x) => x.platform).join(',') === 'jd,taobao',
+    both.map((x) => x.platform).join(','));
+  ok('两条链接分别指向对应平台的搜索页',
+    /search\.jd\.com/.test(both[0].href) && /s\.taobao\.com/.test(both[1].href),
+    both.map((x) => x.href.slice(0, 50)).join(' | '));
 
   A.setLinks(false);   // 恢复，别影响后面的断言
 }

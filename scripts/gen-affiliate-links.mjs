@@ -1,19 +1,26 @@
-// 生成 data/affiliate-links.json 的可选工具（阶段二）
+// 生成 data/affiliate-links.json 的可选工具（双平台版，v29）
 //
 // **它不是构建步骤，也不是必需依赖。** 没有这张表，页面照样工作 ——
-// 购买入口退回"平台搜索页"那一档（见 docs/DECISIONS.md D54）。
+// 购买入口退回"平台搜索页"那一档（见 docs/DECISIONS.md D54/D57）。
 //
 // 用法：
-//   JD_UNION_COOKIE='...' node scripts/gen-affiliate-links.mjs
+//   node scripts/gen-affiliate-links.mjs                      # 读 data/affiliate-links.source.json
 //   JD_UNION_KEY=xxx JD_UNION_SECRET=yyy node scripts/gen-affiliate-links.mjs --api
 //
-// 两种模式：
-//   ① --api  走京东联盟开放平台 API（需要 appKey / appSecret，服务端签名）
-//   ② 默认   读本地已有的 id → url 映射文件（data/affiliate-links.source.json），
-//             只做校验与归一，方便你手工或从后台导出后一次性导入
+// 输入文件结构（data/affiliate-links.source.json）：
+//   {
+//     "jd":     { "<perfume.id>": "https://u.jd.com/xxxxx" },
+//     "taobao": { "<perfume.id>": "https://s.click.taobao.com/xxxxx" }
+//   }
+//   也接受旧结构 { "platform": "jd", "links": { ... } }，会按 platform 折叠。
 //
-// **凭证只从环境变量读，绝不写进任何入库文件。**
-// 产出的 data/affiliate-links.json 是公开的（不含任何密钥），可以入库。
+// 产出 data/affiliate-links.json（公开，不含任何密钥，可以入库）：
+//   {
+//     "generatedAt": "2026-11-02",
+//     "coverage": { "jd": "412/1388", "taobao": "0/1388" },
+//     "jd":     { "<perfume.id>": "url" },
+//     "taobao": { ... }
+//   }
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -25,6 +32,7 @@ const IN_PERFUMES = path.join(ROOT, 'data/perfumes.json');
 const IN_SOURCE = path.join(ROOT, 'data/affiliate-links.source.json');
 const OUT = path.join(ROOT, 'data/affiliate-links.json');
 
+const PLATFORMS = ['jd', 'taobao'];
 const args = process.argv.slice(2);
 const USE_API = args.includes('--api');
 
@@ -43,10 +51,27 @@ async function loadPerfumes() {
   return d.perfumes || d;
 }
 
-/* ---------- 模式 ②：本地映射文件 ----------
-   期望结构（你可以从联盟后台导出 CSV 后自己转）：
-     { "platform": "jd", "links": { "<perfume.id>": "https://item.jd.com/xxx.html" } }
-   也接受 { "<perfume.id>": "url" } 这种裸映射，省一步。 */
+/* 把各种可能的输入结构归一成 { jd:{id:url}, taobao:{id:url} }。
+   归一放在这里而不是让调用方各写一遍 —— 结构变过一次（v27 单平台
+   → v29 双平台），下次再变时只改这一个函数。 */
+function normalizeSource(raw) {
+  const out = { jd: {}, taobao: {} };
+  if (!raw) return out;
+  /* 旧结构：{ platform:'jd', links:{...} } */
+  if (raw.platform && raw.links) {
+    if (PLATFORMS.includes(raw.platform)) out[raw.platform] = { ...raw.links };
+    return out;
+  }
+  /* 新结构：按平台分组。允许每个平台再套一层 { links: {...} } */
+  for (const plat of PLATFORMS) {
+    const t = raw[plat];
+    if (!t) continue;
+    const map = t.links || t;
+    if (map && typeof map === 'object') out[plat] = { ...map };
+  }
+  return out;
+}
+
 async function fromSourceFile(perfumes) {
   if (!existsSync(IN_SOURCE)) {
     console.error(`缺少 ${path.relative(ROOT, IN_SOURCE)}`);
@@ -56,31 +81,29 @@ async function fromSourceFile(perfumes) {
     return null;
   }
   const raw = JSON.parse(await readFile(IN_SOURCE, 'utf8'));
-  const platform = raw.platform || 'jd';
-  const map = raw.links || raw;
+  const grouped = normalizeSource(raw);
   const ids = new Set(perfumes.map((p) => p.id));
-  const links = {};
-  const rejected = [];
-  const unknown = [];
-  for (const [id, url] of Object.entries(map)) {
-    if (id === 'platform' || id === 'generatedAt') continue;
-    if (!ids.has(id)) { unknown.push(id); continue; }
-    const u = safeUrl(url);
-    if (!u) { rejected.push([id, url]); continue; }
-    links[id] = u;
+  const res = { rejected: [], unknown: [] };
+  for (const plat of PLATFORMS) {
+    const clean = {};
+    for (const [id, url] of Object.entries(grouped[plat])) {
+      if (!ids.has(id)) { res.unknown.push(`${plat}:${id}`); continue; }
+      const u = safeUrl(url);
+      if (!u) { res.rejected.push([`${plat}:${id}`, url]); continue; }
+      clean[id] = u;
+    }
+    grouped[plat] = clean;
   }
-  return { platform, links, rejected, unknown };
+  return { ...grouped, ...res };
 }
 
 /* ---------- 模式 ①：联盟开放平台 API ----------
-   京东联盟开放平台（ union.jd.com/openplatform ）的转链接口需要
-   appKey + appSecret 做 MD5 签名，参数含 materialId（商品 ID）。
-   但**商品 ID 我们手上没有** —— perfumes.json 里只有 Scento 的溯源页，
-   没有京东 SKU。所以 --api 模式必须配一份 id → skuId 的映射
-   （data/affiliate-links.source.json 的 sku 字段），否则无从发起请求。
+   京东联盟的转链接口要 materialId（京东 SKU），而 perfumes.json
+   里没有任何 SKU，只有 Scento 的溯源页。所以 --api 仍需要你先提供
+   id → skuId 的映射 —— 知道香水叫什么，不等于知道它在京东的商品编号。
 
-   这不是"接口难用"，是**数据缺口**：知道香水叫什么，不等于知道
-   它在京东的商品编号。这一层只能靠人工或后台导出补。 */
+   淘宝客的转链接口同理需要 itemId。两家的共同瓶颈都不是接口难度，
+   是**数据缺口**。 */
 async function fromApi(perfumes) {
   const key = process.env.JD_UNION_KEY;
   const secret = process.env.JD_UNION_SECRET;
@@ -97,7 +120,7 @@ async function fromApi(perfumes) {
   const rawSrc = JSON.parse(await readFile(IN_SOURCE, 'utf8'));
   const skuMap = rawSrc.skus || {};
   const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-  const links = {};
+  const jd = {};
   const failed = [];
 
   for (const p of perfumes) {
@@ -119,10 +142,10 @@ async function fromApi(perfumes) {
       const j = await r.json();
       const url = safeUrl(j?.jd_union_open_promotion_common_get_responce?.result
         || j?.data?.clickURL || '');
-      if (url) links[p.id] = url; else failed.push([p.id, JSON.stringify(j).slice(0, 120)]);
+      if (url) jd[p.id] = url; else failed.push([p.id, JSON.stringify(j).slice(0, 120)]);
     } catch (e) { failed.push([p.id, e.message]); }
   }
-  return { platform: 'jd', links, failed };
+  return { jd, taobao: {}, rejected: [], unknown: [], failed };
 }
 
 (async () => {
@@ -132,22 +155,29 @@ async function fromApi(perfumes) {
   const res = USE_API ? await fromApi(perfumes) : await fromSourceFile(perfumes);
   if (!res) process.exit(1);
 
-  const n = Object.keys(res.links).length;
-  if (!n) {
+  const coverage = {};
+  let total = 0;
+  for (const plat of PLATFORMS) {
+    const n = Object.keys(res[plat] || {}).length;
+    coverage[plat] = `${n}/${perfumes.length}`;
+    total += n;
+  }
+  if (!total) {
     console.error('一条链接都没生成 —— 不写文件（写了也是个空表，不如没有）。');
     process.exit(1);
   }
 
   const out = {
-    platform: res.platform,
     generatedAt: new Date().toISOString().slice(0, 10),
-    /* 覆盖率是给自己看的：低了说明映射不全，页面大部分会退回搜索档。
+    /* 覆盖率是给自己看的：低了说明映射不全，大部分会退回搜索档。
        它不是错误，只是事实。 */
-    coverage: `${n}/${perfumes.length}`,
-    links: res.links,
+    coverage,
   };
+  for (const plat of PLATFORMS) {
+    if (Object.keys(res[plat] || {}).length) out[plat] = res[plat];
+  }
   await writeFile(OUT, JSON.stringify(out, null, 2) + '\n', 'utf8');
-  console.log(`已写 ${path.relative(ROOT, OUT)}：${n} 条（覆盖 ${out.coverage}）`);
+  console.log(`已写 ${path.relative(ROOT, OUT)}：${JSON.stringify(coverage)}`);
   if (res.rejected?.length) console.log(`拒绝的非 http(s) 链接 ${res.rejected.length} 条`);
   if (res.unknown?.length) console.log(`数据里没有的 id ${res.unknown.length} 条`);
   if (res.failed?.length) console.log(`接口失败 ${res.failed.length} 条`);

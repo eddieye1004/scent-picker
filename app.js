@@ -3256,47 +3256,61 @@ function renderMasthead() {
 /* ============================================================
    推广链接配置（第四步）
    ------------------------------------------------------------
-   **默认关闭**。原因：我不知道你的推广平台、PID，也不该编一个看起来
-   像真的联盟地址 —— 那会让「点进去能买」变成一句假承诺。
+   2026-11 重做为**双平台**：京东联盟 + 淘宝联盟并行。
+   为什么两个都接：同一个商品在两家都可能没有货/没有官方店，
+   只给一家等于替用户做了他不该由我们做的选择。
 
-   启用方式（三选一，都在这里改）：
-     1. 直接改下面的 AFFILIATE 常量，填 target 模板与 pid；
-     2. 页面加载前在 index.html 里写
-          <script>window.SCENT_AFFILIATE = { target: '...', pid: '...' }</script>
-        （运行时覆盖，适合不改源码就上线）；
-     3. 用 URL 参数 ?pid=xxx 临时覆盖 PID（只影响 pid 字段）。
+   三个层级，从高到低（每一层都独立降级，互不影响）：
 
-   占位符（target 里可用）：
-     {dest}   目标商品页的 URL（会被 encodeURIComponent）
-     {pid}    推广位 PID
-     {name}   香水名（encodeURIComponent 后）
-     {brand}  品牌名（encodeURIComponent 后）
+     ① direct  —— 有佣金的转链。京东与淘宝**各自独立**：
+         · 京东：jd.pid + jd.target + jd.productBase
+         · 淘宝：tb.pid + tb.target + tb.productBase
+        两家可以只有一家齐备，页面就只出那一家的「买」按钮。
+     ② link    —— 预生成的直达商品页（data/affiliate-links.json），
+         structure：{ jd: {perfumeId: url}, taobao: {perfumeId: url} }
+     ③ search  —— 平台搜索页，零配置兜底。两个平台都给。
 
-   降级规则（任一不满足就**不渲染链接**，只留原有的纯展示）：
-     · target 为空 或 不含 {dest}
-     · pid 为空
-     · 拼出来的 URL 不是合法 http(s)（用 new URL() 实测）
-   ——降级是静默的、不报错：宁可少一个链接，也不要给一个点不开的按钮。
+   降级判据（任一不满足就**不出那一个按钮**，静默）：
+     · 该平台 target 为空 / 不含 {dest}
+     · 该平台 pid 为空
+     · 拼出来的 URL 不是 http(s)
+   —— 宁可少一个按钮，也不要给一个点不开的链接。
+
+   披露规则（2026-11 修订，比 D54 更细）：
+     · 只要卡片上有**任意一个** direct 链接 → 挂一条「广告」披露
+     · 全是 search / link → 一条广告披露都不挂，改挂一句
+       「这些是搜索结果页，不是商品页」
+     · sponsored 只标在 direct 上；search / link 一律不标
    ============================================================ */
-const AFFILIATE = {
-  /* 示例形态，不是可用的真实地址。换成一个真实联盟的跳转前缀即可，例如
-     'https://u.jd.com/xxxxx?pid={pid}&url={dest}' */
-  target: '',
-  pid: '',
-  /* 商品页的基地址。数据里每瓶都有 sourceUrl（Scento 页面），
-     但那不是商品页 —— 这里留空，表示"还没有可跳转的购买页"。
-     填了之后会拼成 dest = productBase + '?q=' + brand + ' ' + name */
-  productBase: '',
-  /* 搜索兜底走哪个平台：'jd' | 'taobao' | 'tmall' | 'pdd'。
-     这一档**不需要任何注册**，只要联网就能跳。
-     默认 'jd' —— 理由见 docs/DECISIONS.md D54：实测三家在无登录态下
-     都先弹登录页，京东的登录页是唯一在 302 后仍保留 returnUrl 的，
-     用户登录完能回到自己搜的东西上。
+const SEARCH_PLATFORMS = {
+  jd: { zh: '京东', url: 'https://search.jd.com/Search?keyword={q}&enc=utf-8' },
+  taobao: { zh: '淘宝', url: 'https://s.taobao.com/search?q={q}' },
+  tmall: { zh: '天猫', url: 'https://list.tmall.com/search_product.htm?q={q}' },
+  pdd: { zh: '拼多多', url: 'https://mobile.yangkeduo.com/search_result.html?search_key={q}' },
+};
 
-     注意：搜索跳转**不带佣金**，也不挂「广告」披露 —— 它不是广告。
-     只有三件套齐备（上面 target/pid/productBase 都填了）时才会渲染
-     真正的佣金链接，那时才挂披露。 */
-  platform: 'jd',
+const AFFILIATE = {
+  /* ---- 京东联盟 ----
+     京东给的是**每个商品一条独立短链**（u.jd.com/XXXX），不是参数化模板。
+     所以 target 的典型形态是留空、改走 ② link 层（见 docs/AFFILIATE-SETUP.md）。
+     但若你的推广位支持带 {dest} 的跳转（例如自建中转页），照样能用。 */
+  jd: {
+    target: '',      // 含 {dest} 的转链模板
+    pid: '',         // 推广位 ID
+    productBase: '', // 搜索页基地址（用于拼 dest）
+  },
+  /* ---- 淘宝联盟 ----
+     淘宝支持参数化转链（s.click.taobao.com/t?e=...&pid={pid}&...），
+     所以这一档更容易只用一条模板打通。 */
+  taobao: {
+    target: '',
+    pid: '',
+    productBase: '',
+  },
+  /* 搜索兜底给哪几个平台。不需要任何注册，只要联网就能跳。
+     顺序即页面上的按钮顺序 —— 京东在前，因为实测它的登录页在 302 后
+     仍保留 returnUrl，用户登录完能回到自己搜的东西上（D54）。 */
+  searchPlatforms: ['jd', 'taobao'],
   /* 披露文案。两地法规都要求"显著标明"，所以强制开、不允许关。
 
      · 中国《互联网广告管理办法》第九条：要求标明"广告"。
@@ -3312,24 +3326,42 @@ const AFFILIATE = {
   disclosure: '广告 · 购买链接为推广链接，成交后本站可能获得佣金，不影响你的支付价格',
 };
 
+/* 读配置。运行时覆盖（window.SCENT_AFFILIATE）支持按平台给，
+   也兼容旧的扁平写法（pid/target/productBase 直接在顶层）——
+   旧写法按 jd 处理，这样已有的部署不会因为这次改版突然失灵。 */
 function affiliateConfig() {
   const runtime = (typeof window !== 'undefined' && window.SCENT_AFFILIATE) || {};
-  let pid = runtime.pid || AFFILIATE.pid || '';
-  /* ?pid= 只覆盖 pid，不能覆盖 target —— 否则任何访客都能把链接指向别处。 */
+  const pick = (plat) => {
+    const rt = runtime[plat] || {};
+    /* 兼容：运行时给了扁平 pid 且没给平台对象时，当京东用 */
+    const flat = (plat === 'jd' && !runtime.jd && (runtime.pid || runtime.target)) ? runtime : {};
+    return {
+      target: rt.target || flat.target || AFFILIATE[plat].target || '',
+      pid: rt.pid || flat.pid || AFFILIATE[plat].pid || '',
+      productBase: rt.productBase || flat.productBase || AFFILIATE[plat].productBase || '',
+    };
+  };
+  const out = {
+    jd: pick('jd'),
+    taobao: pick('taobao'),
+    searchPlatforms: Array.isArray(runtime.searchPlatforms)
+      ? runtime.searchPlatforms.filter((p) => SEARCH_PLATFORMS[p])
+      : AFFILIATE.searchPlatforms.slice(),
+    disclosure: AFFILIATE.disclosure,
+  };
+  /* ?pid= 只在只有一个平台需要覆盖时有意义。为了不引入歧义，
+     改成 ?pid=xxx 同时覆盖两个平台的 pid —— 它本来就是给"临时换推广位"
+     用的，两个平台同时换比只换一个更符合直觉。 */
   try {
     if (typeof location !== 'undefined' && location.search) {
       const q = new URLSearchParams(location.search);
       const fromUrl = q.get('pid');
-      if (fromUrl) pid = fromUrl;
+      if (fromUrl) { out.jd.pid = fromUrl; out.taobao.pid = fromUrl; }
+      const plat = q.get('platform');
+      if (plat && SEARCH_PLATFORMS[plat]) out.searchPlatforms = [plat];
     }
   } catch { /* 取不到就算了，用配置里的 */ }
-  return {
-    target: runtime.target || AFFILIATE.target || '',
-    pid,
-    productBase: runtime.productBase || AFFILIATE.productBase || '',
-    platform: runtime.platform || AFFILIATE.platform || '',
-    disclosure: AFFILIATE.disclosure,
-  };
+  return out;
 }
 
 /* 给一瓶香水拼**带佣金的**购买链接。返回 null 表示"不渲染佣金链接"。
@@ -3368,69 +3400,76 @@ function affiliateHref(perfume, cfg) {
    佣金链接指向"这一瓶"（商品页或转链），搜索链接指向"搜这一瓶的结果"。
    两者长得像但承诺不同，所以按钮文案分开写，披露也分开：
    搜索跳转不挂「广告」—— 它不是广告，挂上去反而在骗人。 */
-const SEARCH_PLATFORMS = {
-  jd: { zh: '京东', url: 'https://search.jd.com/Search?keyword={q}&enc=utf-8' },
-  taobao: { zh: '淘宝', url: 'https://s.taobao.com/search?q={q}' },
-  tmall: { zh: '天猫', url: 'https://list.tmall.com/search_product.htm?q={q}' },
-  pdd: { zh: '拼多多', url: 'https://mobile.yangkeduo.com/search_result.html?search_key={q}' },
-};
 
 /* 预生成的直达链接表（阶段二）。
    id → 商品页 URL。由 scripts/gen-affiliate-links.mjs 离线产出，
    密钥只在本地用、不进仓库。文件不存在时静默为空 —— 不影响任何现有行为。 */
 let AFF_LINKS = null;
 
-/* 统一出口：返回 { href, kind, platformZh, label } 或 null。
-   kind = 'direct'（有佣金）/ 'link'（预生成直达页，无佣金）/ 'search'（平台搜索页） */
-function affiliateLink(perfume, cfg) {
-  if (!perfume || !perfume.name) return null;
+/* 一个平台给这一瓶出链接。返回 { href, kind, platform, platformZh, label } 或 null。
+   kind = 'direct'（有佣金）/ 'link'（预生成直达页）/ 'search'（平台搜索页）
+   三级从高到低，第一个成的就返回。 */
+function platformLink(perfume, plat, cfg) {
+  const meta = SEARCH_PLATFORMS[plat];
+  if (!perfume || !perfume.name || !meta) return null;
 
-  /* ① 有佣金链接 → 最优先 */
-  const paid = affiliateHref(perfume, cfg);
+  /* ① 有佣金转链（该平台三件套齐备时才有） */
+  const paid = affiliateHref(perfume, cfg[plat]);
   if (paid) {
-    const plat = SEARCH_PLATFORMS[cfg.platform];
     return {
-      href: paid,
-      kind: 'direct',
-      platformZh: plat ? plat.zh : '',
-      label: plat ? `去${plat.zh}买这一瓶 ↗` : '去找这一瓶 ↗',
+      href: paid, kind: 'direct', platform: plat, platformZh: meta.zh,
+      label: `去${meta.zh}买这一瓶 ↗`,
     };
   }
 
-  /* ② 预生成的直达商品页 → 没有佣金，但确实是这一瓶 */
-  if (AFF_LINKS && AFF_LINKS.links && AFF_LINKS.links[perfume.id]) {
-    const href = AFF_LINKS.links[perfume.id];
-    try {
-      const u = new URL(href);
-      if (u.protocol === 'http:' || u.protocol === 'https:') {
-        const plat = AFF_LINKS.platform ? SEARCH_PLATFORMS[AFF_LINKS.platform] : null;
-        return {
-          href: u.toString(),
-          kind: 'link',
-          platformZh: plat ? plat.zh : '',
-          label: plat ? `去${plat.zh}看这一瓶 ↗` : '去看这一瓶 ↗',
-        };
-      }
-    } catch { /* 坏链就当没有 */ }
+  /* ② 预生成的直达商品页（无佣金，但确实是这一瓶） */
+  const table = AFF_LINKS && AFF_LINKS[plat];
+  if (table) {
+    const raw = table[perfume.id] || (table.links && table.links[perfume.id]);
+    if (raw) {
+      try {
+        const u = new URL(raw);
+        if (u.protocol === 'http:' || u.protocol === 'https:') {
+          return {
+            href: u.toString(), kind: 'link', platform: plat, platformZh: meta.zh,
+            label: `去${meta.zh}看这一瓶 ↗`,
+          };
+        }
+      } catch { /* 坏链就当没有 */ }
+    }
   }
 
-  /* ③ 平台搜索页 → 零配置兜底 */
-  const plat = SEARCH_PLATFORMS[cfg && cfg.platform];
-  if (!plat) return null;
+  /* ③ 平台搜索页 —— 零配置兜底 */
   const q = [perfume.brand, perfume.name].filter(Boolean).join(' ');
-  const href = plat.url.replace('{q}', encodeURIComponent(q));
   try {
-    const u = new URL(href);
+    const u = new URL(meta.url.replace('{q}', encodeURIComponent(q)));
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
     return {
-      href: u.toString(),
-      kind: 'search',
-      platformZh: plat.zh,
-      label: `在${plat.zh}搜这一瓶 ↗`,
+      href: u.toString(), kind: 'search', platform: plat, platformZh: meta.zh,
+      label: `在${meta.zh}搜这一瓶 ↗`,
     };
   } catch {
     return null;
   }
+}
+
+/* 统一出口：给一瓶香水返回它在每个启用平台上的链接数组。
+   顺序跟 cfg.searchPlatforms 一致（默认 ['jd','taobao']）。
+   为什么返回数组而不是单个：双平台是这一轮的需求 ——
+   同一瓶在两家都可能缺货，只给一家等于替用户做了不该我们做的选择。 */
+function affiliateLinks(perfume, cfg) {
+  const out = [];
+  for (const plat of (cfg && cfg.searchPlatforms) || []) {
+    const l = platformLink(perfume, plat, cfg);
+    if (l) out.push(l);
+  }
+  return out;
+}
+
+/* 兼容旧调用：返回第一个链接（京东优先）。测试与外部若只想要一条就用这个。 */
+function affiliateLink(perfume, cfg) {
+  const all = affiliateLinks(perfume, cfg);
+  return all.length ? all[0] : null;
 }
 
 function renderResult() {
@@ -3545,47 +3584,61 @@ function renderResult() {
       ? `季节 ${p.seasons.join(' / ')}` : '季节未标注'));
     /* 购买入口放在理由之后、页脚之中：先让用户读到"为什么推荐它"，
        再给"去哪买" —— 顺序反了就成了先推销后解释。 */
-    const buyLink = affiliateLink(p, aff);
+    /* 双平台：这一瓶在每个启用平台各出一个链接。
+       为什么不是"二选一"：同一瓶在京东和淘宝都可能缺货或没有官方店，
+       替用户挑一家等于用我们的库存假设冒充他的选择。 */
+    const buyLinks = affiliateLinks(p, aff);
     /* 三种去向，文案与安全属性各不相同：
        · direct（有佣金）→ 挂 sponsored，并跟一条「广告」披露
        · link（预生成直达页）→ 不挂 sponsored（没有商业关系）
        · search（平台搜索页）→ 不挂 sponsored，文案说「搜」不说「买」 */
-    const buy = buyLink
-      ? el('a', {
-        class: buyLink.kind === 'direct' ? 'buy-link' : 'buy-link is-search',
-        href: buyLink.href,
-        target: '_blank',
-        /* sponsored 只标在真有佣金关系的链接上。把 sponsored 挂在一个
-           不带佣金的搜索页上是虚假标注：搜索引擎按作弊处理，
-           用户也会误解成"这瓶有人在付钱推"。
-           noopener / noreferrer 是安全基线，三种都必须带。 */
-        rel: buyLink.kind === 'direct'
-          ? 'sponsored noopener noreferrer'
-          : 'noopener noreferrer',
-        'data-affiliate': buyLink.kind === 'direct' ? 'true' : 'false',
-        'data-kind': buyLink.kind,
-      }, buyLink.label)
-      : null;
+    const buyEls = buyLinks.map((l) => el('a', {
+      class: l.kind === 'direct' ? 'buy-link' : 'buy-link is-search',
+      href: l.href,
+      target: '_blank',
+      /* sponsored 只标在真有佣金关系的链接上。把 sponsored 挂在一个
+         不带佣金的搜索页上是虚假标注：搜索引擎按作弊处理，
+         用户也会误解成"这瓶有人在付钱推"。
+         noopener / noreferrer 是安全基线，三种都必须带。 */
+      rel: l.kind === 'direct'
+        ? 'sponsored noopener noreferrer'
+        : 'noopener noreferrer',
+      'data-affiliate': l.kind === 'direct' ? 'true' : 'false',
+      'data-kind': l.kind,
+      'data-platform': l.platform,
+    }, l.label));
 
+    /* 按钮组要包一层再右推。
+       直接把 `margin-left:auto` 放在第一个按钮上会出问题：auto 会吃掉
+       整行剩余空间，第二个按钮被顶到下一行 —— 实测 1440 下京东在右侧、
+       淘宝掉到左边另起一行，看着像两个不相干的东西。
+       包成容器后由容器吃 auto，两个按钮在容器内并排。 */
+    const footTail = buyEls.length
+      ? el('div', { class: 'pick-buy-group' }, ...buyEls)
+      : null;
     const foot = el('div', { class: 'pick-foot' }, ...tags,
       el('a', { href: p.sourceUrl, target: '_blank', rel: 'noopener noreferrer' }, '查看数据来源 ↗'),
-      buy
+      footTail
     );
     art.appendChild(foot);
-    /* 披露按 kind 分档写。
-       · direct：有佣金 → 走合规文案（首句「广告」）
-       · search：不是广告，所以**不挂**广告披露；改说一句实话 ——
-         "这是搜索结果页，不是这一瓶的商品页"。
-         给它挂「广告」是在骗人，也会让真正的广告披露贬值。
-       没有任何链接时两样都不写：没链接却挂声明是噪音。 */
-    if (buyLink && buyLink.kind === 'direct') {
+    /* 披露按**这张卡上最好的那一档**写，一条就够。
+       · 只要有任意一个 direct → 挂广告披露（合规文案，首句「广告」）
+       · 全是 search / link → 一条广告披露都不挂，改说一句实话：
+         "这些是搜索结果页，不是商品页"。
+         给非广告挂「广告」是在骗人，也会让真正的广告披露贬值。
+       为什么只挂一条而不是每个按钮一条：披露说的是"这张卡的性质"，
+       重复三遍会变成噪音，反而不显眼（FTC 的 clear and conspicuous）。 */
+    const anyDirect = buyLinks.some((l) => l.kind === 'direct');
+    const anySearch = buyLinks.some((l) => l.kind === 'search');
+    if (anyDirect) {
       art.appendChild(el('p', { class: 'aff-note', role: 'note' }, aff.disclosure));
-    } else if (buyLink && buyLink.kind === 'search') {
+    } else if (anySearch) {
       /* 用 `link-note` 而不是 `aff-note`：aff-note 是广告披露的专用类，
          两者混用会让"有没有广告披露"这个判断在 DOM 层就分不出来 ——
          实测踩过：测试数 .aff-note 得到 3，分不清是广告还是搜索说明。 */
+      const plats = [...new Set(buyLinks.filter((l) => l.kind === 'search').map((l) => l.platformZh))];
       art.appendChild(el('p', { class: 'link-note', role: 'note' },
-        `这是${buyLink.platformZh}搜索结果，不是这一瓶的商品页 —— 本站尚未接入购买链接`));
+        `这些是${plats.join(' / ')}搜索结果，不是这一瓶的商品页 —— 本站尚未接入购买链接`));
     }
     wrap.appendChild(art);
   });
@@ -3702,8 +3755,24 @@ function ensureAffLinks() {
     .then((r) => (r.ok ? r.json() : null))
     .then((d) => {
       /* 幂等：AFF_LINKS 用 null 表示"还没试过"，用 false 表示"试过、没有"。
-         这样重复调用不会反复发请求，也不会把空对象当成功。 */
-      AFF_LINKS = (d && d.links && Object.keys(d.links).length) ? d : false;
+         这样重复调用不会反复发请求，也不会把空对象当成功。
+
+         支持两种表结构：
+           ① 新（双平台）：{ jd: {id:url}, taobao: {id:url} }
+           ② 旧（平铺）：  { platform: 'jd', links: {id:url} }
+         旧结构按 platform 折叠成新结构，这样已经生成过表的部署不用重跑脚本。 */
+      if (!d) { AFF_LINKS = false; return AFF_LINKS; }
+      const norm = {};
+      if (d.platform && d.links) {
+        norm[d.platform] = d.links;                       // 旧结构
+      } else {
+        for (const [plat, table] of Object.entries(d)) {
+          if (!SEARCH_PLATFORMS[plat] || !table) continue;
+          const map = table.links || table;
+          if (map && typeof map === 'object' && Object.keys(map).length) norm[plat] = map;
+        }
+      }
+      AFF_LINKS = Object.keys(norm).length ? norm : false;
       return AFF_LINKS;
     })
     .catch(() => { AFF_LINKS = false; return AFF_LINKS; });
@@ -3743,6 +3812,7 @@ export const __aff = {
   config: affiliateConfig,
   href: affiliateHref,
   link: affiliateLink,
+  links: affiliateLinks,
   platforms: SEARCH_PLATFORMS,
   /* 测试里可以把直达链接表塞进来，不必真去 fetch。
      传 false 表示"没有这张表"，传对象表示"有"。 */

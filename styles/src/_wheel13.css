@@ -508,6 +508,27 @@
   outline-offset: 2px;
 }
 
+/* 双平台（v29）：一张卡上可能出现两个购买入口（京东 + 淘宝）。
+
+   这里踩过一个坑：起初按"每个按钮各自 margin-left:auto，再给
+   `~ .buy-link` 清零"来排，结果 auto 吃掉了整行剩余宽度，
+   第二个按钮被顶到下一行 —— 1440 下京东在右侧、淘宝掉到左边另起一行，
+   实测两个按钮 x 坐标差 505px。
+   正确做法是让**容器**吃 auto，按钮在容器内用 gap 并排。 */
+.pick-buy-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;      /* 整组推到页脚右侧，与数据来源链接分开 */
+}
+/* 组内按钮不再各自吃 auto —— 这是上一版的 bug 来源 */
+.pick-foot .pick-buy-group .buy-link {
+  margin-left: 0;
+}
+/* 窄屏：两个 132px 按钮 + 数据来源链接在 342px 卡片里放不下，
+   允许换行（flex-wrap 已开）。不缩字号 —— 13px 是触控与可读的下限。 */
+
 /* ---------- 搜索兜底链接：视觉上必须比「能买」轻一档 ----------
 
    实心蓝底 + 白字的意思是"点这里完成这件事"。搜索跳转完成的不是

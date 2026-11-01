@@ -54,3 +54,7 @@ _an7/
 # 它记录的是影响用户观感的数值决策（"为什么显示 91% 而不是 69%"），
 # 不能只活在对话里。它放在 scripts/ 根下而不是 scripts/probes/ 里，
 # 因为 git 不会把 `!` 例外应用到已被排除的目录内部。
+
+# 佣金链接表的输入文件（含你自己手工整理的 id → 商品页映射）
+# 产出 data/affiliate-links.json 是公开的、不含密钥，**要入库**。
+data/affiliate-links.source.json
