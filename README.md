@@ -158,7 +158,7 @@ scent-picker/
 │   └── scoring.js          ★ 核心：可解释的规则打分引擎
 ├── data/
 │   ├── perfumes.json       1228 瓶结构化香调数据（本项目产物，全量不截断）
-│   ├── taxonomy.json       6 家族 × 28 子家族 + 6 情绪 + 5 场合 + 56 香调索引（全部 56 个都有命中的香水）
+│   ├── taxonomy.json       6 家族 × 24 子家族 + 6 情绪 + 5 场合 + 56 香调索引（全部 56 个都有命中的香水）
 │   ├── perfumes.rejected.json  被淘汰的 92 条及原因
 │   └── source/
 │       └── perfumes.upstream.jsonl  上游原件（1.1 MB，CC BY 4.0，可复现用）
@@ -166,12 +166,15 @@ scent-picker/
 │   ├── build-data.js       数据管线（纯本地，不联网）
 │   ├── lib/qa-checks.mjs   ← 体检断言（供正向+负向测试共用）
 │   ├── test-scoring.mjs    106 项引擎测试
-│   ├── test-render.mjs     185 项 DOM 渲染流程测试（含圆盘几何、语义、扇形本体可点、两栏互斥、盘心标本、圆弧约束、每类标识不撞形、一圈等分弧段、两层切换的进出场、返回路径与切换语义、无句末句号）
-│   ├── test-contrast.mjs   38 项无障碍守门（文字对比度/控件边界/字号/焦点环/触控尺寸）
+│   ├── test-render.mjs     207 项 DOM 渲染流程测试（含圆盘几何、语义、扇形本体可点、两栏互斥、盘心标本、圆弧约束、每类标识不撞形、一圈等分弧段、两层切换的进出场、返回路径与切换语义、无句末句号）
+│   ├── test-contrast.mjs   42 项无障碍守门（文字对比度/控件边界/字号/焦点环/触控尺寸）
+│   ├── probe-matchpct.mjs  匹配度分母的复现探针（D55，可复跑）
 │   ├── qa-data.mjs         数据体检
 │   └── test-compliance.mjs 10 项负向测试（证明断言有效）
 ├── docs/
-│   ├── DECISIONS.md        53 条已确认决策及其理由
+│   ├── DECISIONS.md        55 条已确认决策及其理由
+│   ├── AFFILIATE-SETUP.md  佣金三档的现状与注册指引（含你需要准备的材料）
+│   ├── TODO-REMAINING.md   未完成项总清单（按优先级）
 │   ├── COMPLIANCE.md       数据许可与合规边界（含证据链）
 │   └── DEPLOY.md           GitHub Pages 部署步骤
 └── tools/
@@ -260,7 +263,7 @@ node scripts/qa-data.mjs
 
 ```bash
 node scripts/test-scoring.mjs      # 106 项：全组合出结果、幂等、讨厌香调生效、品牌+家族双重多样性、单调性
-node scripts/test-render.mjs       # 185 项：七步流程走通、圆盘 6/5 扇区与 radiogroup 语义、扇形本体可点、盘心三态与标本线稿、盘心圆弧约束、两栏互斥、每类标识不撞形、一圈等分弧段与进出场动画、返回路径（清空 vs 切换）、结果页三调与理由齐全、无 NaN
+node scripts/test-render.mjs       # 207 项：七步流程走通、圆盘 6/5 扇区与 radiogroup 语义、扇形本体可点、盘心三态与标本线稿、盘心圆弧约束、两栏互斥、每类标识不撞形、一圈等分弧段与进出场动画、返回路径（清空 vs 切换）、结果页三调与理由齐全、无 NaN
 node scripts/test-contrast.mjs     # 38 项：文字对比度 ≥4.5、控件边界 ≥3、字号 ≥12px、焦点环、触控目标 ≥44px
 node scripts/qa-data.mjs           # 数据体检：结构、唯一性、权重、家族覆盖、可溯源 + 5 项合规断言
 node scripts/test-compliance.mjs   # 10 项：证明上面那些断言真的会失败
