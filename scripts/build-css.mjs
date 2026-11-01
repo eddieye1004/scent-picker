@@ -41,6 +41,7 @@ const PARTS = [
   '_wheel12.css',
   '_wheel13.css', /* 三级描边（D50）：必须最后，要压过前面各层的边框声明 */
   '_wheel14.css', /* 深色模式（D4）：媒体查询，只在 prefers-color-scheme: dark 下生效 */
+  '_wheel15.css', /* 选中态横向溢出（v27）：在视口层裁掉 .sub-ring 缩放后的空盒 */
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');
