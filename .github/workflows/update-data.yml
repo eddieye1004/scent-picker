@@ -1,0 +1,146 @@
+name: 每周更新香水库
+
+# 每周一次，周一凌晨 03:17（UTC）—— 对应北京时间 11:17。
+# 为什么选周一：上游 Scento 的提交看不出规律（实测最近一次是 10-29 周三），
+# 挑周一保证「新的一周开始前数据是最新的」；时间避开整点，
+# 免得跟别人的定时任务挤在同一分钟排队。
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  # 手动触发，调试用
+  workflow_dispatch:
+
+# 只读 token 就够了 —— 我们只需要读上游仓库的公开数据。
+# 写入用默认的 GITHUB_TOKEN（推送数据提交）。
+permissions:
+  contents: write
+
+concurrency:
+  group: data-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ---------- 取上游原件 ----------
+      # **为什么走 blob API 而不是直连 raw.githubusercontent.com**：
+      # 实测在开发机上 raw.githubusercontent.com 是 ECONNRESET（curl 与 node https
+      # 都失败），而 api.github.com 正常。blob API 返回 base64 编码的完整内容，
+      # 不受那个域名的连接问题影响 —— 本地那 159 条就是用这个方法补上的（D56）。
+      #
+      # 限额：未认证 60 次/小时，用 GITHUB_TOKEN 是 5000/小时。这里只发 2 个请求。
+      - name: 下载上游 perfumes.jsonl
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          API="https://api.github.com/repos/Scento-com/perfume-dataset"
+
+          # 1) 拿文件元信息（sha 与 size）
+          curl -fsSL -H "Accept: application/vnd.github+json" \
+               -H "Authorization: Bearer $GH_TOKEN" \
+               -H "User-Agent: scent-picker-ci" \
+               "$API/contents/perfumes.jsonl" -o /tmp/meta.json
+
+          SHA=$(node -p "require('/tmp/meta.json').sha")
+          SIZE=$(node -p "require('/tmp/meta.json').size")
+          echo "上游 sha=$SHA size=$SIZE"
+          # 字节数写进 GITHUB_ENV 传给下一步（步骤之间 env 不自动继承）
+          echo "UPSTREAM_SIZE=$SIZE" >> "$GITHUB_ENV"
+
+          # 2) 该 sha 对应的最近一次提交时间 —— 用它当 meta.sourceSnapshot，
+          #    而不是"今天"。日期要说明数据是哪天的，不是我们哪天下载的。
+          curl -fsSL -H "Accept: application/vnd.github+json" \
+               -H "Authorization: Bearer $GH_TOKEN" \
+               -H "User-Agent: scent-picker-ci" \
+               "$API/commits?path=perfumes.jsonl&per_page=1" -o /tmp/commit.json
+          SNAPSHOT=$(node -p "require('/tmp/commit.json')[0].commit.committer.date.slice(0,10)")
+          echo "SCENT_SNAPSHOT=$SNAPSHOT" >> "$GITHUB_ENV"
+          echo "上游快照日期 $SNAPSHOT"
+
+          # 3) 取 blob（base64）并解码，校验字节数
+          curl -fsSL -H "Accept: application/vnd.github+json" \
+               -H "Authorization: Bearer $GH_TOKEN" \
+               -H "User-Agent: scent-picker-ci" \
+               "$API/git/blobs/$SHA" -o /tmp/blob.json
+
+          node -e '
+            const fs = require("fs");
+            const j = JSON.parse(fs.readFileSync("/tmp/blob.json", "utf8"));
+            const buf = Buffer.from(j.content, "base64");
+            const expect = Number(process.env.UPSTREAM_SIZE);
+            if (buf.length !== expect) {
+              console.error(`字节数不符：解码 ${buf.length} / 上游报告 ${expect}`);
+              process.exit(1);
+            }
+            fs.writeFileSync("data/source/perfumes.upstream.jsonl", buf);
+            const lines = buf.toString("utf8").split("\n").filter(Boolean).length;
+            console.log(`写入 ${buf.length} 字节 / ${lines} 行`);
+          '
+
+      # ---------- 跑管线与测试 ----------
+      - name: 重建 perfumes.json
+        run: node scripts/build-data.js
+
+      - name: 数据体检
+        run: node scripts/qa-data.mjs
+
+      - name: 四套测试
+        run: |
+          node scripts/test-render.mjs
+          node scripts/test-contrast.mjs
+          node scripts/test-scoring.mjs
+          node scripts/test-compliance.mjs
+
+      # ---------- 只在真的有变化时提交 ----------
+      # 大部分周次上游不会变。空提交会把提交历史填满噪音，
+      # 也会让 Pages 每次白重建一遍。
+      - name: 有变化才提交
+        id: diff
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- data/; then
+            echo "数据无变化，跳过提交"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --stat -- data/ | tail -5
+          fi
+
+      - name: 提交并推送
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git commit -m "data: 每周同步上游香水库（快照 ${SCENT_SNAPSHOT}）
+
+          自动任务 .github/workflows/update-data.yml 产出。
+          上游 Scento-com/perfume-dataset（CC BY 4.0）。
+          管线：原始 → 合格 → 入库，淘汰原因见 data/perfumes.rejected.json。"
+          git push
+
+      # ---------- 失败要能看见 ----------
+      - name: 失败时留一份诊断
+        if: failure()
+        run: |
+          echo "## 数据更新失败" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "上游可能改了文件路径或字段结构。本地复现：" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "node scripts/build-data.js && node scripts/qa-data.mjs" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          ls -la data/source/ || true
+          git status --short || true

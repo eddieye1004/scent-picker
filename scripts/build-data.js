@@ -24,6 +24,19 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const RAW = path.join(ROOT, 'data', 'source', 'perfumes.upstream.jsonl');
+
+/* 上游快照日期：取原件文件的 mtime（date 部分）。
+   为什么不用文件内容里的字段：上游 jsonl 没有版本戳。
+   为什么不用「今天」：那会让每次重跑都改 meta，diff 里全是噪音，
+   也看不出数据本身有没有变。 */
+function snapshotDate() {
+  try {
+    const st = fs.statSync(RAW);
+    return new Date(st.mtimeMs).toISOString().slice(0, 10);
+  } catch {
+    return 'unknown';
+  }
+}
 const TAXONOMY = path.join(ROOT, 'data', 'taxonomy.json');
 const OUT = path.join(ROOT, 'data', 'perfumes.json');
 const REJECTS = path.join(ROOT, 'data', 'perfumes.rejected.json');
@@ -248,7 +261,12 @@ function main() {
       sourceName: 'Scento Perfume Database',
       sourceUrl: 'https://www.scento.com/perfume-database',
       sourceRepo: 'https://github.com/Scento-com/perfume-dataset',
-      sourceSnapshot: '2026-10-21',
+      /* 快照日期从上游原件的实际内容里取，**不写死**。
+         写死的后果实测过：上游 10-29 更新到 1479 条，这里还写 10-21，
+         meta 在页脚与 README 里都会被读到，等于用错日期给数据背书。
+         优先级：环境变量 SCENT_SNAPSHOT（CI 里从上游 commit 时间注入）
+         > 文件 mtime > 'unknown'。 */
+      sourceSnapshot: process.env.SCENT_SNAPSHOT || snapshotDate(),
       license: 'CC BY 4.0',
       attribution: 'Scento — https://www.scento.com/perfume-database',
       licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',

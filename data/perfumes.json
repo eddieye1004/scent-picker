@@ -1,13 +1,13 @@
 {
   "meta": {
     "version": "2.0.0",
-    "builtAt": "2026-11-01T11:02:44.757Z",
+    "builtAt": "2026-11-01T11:23:46.457Z",
     "count": 1388,
     "fullPopulation": true,
     "sourceName": "Scento Perfume Database",
     "sourceUrl": "https://www.scento.com/perfume-database",
     "sourceRepo": "https://github.com/Scento-com/perfume-dataset",
-    "sourceSnapshot": "2026-10-21",
+    "sourceSnapshot": "2026-11-01",
     "license": "CC BY 4.0",
     "attribution": "Scento — https://www.scento.com/perfume-database",
     "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
