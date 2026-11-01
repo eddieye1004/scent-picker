@@ -3445,8 +3445,15 @@ function renderResult() {
       `浓郁度 ${profile.intensity}/5`,
     ].filter(Boolean).join(' · ')),
     el('p', {}, '下面三瓶分属不同家族，方便你对比着闻，而不是三瓶一个味道'),
+    /* 这一行解释匹配度的口径。v28 改了分母（见 scoring.js 的 G6 注释），
+       原来写「规则得分 / 满分」并列出四项权重，读者会自己去心算出
+       「52+22+18+14 = 106，那怎么才 60%？」——因为分子不只这四项。
+       改成分档说明，并且**在信息不足时**直接说清"这次不算百分比"，
+       比挂一个 60% 让人猜要诚实。 */
     el('div', { class: 'profile-line' },
-      '匹配度 = 规则得分 / 满分。家族吻合 52 + 情绪锚点 22 + 浓度 18 + 香调点名 14 为主要项')
+      profile.matchPctShown
+        ? `匹配度 = 这瓶在你的回答上拿到的分 ÷ 本次回答理论上能拿到的最高分（共 ${profile.activeDims} 个维度参与）`
+        : `这次你只回答了 ${profile.activeDims} 个维度，样本太少，百分比会虚高到 90% 以上 —— 所以这里不给数字，只按原始分排序`)
   );
   wrap.appendChild(head);
 
@@ -3475,7 +3482,12 @@ function renderResult() {
       isTop ? el('span', { class: 'top-badge' }, '最匹配') : null,
       /* 并列时把话说清楚：不是"这三个一样好"，而是"评分规则分不出高下" */
       (i === 0 && tied) ? el('span', { class: 'tie-badge' }, '与后两瓶并列') : null,
-      el('span', { class: 'score' }, `匹配度 ${r.matchPct}%`)
+      /* 匹配度可能为 null（G6：激活维度不够时不算百分比，见 scoring.js）。
+         null 与 0% 是两句完全不同的话：0% 是"完全不匹配"，null 是
+         "信息不够，算不准"。所以 null 时改说「初步匹配」，绝不显示 0% ——
+         显示 0% 等于告诉用户这瓶完全不合适，而实际上只是我们问得太少。 */
+      el('span', { class: r.matchPct == null ? 'score is-preliminary' : 'score' },
+        r.matchPct == null ? '初步匹配' : `匹配度 ${r.matchPct}%`)
     ));
 
     art.appendChild(el('h3', {}, p.name));

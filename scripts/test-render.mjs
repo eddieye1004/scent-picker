@@ -1238,6 +1238,46 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
 }
 
 ok('结果页无 NaN/undefined', !/NaN|undefined/.test(resultText), resultText.slice(0, 300));
+
+/* ---------- G6：匹配度的两种显示形态 ----------
+   2026-11 重做了归一化分母（见 src/scoring.js 与 docs/DECISIONS.md D55）。
+   这里钉住两条不许退化的性质：
+
+   ① 激活维度 < MATCH_PCT_MIN_DIMS 时**不许显示百分比**，改说「初步匹配」。
+      理由：那时分母也被砍到只剩那几项，百分比会飙到 90% 以上，
+      读起来像虚假承诺。测试流程答的维度很多（走满七步），
+      所以这里走的是"显示百分比"分支 —— 另一分支由 test-scoring 覆盖。
+   ② 显示的百分比**不许是 0%**。0% 的意思是"完全不匹配"，
+      而分母已改成可达上界，任何能进前三的瓶都不可能 0 分。 */
+{
+  const scoreEls = picks.map((p) => {
+    const s = p.querySelectorAll('.score');
+    return s.length ? s[0].textContent : null;
+  });
+  ok('三张卡都有匹配度标签', scoreEls.every(Boolean), JSON.stringify(scoreEls));
+  const isPrelim = scoreEls.some((t) => String(t).includes('初步匹配'));
+  const pcts = scoreEls.map((t) => {
+    const m = String(t).match(/(\d+)%/);
+    return m ? Number(m[1]) : null;
+  });
+  if (isPrelim) {
+    ok('初步匹配时不出现数字百分比',
+      scoreEls.every((t) => !/\d+%/.test(String(t))), JSON.stringify(scoreEls));
+  } else {
+    ok('匹配度是 1–100 之间的整数',
+      pcts.every((v) => Number.isInteger(v) && v >= 1 && v <= 100), JSON.stringify(pcts));
+    /* 新分母是可达上界，所以第 1 名不该再被压到 70% 以下 ——
+       那正是旧口径（/275）的问题。60 是留了余量的下限。 */
+    ok('第 1 名匹配度不低于 60%（旧口径只有 69% 上下）',
+      pcts[0] >= 60, `${pcts[0]}%`);
+  }
+  /* 说明行必须跟着口径走：不能一边不给百分比一边解释"匹配度 = 得分/满分" */
+  const hasExplain = /匹配度 = /.test(resultText);
+  const hasPrelimExplain = /不给数字|样本太少/.test(resultText);
+  ok('结果页的匹配度说明与显示状态一致',
+    isPrelim ? hasPrelimExplain : hasExplain,
+    `isPrelim=${isPrelim} explain=${hasExplain} prelim=${hasPrelimExplain}`);
+}
 // 抽样打印第一瓶，供人工核对
 console.log('\n--- 第一瓶渲染结果 ---');
 console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');

@@ -916,6 +916,14 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
   margin-left: auto;
   letter-spacing: 0;
 }
+/* 「初步匹配」不是数字，用等宽字体排它会显得像一个值。
+   但它也不该比数字更显眼 —— 它说的是"这项本次不算"，属于弱化信息，
+   所以用 --ink-3 而不是 --ink-2。 */
+.pick-rank .score.is-preliminary {
+  font-family: inherit;
+  color: var(--ink-3);
+  font-style: italic;
+}
 
 .pick h3 {
   margin: 0 0 4px;

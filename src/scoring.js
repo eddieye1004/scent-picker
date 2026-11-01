@@ -11,6 +11,17 @@ import { tokenize, matchesNote, aliasesOf, normNote } from './notes.js';
 
 export const SCHEMA_VERSION = '1.1.0';
 
+/* ---------- 匹配度展示门槛（G6，v28）----------
+
+   低于这么多"激活维度"时不显示百分比，改显示定性文案。
+
+   为什么是 8：实测（scripts/probe-matchpct.mjs，40 组随机答案 × 10 个深度）
+   在"库内可达上界"这个分母下，激活维度 ≥ 8 时第 1 名的百分位中位数
+   落在 82–86%（8 维 86%、15 维 82%），波动可接受；
+   7 维及以下时最高会飙到 99%（分母也被砍到只剩那几项，数学自洽但读起来
+   像虚假承诺）。门槛设在百分比开始"虚高"的位置，宁可说「初步匹配」。 */
+export const MATCH_PCT_MIN_DIMS = 8;
+
 /* ---------- 权重配置（集中于此，便于调参与写测试） ---------- */
 export const WEIGHTS = {
   familyPick: 34,      // 用户在第 1 步直接点的香型家族（香型轮盘，权重最高：这是最明确的意图）
@@ -30,8 +41,7 @@ export const WEIGHTS = {
      这样「同一个人用旧四步答完」与「答满十步」的分数是可比的：
      新增维度最多再加 58 分，旧盘面满分约 108，占比 35%，是"细化"不是"改写"。 */
   character: 16,       // 性格标签命中（清冷/温暖/干净/甜…）；数据里 21 种
-  concentration: 12,   // 浓度档位吻合（EDT/EDP/Extrait）；数据覆盖 87%
-  longevity: 10,       // 持香时长吻合（由浓度推断，UI 必须标「推断」）
+  concentration: 12,   // 浓度档位吻合（EDT/EDP/Extrait）；数据覆盖 87%  longevity: 10,       // 持香时长吻合（由浓度推断，UI 必须标「推断」）
   dislikedFamily: -30, // 讨厌某个香型家族（比讨厌单个香调更粗，惩罚也更轻）
   seasonSecond: 5,     // 次选季节吻合（避免"只想夏天"和"夏天优先"同分）
 
@@ -193,7 +203,7 @@ export function buildProfile(answers, taxonomy) {
     ? (family.subfamilies || []).find((x) => x.id === answers.subfamily) || null
     : null;
 
-  return {
+  const profile = {
     family,
     subfamily,
     subfamilyNotes: new Set((subfamily?.notes || []).map((n) => String(n).toLowerCase())),
@@ -249,6 +259,37 @@ export function buildProfile(answers, taxonomy) {
     maxLongevityFloor: occasion?.longevityMin ?? null,
     maxSillage: occasion?.sillageMax ?? null,
   };
+
+  /* ---------- 激活维度计数（G6）----------
+     数的是"用户真正说过的维度"，用来决定要不要显示百分比。
+     刻意不数 popularity（它不是用户说的，是数据自带的知名度微调）。
+
+     口径与打分因子一一对应，数错会让门槛失效，所以逐项列出来而不是
+     写成 `Object.keys(answers).length` —— 后者会把 UI 辅助字段
+     （likedZh / dislikedZh / anchorPerfumeNotes）当成独立维度。
+
+     注意这里必须先构造出对象再数：`profile` 是上面那个字面量，
+     所以在 return 之前算出 activeDims 并挂上去。 */
+  profile.activeDims = [
+    profile.family,                                // 香型直选
+    profile.subfamily,                             // 小类
+    answers.emotion,                               // 情绪（旧入口；香型入口时 profile.emotion 是合成对象）
+    profile.occasion,                              // 场合
+    answers.intensity != null,                     // 浓淡
+    answers.concentration,                         // 浓度档
+    profile.longevity != null,                     // 留香
+    profile.season,                                // 主季节
+    profile.seasonSecond,                          // 次选季节
+    profile.temperature,                           // 冷暖
+    profile.sweetness != null,                     // 甜度
+    profile.characterTags.length > 0 || !!answers.character,  // 气质
+    profile.likedNotes.size > 0,                   // 喜欢的香调
+    profile.dislikedNotes.size > 0,                // 讨厌的香调
+    profile.characterNeg.length > 0,               // 气质禁止标签
+    profile.anchorNotes.size > 0 || !!profile.anchorPerfumeId,  // 已知锚点
+  ].filter(Boolean).length;
+
+  return profile;
 }
 
 /* ---------- 单瓶打分 ---------- */
@@ -682,8 +723,63 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
     if (!picked.includes(s)) picked.push(s);
   }
 
-  // 匹配度归一化：原始分上限是各权重之和，直接display成 109.5 会让人以为是百分制。
-  const maxPossible = Object.values(WEIGHTS).reduce((a, b) => a + Math.max(0, b), 0);
+  /* ---------- 匹配度归一化（G6，v28 重做）----------
+
+     原来分母是 `WEIGHTS` 全部正项之和 = 275。这个数**不是可达上界**：
+
+       · `family` 因子（emotionFamily 30 + occasionFamily 22 = 52）
+         内部是 `clamp01(famHit / 1.2) * 52`。只选一族时向量点积最高
+         1.0，除以 1.2 只剩 0.833 → 这一项**永远拿不到 52，实测库内最高 44.8**。
+       · 于是"每一项都满分"的假想瓶也只有 241.5 / 275 = 88%。
+       · 真实答案更远：一组七步全答的第 1 名原始分约 190，
+         /275 显示 69%。**一个近乎完美的匹配被显示成 69%。**
+
+     实测（40 组随机答案 × 10 个答题深度，scripts/probe-matchpct.mjs）：
+       深度 0（只点香型）中位 35% … 深度 9 中位 69%，随答题单调递增。
+
+     三个候选分母的实测对比（同一批答案）：
+
+       口径                     深度0    深度9    方向
+       A 现状 /275              35%      69%      单调递增 ✓ 但天花板 69%
+       C /已答因子权重之和      90-99%   76%      **反向**（答得少反而高）
+       F /库内逐因子可达之和    97-99%   79%      **反向**
+       G 收缩修正（F 向 50%）   62%      79%      单调递增
+
+     A 的方向对、数值失真；C 与 F 数值"合理"但方向错 —— 只点一个香型就
+     标 99% 是虚假承诺，比 35% 更糟。G 两项都对，但引入两个任意系数。
+
+     所以这里选**第四条路**，干脆修掉"分母不可达"这个根：
+
+       ① 分母改用**本次答案的逐因子库内可达之和**（tightBound）。
+          它一定 >= 任何单瓶得分（每瓶每项都不会超过该项的库内最高），
+          所以百分比不会超过 100%，而且 100% 是**真的能到**的。
+       ② 但分母随答案变会让"答得少反而高"，所以配一道**证据门槛**：
+          激活维度 < MATCH_PCT_MIN_DIMS（6）时**不显示百分比**，
+          改显示「初步匹配」。六维以上时 F 口径实测稳定在 79–86% 区间
+          （深度 5 是 86%，深度 9 是 79%），波动 7 个点，可接受。
+
+     为什么不干脆保留 275：它让"最好的一瓶"永远显示 60–70%，
+     用户看到的第一反应是"这推荐不靠谱"，而问题出在分母不是算法。
+
+     `matchPct` 为 `null` 时调用方必须显示定性文案，不许显示 0% ——
+     0% 的意思是"完全不匹配"，那是另一句话。 */
+  const tightBound = (() => {
+    const perFactor = {};
+    for (const s of scored) {
+      for (const b of s.breakdown) {
+        if (!b || typeof b.score !== 'number') continue;
+        if (b.score <= 0) continue;
+        if (b.factor === 'dislikedNotes' || b.factor === 'dislikedFamily') continue;
+        if (b.score > (perFactor[b.factor] || 0)) perFactor[b.factor] = b.score;
+      }
+    }
+    const sum = Object.values(perFactor).reduce((a, b) => a + b, 0);
+    /* 兜底：极端数据下 perFactor 可能为空（全部负分），此时退回权重和，
+       避免除零。正常路径不会走到这里。 */
+    return sum > 0 ? sum : Object.values(WEIGHTS).reduce((a, b) => a + Math.max(0, b), 0);
+  })();
+
+  const enoughEvidence = (profile.activeDims || 0) >= MATCH_PCT_MIN_DIMS;
 
   return {
     profile: {
@@ -692,10 +788,12 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
       familyZh: profile.family?.zh ?? null,
       subfamilyZh: profile.subfamily?.zh ?? null,
       intensity: profile.intensity,
+      activeDims: profile.activeDims || 0,
+      matchPctShown: enoughEvidence,
     },
     results: picked.map((s) => ({
       ...s,
-      matchPct: Math.round(clamp01(s.score / maxPossible) * 100),
+      matchPct: enoughEvidence ? Math.round(clamp01(s.score / tightBound) * 100) : null,
       reasons: buildReasons(s, profile, taxonomy),
     })),
   };

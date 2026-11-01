@@ -49,3 +49,8 @@ _an4/
 _an5/
 _an6/
 _an7/
+
+# 注意：matchPct 分母的复现脚本 scripts/probe-matchpct.mjs **要入库**（D55）。
+# 它记录的是影响用户观感的数值决策（"为什么显示 91% 而不是 69%"），
+# 不能只活在对话里。它放在 scripts/ 根下而不是 scripts/probes/ 里，
+# 因为 git 不会把 `!` 例外应用到已被排除的目录内部。
