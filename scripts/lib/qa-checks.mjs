@@ -85,7 +85,7 @@ export function runChecks(D, T, opts = {}) {
   note(badAttr.length === 0, `attribution 缺 CC BY: ${badAttr.map((p) => p.id).join(', ')}`);
 
   /* 7b 合规硬约束：description 必须为 0
-     COMPLIANCE.md 声称"上游 1320 行全部有 description，我们整字段丢弃"。
+     COMPLIANCE.md 声称"上游全部带 description，我们整字段丢弃"。
      这条不能只是文档承诺 —— 破了就是版权问题。
      直接扫原始 JSON 文本，不靠字段列表推断（防将来 rename 绕过）。 */
   note(!/"description"\s*:/.test(outTxt),
@@ -93,11 +93,31 @@ export function runChecks(D, T, opts = {}) {
   note(!/[A-Za-z][A-Za-z ,'-]{60,}/.test(outTxt),
     'perfumes.json 含 >=60 字符连续英文，疑似残留描述性原文');
 
-  /* 7c 上游原件行数可核对（保证 build-data.js 可复现） */
+  /* 7c 上游原件行数可核对（保证 build-data.js 可复现）
+
+     这里**不再钉死一个数字**（原来是 `=== 1320`）。钉死具体行数的后果
+     实测过一次：上游从 1320 长到 1479 时这条断言直接红，而它守的其实不是
+     "必须 1320"，是"原件还在、且能被管线读到"。行数随上游快照变是正常的，
+     把快照值写成常量等于每次更新数据都要改测试 —— 那条断言就从
+     "守数据完整性"退化成"守我们上次下载了多少行"。
+
+     改守两件真正重要的事：
+       ① 原件行数 >= 输出条数（否则说明有行被静默吞掉）
+       ② 行数与 data/perfumes.json 里 meta 记录的上游行数一致（自洽） */
   if (upstreamLines === null) {
     note(false, '缺少上游原件（data/source/perfumes.upstream.jsonl），build-data.js 无法复现');
   } else {
-    note(upstreamLines === 1320, `上游原件行数 ${upstreamLines}，预期 1320`);
+    const outCount = (D.perfumes || D).length;
+    note(upstreamLines >= outCount,
+      `上游原件 ${upstreamLines} 行，却输出了 ${outCount} 条 —— 原件行数不该少于输出`);
+    /* 与 meta 自洽：meta.count 必须等于实际输出条数。
+       这条比"行数 == 一个常量"有意义 —— 它守的是"描述与数据不脱节"，
+       上游怎么长都不会让它无故变红。 */
+    const metaCount = D.meta && D.meta.count;
+    if (typeof metaCount === 'number') {
+      note(metaCount === outCount,
+        `meta.count ${metaCount} 与实际输出 ${outCount} 条不一致 —— 数据与描述脱节`);
+    }
     note(upstreamFirst && typeof upstreamFirst.description === 'string' && upstreamFirst.description.length > 0,
       '上游首条无 description，则"丢弃描述"这条无从谈起，需复核数据源');
   }

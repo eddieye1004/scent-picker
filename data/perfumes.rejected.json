@@ -1,17 +1,9 @@
 {
-  "count": 92,
+  "count": 91,
   "reasons": {
-    "missing_pyramid": 92
+    "missing_pyramid": 91
   },
   "sample": [
-    {
-      "id": "ysl-libre",
-      "name": "Libre",
-      "house": "Yves Saint Laurent",
-      "reasons": [
-        "missing_pyramid"
-      ]
-    },
     {
       "id": "tom-ford-oud-wood",
       "name": "Oud Wood",
@@ -101,6 +93,14 @@
       ]
     },
     {
+      "id": "mugler-angel",
+      "name": "Angel",
+      "house": "Mugler",
+      "reasons": [
+        "missing_pyramid"
+      ]
+    },
+    {
       "id": "tom-ford-black-orchid",
       "name": "Black Orchid",
       "house": "Tom Ford",
@@ -149,9 +149,9 @@
       ]
     },
     {
-      "id": "kilian-good-girl-gone-bad",
-      "name": "Good Girl Gone Bad",
-      "house": "Kilian Paris",
+      "id": "mugler-alien",
+      "name": "Alien",
+      "house": "Mugler",
       "reasons": [
         "missing_pyramid"
       ]
