@@ -5136,6 +5136,41 @@ body { position: relative; }
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
+
+/* ---------- 搜索兜底链接：视觉上必须比「能买」轻一档 ----------
+
+   实心蓝底 + 白字的意思是"点这里完成这件事"。搜索跳转完成的不是
+   "买到这一瓶"，而是"去平台里找找看" —— 用同样的实心蓝会把两件
+   不同分量的事说成一件，用户点进去发现是搜索结果页会觉得被骗。
+
+   所以：描边 + 文字色，透明底。它仍然比「查看数据来源」重（有边框、
+   有最小高度、颜色是 --blue），但明显轻于实心按钮。
+   配色全部走既有变量，不新增色值（D05 / D47 的约束）。 */
+.pick-foot .buy-link.is-search {
+  color: var(--blue);
+  background: transparent;
+  border: 1px solid var(--stroke-ui);   /* D1：控件边界 >= 3:1 */
+  font-weight: 500;                      /* 不加粗到 600，避免与真按钮同重 */
+}
+.pick-foot .buy-link.is-search:hover {
+  color: var(--blue-deep);
+  background: var(--blue-wash);          /* 悬停才显出它可点 */
+  border-color: var(--blue);
+}
+.buy-link.is-search:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* 搜索说明：它不是广告披露，所以不用 .aff-note。
+   字号与 .aff-note 同级（12px / 6.19:1），但上边距更小 ——
+   它解释的是紧挨着的那条链接，不是整张卡的性质。 */
+.link-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
 /* 披露：必须可读（12px 下限、6.19:1），但不能比正文更显眼。
    放在卡片最底部、整卡宽度，不挤在页脚那一行里 —— 它说的是整张卡的性质。 */
 .aff-note {

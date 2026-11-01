@@ -2022,3 +2022,109 @@ CSS 只做一件事：把 `fill` 的引用换掉（`url(#gFamCitrus)` → `url(#
 
 - 深色模式的**结果页**（候选卡片、理由段落、购买链接）尚未逐屏核查，本轮只验了圆盘所在的前几屏。
 - `@media print` 内已把变量改回浅色（纸就是白的），但没实测打印预览。
+
+---
+
+## D54 · v27：佣金链路的现实约束，与「搜索兜底」这一层
+
+### 一、先说结论
+
+K1（三件套参数）与 K2（商品页地址）**都不是"给我三个值"就能解决的**。
+它们在纯静态、零后端、无账号的前提下，受三个外部事实限制：
+
+1. **联盟注册需要实名与审核**，不是填个表就出 PID。
+2. **电商搜索页与商品页在无登录态下都先弹登录**（实测，见下）。
+3. **联盟转链需要服务端签名或后台操作**，不是一个可以写死在常量里的 URL 模板。
+
+所以本轮**不做**"假装接上了佣金"，而是把链路拆成三档能真实工作的形态：
+
+| 档 | 触发条件 | 是否带佣金 | 是否标 sponsored | 是否挂「广告」披露 |
+|---|---|---|---|---|
+| `direct` | `target` + `pid` + `productBase` 三件套齐备 | 是 | 是 | 是 |
+| `link` | `data/affiliate-links.json` 里有这一瓶的直达页 | 否 | **否** | **否** |
+| `search` | 只配了 `platform`（默认就有） | 否 | **否** | **否**，改说"这是搜索结果页" |
+
+`direct` 的代码路径（`affiliateHref`）与 v25 完全一致，一行没改 ——
+它等的就是那三个值。新增的是下面两档。
+
+### 二、实测：为什么"直接跳到商品页"这条路走不通
+
+用 Edge headless（1440×900，无登录态）逐个访问，2026-11-01 实测：
+
+| 目标 | 结果 |
+|---|---|
+| `https://search.jd.com/Search?keyword=Creed Aventus` | 302 → `passport.jd.com/new/login.aspx?ReturnUrl=…` |
+| `https://so.m.jd.com/ware/search.action?keyword=…` | 302 → `plogin.m.jd.com/login/login?returnurl=…` |
+| `https://s.taobao.com/search?q=Creed Aventus` | 停在原地，正文"亲，请登录"，商品区"加载中…"永不完成 |
+| `https://list.tmall.com/search_product.htm?q=…` | 302 → `s.taobao.com/search?fromTmallRedirect=true…`，同样要登录 |
+| `https://item.jd.com/100012043978.html` | 302 → 登录页 |
+| `https://item.taobao.com/item.htm?id=…` | 302 → `login.taobao.com/havanaone/…` |
+
+**结论**：搜索页与商品页都需要登录态才能看到内容。但这不构成阻塞 ——
+真实用户在自己的浏览器里是登录着的，链接打开就能用。
+真正受影响的是"服务器端去抓商品页来匹配到具体某一瓶"，那条路要登录态，走不通。
+
+`pub.alimama.com` 的首页正文长度是 **1**（只有一个字符 `X`），
+真实内容全在 `login.taobao.com` 的 iframe 里；`/register.htm` 直接 302 到
+`login.taobao.com/havanaone/login/login.htm`。即**没有"匿名可读的注册表单"**，
+注册必须先有淘宝账号。
+
+三家平台的注册入口实测：
+
+| 平台 | 入口 | 需要的账号 | 可见字段 |
+|---|---|---|---|
+| 淘宝联盟 | `pub.alimama.com` → 内嵌 `login.taobao.com` iframe | 淘宝账号（实名） | `fm-login-id`（账号/邮箱/手机）、`fm-login-password`、图片验证码、协议勾选 |
+| 京东联盟 | `union.jd.com` → "账号登录/扫码登录" | 京东账号（实名） | 页面无输入框，登录态在 `passport.jd.com`；文案"京东账号登录即可开始推广" |
+| 多多进宝 | `jinbao.pinduoduo.com` 首页浮层 | 手机号 + 短信验证码 | `#mobile`、验证码输入框、协议勾选 |
+
+三家都**不提供"注册即得 PID"**：先有电商账号 → 申请联盟 → 审核 → 后台建推广位 → 才有 PID。
+
+### 三、为什么保留搜索兜底，且它不挂「广告」
+
+在 `direct` 拿不到参数之前，页面上一个购买入口都没有 —— 这不是"以后再做"，
+而是当下就没法用。搜索跳转不需要任何注册，只是替用户少打一次字。
+
+**关键取舍：搜索链接绝不标 `sponsored`、绝不挂「广告」披露。**
+- 它没有商业关系，标 sponsored 是对搜索引擎和用户的**双重虚假标注**。
+- 「广告」披露一旦贬值（到处都写），真正需要它的时候就不显眼了。
+- 反过来，搜索链接**必须**说明"这是搜索结果页，不是这一瓶的商品页" ——
+  用户点进去发现不是商品页而没有这句话，就是一次欺骗。
+
+所以 DOM 层把两种说明分开：广告披露走 `.aff-note`，
+搜索说明走 `.link-note`。实测踩过：两者共用 `.aff-note` 时，
+测试数 `.aff-note` 得到 3，分不清是广告还是搜索说明（`m06913`）。
+
+### 四、视觉分层：搜索链接必须比"能买"轻一档
+
+`direct` 是实心蓝底 + 白字（"点这里完成这件事"）。
+搜索跳转完成的不是"买到这一瓶"，用同样的实心蓝等于把两件不同分量的事说成一件。
+所以 `.buy-link.is-search` 改成：描边 1px `--stroke-ui`（D1 的 3:1 达标色）+
+文字 `--blue` + 透明底 + `font-weight: 500`（不加粗到 600）。
+悬停才给 `--blue-wash` 底。配色全部走既有变量，未新增色值。
+
+### 五、阶段二：`data/affiliate-links.json` 接口已就位
+
+`ensureAffLinks()` 在 `boot()` 里预热（不阻塞首屏），文件结构：
+
+```json
+{ "platform": "jd", "generatedAt": "2026-11-01", "links": { "<perfume.id>": "https://item.jd.com/xxx.html" } }
+```
+
+- 文件不存在 / 解析失败 / `links` 为空 → 三种情况一律 `AFF_LINKS = false`，
+  静默退回 `search`，**绝不阻塞任何现有功能**。
+- 表里的 URL 会过 `new URL()` 检查协议，`javascript:` 等非 http(s) 被拒并退回 `search`。
+- 生成脚本 `scripts/gen-affiliate-links.mjs` 是**可选工具**，密钥只从环境变量读、
+  不写进任何入库文件。
+
+比例说明：`AFF_LINKS` 用 `null` 表示"还没试过"、`false` 表示"试过、没有"，
+这样重复调用不会反复发请求，也不会把空对象当成功。
+
+### 六、验收
+
+- test-render 191 → **204** 项（新增 13 条：三档优先级、sponsored 缺席、
+  `.link-note` 存在、平台模板合法性、`javascript:` 被拒）
+- test-contrast 42 项不变（`.buy-link.is-search` 用的是既有达标色）
+- 浏览器实测：三张卡都渲染出"在京东搜这一瓶 ↗"，`data-kind=search`、
+  `data-affiliate=false`、`rel="noopener noreferrer"`（**无 sponsored**）、
+  透明底 / `rgb(110,139,255)` 字 / 1px `rgb(122,122,122)` 边 / 500 字重 / 132×32px。
+  三条 `.link-note` 文案正确。

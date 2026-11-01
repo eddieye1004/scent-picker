@@ -1085,17 +1085,53 @@ ok('每条理由含至少一条结构性理由（家族/浓度）',
 ok('结果含数据来源链接',
   appRoot.querySelectorAll('a').some((a) => String(a.attrs.href || '').includes('scento')));
 ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textContent.includes('重新来一次')));
-/* ---------- 推广链接：默认必须降级为纯展示 ----------
-   配置（target / pid / productBase）默认全空。此时不应出现任何购买链接，
-   也不应出现"含推广链接"的披露 —— 没有链接却挂一句广告声明是噪音，
-   还会让人以为页面上有他没看到的广告。
-   这条断言钉的是"默认安全"：任何一次误把示例地址填进常量都会在这里红。 */
+/* ---------- 推广链接：三档语义必须分得开 ----------
+   v27 起购买入口分成三档，断言必须逐档钉住，否则"降级"和"假广告"
+   两种错误都会溜过去：
+
+     ① direct —— 三件套（target/pid/productBase）齐全，有佣金
+        → `.buy-link` 且 `data-affiliate="true"`、rel 含 sponsored
+        → 跟一条 `aff-note` 广告披露（首句「广告」）
+     ② link  —— 预生成直达页，无佣金
+        → `.buy-link.is-search`、`data-affiliate="false"`、rel **不含** sponsored
+        → **不挂**广告披露
+     ③ search —— 平台搜索页兜底，零配置
+        → `.buy-link.is-search`、`data-affiliate="false"`、rel **不含** sponsored
+        → 跟一句 `aff-note.is-search`，说明"这是搜索结果页"
+
+   为什么 `.is-search` 也复用 `.buy-link` 类：视觉上它确实是那张卡片的
+   主要外链，样式复用避免两套按钮；语义靠 `data-kind` 与 rel 区分。 */
 {
   const buy = appRoot.querySelectorAll('.buy-link');
-  ok('未配置推广链接时不渲染购买入口', buy.length === 0, `实际 ${buy.length}`);
-  ok('未配置时不写「含推广链接」披露',
-    appRoot.querySelectorAll('.aff-note').length === 0,
-    `实际 ${appRoot.querySelectorAll('.aff-note').length}`);
+  const notes = appRoot.querySelectorAll('.aff-note');
+  const searchNotes = appRoot.querySelectorAll('.link-note');
+
+  /* 默认配置（三件套全空）→ 只能走第 ③ 档 */
+  ok('未配置佣金时仍有搜索兜底入口', buy.length === 3, `实际 ${buy.length}`);
+  ok('搜索兜底不是佣金链接（data-affiliate=false）',
+    buy.every((a) => String(a.attrs['data-affiliate']) === 'false'),
+    buy.map((a) => a.attrs['data-affiliate']).join(','));
+  ok('搜索兜底链接 kind=search',
+    buy.every((a) => String(a.attrs['data-kind']) === 'search'),
+    buy.map((a) => a.attrs['data-kind']).join(','));
+  /* 最关键的一条：没有佣金关系就不许标 sponsored。
+     标了等于对搜索引擎和用户同时撒谎。 */
+  ok('搜索兜底不带 sponsored 标记',
+    buy.every((a) => !String(a.attrs.rel || '').includes('sponsored')),
+    buy.map((a) => a.attrs.rel).join(' | '));
+  /* 安全基线三种都要 */
+  ok('搜索兜底仍带 noopener noreferrer',
+    buy.every((a) => /noopener/.test(String(a.attrs.rel || '')) && /noreferrer/.test(String(a.attrs.rel || ''))),
+    buy.map((a) => a.attrs.rel).join(' | '));
+
+  /* 没有佣金 → 一句「广告」披露都不能有。挂了就是假广告。 */
+  ok('未配置佣金时不写「广告」披露', notes.length === 0, `实际 ${notes.length}`);
+  /* 但要说清"这是搜索页不是商品页"，否则用户点进去会以为被骗 */
+  ok('搜索兜底附一句"不是商品页"的说明', searchNotes.length === 3, `实际 ${searchNotes.length}`);
+  ok('搜索说明里点明平台名',
+    searchNotes.every((n) => /京东|淘宝|天猫|拼多多/.test(n.textContent)),
+    searchNotes.map((n) => n.textContent.slice(0, 20)).join(' | '));
+
   /* 数据来源链接必须一直在 —— 降级只影响购买入口，不影响溯源。 */
   ok('降级后数据来源链接仍在',
     appRoot.querySelectorAll('.pick-foot a').length >= 3,
@@ -1136,6 +1172,69 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
   })(), 'target 类型异常');
   ok('拼出的 dest 已编码（不出现裸 ?q=）',
     !!href && !/u=https:\/\/s\.example\/search\?q=/.test(href), String(href).slice(0, 90));
+}
+
+/* ---------- affiliateLink 的三档优先级（v27） ----------
+   这是新增的调度层：direct > link > search。
+   三档差别不只是 URL，还有"挂不挂 sponsored / 写不写广告披露"，
+   所以每一档都要单独钉住，不能只测最终渲染出来的那一个。 */
+{
+  const P = { id: 'demo-bottle', brand: 'Demo', name: 'Bottle' };
+  const paidCfg = {
+    target: 'https://a.example/click?pid={pid}&u={dest}',
+    pid: 'P1', productBase: 'https://s.example/search',
+    platform: 'jd', disclosure: '广告 · x',
+  };
+  const freeCfg = { target: '', pid: '', productBase: '', platform: 'jd', disclosure: '广告 · x' };
+  const A = appMod.__aff;
+
+  /* ① 三件套齐全 → direct，即使直达表里也有这一瓶（佣金优先） */
+  A.setLinks({ platform: 'jd', links: { 'demo-bottle': 'https://item.jd.com/1.html' } });
+  const d = A.link(P, paidCfg);
+  ok('三档优先级：有佣金时走 direct', !!d && d.kind === 'direct', d && d.kind);
+  ok('direct 文案说「买」', !!d && /买/.test(d.label), d && d.label);
+
+  /* ② 无佣金但有预生成直达页 → link */
+  const l = A.link(P, freeCfg);
+  ok('三档优先级：无佣金但有直达页时走 link', !!l && l.kind === 'link', l && l.kind);
+  ok('link 指向预生成表里的商品页',
+    !!l && l.href === 'https://item.jd.com/1.html', l && l.href);
+  ok('link 文案说「看」不说「买」', !!l && !/买/.test(l.label), l && l.label);
+
+  /* ③ 两样都没有 → search */
+  A.setLinks(false);
+  const s = A.link(P, freeCfg);
+  ok('三档优先级：什么都没有时走 search', !!s && s.kind === 'search', s && s.kind);
+  ok('search 指向平台搜索页而不是商品页',
+    !!s && /search\.jd\.com/.test(s.href), s && s.href);
+  ok('search 查询词含品牌与香水名',
+    !!s && decodeURIComponent(s.href.replace(/\+/g, ' ')).includes('Demo Bottle'),
+    s && decodeURIComponent(s.href).slice(0, 90));
+
+  /* 没有平台就拼不出搜索页 —— 不许硬凑 */
+  ok('未指定平台时不渲染搜索链接',
+    A.link(P, Object.assign({}, freeCfg, { platform: '' })) === null,
+    String(A.link(P, Object.assign({}, freeCfg, { platform: '' }))));
+
+  /* 四个平台的模板都必须含 {q} 且替换后合法 */
+  const plats = A.platforms;
+  ok('四个搜索平台都已定义',
+    ['jd', 'taobao', 'tmall', 'pdd'].every((k) => plats[k]), Object.keys(plats).join(','));
+  ok('每个平台模板都含 {q} 占位符',
+    Object.values(plats).every((p) => p.url.indexOf('{q}') >= 0),
+    Object.values(plats).map((p) => p.url.slice(0, 40)).join(' | '));
+  ok('每个平台模板替换后都是合法 https', Object.values(plats).every((p) => {
+    const u = p.url.replace('{q}', 'test');
+    try { return new URL(u).protocol === 'https:'; } catch { return false; }
+  }), '');
+
+  /* 坏链不能透传：直达表里塞 javascript: 必须被拒并退回 search */
+  A.setLinks({ platform: 'jd', links: { 'demo-bottle': 'javascript:alert(1)' } });
+  const bad = A.link(P, freeCfg);
+  ok('直达表里的 javascript: 链接被拒，退回 search',
+    !!bad && bad.kind === 'search', bad && bad.kind);
+
+  A.setLinks(false);   // 恢复，别影响后面的断言
 }
 
 ok('结果页无 NaN/undefined', !/NaN|undefined/.test(resultText), resultText.slice(0, 300));

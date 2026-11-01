@@ -3271,13 +3271,23 @@ function renderMasthead() {
    ============================================================ */
 const AFFILIATE = {
   /* 示例形态，不是可用的真实地址。换成一个真实联盟的跳转前缀即可，例如
-     'https://s.click.example.com/redirect?pid={pid}&url={dest}' */
+     'https://u.jd.com/xxxxx?pid={pid}&url={dest}' */
   target: '',
   pid: '',
   /* 商品页的基地址。数据里每瓶都有 sourceUrl（Scento 页面），
      但那不是商品页 —— 这里留空，表示"还没有可跳转的购买页"。
      填了之后会拼成 dest = productBase + '?q=' + brand + ' ' + name */
   productBase: '',
+  /* 搜索兜底走哪个平台：'jd' | 'taobao' | 'tmall' | 'pdd'。
+     这一档**不需要任何注册**，只要联网就能跳。
+     默认 'jd' —— 理由见 docs/DECISIONS.md D54：实测三家在无登录态下
+     都先弹登录页，京东的登录页是唯一在 302 后仍保留 returnUrl 的，
+     用户登录完能回到自己搜的东西上。
+
+     注意：搜索跳转**不带佣金**，也不挂「广告」披露 —— 它不是广告。
+     只有三件套齐备（上面 target/pid/productBase 都填了）时才会渲染
+     真正的佣金链接，那时才挂披露。 */
+  platform: 'jd',
   /* 披露文案。两地法规都要求"显著标明"，所以强制开、不允许关。
 
      · 中国《互联网广告管理办法》第九条：要求标明"广告"。
@@ -3308,11 +3318,14 @@ function affiliateConfig() {
     target: runtime.target || AFFILIATE.target || '',
     pid,
     productBase: runtime.productBase || AFFILIATE.productBase || '',
+    platform: runtime.platform || AFFILIATE.platform || '',
     disclosure: AFFILIATE.disclosure,
   };
 }
 
-/* 给一瓶香水拼购买链接。返回 null 表示"不渲染链接"。 */
+/* 给一瓶香水拼**带佣金的**购买链接。返回 null 表示"不渲染佣金链接"。
+   注意这条路径要求三件套齐全（target + pid + productBase），
+   缺一件就返回 null —— 调用方会退回搜索页或干脆不显示。 */
 function affiliateHref(perfume, cfg) {
   if (!cfg || !cfg.pid || !cfg.target || !cfg.target.includes('{dest}')) return null;
   if (!cfg.productBase) return null;          // 没有购买页可跳，别硬凑
@@ -3329,6 +3342,83 @@ function affiliateHref(perfume, cfg) {
     const u = new URL(href);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
     return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+/* ---------- 搜索页兜底：零配置就能用的那一层 ----------
+
+   **为什么要有这一层。**
+   佣金链路要求三件套齐备，而联盟注册要实名、要审核、要能给出商品页 URL。
+   在那些条件凑齐之前，页面上一个购买入口都没有 —— 这不是"以后再做"，
+   而是当下就没法用。搜索跳转不需要任何注册：它只是替用户少打一次字。
+   没有佣金，但也没有假承诺。
+
+   **它和佣金链接的区别是必须显式告诉用户的。**
+   佣金链接指向"这一瓶"（商品页或转链），搜索链接指向"搜这一瓶的结果"。
+   两者长得像但承诺不同，所以按钮文案分开写，披露也分开：
+   搜索跳转不挂「广告」—— 它不是广告，挂上去反而在骗人。 */
+const SEARCH_PLATFORMS = {
+  jd: { zh: '京东', url: 'https://search.jd.com/Search?keyword={q}&enc=utf-8' },
+  taobao: { zh: '淘宝', url: 'https://s.taobao.com/search?q={q}' },
+  tmall: { zh: '天猫', url: 'https://list.tmall.com/search_product.htm?q={q}' },
+  pdd: { zh: '拼多多', url: 'https://mobile.yangkeduo.com/search_result.html?search_key={q}' },
+};
+
+/* 预生成的直达链接表（阶段二）。
+   id → 商品页 URL。由 scripts/gen-affiliate-links.mjs 离线产出，
+   密钥只在本地用、不进仓库。文件不存在时静默为空 —— 不影响任何现有行为。 */
+let AFF_LINKS = null;
+
+/* 统一出口：返回 { href, kind, platformZh, label } 或 null。
+   kind = 'direct'（有佣金）/ 'link'（预生成直达页，无佣金）/ 'search'（平台搜索页） */
+function affiliateLink(perfume, cfg) {
+  if (!perfume || !perfume.name) return null;
+
+  /* ① 有佣金链接 → 最优先 */
+  const paid = affiliateHref(perfume, cfg);
+  if (paid) {
+    const plat = SEARCH_PLATFORMS[cfg.platform];
+    return {
+      href: paid,
+      kind: 'direct',
+      platformZh: plat ? plat.zh : '',
+      label: plat ? `去${plat.zh}买这一瓶 ↗` : '去找这一瓶 ↗',
+    };
+  }
+
+  /* ② 预生成的直达商品页 → 没有佣金，但确实是这一瓶 */
+  if (AFF_LINKS && AFF_LINKS.links && AFF_LINKS.links[perfume.id]) {
+    const href = AFF_LINKS.links[perfume.id];
+    try {
+      const u = new URL(href);
+      if (u.protocol === 'http:' || u.protocol === 'https:') {
+        const plat = AFF_LINKS.platform ? SEARCH_PLATFORMS[AFF_LINKS.platform] : null;
+        return {
+          href: u.toString(),
+          kind: 'link',
+          platformZh: plat ? plat.zh : '',
+          label: plat ? `去${plat.zh}看这一瓶 ↗` : '去看这一瓶 ↗',
+        };
+      }
+    } catch { /* 坏链就当没有 */ }
+  }
+
+  /* ③ 平台搜索页 → 零配置兜底 */
+  const plat = SEARCH_PLATFORMS[cfg && cfg.platform];
+  if (!plat) return null;
+  const q = [perfume.brand, perfume.name].filter(Boolean).join(' ');
+  const href = plat.url.replace('{q}', encodeURIComponent(q));
+  try {
+    const u = new URL(href);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return {
+      href: u.toString(),
+      kind: 'search',
+      platformZh: plat.zh,
+      label: `在${plat.zh}搜这一瓶 ↗`,
+    };
   } catch {
     return null;
   }
@@ -3434,18 +3524,26 @@ function renderResult() {
       ? `季节 ${p.seasons.join(' / ')}` : '季节未标注'));
     /* 购买入口放在理由之后、页脚之中：先让用户读到"为什么推荐它"，
        再给"去哪买" —— 顺序反了就成了先推销后解释。 */
-    const buyHref = affiliateHref(p, aff);
-    const buy = buyHref
+    const buyLink = affiliateLink(p, aff);
+    /* 三种去向，文案与安全属性各不相同：
+       · direct（有佣金）→ 挂 sponsored，并跟一条「广告」披露
+       · link（预生成直达页）→ 不挂 sponsored（没有商业关系）
+       · search（平台搜索页）→ 不挂 sponsored，文案说「搜」不说「买」 */
+    const buy = buyLink
       ? el('a', {
-        class: 'buy-link',
-        href: buyHref,
+        class: buyLink.kind === 'direct' ? 'buy-link' : 'buy-link is-search',
+        href: buyLink.href,
         target: '_blank',
-        /* sponsored 是给搜索引擎的，noopener noreferrer 是安全基线。
-           三个都不能少：sponsored 表明这是付费链接，noopener 防 window.opener
-           劫持，noreferrer 避免把本站 URL 带给第三方。 */
-        rel: 'sponsored noopener noreferrer',
-        'data-affiliate': 'true',
-      }, '去找这一瓶 ↗')
+        /* sponsored 只标在真有佣金关系的链接上。把 sponsored 挂在一个
+           不带佣金的搜索页上是虚假标注：搜索引擎按作弊处理，
+           用户也会误解成"这瓶有人在付钱推"。
+           noopener / noreferrer 是安全基线，三种都必须带。 */
+        rel: buyLink.kind === 'direct'
+          ? 'sponsored noopener noreferrer'
+          : 'noopener noreferrer',
+        'data-affiliate': buyLink.kind === 'direct' ? 'true' : 'false',
+        'data-kind': buyLink.kind,
+      }, buyLink.label)
       : null;
 
     const foot = el('div', { class: 'pick-foot' }, ...tags,
@@ -3453,13 +3551,20 @@ function renderResult() {
       buy
     );
     art.appendChild(foot);
-    /* 披露只在真的出现了购买链接时才写 —— 没有任何链接却挂一句
-       "含推广链接"是噪音，也会让人误以为页面上有他没看到的广告。 */
-    if (buy) {
-      /* 披露挂在卡片内、紧跟页脚（含购买按钮）。
-         FTC 要求"在链接之前或同时"可见 —— 放在整页最底部的 cookie 条那种做法
-         不算合格，因为用户可能在读到之前就已经点了按钮。 */
+    /* 披露按 kind 分档写。
+       · direct：有佣金 → 走合规文案（首句「广告」）
+       · search：不是广告，所以**不挂**广告披露；改说一句实话 ——
+         "这是搜索结果页，不是这一瓶的商品页"。
+         给它挂「广告」是在骗人，也会让真正的广告披露贬值。
+       没有任何链接时两样都不写：没链接却挂声明是噪音。 */
+    if (buyLink && buyLink.kind === 'direct') {
       art.appendChild(el('p', { class: 'aff-note', role: 'note' }, aff.disclosure));
+    } else if (buyLink && buyLink.kind === 'search') {
+      /* 用 `link-note` 而不是 `aff-note`：aff-note 是广告披露的专用类，
+         两者混用会让"有没有广告披露"这个判断在 DOM 层就分不出来 ——
+         实测踩过：测试数 .aff-note 得到 3，分不清是广告还是搜索说明。 */
+      art.appendChild(el('p', { class: 'link-note', role: 'note' },
+        `这是${buyLink.platformZh}搜索结果，不是这一瓶的商品页 —— 本站尚未接入购买链接`));
     }
     wrap.appendChild(art);
   });
@@ -3566,6 +3671,23 @@ function ensurePerfumes() {
   return perfumesPromise;
 }
 
+/* 预生成的直达链接表（阶段二）是**可选**的：文件不存在、解析失败、
+   结构不对 —— 三种情况一律当作"没有"，绝不阻塞首屏。
+   它不是数据源，只是省一次平台搜索的便利层，缺了页面照常工作。 */
+function ensureAffLinks() {
+  if (AFF_LINKS !== null) return Promise.resolve(AFF_LINKS);
+  const base = new URL('./', import.meta.url);
+  return fetch(new URL('data/affiliate-links.json', base))
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => {
+      /* 幂等：AFF_LINKS 用 null 表示"还没试过"，用 false 表示"试过、没有"。
+         这样重复调用不会反复发请求，也不会把空对象当成功。 */
+      AFF_LINKS = (d && d.links && Object.keys(d.links).length) ? d : false;
+      return AFF_LINKS;
+    })
+    .catch(() => { AFF_LINKS = false; return AFF_LINKS; });
+}
+
 async function boot() {
   /* index.html 里已有静态骨架屏（不能靠这里注入 —— app.js 是 module，
      自己下载完才执行，那几秒里页面会是空的）。这里只负责抹掉它。 */
@@ -3576,6 +3698,8 @@ async function boot() {
     const base = new URL('./', import.meta.url);
     // 香水库不阻塞首屏：立刻发请求，但不等它
     ensurePerfumes().catch(() => {});   // 失败在用到时再抛，这里只预热
+    /* 直达链接表同样不等：它只是便利层，到结果页时再读。 */
+    ensureAffLinks().catch(() => {});
     const res = await fetch(new URL('data/taxonomy.json', base));
     if (!res.ok) throw new Error(`taxonomy.json HTTP ${res.status}`);
     TAX = await res.json();
@@ -3594,7 +3718,15 @@ document.addEventListener('DOMContentLoaded', boot);
    测试把 app.js 复制成临时 .mjs 后 import，拿不到模块内的私有函数，
    而推广链接的降级矩阵是纯函数（不碰 DOM、不碰 state），在测试里直接调
    比渲染三张卡再 inspect 快也准。这里只暴露一个，不扩大面。 */
-export const __aff = { config: affiliateConfig, href: affiliateHref };
+export const __aff = {
+  config: affiliateConfig,
+  href: affiliateHref,
+  link: affiliateLink,
+  platforms: SEARCH_PLATFORMS,
+  /* 测试里可以把直达链接表塞进来，不必真去 fetch。
+     传 false 表示"没有这张表"，传对象表示"有"。 */
+  setLinks: (v) => { AFF_LINKS = v; },
+};
 
 
 /* 测试用：把推导函数挂到 #app 上，供 test-render 直接调用。
