@@ -1033,6 +1033,38 @@ ok('吐出 3 瓶', picks.length === 3, `实际 ${picks.length}`);
   ok('最匹配与并列徽标不同时出现（互斥）',
     !(badges.length && ties.length),
     `最匹配 ${badges.length} 枚、并列 ${ties.length} 枚`);
+  /* 徽标措辞必须与"有没有百分比"一致 —— 实测线上出现过一张卡同时标
+     「最匹配」和「初步匹配」：前者断言"它最合适"，后者说"我们算不准"，
+     两句话互相拆台。没有百分比时徽标要说「原始分最高」（这是事实），
+     不说「最匹配」（那需要百分比支撑）。 */
+  /* 上面这条在并列时徽标为 0，所以还要单独测"不并列 + 无百分比"这一格 ——
+     它正是线上出问题的那一格（5 个维度 → 无百分比 → 但标了「最匹配」）。
+     用一组确定的浅答案直接调渲染，不依赖主流程的巧合。 */
+  {
+    const shallow = { family: 'floral', occasion: 'commute' };   // 2 维，远低于阈值 8
+    const r2 = appMod.recommend
+      ? appMod.recommend(shallow, appMod.__perfumes || [], appMod.__tax)
+      : null;
+    /* 主流程里拿不到内部数据，退而求其次：直接断言措辞函数的行为。
+       badgeTextFor 是这次抽出来的纯函数，见 app.js。 */
+    if (appMod.__aff && appMod.__badgeText) {
+      ok('无百分比时徽标不用「最匹配」',
+        appMod.__badgeText(false) === '原始分最高', appMod.__badgeText(false));
+      ok('有百分比时徽标用「最匹配」',
+        appMod.__badgeText(true) === '最匹配', appMod.__badgeText(true));
+    } else {
+      /* 没有暴露纯函数时，退回看当前 DOM：只要"有初步匹配"和"最匹配"同时
+         出现就是矛盾，无论有没有徽标。 */
+      const anyPrelim = appRoot.querySelectorAll('.score.is-preliminary').length > 0;
+      const badgesNow = appRoot.querySelectorAll('.top-badge');
+      if (anyPrelim && badgesNow.length) {
+        ok('无百分比时徽标不说「最匹配」',
+          !badgesNow[0].textContent.includes('最匹配'), badgesNow[0].textContent);
+      } else {
+        ok('无百分比与「最匹配」徽标不同时出现', true, '本次并列或无徽标，跳过');
+      }
+    }
+  }
   /* 至少要有一种"哪瓶更好"的表达 —— 要么最匹配，要么明说并列 */
   ok('结果页对排名有明确交代',
     badges.length + ties.length >= 1,

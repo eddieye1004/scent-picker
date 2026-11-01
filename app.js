@@ -3472,6 +3472,13 @@ function affiliateLink(perfume, cfg) {
   return all.length ? all[0] : null;
 }
 
+/* 第 1 名徽标的措辞。抽成纯函数是为了让测试能直接钉住这两句话，
+   不必依赖主流程恰好跑到不并列的状态（实测主流程跑出来就是并列，
+   徽标为 0，那条断言从未触发过）。 */
+function topBadgeText(hasPct) {
+  return hasPct ? '最匹配' : '原始分最高';
+}
+
 function renderResult() {
   const { profile, results } = state.result;
   const wrap = el('div', { class: 'fade-in' });
@@ -3527,7 +3534,12 @@ function renderResult() {
 
     art.appendChild(el('div', { class: 'pick-rank' },
       el('span', { class: 'n' }, `候选 ${String(i + 1).padStart(2, '0')}`),
-      isTop ? el('span', { class: 'top-badge' }, '最匹配') : null,
+      /* 徽标措辞要跟着"有没有百分比"走，否则自相矛盾：
+         实测线上出现过一张卡同时标「最匹配」和「初步匹配」——
+         前者断言"它最合适"，后者说"我们算不准"，两句话互相拆台。
+         没有百分比时改用「原始分最高」：这是**事实**（它确实是排序第一），
+         而不是"最匹配"那种需要百分比支撑的判断。 */
+      isTop ? el('span', { class: 'top-badge' }, topBadgeText(r.matchPct != null)) : null,
       /* 并列时把话说清楚：不是"这三个一样好"，而是"评分规则分不出高下" */
       (i === 0 && tied) ? el('span', { class: 'tie-badge' }, '与后两瓶并列') : null,
       /* 匹配度可能为 null（G6：激活维度不够时不算百分比，见 scoring.js）。
@@ -3808,6 +3820,7 @@ document.addEventListener('DOMContentLoaded', boot);
    测试把 app.js 复制成临时 .mjs 后 import，拿不到模块内的私有函数，
    而推广链接的降级矩阵是纯函数（不碰 DOM、不碰 state），在测试里直接调
    比渲染三张卡再 inspect 快也准。这里只暴露一个，不扩大面。 */
+export const __badgeText = topBadgeText;
 export const __aff = {
   config: affiliateConfig,
   href: affiliateHref,
