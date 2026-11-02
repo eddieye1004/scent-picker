@@ -3399,6 +3399,49 @@ function affiliateConfig() {
 /* 给一瓶香水拼**带佣金的**购买链接。返回 null 表示"不渲染佣金链接"。
    注意这条路径要求三件套齐全（target + pid + productBase），
    缺一件就返回 null —— 调用方会退回搜索页或干脆不显示。 */
+/* ---------- 联盟转链域名白名单 ----------
+
+   **为什么需要它。** `data/affiliate-links.json` 里可能同时躺着两种东西：
+     ① 手工抄的商品页（`detail.tmall.com/item.htm?id=…`）—— 无佣金；
+     ② 从联盟「立即推广」取的转链短链（`m.tb.cn/h.xxx`、
+        `s.click.taobao.com/t?e=…`、`u.jd.com/xxx`）—— **有佣金**。
+   两者在数据里长得一样（都只是一条 URL），但合规处理完全相反：
+   有佣金的必须标 sponsored + 挂广告披露，无佣金的绝不能标。
+
+   所以判据只能落在 host 上，落在"这条是谁生成的"记忆上不行 ——
+   表会被人手工改，记忆不会跟着变。新增平台时往这张表里加域名即可。 */
+const AFF_DIRECT_HOSTS = {
+  taobao: ['m.tb.cn', 's.click.taobao.com', 'uland.taobao.com', 'tmqd.me', 'tb.cn'],
+  jd: ['u.jd.com', 'union-click.jd.com', '3.cn'],
+};
+
+/* 只放行 http(s)。返回规范化后的字符串，非法则 null。
+   与 scripts/gen-affiliate-links.mjs 里的 safeUrl 同源 —— 那边拦的是
+   "写进公开 JSON 之前"，这边拦的是"渲染成 a[href] 之前"，两头都拦。 */
+function safeHttpUrl(raw) {
+  if (typeof raw !== 'string') return null;
+  try {
+    const u = new URL(raw.trim());
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+/* 这条 URL 是否来自该平台的联盟转链域名。子域名也算（`u.jd.com` 的
+   `img.u.jd.com` 这种会出现），所以用 endsWith 而不是全等。 */
+function isAffiliateHost(plat, href) {
+  const hosts = AFF_DIRECT_HOSTS[plat];
+  if (!hosts || !href) return false;
+  try {
+    const h = new URL(href).hostname.toLowerCase();
+    return hosts.some((d) => h === d || h.endsWith('.' + d));
+  } catch {
+    return false;
+  }
+}
+
 function affiliateHref(perfume, cfg) {
   if (!cfg || !cfg.pid || !cfg.target || !cfg.target.includes('{dest}')) return null;
   if (!cfg.productBase) return null;          // 没有购买页可跳，别硬凑
@@ -3500,6 +3543,34 @@ function platformLinks(perfume, plat, cfg) {
     }];
   }
 
+  /* ①a 预生成的**商品级**推广短链 —— 必须排在 ①b 前面。
+
+     v33 修的真 bug：`data/affiliate-links.json` 里手采的 `m.tb.cn/h.xxx`
+     此前被 ①b 永久遮蔽。淘宝配了 pid，①b 每次都命中并 return，
+     第 ② 档（读表）永远走不到 —— 也就是说，无论采集多少条真短链，
+     页面上一个都不会出现，用户看到的永远是搜索页兜底。
+
+     两处都错：
+       · 优先级错：商品级短链 > 搜索页，它该排前面；
+       · 定性错：从联盟「立即推广」取到的短链**本身就带佣金归属**
+         （实测 2026-11-02 点一次后报表 `点击次数 1`），
+         而第 ② 档当年是按"手工填的无佣金直达页"写的 kind='link'。
+
+     所以这里按 host 分流：来自联盟转链域名的算 direct（挂 sponsored +
+     广告披露），其余仍按无佣金直达页处理。判据集中在 AFF_DIRECT_HOSTS，
+     换平台时只改那一张表。 */
+  const tableA = AFF_LINKS && AFF_LINKS[plat];
+  const rawA = tableA && (tableA[perfume.id] || (tableA.links && tableA.links[perfume.id]));
+  if (rawA) {
+    const ua = safeHttpUrl(rawA);
+    if (ua && isAffiliateHost(plat, ua)) {
+      return [{
+        href: ua, kind: 'direct', platform: plat, platformZh: meta.zh,
+        channel: 'product', label: `去${meta.zh}买这一瓶 ↗`,
+      }];
+    }
+  }
+
   /* ①b 只有 pid、没有转链模板时的「带佣金的搜索推广页」。
      淘宝实测可用（`uland.taobao.com/sem/tbsearch?keyword=&pid=`），
      它确实带佣金归属，但落地是搜索结果而不是这一瓶 ——
@@ -3530,20 +3601,18 @@ function platformLinks(perfume, plat, cfg) {
     if (out.length) return out;
   }
 
-  /* ② 预生成的直达商品页（无佣金，但确实是这一瓶） */
+  /* ② 预生成的直达商品页（无佣金，但确实是这一瓶）。
+     走到这里说明 ①a 已经判过"这条不是联盟转链域名"，所以它只能是
+     手工抄的商品页 —— 按无佣金处理，不挂 sponsored。 */
   const table = AFF_LINKS && AFF_LINKS[plat];
   if (table) {
     const raw = table[perfume.id] || (table.links && table.links[perfume.id]);
-    if (raw) {
-      try {
-        const u = new URL(raw);
-        if (u.protocol === 'http:' || u.protocol === 'https:') {
-          return [{
-            href: u.toString(), kind: 'link', platform: plat, platformZh: meta.zh,
-            channel: 'product', label: `去${meta.zh}看这一瓶 ↗`,
-          }];
-        }
-      } catch { /* 坏链就当没有 */ }
+    const u = safeHttpUrl(raw);
+    if (u) {
+      return [{
+        href: u, kind: 'link', platform: plat, platformZh: meta.zh,
+        channel: 'product', label: `去${meta.zh}看这一瓶 ↗`,
+      }];
     }
   }
 
@@ -4139,6 +4208,10 @@ export const __aff = {
   platformLinks,
   channels: TAOBAO_CHANNELS,
   platforms: SEARCH_PLATFORMS,
+  /* 联盟转链域名的判据本身也要能被测 —— 它决定"标不标广告"，
+     是这个文件里合规分量最重的一个布尔值，不能只靠渲染结果间接验。 */
+  isAffiliateHost,
+  affiliateHosts: AFF_DIRECT_HOSTS,
   /* 测试里可以把直达链接表塞进来，不必真去 fetch。
      传 false 表示"没有这张表"，传对象表示"有"。 */
   setLinks: (v) => { AFF_LINKS = v; },

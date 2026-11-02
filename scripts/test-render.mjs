@@ -1304,6 +1304,40 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
     !!l && l.href === 'https://item.jd.com/1.html', l && l.href);
   ok('link 文案说「看」不说「买」', !!l && !/买/.test(l.label), l && l.label);
 
+  /* ②b 直达表里放的是**联盟转链短链** → 必须升到 direct，且排在搜索页前面。
+
+     修的是一个真 bug：淘宝配了 pid 之后，①b（带 pid 的搜索推广页）
+     每次都命中并 return，第 ② 档永远走不到 —— 手采的真短链一条都显示
+     不出来。而真短链本身就带佣金归属（实测点一次报表 `点击次数 1`），
+     按 kind='link' 处理会漏标 sponsored + 漏挂广告披露，是合规问题
+     而不只是显示问题。
+
+     判据是 host，不是"这条是谁生的"：表会被人手工改，记忆不跟着变。 */
+  A.setLinks({ jd: { 'demo-bottle': 'https://u.jd.com/abcdefg' } });
+  const jdShort = A.link(P, freeCfg);
+  ok('直达表里的联盟短链升为 direct（京东）',
+    !!jdShort && jdShort.kind === 'direct', jdShort && jdShort.kind);
+  ok('联盟短链文案说「买」', !!jdShort && /买/.test(jdShort.label), jdShort && jdShort.label);
+
+  A.setLinks({ taobao: { 'demo-bottle': 'https://m.tb.cn/h.jSdRTjU' } });
+  const tbShort = A.link(P, Object.assign({}, freeCfg, { searchPlatforms: ['taobao'] }));
+  ok('直达表里的联盟短链升为 direct（淘宝）',
+    !!tbShort && tbShort.kind === 'direct', tbShort && tbShort.kind);
+  ok('淘宝短链优先于带 pid 的搜索推广页',
+    !!tbShort && /m\.tb\.cn/.test(tbShort.href), tbShort && tbShort.href);
+
+  /* 反向：非联盟域名的商品页仍按 link 处理，不许误升。
+     漏这一条会让所有手工抄的天猫商品页被标成"广告"。 */
+  A.setLinks({ taobao: { 'demo-bottle': 'https://detail.tmall.com/item.htm?id=1' } });
+  const tmallPlain = A.link(P, Object.assign({}, freeCfg, { searchPlatforms: ['taobao'] }));
+  ok('非联盟域名的商品页仍是 link（不误标广告）',
+    !!tmallPlain && tmallPlain.kind === 'link', tmallPlain && tmallPlain.kind);
+
+  /* 子域名要认：`img.u.jd.com` 这种会出现，用全等会漏 */
+  A.setLinks({ jd: { 'demo-bottle': 'https://img.u.jd.com/x.jpg' } });
+  ok('联盟域名判据认子域名',
+    A.isAffiliateHost && A.isAffiliateHost('jd', 'https://img.u.jd.com/x.jpg') === true);
+
   /* ③ 两样都没有 → search */
   A.setLinks(false);
   const s = A.link(P, freeCfg);
