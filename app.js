@@ -3284,7 +3284,15 @@ function renderMasthead() {
    ============================================================ */
 const SEARCH_PLATFORMS = {
   jd: { zh: '京东', url: 'https://search.jd.com/Search?keyword={q}&enc=utf-8' },
-  taobao: { zh: '淘宝', url: 'https://s.taobao.com/search?q={q}' },
+  taobao: {
+    zh: '淘宝',
+    url: 'https://s.taobao.com/search?q={q}',
+    /* 带 pid 的搜索推广页（实测 2026-11-02：pid 在跳转后仍保留）。
+       这是纯静态页面唯一能拿到的**带佣金归属**的淘宝链接形态 ——
+       商品转链的 e 参数要在服务端签发，前端生成不了。
+       见 AFFILIATE.taobao 上方注释。 */
+    paidUrl: 'https://uland.taobao.com/sem/tbsearch?keyword={q}&pid={pid}',
+  },
   tmall: { zh: '天猫', url: 'https://list.tmall.com/search_product.htm?q={q}' },
   pdd: { zh: '拼多多', url: 'https://mobile.yangkeduo.com/search_result.html?search_key={q}' },
 };
@@ -3300,11 +3308,27 @@ const AFFILIATE = {
     productBase: '', // 搜索页基地址（用于拼 dest）
   },
   /* ---- 淘宝联盟 ----
-     淘宝支持参数化转链（s.click.taobao.com/t?e=...&pid={pid}&...），
-     所以这一档更容易只用一条模板打通。 */
+     淘宝支持参数化转链，实测通过（2026-11-02）：
+     `uland.taobao.com/sem/tbsearch?keyword=<q>&pid=<pid>`
+     跳转后 pid 仍保留在最终 URL 里（`&pid=mm_...` 原样带着），
+     页面确实返回该关键词的搜索结果 —— 所以这一条是真·带佣金的搜索推广页，
+     不是普通搜索页冒充的。
+
+     为什么用搜索推广页而不是商品转链：
+       · 商品转链（`s.click.taobao.com/t?e=...`）的 e 参数是一次性签发的，
+         必须在服务端调 API 换，纯静态页面无法在浏览器里生成；
+         实测裸拼 `s.click.taobao.com/t?pid=...` 会掉到 taobao 首页（pid 丢失）。
+       · 搜索推广页只用 pid + 关键词，可以纯前端拼。
+     代价：落地是"搜这一瓶"的结果页，不是"这一瓶"的商品页 ——
+     所以下面 still 标 kind='direct'（确实带佣金归属），
+     但按钮文案与披露都照实说"搜"，不装作直达商品。
+
+     2026-11-02 追加：这个 pid 会出**两个**入口（官方旗舰店 / 全网），
+     靠关键词区分，见 TAOBAO_CHANNELS 上方注释。价格排序实测无效，
+     所以界面上不承诺任何"最低价"。 */
   taobao: {
     target: '',
-    pid: '',
+    pid: 'mm_10963225696_3443600437_116343550064',
     productBase: '',
   },
   /* 搜索兜底给哪几个平台。不需要任何注册，只要联网就能跳。
@@ -3406,20 +3430,96 @@ function affiliateHref(perfume, cfg) {
    密钥只在本地用、不进仓库。文件不存在时静默为空 —— 不影响任何现有行为。 */
 let AFF_LINKS = null;
 
-/* 一个平台给这一瓶出链接。返回 { href, kind, platform, platformZh, label } 或 null。
-   kind = 'direct'（有佣金）/ 'link'（预生成直达页）/ 'search'（平台搜索页）
-   三级从高到低，第一个成的就返回。 */
-function platformLink(perfume, plat, cfg) {
-  const meta = SEARCH_PLATFORMS[plat];
-  if (!perfume || !perfume.name || !meta) return null;
+/* ---------- 淘宝的两个入口：官方旗舰店 / 全网 ----------
 
-  /* ① 有佣金转链（该平台三件套齐备时才有） */
+   **为什么要拆成两个入口，而不是一个"最优链接"。**
+   用户要的是「一个官方来源 + 一到两个正品第三方店铺」。但纯静态页面
+   拿不到"哪家第三方店最便宜"这个事实 —— 那需要实时抓价格，而电商
+   搜索结果页在无登录态下全部先弹登录（实测 2026-11-02：京东 PC 302
+   到 passport.jd.com，淘宝停在"加载中"，天猫 302 到 s.taobao.com）。
+
+   **"价格最优"能不能靠 URL 参数保证？实测不能。**
+   试过 `sort=price-asc`、`sort=price_asc`、`sortType=price_asc`、
+   `s=0&sort=price-asc` 四组，uland 与 s.taobao 各跑一遍，
+   前 20 个价格序列与不排序的基线**逐一相同**
+   （15.57 / 18.70 / 27.44 / 20.58 / 24.60 …），没有一次升序排列。
+   所以页面绝不写"最低价""最便宜"这类承诺。
+
+   **能保证的是"把哪一类店顶上来"。**
+   实测关键词差异（Creed Aventus）：
+     · 裸品牌名        → 结果里没有「旗舰店」，价格 ¥11.89–26.24（小样/分装）
+     · `+ 官方旗舰店`  → 出现「回头客2万CREED官方旗舰店」，价格 ¥1450 / ¥1680（正装）
+   所以两个入口靠关键词区分，而不是靠排序参数：
+     · official → 关键词带「官方旗舰店」，把品牌自营店顶到前部
+     · market   → 裸关键词，给出全网（含第三方、含小样）
+
+   区分方式必须让用户看得见：文案写成「官方旗舰店」与「全网比价（含第三方）」，
+   不用"最优""最低"这种我们验证不了的词。 */
+const TAOBAO_CHANNELS = [
+  {
+    id: 'official',
+    /* 后缀拼在关键词尾部，不进品牌名 */
+    suffix: '官方旗舰店',
+    label: '搜官方店 ↗',
+    scope: '官方旗舰店',
+  },
+  {
+    id: 'market',
+    suffix: '',
+    label: '搜全网 ↗',
+    scope: '全网（含第三方店铺）',
+  },
+];
+
+/* 一个平台给这一瓶出**一组**链接。返回数组，可能为空。
+   kind = 'direct'（有佣金）/ 'link'（预生成直达页）/ 'search'（平台搜索页）
+
+   为什么改成数组：淘宝有 pid 时同一个平台要出两个入口（见上文
+   TAOBAO_CHANNELS）。原来返回单个链接的写法没法表达"一平台多渠道"，
+   硬塞进一个 URL 就等于替用户把两类店合并成一类。 */
+function platformLinks(perfume, plat, cfg) {
+  const meta = SEARCH_PLATFORMS[plat];
+  if (!perfume || !perfume.name || !meta) return [];
+  const out = [];
+
+  /* ① 有佣金转链（该平台三件套齐备时才有）——它指向这一瓶本身，
+        已经是最高档，不必再拆渠道。 */
   const paid = affiliateHref(perfume, cfg[plat]);
   if (paid) {
-    return {
+    return [{
       href: paid, kind: 'direct', platform: plat, platformZh: meta.zh,
-      label: `去${meta.zh}买这一瓶 ↗`,
-    };
+      channel: 'product', label: `去${meta.zh}买这一瓶 ↗`,
+    }];
+  }
+
+  /* ①b 只有 pid、没有转链模板时的「带佣金的搜索推广页」。
+     淘宝实测可用（`uland.taobao.com/sem/tbsearch?keyword=&pid=`），
+     它确实带佣金归属，但落地是搜索结果而不是这一瓶 ——
+     所以 kind 仍是 'direct'（合规上必须挂广告披露、必须标 sponsored），
+     文案却要说「搜」不说「买」。这两件事同时成立，不矛盾：
+     有商业关系是事实，落地页不是商品页也是事实，两个都得说。
+
+     淘宝在这里出**两个**入口（官方 / 全网）；其他平台只出一个。 */
+  if (cfg[plat] && cfg[plat].pid && meta.paidUrl) {
+    const channels = plat === 'taobao' ? TAOBAO_CHANNELS : [null];
+    for (const ch of channels) {
+      const parts = [perfume.brand, perfume.name, ch && ch.suffix].filter(Boolean);
+      const q = parts.join(' ');
+      try {
+        const u = new URL(meta.paidUrl
+          .replace('{q}', encodeURIComponent(q))
+          .replace('{pid}', encodeURIComponent(cfg[plat].pid)));
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
+        out.push({
+          href: u.toString(), kind: 'direct', searchLanding: true,
+          platform: plat, platformZh: meta.zh,
+          channel: ch ? ch.id : 'market',
+          scope: ch ? ch.scope : '',
+          label: ch ? ch.label : `在${meta.zh}搜这一瓶 ↗`,
+        });
+      } catch { /* 拼坏了这一条就跳过，不影响另一条 */ }
+    }
+    if (out.length) return out;
   }
 
   /* ② 预生成的直达商品页（无佣金，但确实是这一瓶） */
@@ -3430,10 +3530,10 @@ function platformLink(perfume, plat, cfg) {
       try {
         const u = new URL(raw);
         if (u.protocol === 'http:' || u.protocol === 'https:') {
-          return {
+          return [{
             href: u.toString(), kind: 'link', platform: plat, platformZh: meta.zh,
-            label: `去${meta.zh}看这一瓶 ↗`,
-          };
+            channel: 'product', label: `去${meta.zh}看这一瓶 ↗`,
+          }];
         }
       } catch { /* 坏链就当没有 */ }
     }
@@ -3443,25 +3543,25 @@ function platformLink(perfume, plat, cfg) {
   const q = [perfume.brand, perfume.name].filter(Boolean).join(' ');
   try {
     const u = new URL(meta.url.replace('{q}', encodeURIComponent(q)));
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-    return {
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return [];
+    return [{
       href: u.toString(), kind: 'search', platform: plat, platformZh: meta.zh,
-      label: `在${meta.zh}搜这一瓶 ↗`,
-    };
+      channel: 'market', label: `在${meta.zh}搜这一瓶 ↗`,
+    }];
   } catch {
-    return null;
+    return [];
   }
 }
 
 /* 统一出口：给一瓶香水返回它在每个启用平台上的链接数组。
    顺序跟 cfg.searchPlatforms 一致（默认 ['jd','taobao']）。
    为什么返回数组而不是单个：双平台是这一轮的需求 ——
-   同一瓶在两家都可能缺货，只给一家等于替用户做了不该我们做的选择。 */
+   同一瓶在两家都可能缺货，只给一家等于替用户做了不该我们做的选择。
+   现在一个平台内部也可能出两个（淘宝的官方 / 全网），所以是 flat。 */
 function affiliateLinks(perfume, cfg) {
   const out = [];
   for (const plat of (cfg && cfg.searchPlatforms) || []) {
-    const l = platformLink(perfume, plat, cfg);
-    if (l) out.push(l);
+    out.push(...platformLinks(perfume, plat, cfg));
   }
   return out;
 }
@@ -3477,6 +3577,98 @@ function affiliateLink(perfume, cfg) {
    徽标为 0，那条断言从未触发过）。 */
 function topBadgeText(hasPct) {
   return hasPct ? '最匹配' : '原始分最高';
+}
+
+/* ---------- 结果卡上的瓶子图形 ----------
+
+   **为什么不是照片。**
+   数据源（Scento, CC BY 4.0）里**没有任何图片字段** —— 1485 行的
+   `perfumes.csv` 表头从 id 到 url 全是文本。上游网页确实有产品摄影
+   （`imagedelivery.net` 上的 `og:image`），但那是第三方摄影作品，
+   不在 CC BY 4.0 的数据许可范围内；而且外链图片一旦断网或对方换 CDN
+   就全变成破图，破掉本项目"D05：离线可用、零外部请求"的硬约束。
+
+   **所以画，不取。**
+   每个瓶子的形状由 `id` 的哈希决定（三种剪影），颜色由主家族决定 ——
+   同一瓶每次渲染完全一致，不需要任何网络请求，也不涉及任何版权。
+   图形里**只有瓶身、瓶盖、液体高光**，没有文字、没有贴纸、没有背景装饰，
+   符合"仅含香水本身"的要求。
+
+   **它不是照片，也不假装是。** 卡片里它是装饰性的（`aria-hidden`），
+   信息仍然全部来自文字；三者并列时你靠它一眼分辨形状与色系，
+   而不是靠它辨认具体是哪一瓶。 */
+const BOTTLE_TINT = {
+  citrus:   { glass: '#F7F2DA', liquid: '#E3C063', deep: '#B8912F' },
+  floral:   { glass: '#FBEFF4', liquid: '#E5A2BA', deep: '#BC7590' },
+  woody:    { glass: '#F4EEE5', liquid: '#B98F62', deep: '#8F6840' },
+  amber:    { glass: '#FCF3DF', liquid: '#D89A3C', deep: '#AC731F' },
+  fresh:    { glass: '#EBF6F0', liquid: '#8CC3AE', deep: '#5F9A83' },
+  gourmand: { glass: '#F9F0E4', liquid: '#C98B5C', deep: '#9E6339' },
+};
+
+/* 家族键取权重最大的那个。`families` 是 { floral: 1 } 这种映射，
+   跨族（{citrus:.6, floral:.4}）时取主族 —— 瓶子只承载"色系印象"，
+   不需要表达配比。 */
+function dominantFamily(p) {
+  const f = p && p.families;
+  if (!f || typeof f !== 'object') return 'woody';
+  let best = null; let bestV = -1;
+  for (const [k, v] of Object.entries(f)) {
+    if (typeof v === 'number' && v > bestV) { bestV = v; best = k; }
+  }
+  return best && BOTTLE_TINT[best] ? best : 'woody';
+}
+
+/* 稳定的字符串哈希（FNV-1a 32 位）。用它而不是 Math.random：
+   同一瓶必须每次画成同一个形状，否则刷新一次结果页瓶子就换样。 */
+function stableHash(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h;
+}
+
+function bottleArt(p) {
+  const t = BOTTLE_TINT[dominantFamily(p)] || BOTTLE_TINT.woody;
+  const v = stableHash(String(p && p.id || p && p.name || 'x')) % 3;
+  const S = `stroke="${t.deep}" stroke-width="1.4" stroke-linejoin="round"`;
+
+  /* 三种剪影：方肩经典瓶 / 高圆柱 / 圆肚瓶。
+     共用 72×108 画布，瓶子居中、底边贴 104，三张卡并排时基线一致。 */
+  let body = '';
+  let cap = '';
+  let liquid = '';
+
+  if (v === 0) {
+    /* 方肩经典瓶 */
+    cap = `<rect x="27" y="4" width="18" height="15" rx="2" fill="${t.deep}"/>`;
+    body = `<path d="M30 19h12v7h10a6 6 0 0 1 6 6v66a6 6 0 0 1-6 6H26a6 6 0 0 1-6-6V32a6 6 0 0 1 6-6h10z" fill="${t.glass}" ${S}/>`;
+    liquid = `<path d="M22 58h28v40a4 4 0 0 1-4 4H26a4 4 0 0 1-4-4z" fill="${t.liquid}"/>`;
+  } else if (v === 1) {
+    /* 高圆柱 */
+    cap = `<rect x="28" y="5" width="16" height="13" rx="2" fill="${t.deep}"/>`;
+    body = `<path d="M31 18h10v6h2c6 0 10 5 10 11v57c0 6-4 8-19 8s-19-2-19-8V35c0-6 4-11 10-11h4z" transform="translate(0,0)" fill="${t.glass}" ${S}/>`;
+    liquid = `<path d="M21 56h30v36c0 6-5 8-15 8s-15-2-15-8z" fill="${t.liquid}"/>`;
+  } else {
+    /* 圆肚瓶 */
+    cap = `<rect x="29" y="4" width="14" height="12" rx="2" fill="${t.deep}"/>`;
+    body = `<path d="M33 16h6v8c11 2 19 12 19 24v34c0 12-10 22-22 22S14 94 14 82V48c0-12 8-22 19-24z" fill="${t.glass}" ${S}/>`;
+    /* 液体直接沿用瓶身下半段的外形（不画椭圆再用 clipPath 裁），
+       少一个 defs 节点，也不用担心 clip 在测试桩里没实现。 */
+    liquid = `<path d="M50 52v30c0 12-10 22-22 22S14 94 14 82V52c0 2 8 6 18 6s18-4 18-6z" fill="${t.liquid}"/>`;
+  }
+
+  /* 一道竖直高光：没有它瓶身是块平板，读不出玻璃的圆柱感。
+     刻意只给一条，不加反光/加湿/雾面 —— 那是营销图的做法。 */
+  const gloss = `<rect x="24" y="${v === 1 ? 40 : 38}" width="3.4" height="${v === 2 ? 26 : 34}" rx="1.7" fill="#ffffff" opacity=".55"/>`;
+
+  return el('div', {
+    class: 'pick-art',
+    'aria-hidden': 'true',
+    html: `<svg viewBox="0 0 72 108" role="presentation" focusable="false">${cap}${body}${liquid}${gloss}</svg>`,
+  });
 }
 
 function renderResult() {
@@ -3550,7 +3742,12 @@ function renderResult() {
         r.matchPct == null ? '初步匹配' : `匹配度 ${r.matchPct}%`)
     ));
 
-    art.appendChild(el('h3', {}, p.name));
+    /* 瓶形放在名字右边，与「候选 01 / 匹配度」同一视觉带。
+       为什么不做大图横跨卡宽：结果卡是规格表式的竖排文本（D38 的 Swiss 骨架），
+       一张大图会把三张卡的节奏打断，也让"读理由"这件事被图片挤下去。
+       88px 的小图只做"这三瓶长得不一样"的视觉锚点。 */
+    const headText = el('div', { class: 'pick-head-text' });
+    headText.appendChild(el('h3', {}, p.name));
     // 数据源有 24 瓶没标浓度 → 不编，直接不显示那一格
     const metaBits = [p.brand];
     if (p.concentrationLabelZh) metaBits.push(p.concentrationLabelZh);
@@ -3560,7 +3757,8 @@ function renderResult() {
       if (i > 0) metaNode.appendChild(el('span', { class: 'dot' }, '·'));
       metaNode.appendChild(document.createTextNode(t));
     });
-    art.appendChild(metaNode);
+    headText.appendChild(metaNode);
+    art.appendChild(el('div', { class: 'pick-head' }, headText, bottleArt(p)));
 
     // 三调
     const dl = el('dl', { class: 'pyramid' });
@@ -3603,22 +3801,36 @@ function renderResult() {
     /* 三种去向，文案与安全属性各不相同：
        · direct（有佣金）→ 挂 sponsored，并跟一条「广告」披露
        · link（预生成直达页）→ 不挂 sponsored（没有商业关系）
-       · search（平台搜索页）→ 不挂 sponsored，文案说「搜」不说「买」 */
-    const buyEls = buyLinks.map((l) => el('a', {
-      class: l.kind === 'direct' ? 'buy-link' : 'buy-link is-search',
-      href: l.href,
-      target: '_blank',
-      /* sponsored 只标在真有佣金关系的链接上。把 sponsored 挂在一个
-         不带佣金的搜索页上是虚假标注：搜索引擎按作弊处理，
-         用户也会误解成"这瓶有人在付钱推"。
-         noopener / noreferrer 是安全基线，三种都必须带。 */
-      rel: l.kind === 'direct'
-        ? 'sponsored noopener noreferrer'
-        : 'noopener noreferrer',
-      'data-affiliate': l.kind === 'direct' ? 'true' : 'false',
-      'data-kind': l.kind,
-      'data-platform': l.platform,
-    }, l.label));
+       · search（平台搜索页）→ 不挂 sponsored，文案说「搜」不说「买」
+
+       淘宝有 pid 时会出两条（official / market），它们的 link.scope
+       分别是「官方旗舰店」与「全网（含第三方店铺）」—— 这个短语必须
+       渲染出来，否则用户看不出两个按钮差在哪，只会以为我们重复了。 */
+    const buyEls = [];
+    for (const l of buyLinks) {
+      buyEls.push(el('a', {
+        class: 'buy-link'
+          + (l.kind === 'direct' ? '' : ' is-search')
+          + (l.channel === 'official' ? ' is-official' : ''),
+        href: l.href,
+        target: '_blank',
+        /* sponsored 只标在真有佣金关系的链接上。把 sponsored 挂在一个
+           不带佣金的搜索页上是虚假标注：搜索引擎按作弊处理，
+           用户也会误解成"这瓶有人在付钱推"。
+           noopener / noreferrer 是安全基线，三种都必须带。 */
+        rel: l.kind === 'direct'
+          ? 'sponsored noopener noreferrer'
+          : 'noopener noreferrer',
+        'data-affiliate': l.kind === 'direct' ? 'true' : 'false',
+        'data-kind': l.kind,
+        'data-platform': l.platform,
+        'data-channel': l.channel || 'product',
+      }, l.scope
+        /* 带 scope 的（淘宝两条）把范围写在按钮上方一小行，
+           不塞进按钮文字 —— 按钮文字保持动作（"搜"），范围是名词。 */
+        ? [el('span', { class: 'buy-scope' }, l.scope), el('span', { class: 'buy-label' }, l.label)]
+        : l.label));
+    }
 
     /* 按钮组要包一层再右推。
        直接把 `margin-left:auto` 放在第一个按钮上会出问题：auto 会吃掉
@@ -3642,8 +3854,19 @@ function renderResult() {
        重复三遍会变成噪音，反而不显眼（FTC 的 clear and conspicuous）。 */
     const anyDirect = buyLinks.some((l) => l.kind === 'direct');
     const anySearch = buyLinks.some((l) => l.kind === 'search');
+    const scoped = buyLinks.filter((l) => l.scope);
     if (anyDirect) {
       art.appendChild(el('p', { class: 'aff-note', role: 'note' }, aff.disclosure));
+      /* 有分渠道的入口时，补一句"这两个按钮差在哪、以及我们保证不了什么"。
+         必须写清三件事，缺一件就会变成误导：
+           ① 两个按钮的落地都是搜索结果页，不是这一瓶的商品页；
+           ② 「官方旗舰店」是靠关键词把品牌自营店顶到前部，不是筛选结果；
+           ③ 价格没有排序 —— 实测排序参数无效，所以不承诺"最低价"。 */
+      if (scoped.length > 1) {
+        art.appendChild(el('p', { class: 'link-note', role: 'note' },
+          '两个入口都会打开淘宝搜索结果：选「官方旗舰店」会把品牌自营店排到前面，'
+          + '选「全网」看所有店铺（含第三方与小样）；价格未排序，请自行核对。'));
+      }
     } else if (anySearch) {
       /* 用 `link-note` 而不是 `aff-note`：aff-note 是广告披露的专用类，
          两者混用会让"有没有广告披露"这个判断在 DOM 层就分不出来 ——
@@ -3826,6 +4049,10 @@ export const __aff = {
   href: affiliateHref,
   link: affiliateLink,
   links: affiliateLinks,
+  /* 单平台的一组链接（淘宝会返回两个渠道）。测试要验"两个渠道的
+     关键词差在哪"时用它，比渲染整页再抓 DOM 更直接。 */
+  platformLinks,
+  channels: TAOBAO_CHANNELS,
   platforms: SEARCH_PLATFORMS,
   /* 测试里可以把直达链接表塞进来，不必真去 fetch。
      传 false 表示"没有这张表"，传对象表示"有"。 */

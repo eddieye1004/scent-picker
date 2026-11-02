@@ -1138,37 +1138,98 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
   const notes = appRoot.querySelectorAll('.aff-note');
   const searchNotes = appRoot.querySelectorAll('.link-note');
 
-  /* 默认配置（三件套全空）→ 只能走第 ③ 档 */
-  /* 双平台：每瓶在京东 + 淘宝各一个，3 瓶 × 2 = 6 */
-  ok('未配置佣金时仍有搜索兜底入口（双平台 3×2）', buy.length === 6, `实际 ${buy.length}`);
-  ok('搜索兜底不是佣金链接（data-affiliate=false）',
-    buy.every((a) => String(a.attrs['data-affiliate']) === 'false'),
-    buy.map((a) => a.attrs['data-affiliate']).join(','));
-  ok('搜索兜底链接 kind=search',
-    buy.every((a) => String(a.attrs['data-kind']) === 'search'),
-    buy.map((a) => a.attrs['data-kind']).join(','));
+  /* 默认配置已经从「三件套全空」变成「淘宝有 pid、京东全空」——
+     2026-11-02 拿到真实淘宝推广位后，默认配置里就带 pid 了。
+     于是同一条结果页上**同时存在两档**，断言必须按平台分开钉，
+     否则「有佣金的那个被当成没佣金」和「没佣金的那个被当成有佣金」
+     两种错误都测不出来（这正是上一版断言在改配置后立刻红的原因）。 */
+  /* 双平台 × 淘宝双渠道：每瓶京东 1 + 淘宝 2 = 3，3 瓶 × 3 = 9 */
+  ok('每瓶出京东 1 + 淘宝 2 共 3 个入口（3×3）', buy.length === 9, `实际 ${buy.length}`);
+
+  const byPlat = (p) => buy.filter((a) => String(a.attrs['data-platform']) === p);
+  const jd = byPlat('jd');
+  const tb = byPlat('taobao');
+  ok('京东 3 个、淘宝 6 个', jd.length === 3 && tb.length === 6, `jd=${jd.length} tb=${tb.length}`);
+
+  /* ---- 京东：没有 pid → 只能走第 ③ 档（搜索页，无佣金） ---- */
+  ok('京东未配置佣金 → kind=search',
+    jd.every((a) => String(a.attrs['data-kind']) === 'search'),
+    jd.map((a) => a.attrs['data-kind']).join(','));
+  ok('京东搜索兜底 data-affiliate=false',
+    jd.every((a) => String(a.attrs['data-affiliate']) === 'false'),
+    jd.map((a) => a.attrs['data-affiliate']).join(','));
   /* 最关键的一条：没有佣金关系就不许标 sponsored。
      标了等于对搜索引擎和用户同时撒谎。 */
-  ok('搜索兜底不带 sponsored 标记',
-    buy.every((a) => !String(a.attrs.rel || '').includes('sponsored')),
-    buy.map((a) => a.attrs.rel).join(' | '));
-  /* 安全基线三种都要 */
-  ok('搜索兜底仍带 noopener noreferrer',
+  ok('京东搜索兜底不带 sponsored 标记',
+    jd.every((a) => !String(a.attrs.rel || '').includes('sponsored')),
+    jd.map((a) => a.attrs.rel).join(' | '));
+
+  /* ---- 淘宝：有 pid → 带佣金的搜索推广页（uland + pid），
+         且拆成 official / market 两个渠道 ----
+     两个渠道都必须带 pid（都真有佣金），所以都必须 sponsored + 广告披露；
+     落地都是搜索结果而不是这一瓶，所以文案必须说「搜」不说「买」。 */
+  ok('淘宝有 pid → kind=direct',
+    tb.every((a) => String(a.attrs['data-kind']) === 'direct'),
+    tb.map((a) => a.attrs['data-kind']).join(','));
+  ok('淘宝佣金链接 data-affiliate=true',
+    tb.every((a) => String(a.attrs['data-affiliate']) === 'true'),
+    tb.map((a) => a.attrs['data-affiliate']).join(','));
+  ok('淘宝佣金链接标 sponsored',
+    tb.every((a) => String(a.attrs.rel || '').includes('sponsored')),
+    tb.map((a) => a.attrs.rel).join(' | '));
+  ok('淘宝佣金链接落到 uland 且 pid 在 URL 里',
+    tb.every((a) => String(a.attrs.href).includes('uland.taobao.com')
+      && String(a.attrs.href).includes('pid=mm_')),
+    tb.map((a) => String(a.attrs.href).slice(0, 52)).join(' | '));
+  /* 文案不许把"搜索结果页"说成"这一瓶" */
+  ok('淘宝佣金链接文案说「搜」不说「买」',
+    tb.every((a) => /搜/.test(a.textContent) && !/买这一瓶/.test(a.textContent)),
+    tb.map((a) => a.textContent).join(' | '));
+
+  /* ---- 官方 / 全网两个渠道必须真的可分 ----
+     用户要的是「一个官方来源 + 第三方店铺」。能被静态站保证的区分方式
+     只有关键词（排序参数实测无效，见 app.js 注释），所以断言钉在
+     URL 里的关键词上，而不是钉文案 —— 文案可以改，URL 行为不能。 */
+  const official = tb.filter((a) => String(a.attrs['data-channel']) === 'official');
+  const market = tb.filter((a) => String(a.attrs['data-channel']) === 'market');
+  ok('淘宝每瓶各一个 official / market',
+    official.length === 3 && market.length === 3,
+    `official=${official.length} market=${market.length}`);
+  ok('official 渠道关键词带「官方旗舰店」',
+    official.every((a) => decodeURIComponent(String(a.attrs.href)).includes('官方旗舰店')),
+    official.map((a) => decodeURIComponent(String(a.attrs.href)).slice(0, 70)).join(' | '));
+  ok('market 渠道关键词不带「官方旗舰店」',
+    market.every((a) => !decodeURIComponent(String(a.attrs.href)).includes('官方旗舰店')),
+    market.map((a) => decodeURIComponent(String(a.attrs.href)).slice(0, 70)).join(' | '));
+  /* 两个渠道的 scope 短语必须渲染出来 —— 否则用户看不出按钮差在哪 */
+  ok('两个渠道的适用范围都渲染在按钮里',
+    tb.every((a) => /官方旗舰店|全网/.test(a.textContent)),
+    tb.map((a) => a.textContent.replace(/\s+/g, ' ').slice(0, 30)).join(' | '));
+
+  /* 安全基线两档都要 */
+  ok('全部外链都带 noopener noreferrer',
     buy.every((a) => /noopener/.test(String(a.attrs.rel || '')) && /noreferrer/.test(String(a.attrs.rel || ''))),
     buy.map((a) => a.attrs.rel).join(' | '));
 
-  /* 没有佣金 → 一句「广告」披露都不能有。挂了就是假广告。 */
-  ok('未配置佣金时不写「广告」披露', notes.length === 0, `实际 ${notes.length}`);
-  /* 但要说清"这是搜索页不是商品页"，否则用户点进去会以为被骗 */
-  /* 披露是**每张卡一条**（说的是这张卡的性质），不是每个按钮一条 */
-  ok('搜索兜底附一句"不是商品页"的说明（每卡一条）', searchNotes.length === 3, `实际 ${searchNotes.length}`);
-  ok('搜索说明里点明平台名',
-    searchNotes.every((n) => /京东/.test(n.textContent) && /淘宝/.test(n.textContent)),
-    searchNotes.map((n) => n.textContent.slice(0, 30)).join(' | '));
+  /* ---- 披露：一张卡上只要有任意一个 direct，就挂「广告」披露 ----
+     淘宝现在是 direct，所以每张卡一条 aff-note。
+     另外因为有两个渠道，每卡还会多一条 link-note 说明两者差异 ——
+     这一条**不是**广告披露，是"我们保证不了什么"的说明，
+     所以必须用 .link-note 而不是 .aff-note（两者混用会让
+     "有没有广告披露"在 DOM 层就分不出来，上一版踩过）。 */
+  ok('有 direct 链接时挂「广告」披露（每卡一条）', notes.length === 3, `实际 ${notes.length}`);
+  ok('披露首句是「广告」',
+    notes.every((n) => n.textContent.trim().startsWith('广告')),
+    notes.map((n) => n.textContent.slice(0, 14)).join(' | '));
+  /* 双渠道说明必须说清"价格没排序"——这是实测结论，不能省 */
+  ok('双渠道说明写明价格未排序（每卡一条）', searchNotes.length === 3, `实际 ${searchNotes.length}`);
+  ok('双渠道说明包含「价格未排序」',
+    searchNotes.every((n) => /价格未排序|未排序/.test(n.textContent)),
+    searchNotes.map((n) => n.textContent.slice(0, 20)).join(' | '));
 
   /* 数据来源链接必须一直在 —— 降级只影响购买入口，不影响溯源。 */
   ok('降级后数据来源链接仍在',
-    appRoot.querySelectorAll('.pick-foot a').length >= 3,
+    appRoot.querySelectorAll('.pick-foot a').length >= 6,
     `实际 ${appRoot.querySelectorAll('.pick-foot a').length}`);
 }
 /* ---------- affiliateHref 的降级矩阵 ----------
