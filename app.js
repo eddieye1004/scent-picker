@@ -47,6 +47,9 @@ const state = {
 
 let DATA = null;
 let TAX = null;
+/* 实物图清单（id → 本地路径）。null = 还没试过，false = 试过、没有。
+   与 AFF_LINKS 同一套三态语义，避免重复发请求。 */
+let PHOTOS = null;
 
 // 香调 chip 表：滤掉在 200 瓶样本里 0 命中的死选项（实测只有 可可/cocoa）。
 // 每次重渲染都会调用，命中数是纯计算，缓存一份避免重复扫 200×40。
@@ -3167,6 +3170,11 @@ async function finish(btn) {
   const busy = setBusy(btn, '正在比对…');
   try {
     const d = await ensurePerfumes();
+    /* 实物图清单在 boot 里就预热了，这里再等一次只是保证
+       「有图就用图」这条判断在首帧就成立 —— 不等的话第一帧可能先画
+       瓶形、下一帧才换图，视觉上是闪一下。它只有几百字节，
+       而且通常早已在缓存里。失败不影响结果页。 */
+    await ensurePhotos().catch(() => {});
     state.result = recommend(state.answers, d.perfumes, TAX, { topN: 3 });
     state.step = STEPS.length;
     render();
@@ -3579,16 +3587,24 @@ function topBadgeText(hasPct) {
   return hasPct ? '最匹配' : '原始分最高';
 }
 
-/* ---------- 结果卡上的瓶子图形 ----------
+/* ---------- 结果卡上的商品图 ----------
 
-   **为什么不是照片。**
-   数据源（Scento, CC BY 4.0）里**没有任何图片字段** —— 1485 行的
-   `perfumes.csv` 表头从 id 到 url 全是文本。上游网页确实有产品摄影
+   两级：**有实物图就用实物图，没有才画瓶形。**
+
+   **为什么数据源里没有照片。**
+   Scento（CC BY 4.0）的 `perfumes.csv` 1485 行、19 列，从 id 到 url
+   全是文本，**没有任何图片字段**。上游网页确实有产品摄影
    （`imagedelivery.net` 上的 `og:image`），但那是第三方摄影作品，
-   不在 CC BY 4.0 的数据许可范围内；而且外链图片一旦断网或对方换 CDN
-   就全变成破图，破掉本项目"D05：离线可用、零外部请求"的硬约束。
+   不在 CC BY 4.0 的数据许可内；而且外链图片断网或对方换 CDN 就成破图，
+   破掉本项目「D05：离线可用、零外部请求」的硬约束。
 
-   **所以画，不取。**
+   **所以实物图只能由我们自己提供。**
+   清单在 `data/photos.json`（键 = 香水 id，值 = 本地相对路径）。
+   为什么单独一张表：`perfumes.json` 是构建产物，每次上游更新会被整体
+   重写，照片映射写进去会被抹掉。
+   表里没有的 id 一律降级为绘制的瓶形 —— 缺图不是错误，是不显示照片。
+
+   **绘制的瓶形（降级路径）。**
    每个瓶子的形状由 `id` 的哈希决定（三种剪影），颜色由主家族决定 ——
    同一瓶每次渲染完全一致，不需要任何网络请求，也不涉及任何版权。
    图形里**只有瓶身、瓶盖、液体高光**，没有文字、没有贴纸、没有背景装饰，
@@ -3669,6 +3685,41 @@ function bottleArt(p) {
     'aria-hidden': 'true',
     html: `<svg viewBox="0 0 72 108" role="presentation" focusable="false">${cap}${body}${liquid}${gloss}</svg>`,
   });
+}
+
+/* 结果卡右侧那一格的纯函数：**只决定"用照片还是用图形"**，不碰 DOM。
+   抽出来是为了可测 —— 一张图都没有时也必须稳定返回"图形"，
+   而不是靠 `pickArt()` 里那句 `if (!src)` 隐式表达。 */
+function artSourceOf(p, photos) {
+  const src = photos && typeof photos === 'object' ? photos[p && p.id] : null;
+  return typeof src === 'string' && src ? src : null;
+}
+
+/* 卡片右侧那一格：有实物图就用 <img>，没有就画瓶形。
+   两者尺寸由同一个 .pick-art 盒控制（见 _wheel18.css），所以换图不会
+   让三张卡的基线错开。照片按 ID 查 data/photos.json —— 查表在
+   ensurePhotos() 里完成，这里只读缓存。 */
+function pickArt(p) {
+  const src = artSourceOf(p, PHOTOS);
+  if (!src) return bottleArt(p);
+  /* 图本身已经"只有瓶子"（用户提供的白底实物图），所以直接铺满盒子，
+     不加边框、不加阴影、不加圆角 —— 任何装饰都会让它读成"贴图"。
+
+     用 el('img', …) 而不是 innerHTML 拼字符串：路径来自扁平的
+     data/photos.json，但那是**可被替换的文件**，一旦里面出现引号就会
+     把属性打断。走 setAttribute 由浏览器自己处理属性值的转义。
+
+     alt 留空 + role=presentation：卡片里信息全在文字上，图片只做视觉锚点。
+     写 alt="香水瓶" 只会让读屏用户多听四个没有信息量的字。 */
+  return el('div', { class: 'pick-art is-photo' },
+    el('img', {
+      src,
+      alt: '',
+      role: 'presentation',
+      loading: 'lazy',
+      decoding: 'async',
+      draggable: 'false',
+    }));
 }
 
 function renderResult() {
@@ -3758,7 +3809,7 @@ function renderResult() {
       metaNode.appendChild(document.createTextNode(t));
     });
     headText.appendChild(metaNode);
-    art.appendChild(el('div', { class: 'pick-head' }, headText, bottleArt(p)));
+    art.appendChild(el('div', { class: 'pick-head' }, headText, pickArt(p)));
 
     // 三调
     const dl = el('dl', { class: 'pyramid' });
@@ -3980,6 +4031,38 @@ function ensurePerfumes() {
   return perfumesPromise;
 }
 
+/* 实物图清单。和直达链接表同一套降级语义：文件缺失 / 解析失败 / 结构不对
+   一律当作"没有"，页面退到绘制瓶形，绝不阻塞首屏。
+   为什么不等它：photos.json 只有几百字节，但它挂在结果页渲染路径上，
+   一旦慢就等于让"看推荐"多一次 RTT。 */
+let photosPromise = null;
+function ensurePhotos() {
+  if (PHOTOS !== null) return Promise.resolve(PHOTOS);
+  if (!photosPromise) {
+    const base = new URL('./', import.meta.url);
+    photosPromise = fetch(new URL('data/photos.json', base))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        /* 只接受 { 字符串: 字符串 } 的扁平结构。
+           顺手挡掉绝对 URL 与 javascript: —— 这张表是可被替换的文件，
+           不校验等于把任意外链塞进 <img src>。 */
+        const out = {};
+        const map = d && typeof d === 'object' && d.photos && typeof d.photos === 'object' ? d.photos : null;
+        if (map) {
+          for (const [id, p] of Object.entries(map)) {
+            if (typeof p !== 'string' || !p) continue;
+            if (/^\s*(https?:|data:|javascript:|\/\/)/i.test(p)) continue;
+            out[id] = p;
+          }
+        }
+        PHOTOS = Object.keys(out).length ? out : false;
+        return PHOTOS;
+      })
+      .catch(() => { PHOTOS = false; return PHOTOS; });
+  }
+  return photosPromise;
+}
+
 /* 预生成的直达链接表（阶段二）是**可选**的：文件不存在、解析失败、
    结构不对 —— 三种情况一律当作"没有"，绝不阻塞首屏。
    它不是数据源，只是省一次平台搜索的便利层，缺了页面照常工作。 */
@@ -4025,6 +4108,8 @@ async function boot() {
     ensurePerfumes().catch(() => {});   // 失败在用到时再抛，这里只预热
     /* 直达链接表同样不等：它只是便利层，到结果页时再读。 */
     ensureAffLinks().catch(() => {});
+    /* 实物图清单也是压到底再读的便利层，顺手预热。 */
+    ensurePhotos().catch(() => {});
     const res = await fetch(new URL('data/taxonomy.json', base));
     if (!res.ok) throw new Error(`taxonomy.json HTTP ${res.status}`);
     TAX = await res.json();
@@ -4057,6 +4142,16 @@ export const __aff = {
   /* 测试里可以把直达链接表塞进来，不必真去 fetch。
      传 false 表示"没有这张表"，传对象表示"有"。 */
   setLinks: (v) => { AFF_LINKS = v; },
+};
+
+/* 实物图的降级判据。同样是纯函数，同样只为可测而暴露。 */
+export const __art = {
+  /* 给定一瓶和一张清单，返回该用的图路径或 null（= 该画瓶形）。
+     三种"没有"都要走同一条路：undefined / false / {} ——
+     ensurePhotos() 在文件缺失时写的是 false，不是 {}。 */
+  sourceOf: artSourceOf,
+  /* 让测试能注入清单，不必在磁盘上放真图。 */
+  set: (v) => { PHOTOS = v; },
 };
 
 

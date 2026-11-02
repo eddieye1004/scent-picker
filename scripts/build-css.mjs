@@ -44,8 +44,9 @@ const PARTS = [
   '_wheel15.css', /* 选中态横向溢出（v27）：在视口层裁掉 .sub-ring 缩放后的空盒 */
   '_wheel16.css', /* 控件边界统一（D1 扩展）：2 个只有 1px 边的控件提到 --stroke-ui */
   '_wheel17.css', /* 场景屏纵向预算（U2）：只在该屏收边距，其余 6 屏不动 */
-  '_wheel18.css',
-  '_wheel19.css', /* 结果卡瓶形（v30）：pick-head 横排 + SVG 瓶身尺寸 */
+  '_wheel18.css', /* 结果卡瓶形（v30）：pick-head 横排 + SVG 瓶身尺寸 */
+  '_wheel19.css', /* 双渠道入口按钮（v31）：官方旗舰店 / 全网 两行结构 */
+  '_wheel20.css', /* 结果卡商品实物图（v32）：与 _wheel18 共用 .pick-art 盒，缺图自动降级 */
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');

@@ -1,0 +1,24 @@
+{
+  "_readme": [
+    "商品实物图清单。键 = perfumes.json 里的 id，值 = 相对仓库根的图片路径。",
+    "",
+    "为什么单独一张表而不是写进 perfumes.json：",
+    "  perfumes.json 是构建脚本从上游 CSV 生成的产物，每次数据更新会被整体重写。",
+    "  实物图是我们自己加的，写进去会在下一次 build-data 时被抹掉。",
+    "",
+    "为什么不在页面里外链：见 app.js 里 bottleArt() 上方的注释 ——",
+    "  上游 og:image 是第三方摄影作品，且外链会破「离线可用、零外部请求」。",
+    "  所以图必须是本地文件，且必须是我们有权使用的。",
+    "",
+    "只有出现在这张表里的 id 才显示照片，其余照旧显示绘制的瓶形。",
+    "照片缺一张不是错误，是降级 —— 页面不会因此报错或留空。"
+  ],
+  "_meta": {
+    "count": 1,
+    "updated": "2026-11-02",
+    "note": "目前只有 1 张，由用户提供"
+  },
+  "photos": {
+    "diptyque-eau-rose-toilette": "images/diptyque-eau-rose-toilette.jpg"
+  }
+}

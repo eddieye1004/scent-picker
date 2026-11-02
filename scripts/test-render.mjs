@@ -1353,6 +1353,56 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
 
 ok('结果页无 NaN/undefined', !/NaN|undefined/.test(resultText), resultText.slice(0, 300));
 
+/* ---------- 商品实物图的降级矩阵（v32） ----------
+   用户要求"用商品实物图而非示意图"。数据源没有任何图片字段，
+   所以照片只能靠自己往 `data/photos.json` 里加，一张一张补。
+
+   这里钉的不是"照片好不好看"，而是**降级不许出岔子**：
+   表里没有这一瓶时，必须回到绘制瓶形，且不许把任意外链当图用。
+   上一版（v31）只有绘制瓶形，所以这四条以前一条都钉不住。 */
+{
+  const ART = appMod.__art;
+  const P1 = { id: 'diptyque-eau-rose-toilette' };
+  const P2 = { id: 'demo-bottle' };
+
+  /* ① 有映射 → 用照片 */
+  ART.set({ 'diptyque-eau-rose-toilette': 'images/x.jpg' });
+  ok('实物图：表里有这一瓶时返回其路径',
+    ART.sourceOf(P1, { 'diptyque-eau-rose-toilette': 'images/x.jpg' }) === 'images/x.jpg',
+    ART.sourceOf(P1, { 'diptyque-eau-rose-toilette': 'images/x.jpg' }));
+
+  /* ② 没映射 → 画瓶形（返回 null 即走 bottleArt） */
+  ok('实物图：表里没有这一瓶时降级为瓶形',
+    ART.sourceOf(P2, { 'diptyque-eau-rose-toilette': 'images/x.jpg' }) === null,
+    ART.sourceOf(P2, { 'diptyque-eau-rose-toilette': 'images/x.jpg' }));
+
+  /* ③ 整张表缺失（ensurePhotos 失败时写的是 false）→ 也要降级，不许抛 */
+  ok('实物图：清单为 false 时降级为瓶形', ART.sourceOf(P1, false) === null, ART.sourceOf(P1, false));
+  ok('实物图：清单为 null 时降级为瓶形', ART.sourceOf(P1, null) === null, ART.sourceOf(P1, null));
+  ok('实物图：清单为空对象时降级为瓶形', ART.sourceOf(P1, {}) === null, ART.sourceOf(P1, {}));
+
+  /* ④ 空串 / 非字符串不算"有图" —— 否则会渲染出 <img src="">，
+        浏览器会把当前页面地址当图片再请求一次 */
+  ok('实物图：空字符串不进 <img>', ART.sourceOf(P1, { 'diptyque-eau-rose-toilette': '' }) === null, '');
+  ok('实物图：非字符串值不进 <img>', ART.sourceOf(P1, { 'diptyque-eau-rose-toilette': 123 }) === null, '123');
+
+  /* ⑤ 仓库里的清单必须是合法 JSON、结构必须是 { photos: {...} }，
+        且每条值都是仓库内的相对路径 —— 不许出现 http(s) 外链
+        （外链会破 D05「离线可用、零外部请求」）。 */
+  const pj = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'photos.json'), 'utf8'));
+  ok('photos.json 有 photos 对象', !!pj.photos && typeof pj.photos === 'object',
+    Object.keys(pj).join(','));
+  const vals = Object.values(pj.photos || {});
+  ok('photos.json 的值全是不带协议的相对路径',
+    vals.every((v) => typeof v === 'string' && !/^([a-z]+:)?\/\//i.test(v)),
+    vals.join(' | '));
+  ok('photos.json 里每个文件都真实存在',
+    vals.every((v) => fs.existsSync(path.join(ROOT, v))),
+    vals.join(' | '));
+
+  ART.set(null);   // 恢复"还没试过"，别影响后面的断言
+}
+
 /* ---------- G6：匹配度的两种显示形态 ----------
    2026-11 重做了归一化分母（见 src/scoring.js 与 docs/DECISIONS.md D55）。
    这里钉住两条不许退化的性质：
