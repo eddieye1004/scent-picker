@@ -13,6 +13,11 @@
  *   ② perfumes.json 里没有的 id 一律拒收并报出来；
  *   ③ 同一 id 后写覆盖（重采通常是上次抓错了）。
  *
+ * 第四条（本轮新增）：淘宝物料接口返回的 pict_url 一并写进
+ *   data/product-images.source.json，作为实物图清单的来源。
+ *   图片**不在这里下载**（这里只写 JSON，不做网络 IO），
+ *   下载与裁切交给 scripts/build-photos.mjs。
+ *
  * 用法：
  *   node scripts/merge-product-candidates.mjs            # 写文件
  *   node scripts/merge-product-candidates.mjs --dry      # 只看会写什么
@@ -26,6 +31,7 @@ const IN_CAND = path.join(ROOT, 'data/products.candidates.json');
 const IN_PERFUMES = path.join(ROOT, 'data/perfumes.json');
 const IN_SOURCE = path.join(ROOT, 'data/affiliate-links.source.json');
 const OUT_SKUS = path.join(ROOT, 'data/product-skus.json');
+const OUT_IMGS = path.join(ROOT, 'data/product-images.source.json');
 
 const DRY = process.argv.includes('--dry');
 
@@ -40,6 +46,20 @@ function isAffiliateUrl(platform, raw) {
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
     const h = u.hostname.toLowerCase();
     return (AFF_HOSTS[platform] || []).some((d) => h === d || h.endsWith('.' + d));
+  } catch { return false; }
+}
+
+/* 图片地址只认阿里图床。联盟物料接口返回的就是这几个域，
+   允许任意域名等于把"图从哪来"这件事交给接口返回值，
+   而 data/photos.json 会被页面直接 <img src> 引用。 */
+const IMG_HOSTS = ['img.alicdn.com', 'gw.alicdn.com', 'img.alicdn.net'];
+
+function isAllowedImage(raw) {
+  try {
+    const u = new URL(String(raw || '').trim());
+    if (u.protocol !== 'https:') return false;
+    const h = u.hostname.toLowerCase();
+    return IMG_HOSTS.some((d) => h === d || h.endsWith('.' + d));
   } catch { return false; }
 }
 
@@ -78,6 +98,12 @@ const skus = existsSync(OUT_SKUS) ? JSON.parse(await readFile(OUT_SKUS, 'utf8'))
 skus.jd = skus.jd || {};
 skus.taobao = skus.taobao || {};
 
+/* 图片来源表。只存 URL，不存下载结果 —— 下载是 build-photos.mjs 的活。 */
+const imgs = existsSync(OUT_IMGS) ? JSON.parse(await readFile(OUT_IMGS, 'utf8')) : {};
+imgs.taobao = imgs.taobao || {};
+let imgAdded = 0;
+let imgBad = 0;
+
 const unknown = [];
 const rejected = [];
 let added = 0;
@@ -102,10 +128,19 @@ for (const row of accepted) {
   source.taobao[row.id] = url.trim();
   if (picked.itemId) skus.taobao[row.id] = String(picked.itemId);
   added++;
+
+  /* 图片：只有「链接被接受」的行才取图 —— 选错商品时它的主图也一定不对，
+     给错图比不给图更糟（用户会以为这就是他问的那一瓶）。 */
+  const pic = picked.pictUrl || '';
+  if (!pic) { imgBad++; continue; }
+  if (!isAllowedImage(pic)) { imgBad++; rejected.push([`taobao:${row.id}`, `图片域名不在白名单：${pic.slice(0, 60)}`]); continue; }
+  imgs.taobao[row.id] = { src: pic.trim(), itemId: String(picked.itemId || ''), gotAt: new Date().toISOString().slice(0, 10) };
+  imgAdded++;
 }
 
 console.log(`候选表 ${accepted.length} 条 accepted`);
 console.log(`  写入 ${added} 条（taobao 直链 + jd skuId）`);
+console.log(`  图片来源 ${imgAdded} 条${imgBad ? `，${imgBad} 条没有可用主图` : ''}`);
 if (skippedNoUrl) console.log(`  跳过 ${skippedNoUrl} 条：没有 click_url`);
 if (rejected.length) console.log(`  拒绝 ${rejected.length} 条`);
 if (unknown.length) console.log(`  数据里没有的 id ${unknown.length} 条：${unknown.slice(0, 5).join(', ')}`);
@@ -114,10 +149,12 @@ if (DRY) {
   console.log('\n--dry：不写文件。');
   console.log('  将写 affiliate-links.source.json 的 taobao 段：', Object.keys(source.taobao).length, '条');
   console.log('  将写 product-skus.json 的 jd 段：', Object.keys(skus.jd).length, '条');
+  console.log('  将写 product-images.source.json 的 taobao 段：', Object.keys(imgs.taobao).length, '条');
   process.exit(0);
 }
 
 await writeFile(IN_SOURCE, JSON.stringify(source, null, 1) + '\n', 'utf8');
 await writeFile(OUT_SKUS, JSON.stringify(skus, null, 1) + '\n', 'utf8');
-console.log(`\n已写 ${path.relative(ROOT, IN_SOURCE)} / ${path.relative(ROOT, OUT_SKUS)}`);
+await writeFile(OUT_IMGS, JSON.stringify(imgs, null, 1) + '\n', 'utf8');
+console.log(`\n已写 ${path.relative(ROOT, IN_SOURCE)} / ${path.relative(ROOT, OUT_SKUS)} / ${path.relative(ROOT, OUT_IMGS)}`);
 console.log('下一步：node scripts/gen-affiliate-links.mjs');

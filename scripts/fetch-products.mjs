@@ -165,6 +165,11 @@ async function queryTaobao(perfume) {
     price: it.zk_final_price ?? null,
     shop: it.shop_title || it.nick || '',
     clickUrl: it.click_url || '',
+    /* 主图要留着。联盟「营销素材」与物料接口给的都是 img.alicdn.com 上的
+       推广用图 —— 这是唯一一条「平台主动授权给推广者使用」的图片来源，
+       比抓电商详情页或第三方博客干净。拿到 pid 后的实物图就靠它。 */
+    pictUrl: it.pict_url || '',
+    smallImages: it.small_images?.string || [],
   }));
   return { keyword, candidates, raw: node };
 }
