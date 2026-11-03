@@ -64,3 +64,11 @@ _an7/
 # 佣金链接表的输入文件（含你自己手工整理的 id → 商品页映射）
 # 产出 data/affiliate-links.json 是公开的、不含密钥，**要入库**。
 data/affiliate-links.source.json
+
+# 联盟 API 凭证（D57 / D58）
+# 京东开放平台协议原文：「禁止保存在任何版本库托管服务（如GitHub）或以其他途径公开，
+# 否则可能被禁用」。任何 .env 变体都不入库，只在本机存在。
+.env
+.env.*
+!.env.example
+*.local.env
