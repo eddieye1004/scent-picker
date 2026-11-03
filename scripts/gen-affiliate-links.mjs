@@ -24,8 +24,8 @@
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import path from 'node:path';
+import { buildJdParams, unwrapJd, gmt8Timestamp } from './lib/union-api.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const IN_PERFUMES = path.join(ROOT, 'data/perfumes.json');
@@ -98,12 +98,21 @@ async function fromSourceFile(perfumes) {
 }
 
 /* ---------- 模式 ①：联盟开放平台 API ----------
-   京东联盟的转链接口要 materialId（京东 SKU），而 perfumes.json
-   里没有任何 SKU，只有 Scento 的溯源页。所以 --api 仍需要你先提供
-   id → skuId 的映射 —— 知道香水叫什么，不等于知道它在京东的商品编号。
+   **v30 重写。** 旧实现（v29）有三处硬伤，全部在 2026-11-03 修掉：
 
-   淘宝客的转链接口同理需要 itemId。两家的共同瓶颈都不是接口难度，
-   是**数据缺口**。 */
+   ① 签名规则是错的。旧代码按 `md5(secret + "appKey" + key + "materialId" + ...)`
+      手拼三项，那不是 JOS 的协议。真实规则是**对全部系统参数按 key 字典序
+      拼串**（含 360buy_param_json 这一大串），前后各拼一次 secret。旧写法在
+      没有凭证的年代从未被执行过，所以没暴露。
+   ② 调用方式是错的。旧代码把 appKey / materialId / timestamp 直接摆在 query
+      上；JOS 要求业务参数整体放进 `360buy_param_json` 这个表单字段。
+   ③ 拿不到 skuId。旧代码要求 IN_SOURCE 里有 `skus` 字段，但那个字段没人写过。
+      现在改成读 `data/product-skus.json` —— 由 fetch-products.mjs 用关键词
+      搜索接口自动生成（这一步也是"只能手工复制短链"那个结论被推翻的地方）。
+
+   签名逻辑统一走 scripts/lib/union-api.mjs，那份有 31 项固定向量测试钉着。 */
+const IN_SKUS = path.join(ROOT, 'data/product-skus.json');
+
 async function fromApi(perfumes) {
   const key = process.env.JD_UNION_KEY;
   const secret = process.env.JD_UNION_SECRET;
@@ -112,38 +121,67 @@ async function fromApi(perfumes) {
     console.error('  凭证只从环境变量读，不会写进任何文件。');
     return null;
   }
-  if (!existsSync(IN_SOURCE)) {
-    console.error(`--api 模式仍需 ${path.relative(ROOT, IN_SOURCE)} 提供 id → skuId 映射`);
-    console.error('  原因：perfumes.json 里没有京东 SKU，只有 Scento 溯源页。');
+  /* skuId 表可能来自两处：新的 product-skus.json（自动生成），
+     或旧 IN_SOURCE 里的 skus 字段（手工）。后者保留兼容，不删。 */
+  let skuMap = {};
+  if (existsSync(IN_SKUS)) {
+    const s = JSON.parse(await readFile(IN_SKUS, 'utf8'));
+    skuMap = { ...(s.jd || {}) };
+  }
+  if (existsSync(IN_SOURCE)) {
+    const rawSrc = JSON.parse(await readFile(IN_SOURCE, 'utf8'));
+    skuMap = { ...(rawSrc.skus || {}), ...skuMap };
+  }
+  const skuCount = Object.keys(skuMap).length;
+  if (!skuCount) {
+    console.error('--api 模式需要一个 id → skuId 的表，但两处都没有：');
+    console.error(`  ${path.relative(ROOT, IN_SKUS)}（推荐，自动生成）`);
+    console.error(`  ${path.relative(ROOT, IN_SOURCE)} 里的 skus 字段（手工）`);
+    console.error('  生成方式：node scripts/fetch-products.mjs --jd');
+    console.error('  原因：转链接口要 materialId（京东 SKU），而 perfumes.json 里只有 Scento 溯源页。');
     return null;
   }
-  const rawSrc = JSON.parse(await readFile(IN_SOURCE, 'utf8'));
-  const skuMap = rawSrc.skus || {};
-  const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+  const pid = process.env.JD_UNION_PID || '';
   const jd = {};
   const failed = [];
 
   for (const p of perfumes) {
     const sku = skuMap[p.id];
     if (!sku) continue;
-    const materialId = String(sku);
-    /* 签名规则（京东联盟开放平台文档）：
-       md5(secret + "appKey" + key + "materialId" + materialId + "timestamp" + ts + secret) */
-    const sign = createHash('md5')
-      .update(secret + 'appKey' + key + 'materialId' + materialId + 'timestamp' + timestamp + secret)
-      .digest('hex');
-    const qs = new URLSearchParams({
-      appKey: key, materialId, timestamp, sign,
-      /* 站外推广必须声明渠道，否则联盟后台看不到来源、也没法结算 */
-      positionId: process.env.JD_UNION_PID || '',
-    });
     try {
-      const r = await fetch('https://api.jd.com/routerjson?' + qs, { method: 'GET' });
+      const params = buildJdParams({
+        appKey: key, secret,
+        method: 'jd.union.open.promotion.common.get',
+        timestamp: gmt8Timestamp(),
+        bizParams: {
+          promotionCodeReq: {
+            materialId: String(sku),
+            siteId: process.env.JD_UNION_SITE_ID || '',
+            /* 站外推广必须声明渠道，否则联盟后台看不到来源、也没法结算。
+               空值会被签名一起算进去 —— 这里显式给空串，与"不传"不同，
+               京东对两者都接受，但空串能让下一次排查看清到底缺哪一项。 */
+            positionId: pid,
+          },
+        },
+      });
+      const body = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) body.append(k, String(v));
+      const r = await fetch('https://api.jd.com/routerjson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8' },
+        body,
+      });
       const j = await r.json();
-      const url = safeUrl(j?.jd_union_open_promotion_common_get_responce?.result
-        || j?.data?.clickURL || '');
-      if (url) jd[p.id] = url; else failed.push([p.id, JSON.stringify(j).slice(0, 120)]);
-    } catch (e) { failed.push([p.id, e.message]); }
+      const inner = unwrapJd(j, 'jd.union.open.promotion.common.get');
+      const url = safeUrl(inner?.data?.clickURL || '');
+      if (url) jd[p.id] = url;
+      else failed.push([p.id, JSON.stringify(inner).slice(0, 160)]);
+    } catch (e) {
+      failed.push([p.id, e.message]);
+    }
+    /* 京东限流比淘宝宽，但批量跑也不该打满 —— 350ms 间隔，1388 瓶约 8 分钟 */
+    await new Promise((r2) => setTimeout(r2, 350));
   }
   return { jd, taobao: {}, rejected: [], unknown: [], failed };
 }
@@ -163,7 +201,17 @@ async function fromApi(perfumes) {
     total += n;
   }
   if (!total) {
+    /* 一条都没成时，**先把失败原因打出来再退出**。
+       否则用真凭证跑的时候只会看到"一条都没生成"，无从判断是签名错、
+       权限没开、还是 SKU 表里的编号不对 —— 这三种情况的处理方式完全不同。 */
     console.error('一条链接都没生成 —— 不写文件（写了也是个空表，不如没有）。');
+    if (res.failed?.length) {
+      console.error(`\n接口失败 ${res.failed.length} 条，前 5 条：`);
+      for (const [id, msg] of res.failed.slice(0, 5)) console.error(`  ${id}: ${msg}`);
+      const first = String(res.failed[0]?.[1] || '');
+      if (/sign/i.test(first)) console.error('\n提示：签名错。先跑 node scripts/test-union-api.mjs，31 项必须全绿。');
+      else if (/key|appkey|权限|permission/i.test(first)) console.error('\n提示：凭证或权限问题 —— 去联盟后台核对 appKey/secret 与接口权限组。');
+    }
     process.exit(1);
   }
 

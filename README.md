@@ -165,15 +165,21 @@ scent-picker/
 ├── scripts/
 │   ├── build-data.js       数据管线（纯本地，不联网）
 │   ├── lib/qa-checks.mjs   ← 体检断言（供正向+负向测试共用）
+│   ├── lib/union-api.mjs   ← 联盟 API 签名/解包/匹配（无副作用，31 项测试钉住）
 │   ├── test-scoring.mjs    106 项引擎测试
-│   ├── test-render.mjs     207 项 DOM 渲染流程测试（含圆盘几何、语义、扇形本体可点、两栏互斥、盘心标本、圆弧约束、每类标识不撞形、一圈等分弧段、两层切换的进出场、返回路径与切换语义、无句末句号）
+│   ├── test-render.mjs     239 项 DOM 渲染流程测试（含圆盘几何、语义、扇形本体可点、两栏互斥、盘心标本、圆弧约束、每类标识不撞形、一圈等分弧段、两层切换的进出场、返回路径与切换语义、无句末句号）
 │   ├── test-contrast.mjs   42 项无障碍守门（文字对比度/控件边界/字号/焦点环/触控尺寸）
+│   ├── test-union-api.mjs  31 项联盟 API 测试（签名固定向量、响应解包、匹配器）
+│   ├── fetch-products.mjs  联盟 API 搜索：香水名 → skuId/itemId → 候选表
+│   ├── merge-product-candidates.mjs  候选表 → 源表 + SKU 表
+│   ├── gen-affiliate-links.mjs       源表 / 联盟 API → 公开链接表
 │   ├── probe-matchpct.mjs  匹配度分母的复现探针（D55，可复跑）
 │   ├── qa-data.mjs         数据体检
 │   └── test-compliance.mjs 10 项负向测试（证明断言有效）
 ├── docs/
-│   ├── DECISIONS.md        55 条已确认决策及其理由
+│   ├── DECISIONS.md        57 条已确认决策及其理由
 │   ├── AFFILIATE-SETUP.md  佣金三档的现状与注册指引（含你需要准备的材料）
+│   ├── AFFILIATE-API.md    联盟开放平台链路：签名四个坑、匹配阈值、凭证清单
 │   ├── TODO-REMAINING.md   未完成项总清单（按优先级）
 │   ├── COMPLIANCE.md       数据许可与合规边界（含证据链）
 │   └── DEPLOY.md           GitHub Pages 部署步骤

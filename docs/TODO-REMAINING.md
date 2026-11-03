@@ -48,16 +48,18 @@
 | 阻塞点 | **实测：联盟注册要实名 + 审核，不是填表就出 PID。** 我不能替你注册，也不该编一个看起来像真的地址 |
 | 优先级 | **P1**（`search` 档已经能用，所以不再是 P0） |
 | 前置判断 | 你打算用哪家（京东门槛最低）／有没有公开域名／是否长期维护。三个答案改变具体做法，见 `AFFILIATE-SETUP.md` 第二节 |
+| **2026-11-03 更新** | 商品编号那一半已不阻塞：三条脚本（`fetch-products` → `merge-product-candidates` → `gen-affiliate-links --api`）能自动完成。仍然只差**账号**，见 `docs/AFFILIATE-API.md` 第五节 |
 
 ### K2 · 商品页地址（每瓶一条）
 
 | 项 | 内容 |
 |---|---|
 | 位置 | `data/affiliate-links.json`（新建） |
-| 当前状态 | 不存在。`data/perfumes.json` 每瓶只有 `sourceUrl`（Scento 溯源页，不是商品页） |
-| 还缺什么 | `id → 商品页 URL` 的映射。**知道香水叫什么 ≠ 知道它在京东的 SKU**，这一层只能靠人工或后台导出 |
-| 工具已就位 | `scripts/gen-affiliate-links.mjs`（两模式：本地映射 / 开放平台 API），缺材料时友好退出、不写空文件，凭证只从环境变量读 |
-| 优先级 | **P2**，与 K1 同批 |
+| 当前状态 | 已存在，`coverage` 为 `jd 0/1388 · taobao 4/1388`（4 条是手工采集的） |
+| 还缺什么 | 真实覆盖率。工具链已完整，缺的是联盟凭证 |
+| 工具已就位 | `scripts/fetch-products.mjs`（关键词搜索 + 匹配，31 项测试）、`scripts/merge-product-candidates.mjs`（候选转源表）、`scripts/gen-affiliate-links.mjs`（两模式）。缺材料时三者都友好退出、不写空文件，凭证只从环境变量读 |
+| 优先级 | **P1**（原 P2，因阻塞从"缺数据"降级为"缺账号"而上调） |
+| 说明 | 覆盖率不会到 1388 —— 长尾品牌中文标题稀少，命中率注定低。这是对现实的记录，不是待修缺陷 |
 
 ### K3 · 价格展示
 

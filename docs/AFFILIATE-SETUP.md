@@ -152,11 +152,28 @@ $ node scripts/gen-affiliate-links.mjs --api
   凭证只从环境变量读，不会写进任何文件。
 ```
 
-**`--api` 模式的一个硬缺口**（写在这里免得你白折腾）：
-京东联盟的转链接口要 `materialId`（京东 SKU），而 `data/perfumes.json`
-里没有任何 SKU，只有 Scento 的溯源页。所以 `--api` 仍需要你先提供
-`id → skuId` 的映射。**知道香水叫什么，不等于知道它在京东的商品编号** ——
-这一层只能靠人工或后台导出补。
+**`--api` 模式的硬缺口：已补上（2026-11-03 / D57）**
+
+原先这里写的是「`--api` 仍需要你先提供 `id → skuId` 的映射，只能靠人工补」。
+那句话在**手工路径**下成立，在 **API 路径**下不成立：两家的联盟后台都有关键词
+搜索接口，能按「品牌 + 香名」自动召回商品、取出 skuId / itemId。
+
+| 平台 | 搜索 | 转链 |
+|---|---|---|
+| 京东 | `jd.union.open.goods.query` | `jd.union.open.promotion.common.get` |
+| 淘宝 | `taobao.tbk.dg.material.optional`（一步返回推广链） | 同左 |
+
+跑法：
+
+```bash
+node scripts/fetch-products.mjs --jd --limit 20      # 先小批量验证
+node scripts/merge-product-candidates.mjs            # 候选转源表
+node scripts/gen-affiliate-links.mjs --api           # 生成公开表
+```
+
+完整说明（凭证从哪拿、签名的四个坑、匹配阈值、未核实项）见
+**`docs/AFFILIATE-API.md`**。同时这条也否掉了上文「只能一瓶一瓶拿链接」的
+结论 —— 走签名接口**根本不打开浏览器**，验证码那一环不存在了。
 
 ---
 

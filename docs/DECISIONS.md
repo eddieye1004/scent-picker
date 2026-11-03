@@ -2264,3 +2264,103 @@ C 与 F 的数值"合理"但方向错（只点一个香型就 99%）。**
 
 失败时写 `$GITHUB_STEP_SUMMARY` 诊断（含本地复现命令）并给失败通知。
 详细机制与手动操作见 `docs/DATA-UPDATE.md`。
+
+---
+
+## D57 · v30：佣金链路改走联盟开放平台 API ——「只能手工复制短链」这个结论被推翻
+
+### 一、推翻的到底是什么
+
+D54 与 `docs/AFFILIATE-SETUP.md` 都写过：
+
+> 京东给的是每瓶一条独立短链，不是可以套模板的参数化链接。所以「1228 瓶全部自动接上佣金」做不到 —— 只能一瓶一瓶拿链接。
+
+这句话在**手工路径**下成立，在 **API 路径**下不成立。两家的联盟后台都提供
+关键词搜索接口，能按「品牌 + 香名」召回商品，再换推广链接：
+
+| 平台 | 搜索 | 转链 | 步数 |
+|---|---|---|---|
+| 京东 | `jd.union.open.goods.query`（keyword → skuId） | `jd.union.open.promotion.common.get`（materialId → clickURL） | 2 |
+| 淘宝 | `taobao.tbk.dg.material.optional`（q + adzone_id → click_url） | 同一个接口就返回了 | 1 |
+
+于是「人工过验证码」这件事从链路上消失了 —— 不是因为解决了验证码，
+而是因为**根本不需要打开浏览器**。
+
+### 二、顺带否掉的一个方案：Scrapling
+
+用户问「能不能用 Scrapling 过验证码」。核查结果：不能。
+阿里妈妈用的是自研 `baxia` 风控，而 Scrapling 的 `solve_cloudflare`
+只覆盖 Cloudflare 的 Turnstile / Interstitial 三类挑战。更关键的是，
+绕过风控的代价落在**用户自己的联盟账号**上（后台有清退规则）。
+
+判据留下：这类「HTTP 200 但正文只剩一个字符」的页面是登录墙，不是站点失效。
+`pub.alimama.com` 未登录返回 200 / 1951 字节 / 正文 `X`，与 D54 记录一致。
+
+### 三、旧 `--api` 分支的三处硬伤（一次全修）
+
+`scripts/gen-affiliate-links.mjs` 的 `--api` 分支写于 v29，从未被执行过
+（当时没有凭证），所以三个错误一直躺着：
+
+| # | 旧写法 | 事实 |
+|---|---|---|
+| ① | 手拼 `md5(secret + "appKey" + key + "materialId" + id + "timestamp" + ts + secret)` | JOS 的签名是对**全部系统参数**按 key 字典序拼串，业务参数整体 JSON 进 `360buy_param_json` |
+| ② | appKey / materialId / timestamp 直接摆在 query 上 | 业务参数必须在 `360buy_param_json` 表单字段里，且请求是 POST 表单 |
+| ③ | 从 `IN_SOURCE.skus` 读 SKU | 那个字段从来没人写过；改为读 `data/product-skus.json`（自动生成） |
+
+**为什么这次能发现**：拿假凭证跑了一次真实网关，返回的是 `code 21`。
+**但注意：`code 21` 不能证明签名正确。** 补测（同一分钟，同一网关）：
+把 sign 改成 32 个 0、把 timestamp 改成 2020 年，返回的**同样是 `code 21`**，
+连 `en_desc` 一字不差。也就是说京东是**先校验 app_key、后校验签名**，
+app_key 不合法时根本走不到验签那一步。
+
+所以这条证据的边界必须写清：它能证明的是 **请求格式（POST 表单 +
+`360buy_param_json` + 系统参数）被网关接受并进入了解析流程**，
+**不能**证明签名正确。签名正确性只由 `scripts/test-union-api.mjs` 的固定向量保证。
+
+淘宝那一侧的证据强一些：假凭证返回 `29: Invalid app Key`，与签名错的
+`40002 / isv.invalid-signature` 是不同的码 —— 说明淘宝会分别报这两件事，
+但仍不能反推"签名对"。
+
+### 四、签名逻辑抽成 `scripts/lib/union-api.mjs` + 32 项固定向量
+
+理由：签名写错**不会有任何提示**，只回一句「签名错误」，而每次错误都真花配额。
+又因为上面那条"京东先验 key 后验签"，**本地固定向量是唯一能自证签名正确的手段**。
+抽成纯函数后用固定向量钉住（`scripts/test-union-api.mjs`，32 项）：
+
+- S1/S2 两家各一条固定向量（输入确定，sign 必须逐字节相同）
+- S3 空值剔除**真的影响签名**（证明 S2 不是侥幸通过）
+- S4 顺序无关 / 值敏感 / 密钥敏感
+- S5 值序列化与官方 SDK 的 `GetString` 对齐（数字、布尔、对象）
+- S6 时间戳显式按 UTC+8 算（本项目要在 GitHub Actions 跑，不能依赖环境 `TZ`）
+- U1–U5 响应解包：京东 `responce`（官方拼错）、`result` 与 `queryResult` 两种键；
+  淘宝要去掉 `taobao.` 前缀、三层嵌套 `xxx_response → result_list → map_data`
+- U3b 京东错误描述里的 GBK 乱码必须清洗（见下）
+- M1–M9 匹配器：拒收优先、别名可救、覆盖率门槛、并列取短标题
+
+**顺带修掉的一个显示 bug**：京东网关声明 `Content-Type: text/plain;charset=utf-8`，
+但 `zh_desc` 里混着 GBK 字节（`key=testkey ?????\xd0\xa7（解决方案参考…`），
+解出来是乱码。改成**优先用 `en_desc`**（纯 ASCII，永远可读），
+中文只作附注并把替换字符洗成 `?`。这条对排查很重要 —— 之前的乱码
+会让人以为是自己编码写错了，实际是服务端的问题。
+
+### 五、匹配器：唯一需要判断的地方
+
+`scoreMatch()` 两条判据都要过：**品牌命中** + **香名覆盖率 ≥ 0.6**。
+不达标跳过，不降级、不猜。
+
+写法上有一个被测试逼出来的细节：品牌命中要**分开判** —— 英文按整词
+（避免 `Dior` 命中 `Diorama`），中文按子串（中文没空格，单字切分后
+「迪奥」会变成「迪」「奥」两个 token，整词判据永远失败）。M3 用例第一次跑就是红的。
+
+`data/brand-aliases.json` 里的中文名由模型整理，**未经逐条核实**。
+所以设计成「错了只会少一条，不会错一条」：删掉别名 → 该品牌被拒。
+
+### 六、`coverage` 低不是 bug
+
+分母 1388 是香水库总量。长尾品牌（`Ajmal`、`Afnan`）中文标题稀少，
+覆盖率注定低。这一栏是对现实的忠实记录，不是待修的缺陷 ——
+与 D54 定下的「宁可退回 search 档，也不给假承诺」是同一条原则。
+
+详见 `docs/AFFILIATE-API.md`。新增脚本三个：
+`fetch-products.mjs`（搜索+匹配）、`merge-product-candidates.mjs`（候选转源表）、
+`test-union-api.mjs`（31 项）。

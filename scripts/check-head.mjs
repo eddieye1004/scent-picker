@@ -28,6 +28,7 @@ const SUITES = [
   ['test-contrast.mjs', 42],
   ['test-scoring.mjs', 106],
   ['test-compliance.mjs', 10],
+  ['test-union-api.mjs', 32],
 ];
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'head-check-'));
