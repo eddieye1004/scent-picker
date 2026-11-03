@@ -28,7 +28,7 @@
  *   --dry         只打印第一瓶的请求参数与返回，不写文件
  *   --force       忽略缓存，重新请求
  */
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
@@ -40,7 +40,13 @@ import {
 const ROOT = path.resolve(import.meta.dirname, '..');
 const IN_PERFUMES = path.join(ROOT, 'data/perfumes.json');
 const OUT_CAND = path.join(ROOT, 'data/products.candidates.json');
+/* 缓存目录必须显式建：`data/.cache/` 在 .gitignore 里，干净 clone 后不存在。
+   第一次跑就崩在最后一行 `ENOENT: open .../data/.cache/union-api.json` ——
+   崩溃点在写盘那一步，前面几十次接口调用全部白做，而报错文案指向
+   "文件打不开"，看不出真实原因（目录不存在）。目录不存在是可预期状态，
+   不该让整个进程失败。 */
 const CACHE = path.join(ROOT, 'data/.cache/union-api.json');
+await mkdir(path.dirname(CACHE), { recursive: true });
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
