@@ -28,6 +28,11 @@ const OUT_SOURCE = path.join(ROOT, 'data/affiliate-links.source.json');
 
 const AFF_HOSTS = ['m.tb.cn', 's.click.taobao.com', 'uland.taobao.com'];
 
+/* 标题核对用的归一：去掉所有非字母数字，压成单个空格。
+   淘宝标题里品牌/香名的写法五花八门（大小写、斜杠、全角括号），
+   逐字比对会全部判不等，只能比"词是否出现过"。 */
+const normText = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
 function isAffiliateUrl(raw) {
   try {
     const u = new URL(String(raw).trim());
@@ -44,6 +49,32 @@ function pickUrl(rec) {
   const cands = [rec.short, rec.long].filter(Boolean);
   for (const c of cands) if (isAffiliateUrl(c)) return c.trim();
   return null;
+}
+
+/* 标题核对：采集时只要求"品牌命中"，同品牌下任意一张卡都算通过，
+   于是出现过错配 —— armaf-club-de-nuit-milestone 被配到了
+   「TF黑之黑平替…夜店狂欢女士香水」，armaf-odyssey-aoud 被配到了
+   「Club de Nuit」。这类错误比"没采到"更严重：链接能用、能点、能下单，
+   但用户买回的是另一瓶。
+
+   判据：把香名去掉品牌名、再去掉系列前缀（Club de Nuit），
+   剩下的**独特词必须全部出现在商品标题里**。独特词为空
+   （比如整瓶就叫系列名）时退化为"标题包含完整香名"。
+
+   为什么是"全部命中"而不是"命中一半"：
+   Odyssey / Milestone / Iconic 这类词本身就是这一瓶的身份，
+   命中一半说明它压根是同一系列的另一个成员 —— 正是要挡的情况。 */
+function titleMatches(rec) {
+  const t = normText(rec.picked);
+  if (!t) return false;                       // 没有标题就没法核对，宁可不要
+  const name = normText(rec.name);
+  const brand = normText(rec.brand);
+  let rest = name.replace(brand, ' ').replace(/\s+/g, ' ').trim();
+  const SERIES = 'club de nuit';
+  if (rest.startsWith(SERIES)) rest = rest.slice(SERIES.length).trim();
+  const words = rest.split(' ').filter((w) => w.length > 2);
+  if (!words.length) return t.includes(rest) || t.includes(name);
+  return words.every((w) => t.includes(w));
 }
 
 function collectFiles(args) {
@@ -74,6 +105,7 @@ function main() {
   const taobao = {};
   const rejected = [];
   const unknown = [];
+  const mismatch = [];
   let total = 0;
   const seen = new Map();
 
@@ -89,6 +121,7 @@ function main() {
       if (!known.has(rec.id)) { unknown.push(`${rec.id} (${rec.brand || '?'} ${rec.name || '?'})`); continue; }
       const url = pickUrl(rec);
       if (!url) { rejected.push([rec.id, rec.short || rec.long || '(无链接)']); continue; }
+      if (!titleMatches(rec)) { mismatch.push(`${rec.id} ← 「${String(rec.picked || '').slice(0, 34)}」`); continue; }
       if (seen.has(rec.id)) seen.get(rec.id).push(path.basename(f)); else seen.set(rec.id, [path.basename(f)]);
       taobao[rec.id] = url;
     }
@@ -107,6 +140,11 @@ function main() {
   if (rejected.length) {
     console.log(`  链接不合格 ${rejected.length} 条（非联盟域名 / 空）：`);
     for (const [id, u] of rejected.slice(0, 8)) console.log(`    · ${id} → ${String(u).slice(0, 60)}`);
+  }
+  if (mismatch.length) {
+    console.log(`  标题对不上 ${mismatch.length} 条（抓到的是同品牌别的款，已拒收）：`);
+    for (const m of mismatch.slice(0, 8)) console.log('    · ' + m);
+    if (mismatch.length > 8) console.log(`    … 另有 ${mismatch.length - 8} 条`);
   }
 
   const coverage = `${Object.keys(taobao).length}/${list.length}`;
