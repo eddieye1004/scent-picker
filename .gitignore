@@ -13,6 +13,12 @@ npm-debug.log*
 tmp/
 *.tmp
 
+# 联盟 API 的中间产物（D57）
+# products.candidates.json 是 fetch-products.mjs 的原始召回结果，含未采用的候选，
+# 体积随香水库增长、且随时可重跑生成 —— 不入库。
+# 但 data/product-skus.json **要入库**：它是 id → skuId 的映射，重跑要花配额。
+data/products.candidates.json
+
 # 编辑器
 .vscode/
 .idea/
