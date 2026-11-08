@@ -234,6 +234,43 @@ const m18b = scoreMatch({ brand: 'Viktor&Rolf', name: 'Flowerbomb' },
 check('M18 切词修复后睫毛膏与小样仍被拒',
   !m18a.accept && !m18b.accept, JSON.stringify([m18a.reason, m18b.reason]));
 
+/* M19 性别轴：`man`/`woman` 在 STOP 表里，两者 nameTokens 完全相同，
+   所以「Intense Woman」会以 cover=1.00 通过男香标题的判据 ——
+   这不是漏一个链接，是把男香挂到女香上。2026-11-08 实测于 Armaf 批次。 */
+const m19a = scoreMatch({ brand: 'Armaf', name: 'Club de Nuit Intense Woman' },
+  'Armaf阿玛芙Club de Nuit Intense Man夜店狂欢男士香水持久淡香', {}, '香水');
+const m19b = scoreMatch({ brand: 'Armaf', name: 'Club de Nuit Intense Man' },
+  'Armaf阿玛芙Club de Nuit Intense Man夜店狂欢男士香水持久淡香', {}, '香水');
+check('M19 女香不得匹配男香标题（同名不同性别）',
+  !m19a.accept && m19a.reason.includes('性别') && m19b.accept,
+  JSON.stringify([m19a.reason, m19b.accept]));
+
+/* M20 「男女」同款不算冲突：很多标题写「男女香水」表示中性。
+   要求两边都明确且相反才拒，否则会把中性款全判死。
+   注意标题必须含英文香名，否则会先死在覆盖率上，测不到性别这条。 */
+const m20 = scoreMatch({ brand: 'Tom Ford', name: 'Black Orchid' },
+  'Tom Ford汤姆福特 Black Orchid 黑兰花中性香水男女通用', {}, '香水');
+check('M20 标题写「男女通用」时不构成性别冲突',
+  m20.accept && m20.nameCover === 1, JSON.stringify(m20));
+
+/* M21 标题没写性别时不构成矛盾（不认识就放行）。 */
+const m21 = scoreMatch({ brand: 'Creed', name: 'Aventus' },
+  'CREED AVENTUS 2.5OZ EDP简装恺芮得 拿破仑正品', {}, '香水');
+check('M21 标题没写性别时放行', m21.accept, JSON.stringify(m21));
+
+/* M22 蜡烛：平台类目写着「香水」也必须靠标题拦下。
+   2026-11-08 在已入库的 625 条里扫出两例，两例类目都是
+   「彩妆/香水/美妆工具/香水」，所以「类目优先」的规则救不了它们：
+     tiziana-terenzi-kirke  …Kirke香薰蜡燭   （繁体「燭」不在词表里）
+     tom-ford-vanilla-sex   …香氛蜡烛200g    （「香氛蜡烛」≠「香薰蜡烛」） */
+const m22a = scoreMatch({ brand: 'Tiziana Terenzi', name: 'Kirke' },
+  '蒂齐纳泰伦斯 Tiziana Terenzi罗马之南 Kirke香薰蜡燭', {}, '彩妆/香水/美妆工具/香水');
+const m22b = scoreMatch({ brand: 'Tom Ford', name: 'Vanilla Sex' },
+  '欧洲直邮TOM FORD汤姆福特香氛蜡烛200g #VANILLA-SEX-禁忌正品', {}, '彩妆/香水/美妆工具/香水');
+check('M22 蜡烛类目写香水也拦下（含繁体与香氛蜡烛）',
+  !m22a.accept && !m22b.accept && m22a.reason.includes('蜡烛'),
+  JSON.stringify([m22a.reason, m22b.reason]));
+
 /* ---------- Q 组：淘宝查询词变体 ----------
    这一组守的是 2026-11-08 那条反直觉的实测结论：**加品牌名会把结果打成 0**。
    写成测试是因为它太容易被"顺手优化"回 `${brand} ${name}` —— 那是京东的写法，

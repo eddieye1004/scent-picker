@@ -191,6 +191,39 @@ if (skippedNoUrl) console.log(`  跳过 ${skippedNoUrl} 条：没有 click_url`)
 if (rejected.length) console.log(`  拒绝 ${rejected.length} 条`);
 if (unknown.length) console.log(`  数据里没有的 id ${unknown.length} 条：${unknown.slice(0, 5).join(', ')}`);
 
+/* 剔除：判据收紧后，旧表里那些「本轮被判死」的条目必须一起走。
+   原来只做并集，于是把 cover 阈值从 0.6 收到更严、或新增品类/性别判据之后，
+   上一轮写进去的错配会永久留在表里 —— 实测踩到：香薰蜡烛两例
+   （tiziana-terenzi-kirke / tom-ford-vanilla-sex）判据已经拒了，
+   表里仍有链接，页面上照常显示「去淘宝买这一瓶」。
+
+   两个来源都要看：
+     1. 本脚本循环里拒的（没 click_url / 域名不对 / 没图）→ rejected
+     2. **fetch 阶段就判死的** → data/products.candidates.json 的 rejected 区
+   只看第 1 个会漏掉全部「香名覆盖率不够」「品类不符」这类，那正是要清的。
+   只删这两处明确出现的 id；手工采集的（不在候选表里）一律不动。 */
+let candRejectedIds = [];
+try {
+  const cj = JSON.parse(await readFile(path.join(ROOT, 'data/products.candidates.json'), 'utf8'));
+  candRejectedIds = (cj.rejected || []).map((r) => r.id).filter(Boolean);
+} catch { /* 没有候选表就跳过 */ }
+
+const deadTaobao = new Set([
+  ...rejected.filter(([k]) => k.startsWith('taobao:')).map(([k]) => k.slice('taobao:'.length)),
+  ...candRejectedIds,
+]);
+/* 但 accepted 里的 id 不许被删：本轮判据放行的就是它。
+   同一 id 理论上不会两处都出现，这里仍显式排除，免得哪天判据改动造成假删。 */
+for (const row of accepted) deadTaobao.delete(row.id);
+
+let pruned = 0;
+for (const id of deadTaobao) {
+  if (source.taobao[id]) { delete source.taobao[id]; pruned++; }
+  if (skus.taobao[id]) delete skus.taobao[id];
+  if (imgs.taobao[id]) delete imgs.taobao[id];
+}
+if (pruned) console.log(`  剔除 ${pruned} 条旧链接（本轮判据已拒）`);
+
 if (DRY) {
   console.log('\n--dry：不写文件。');
   console.log('  将写 affiliate-links.source.json 的 taobao 段：', Object.keys(source.taobao).length, '条');

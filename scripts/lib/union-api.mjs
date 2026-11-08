@@ -171,6 +171,24 @@ const STOP = new Set([
   'and', 'men', 'women', 'man', 'woman', 'ml', 'spray', 'natural', 'sprüher',
 ]);
 
+/* 性别轴：男香 / 女香 / 中性。
+
+   为什么单列一条轴：`man`/`woman` 都在 STOP 表里，于是
+   「Club de Nuit Intense **Woman**」的 nameTokens 是 `club, nuit, intense`，
+   和「…Intense **Man**」完全相同。实测把女香的那瓶拿去匹配男香标题，
+   得到 `nameCover=1.00 accept=true` —— 判据会心安理得地把男香挂到女香上。
+   这不是漏掉一个链接，这是给用户一个错的商品。
+
+   所以性别不能参与覆盖率计算（会稀释其他词的权重），要单独判冲突。 */
+function genderOf(s) {
+  const t = String(s || '').toLowerCase();
+  const male = /\b(man|men|homme|males?|masculin)\b/.test(t) || /男士|男性|男款/.test(t);
+  const female = /\b(woman|women|femme|females?|feminin)\b/.test(t) || /女士|女性|女款/.test(t);
+  /* 「男女士香水」这类同时给两性的写法等于中性，不构成约束 */
+  if (/男女/.test(t)) return { male: false, female: false };
+  return { male, female };
+}
+
 /* 切词：先按非字母数字切段，再**在每个段内把中文和拉丁字母分开**。
 
    2026-11-08 修的真 bug：原版把整段判一次 `是否含中文`，含中文就逐字切开。
@@ -226,6 +244,14 @@ const NON_PERFUME_WORDS = [
   '剃须', '须后', '除臭', '止汗', '驱蚊', '空气清新',
 ];
 
+/* 蜡烛/香薰蜡燭单独一条：2026-11-08 在已入库的 625 条里扫出两例误配，
+   而且两例的**平台类目都写着「彩妆/香水/美妆工具/香水」** ——
+   靠类目放行救不了它们，必须在标题侧拦下。
+     tiziana-terenzi-kirke   …Kirke香薰蜡燭        （繁体「燭」，列表里没有）
+     tom-ford-vanilla-sex    …香氛蜡烛200g         （「香氛蜡烛」不是「香薰蜡烛」）
+   所以用正则认「蜡烛/蜡燭/蠟燭/candle」四个写法，不做整词枚举。 */
+const CANDLE_PAT = /蜡烛|蜡燭|蠟燭|candle/i;
+
 /* 小样/试用装：单价低、佣金少、点进去体验差，直接跳过。
    只认明确的小容量（1-5ml）和典型小样词，10ml 旅行装不禁。 */
 const SAMPLE_PAT = /小样|试用装|分装|试管|体验装|\b[1-5]\s*ml\b/i;
@@ -249,6 +275,7 @@ export function categoryGate(title, categoryText) {
      「香水小样」「香水沐浴露」在淘宝同样挂在香水类目下。 */
   const bad = NON_PERFUME_WORDS.find((w) => t.includes(w));
   if (bad) return { ok: false, reason: `非香水品类（命中「${bad}」）` };
+  if (CANDLE_PAT.test(t)) return { ok: false, reason: '非香水品类（蜡烛/香薰蜡燭）' };
   if (SAMPLE_PAT.test(t)) return { ok: false, reason: '小样/试用装' };
   if (cat) {
     if (cat.includes('香水')) return { ok: true, reason: '' };
@@ -286,12 +313,21 @@ export function scoreMatch(perfume, title, aliasMap = {}, categoryText) {
   const hit = nameTokens.filter((t) => titleTokens.has(t)).length;
   const nameCover = nameTokens.length ? hit / nameTokens.length : 0;
 
+  /* 性别冲突：瓶名说是女香，标题只说是男香（或反过来）→ 直接拒。
+     不认识就放行（标题没写性别时不构成矛盾），只在两边都明确且相反时拒。 */
+  const want = genderOf(perfume?.name);
+  const got = genderOf(title);
+  const genderClash =
+    (want.female && !want.male && got.male && !got.female) ||
+    (want.male && !want.female && got.female && !got.male);
+
   const brandScore = brandHit ? 0.5 : 0;
   const score = brandScore + 0.5 * nameCover;
-  const accept = brandHit && nameCover >= 0.6;
+  const accept = brandHit && nameCover >= 0.6 && !genderClash;
 
   let reason = '';
   if (!brandHit) reason = '品牌名未出现在标题里';
+  else if (genderClash) reason = '性别不符（瓶名与标题的男/女不一致）';
   else if (!accept) reason = `香名覆盖率 ${(nameCover * 100).toFixed(0)}% < 60%`;
 
   return { score: Number(score.toFixed(4)), brandHit, nameCover: Number(nameCover.toFixed(4)), accept, reason };
