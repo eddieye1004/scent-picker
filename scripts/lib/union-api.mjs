@@ -89,7 +89,10 @@ export function unwrapJd(body, method) {
 
 /* ============ 淘宝客 ============ */
 
-export const TAOBAO_GATEWAY = 'https://gw.api.taobao.com/router/rest';
+/* 2026-11-08 换成 eco 网关：`gw.api.taobao.com` 与 `eco.taobao.com` 实测都能通，
+   但 eco 是本次全部覆盖率实验跑的那一个（360 瓶 × 最多 4 变体），
+   换回 gw 等于让实验数据与上线链路不是同一条，出问题不好对照。 */
+export const TAOBAO_GATEWAY = 'https://eco.taobao.com/router/rest';
 
 /* sign = MD5( secret + Σ(key + value)按 key 字典序 + secret )，转大写。
    与京东同构，但有两条淘宝独有的硬约束，写错只回 "invalid signature"：
@@ -230,21 +233,36 @@ const SAMPLE_PAT = /小样|试用装|分装|试管|体验装|\b[1-5]\s*ml\b/i;
 /**
  * 判断标题所属品类是否合格。返回 { ok, reason }。
  * 这是 scoreMatch 的前置闸门，单独导出是为了能写用例钉住。
+ *
+ * `categoryText` 是平台给的类目路径（淘宝的 `level_one_category_name/category_name`）。
+ * 传了它就以它为准，不看标题 —— 2026-11-08 实测的理由：
+ *   · 真香水一律落在 `彩妆/香水/美妆工具/香水`
+ *   · 只靠标题正则会误杀「美国直邮Legend Spirit正品万宝龙」这类
+ *     标题只写英文名的正装，也会把「Dior Diorissimo 发夹」「ysl MANIFESTO 眼镜」
+ *     这种同名非香水放进来（标题里恰好有"香水"两字就过了）
+ * 京东不返回类目路径，那条链路只能回落到标题判据。
  */
-export function categoryGate(title) {
+export function categoryGate(title, categoryText) {
   const t = String(title || '').toLowerCase();
+  const cat = String(categoryText || '');
+  /* 反向词与小样两条**先判**，且类目也救不了它们：
+     「香水小样」「香水沐浴露」在淘宝同样挂在香水类目下。 */
   const bad = NON_PERFUME_WORDS.find((w) => t.includes(w));
   if (bad) return { ok: false, reason: `非香水品类（命中「${bad}」）` };
   if (SAMPLE_PAT.test(t)) return { ok: false, reason: '小样/试用装' };
+  if (cat) {
+    if (cat.includes('香水')) return { ok: true, reason: '' };
+    return { ok: false, reason: `类目不是香水（${cat}）` };
+  }
   if (!PERFUME_WORDS.some((w) => t.includes(w))) return { ok: false, reason: '标题无香水品类词' };
   return { ok: true, reason: '' };
 }
 
-export function scoreMatch(perfume, title, aliasMap = {}) {
+export function scoreMatch(perfume, title, aliasMap = {}, categoryText) {
   const titleLower = String(title || '').toLowerCase();
   const titleTokens = new Set(normalizeTokens(title));
 
-  const gate = categoryGate(title);
+  const gate = categoryGate(title, categoryText);
   if (!gate.ok) {
     return { score: 0, brandHit: false, nameCover: 0, accept: false, reason: gate.reason };
   }
@@ -277,6 +295,36 @@ export function scoreMatch(perfume, title, aliasMap = {}) {
   else if (!accept) reason = `香名覆盖率 ${(nameCover * 100).toFixed(0)}% < 60%`;
 
   return { score: Number(score.toFixed(4)), brandHit, nameCover: Number(nameCover.toFixed(4)), accept, reason };
+}
+
+/* 淘宝物料搜索的查询词变体，按召回效果排序（360 瓶实测，2026-11-08）。
+
+   **反直觉的一条：加品牌名经常把结果打成 0。**
+     `Yves Saint Laurent Libre` → 无结果
+     `Libre`                    → 有结果
+     `Maison Francis Kurkdjian Grand Soir` → 无结果
+     `Grand Soir`                          → 有结果
+   淘宝的 q 是分词匹配，品牌全称越长越容易一个词都对不上。
+
+   变体顺序与实测命中分布（360 瓶）：
+     0 纯香名        143 次命中
+     2 中文别名+香名首词 20 次
+     1 香名首词        少量
+     3 品牌+香名首词    少量
+   合计 198/360 = 55.0%。`jo-malone` 整族、`montale`、`mancera` 在四个变体下
+   全部 0 结果 —— 那是真的没有推广计划，不是查询写法问题。 */
+export function taobaoQueryVariants(perfume, aliasMap = {}) {
+  const name = String(perfume?.name || '').trim();
+  const brand = String(perfume?.brand || '').trim();
+  // 香名首词：砍掉括号与逗号之后的部分，"Love, Don't Be Shy" → "Love"
+  const head = name.split(/[,(（]/)[0].trim();
+  const cn = (aliasMap[brand] || []).find((s) => /[\u4e00-\u9fa5]/.test(s)) || '';
+  return [
+    name,
+    head,
+    cn ? `${cn} ${head}` : '',
+    brand ? `${brand} ${head}` : '',
+  ].filter((q, i, arr) => q && arr.indexOf(q) === i);
 }
 
 /* 从一组候选里挑最好的一个。并列时取标题更短的那个 —— 更短的标题通常

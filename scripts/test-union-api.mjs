@@ -14,7 +14,7 @@ import {
   jdSign, buildJdParams, unwrapJd,
   taobaoSign, buildTaobaoParams, unwrapTaobao,
   gmt8Timestamp, jdValueString,
-  normalizeTokens, scoreMatch, pickBest, categoryGate,
+  normalizeTokens, scoreMatch, pickBest, categoryGate, taobaoQueryVariants,
 } from './lib/union-api.mjs';
 
 let pass = 0;
@@ -233,6 +233,45 @@ const m18b = scoreMatch({ brand: 'Viktor&Rolf', name: 'Flowerbomb' },
   'Viktor&Rolf维果罗夫香水小样Flowerbomb鲜花炸弹露水Q版香水7ML');
 check('M18 切词修复后睫毛膏与小样仍被拒',
   !m18a.accept && !m18b.accept, JSON.stringify([m18a.reason, m18b.reason]));
+
+/* ---------- Q 组：淘宝查询词变体 ----------
+   这一组守的是 2026-11-08 那条反直觉的实测结论：**加品牌名会把结果打成 0**。
+   写成测试是因为它太容易被"顺手优化"回 `${brand} ${name}` —— 那是京东的写法，
+   在淘宝上等于自断召回。 */
+
+/* Q1 纯香名必须排第一。换掉顺序，360 瓶的命中率会从 55% 掉到 40% 出头。 */
+const q1 = taobaoQueryVariants({ brand: 'Byredo', name: 'Gypsy Water' }, {});
+check('Q1 香名排在查询变体第一位', q1[0] === 'Gypsy Water', JSON.stringify(q1));
+
+/* Q2 香名首词：括号/逗号之后的部分要砍掉。
+   "Love, Don't Be Shy" → "Love"；带中文括号的也要认。 */
+const q2 = taobaoQueryVariants({ brand: 'Kilian Paris', name: "Love, Don't Be Shy" }, {});
+check('Q2 香名首词砍掉逗号之后的部分', q2.includes('Love'), JSON.stringify(q2));
+const q2b = taobaoQueryVariants({ brand: 'Acqua di Parma', name: 'Colonia（经典）' }, {});
+check('Q2b 香名首词认中文全角括号', q2b.includes('Colonia'), JSON.stringify(q2b));
+
+/* Q3 中文别名只认汉字那一项，拉丁别名（如 "YSL"）不能拿去拼查询词 ——
+   拿 "YSL Libre" 去搜会把中文标题全过滤掉。 */
+const q3 = taobaoQueryVariants({ brand: 'Yves Saint Laurent', name: 'Libre' },
+  { 'Yves Saint Laurent': ['圣罗兰', 'YSL'] });
+check('Q3 中文别名变体用汉字不用拉丁别名',
+  q3.includes('圣罗兰 Libre') && !q3.some((q) => q.startsWith('YSL ')), JSON.stringify(q3));
+
+/* Q4 去重：香名本身就是单个词时，第 0 项与第 1 项相同，不能出现两次
+   （重复查询是白烧一次配额）。 */
+const q4 = taobaoQueryVariants({ brand: 'Creed', name: 'Aventus' }, {});
+check('Q4 香名与首词相同时去重', q4.filter((q) => q === 'Aventus').length === 1, JSON.stringify(q4));
+
+/* Q5 变体数量上限：不能无限堆。4 个是实测调优后的上限，
+   再多也不会提高命中率，只会多烧配额。 */
+const q5 = taobaoQueryVariants({ brand: 'Creed', name: 'Aventus' },
+  { Creed: ['信仰', '恺芮得'] });
+check('Q5 变体不超过 4 个', q5.length <= 4, JSON.stringify(q5));
+
+/* Q6 品牌+香名首词作为兜底仍在列表里（少数冷门牌子只有这个写法能搜到）。 */
+const q6 = taobaoQueryVariants({ brand: 'Parfums de Marly', name: 'Layton' }, {});
+check('Q6 品牌+香名首词作为兜底存在',
+  q6.includes('Parfums de Marly Layton'), JSON.stringify(q6));
 
 /* ---------- 输出 ---------- */
 console.log('\n===== 联盟 API 测试 =====');

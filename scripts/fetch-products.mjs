@@ -33,7 +33,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
   buildJdParams, unwrapJd, JD_GATEWAY,
-  buildTaobaoParams, unwrapTaobao, TAOBAO_GATEWAY,
+  buildTaobaoParams, unwrapTaobao, TAOBAO_GATEWAY, taobaoQueryVariants,
   gmt8Timestamp, pickBest, scoreMatch,
 } from './lib/union-api.mjs';
 
@@ -47,6 +47,34 @@ const OUT_CAND = path.join(ROOT, 'data/products.candidates.json');
    不该让整个进程失败。 */
 const CACHE = path.join(ROOT, 'data/.cache/union-api.json');
 await mkdir(path.dirname(CACHE), { recursive: true });
+
+/* `.env.local` 读进 process.env —— 只补**未设置**的键，命令行显式传的优先。
+
+   为什么需要它：凭证以前的用法是 `TB_APP_KEY=xxx node scripts/...`，
+   在 PowerShell 里写 `TB_APP_KEY=xxx` 根本不是赋值语法（会当成命令跑），
+   实际得 `$env:TB_APP_KEY="xxx"`，而且只对当前窗口有效。于是凭证被
+   抄来抄去，最后散在临时脚本里 —— 这次就散在三个 probe 文件里。
+   `.env.local` 已在 .gitignore（`.gitignore:72` 的 `.env.*`），
+   是这套项目里唯一被设计成"放真凭证"的位置。
+
+   解析故意做得极简：`KEY=VALUE`、`#` 注释、去引号。不引第三方依赖
+   （本项目零依赖是硬约束），也不支持多行值 —— 凭证用不上。 */
+const ENV_LOCAL = path.join(ROOT, '.env.local');
+if (existsSync(ENV_LOCAL)) {
+  const text = await readFile(ENV_LOCAL, 'utf8');
+  for (const line of text.split(/\r?\n/)) {
+    const s = line.trim();
+    if (!s || s.startsWith('#')) continue;
+    const eq = s.indexOf('=');
+    if (eq < 1) continue;
+    const k = s.slice(0, eq).trim();
+    let v = s.slice(eq + 1).trim();
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+      v = v.slice(1, -1);
+    }
+    if (!process.env[k]) process.env[k] = v;
+  }
+}
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
@@ -194,6 +222,16 @@ function mapTaobao(keyword, node) {
       whiteImage: flat.white_image || '',
       smallImages: flat.small_images?.string || [],
       couponShareUrl: flat.coupon_share_url || '',
+      /* 类目路径。**这是比标题正则更硬的品类判据。**
+         实测（2026-11-08，四组关键词逐条 dump）：
+           · 真香水一律是 `彩妆/香水/美妆工具 > 香水`
+           · 假阳性散布在 书籍/杂志/报纸 > 文学类原版书、时装凉鞋、手机保护套/壳…
+         而「标题里有没有香水品类词」这条老判据会误杀两类：
+           · 真正装但标题只写英文名（`美国直邮Legend Spirit正品万宝龙`）
+           · 小样（标题写「试管香水」，本就该拒）
+         所以两个判据并存：有 categoryText 就用它，没有才回落到标题正则
+         （京东不返回类目路径，那条只能靠标题）。 */
+      categoryText: `${flat.level_one_category_name || ''}/${flat.category_name || ''}`,
     };
   });
   return { keyword, candidates };
@@ -203,16 +241,59 @@ async function queryTaobao(perfume) {
   const appKey = process.env.TB_APP_KEY;
   const secret = process.env.TB_APP_SECRET;
   const adzone = process.env.TB_ADZONE_ID;
-  const keyword = `${perfume.brand} ${perfume.name}`.trim();
-  const params = buildTaobaoParams({
-    appKey, secret,
-    method: TAOBAO_MATERIAL_METHOD,
-    timestamp: gmt8Timestamp(),
-    biz: { q: keyword, adzone_id: adzone, page_no: 1, page_size: 20, platform: 2 },
-  });
-  const body = await withRetry(() => postForm(TAOBAO_GATEWAY, params), `TB ${perfume.id}`);
-  const node = unwrapTaobao(body, TAOBAO_MATERIAL_METHOD);
-  return { ...mapTaobao(keyword, node), raw: node };
+
+  /* 多轮查询：按 taobaoQueryVariants 的顺序逐个试，**第一个能匹配上的就停**。
+     为什么不是一次查完再合并：每个变体都是一次真实调用（计入 QPS 配额），
+     360 瓶 × 4 变体 = 1440 次。先命中就收手，实测 360 瓶只用了
+     198 瓶走 1 轮、20 瓶走 2 轮、其余走满，比全跑 4 轮省一半配额。
+
+     为什么 q 里**不带品牌**：见 lib/union-api.mjs 的 taobaoQueryVariants 注释 ——
+     加品牌名经常直接打成「无结果」。 */
+  const variants = taobaoQueryVariants(perfume, ALIAS);
+  let lastKeyword = variants[0] || '';
+  let best = null;
+  let bestRaw = null;
+
+  for (const keyword of variants) {
+    lastKeyword = keyword;
+    const params = buildTaobaoParams({
+      appKey, secret,
+      method: TAOBAO_MATERIAL_METHOD,
+      timestamp: gmt8Timestamp(),
+      biz: { q: keyword, adzone_id: adzone, page_no: 1, page_size: 20, platform: 2 },
+    });
+    let body;
+    try {
+      body = await withRetry(() => postForm(TAOBAO_GATEWAY, params), `TB ${perfume.id}`);
+    } catch (e) {
+      /* 这一轮失败不该终止整瓶 —— 换个查询词可能就有结果 */
+      console.error(`  · taobao/${perfume.id} q="${keyword}" ${String(e.message).slice(0, 80)}`);
+      continue;
+    }
+    /* 「无结果是正常响应」不是异常：淘宝在没有匹配时返回
+       `{"error_response":{"code":15,"sub_msg":"无结果"}}`，而不是空数组。
+       unwrapTaobao 会把它当错误抛出来 —— 所以这里必须再接一层 try，
+       否则第一瓶没有结果的香水就把整个进程带走。 */
+    let node;
+    try {
+      node = unwrapTaobao(body, TAOBAO_MATERIAL_METHOD);
+    } catch (e) {
+      if (/无结果/.test(String(e.message))) continue;
+      console.error(`  · taobao/${perfume.id} q="${keyword}" ${String(e.message).slice(0, 80)}`);
+      continue;
+    }
+    if (!node) continue;
+    const mapped = mapTaobao(keyword, node);
+    const cand = pickBest(perfume, mapped.candidates, ALIAS);
+    if (cand?.accept) { best = mapped; bestRaw = node; break; }
+    /* 没达标也先留一份：所有变体都不达标时，这一份用来解释"为什么没命中" */
+    if (!best) { best = mapped; bestRaw = node; }
+  }
+
+  if (!best) {
+    return { keyword: lastKeyword, candidates: [], raw: null };
+  }
+  return { keyword: best.keyword, candidates: best.candidates, raw: bestRaw };
 }
 
 /* ---------- 主流程 ---------- */
