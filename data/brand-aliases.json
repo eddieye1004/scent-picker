@@ -10,29 +10,197 @@
     "    ② 拿不准的品牌直接删掉 —— 删掉的后果只是这瓶被拒（宁可少，不可错）。",
     "格式：{ \"英文品牌名（与 perfumes.json 的 brand 字段逐字一致）\": [\"中文名\", \"缩写\"] }"
   ],
-  "Creed": ["恺芮得", "信仰"],
-  "Acqua di Parma": ["帕尔玛之水"],
-  "Dior": ["迪奥"],
-  "Yves Saint Laurent": ["圣罗兰", "伊夫圣罗兰", "YSL"],
-  "Guerlain": ["娇兰"],
-  "Tom Ford": ["汤姆福特", "TF"],
-  "Prada": ["普拉达"],
-  "Gucci": ["古驰"],
-  "Giorgio Armani": ["乔治阿玛尼", "阿玛尼"],
-  "Carolina Herrera": ["卡罗琳娜海莱娜", "CH卡罗琳娜"],
-  "Jean Paul Gaultier": ["高缇耶", "让保罗高缇耶"],
-  "Rabanne": ["帕高", "帕科"],
-  "Maison Margiela Fragrances": ["梅森马吉拉", "马吉拉"],
-  "Byredo": ["柏芮朵", "百瑞德"],
-  "Amouage": ["爱慕"],
-  "Montale": ["蒙塔莱"],
-  "Lattafa": ["拉塔法"],
-  "Ajmal": ["阿吉马尔"],
-  "Nishane": ["尼山"],
-  "Juliette Has a Gun": ["配枪朱丽叶"],
-  "Frédéric Malle": ["馥马尔"],
-  "Trussardi": ["楚萨迪"],
-  "Afnan": ["阿夫南"],
-  "Armaf": ["阿玛芙"],
-  "Hermès": ["爱马仕"]
+  "Acqua di Parma": [
+    "帕尔玛之水",
+    "Acqua di Parma"
+  ],
+  "Afnan": [
+    "阿夫南",
+    "AFNAN"
+  ],
+  "Ajmal": [
+    "阿吉马尔",
+    "阿吉玛尔",
+    "AJMAL"
+  ],
+  "Amouage": [
+    "爱慕",
+    "AMOUAGE"
+  ],
+  "Armaf": [
+    "阿玛芙",
+    "ARMAF"
+  ],
+  "Bvlgari": [
+    "宝格丽",
+    "BVLGARI"
+  ],
+  "Byredo": [
+    "柏芮朵",
+    "百瑞德"
+  ],
+  "Carolina Herrera": [
+    "卡罗琳娜海莱娜",
+    "CH卡罗琳娜",
+    "CAROLINA HERRERA"
+  ],
+  "Clive Christian": [
+    "克莱夫基斯汀",
+    "CLIVE CHRISTIAN"
+  ],
+  "Creed": [
+    "恺芮得",
+    "信仰",
+    "CREED"
+  ],
+  "Dior": [
+    "迪奥",
+    "DIOR"
+  ],
+  "Dolce&Gabbana": [
+    "杜嘉班纳",
+    "DOLCE GABBANA",
+    "D&G"
+  ],
+  "Ex Nihilo": [
+    "伊克西尼罗",
+    "EX NIHILO"
+  ],
+  "Frédéric Malle": [
+    "馥马尔",
+    "FREDERIC MALLE"
+  ],
+  "Giorgio Armani": [
+    "乔治阿玛尼",
+    "阿玛尼",
+    "ARMANI"
+  ],
+  "Givenchy": [
+    "纪梵希",
+    "GIVENCHY"
+  ],
+  "Gucci": [
+    "古驰",
+    "GUCCI"
+  ],
+  "Guerlain": [
+    "娇兰",
+    "GUERLAIN"
+  ],
+  "Hermès": [
+    "爱马仕"
+  ],
+  "Jean Paul Gaultier": [
+    "高缇耶",
+    "让保罗高缇耶"
+  ],
+  "Jo Malone London": [
+    "祖玛珑",
+    "祖马龙",
+    "JO MALONE",
+    "JOMALONE"
+  ],
+  "Juliette Has a Gun": [
+    "配枪朱丽叶",
+    "佩枪朱丽叶",
+    "JULIETTE HAS A GUN"
+  ],
+  "Kilian Paris": [
+    "凯利安",
+    "克利安",
+    "KILIAN",
+    "By Kilian"
+  ],
+  "Lancôme": [
+    "兰蔻",
+    "LANCOME",
+    "Lancome"
+  ],
+  "Lattafa": [
+    "拉塔法"
+  ],
+  "Maison Francis Kurkdjian": [
+    "梵诗柯香",
+    "MFK",
+    "FRANCIS KURKDJIAN"
+  ],
+  "Maison Margiela Fragrances": [
+    "梅森马吉拉",
+    "马吉拉",
+    "Maison Margiela",
+    "MMM"
+  ],
+  "Mancera": [
+    "曼塞拉",
+    "MANCERA"
+  ],
+  "Marc Jacobs": [
+    "马克雅各布",
+    "MARC JACOBS"
+  ],
+  "Memo Paris": [
+    "曼莫",
+    "MEMO"
+  ],
+  "Montale": [
+    "蒙塔莱",
+    "MONTALE"
+  ],
+  "Montblanc": [
+    "万宝龙",
+    "MONTBLANC"
+  ],
+  "Nabeel": [
+    "纳比尔",
+    "NABEEL"
+  ],
+  "Nishane": [
+    "尼山",
+    "妮姗",
+    "NISHANE"
+  ],
+  "Pantheon Roma": [
+    "万神殿",
+    "PANTHEON"
+  ],
+  "Parfums de Marly": [
+    "玛丽之香",
+    "PARFUMS DE MARLY"
+  ],
+  "Prada": [
+    "普拉达",
+    "PRADA"
+  ],
+  "Rabanne": [
+    "帕高",
+    "帕科",
+    "RABANNE",
+    "Paco Rabanne"
+  ],
+  "Roja Parfums": [
+    "罗哈",
+    "ROJA"
+  ],
+  "Tiziana Terenzi": [
+    "蒂齐亚纳",
+    "TIZIANA TERENZI"
+  ],
+  "Tom Ford": [
+    "汤姆福特",
+    "TF",
+    "TOM FORD"
+  ],
+  "Trussardi": [
+    "楚萨迪",
+    "TRUSSARDI"
+  ],
+  "Valentino": [
+    "华伦天奴",
+    "VALENTINO"
+  ],
+  "Yves Saint Laurent": [
+    "圣罗兰",
+    "伊夫圣罗兰",
+    "YSL"
+  ]
 }
