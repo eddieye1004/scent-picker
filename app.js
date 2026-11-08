@@ -565,7 +565,7 @@ function noteZhOf(en) {
   return e ? e.zh : String(en);
 }
 
-/* 香材剖面标本：把该小类的代表香材画成一枚线稿。
+/* 香材剖面标本：盘心那一枚图标。
    为什么不用图片：需求明确不要"廉价 AI 图或扒来的劣质素材"。可离线、
    且保证每张质感一致的只有两条路 —— 自己画，或买一套统一授权的摄影。
    后者做不到离线，前者天然一致：同一视框、同一线宽、同一取色。
@@ -573,410 +573,16 @@ function noteZhOf(en) {
    为什么只有一枚：实测每个小类的代表香材全部落在同一个家族里
    （白花是茉莉+晚香玉，都是 floral；果味甜是桃+苹果+梨，都是 gourmand）。
    逐味画会出来一排一模一样的图标 —— 那不是示意图，是重复。
-   所以图案只编码"家族"，一枚放大；香材名交给下面那行字去说。
+   所以一枚放大；香材名交给下面那行字去说。
 
-   六种母题按家族选形，不按小类硬编码 —— 二十几张手画必然走形，
-   而且家族才是这枚图真正想表达的东西。 */
+   图形本体已全部来自 ./icon-specimen/svg/ 的上色版（见下方 ART_FILE），
+   这里只剩视框尺寸常量。 */
 const PLATE_SIZE = 24;
-/* ⑤ 统一线宽。原来写死在 CSS 的 .plate-svg 上（.7 viewBox 单位），
-   但归一化缩放之后每枚的实际粗细 = .7 × k，k 差 1.61 倍就成了两套粗细。
-   → 线宽改成按 1/k 补偿后内联到图元上，这里只留基准值。 */
-const PLATE_SW = 0.7;
 
-const r2 = (n) => (Math.round(n * 100) / 100).toString();
-
-/** 六个家族的标本母题。统一 24×24 视框、stroke 1.25、无填充、圆头端点。 */
-const PLATE_MOTIFS = {
-  // 柑橘横切：外皮 + 中心 + 八根等分瓤线。
-  // 四根会读成瞄准镜（与木质撞形），八根才是柑橘断面的密度。
-  citrus() {
-    const seg = 8;
-    const out = [
-      { tag: 'circle', attrs: { cx: 12, cy: 12, r: 8 } },
-      { tag: 'circle', attrs: { cx: 12, cy: 12, r: 2.6 } },
-    ];
-    for (let k = 0; k < seg; k++) {
-      const a = ((k * 360) / seg - 90) * (Math.PI / 180);
-      out.push({
-        tag: 'path',
-        attrs: {
-          d: 'M' + r2(12 + 2.6 * Math.cos(a)) + ' ' + r2(12 + 2.6 * Math.sin(a))
-            + 'L' + r2(12 + 8 * Math.cos(a)) + ' ' + r2(12 + 8 * Math.sin(a)),
-        },
-      });
-    }
-    return out;
-  },
-    // 花：同一片花瓣旋转 n 次（n=5 或 6）
-  floral() {
-    const petals = 5;   // 五瓣：与真实花瓣数一致，也避开六瓣显得像齿轮
-    const d = 'M12 12C9.6 9.2 9.6 4.8 12 2.2C14.4 4.8 14.4 9.2 12 12Z';
-    const out = [];
-    for (let k = 0; k < petals; k++) {
-      out.push({
-        tag: 'path',
-        attrs: k ? { d, transform: 'rotate(' + r2((k * 360) / petals) + ' 12 12)' } : { d },
-      });
-    }
-    out.push({ tag: 'circle', attrs: { cx: 12, cy: 12, r: 1.6 } });
-    return out;
-  },
-  // 木：三道同心**椭圆**年轮。
-  // 椭圆而非正圆：树干截面本就不正圆，也避免与柑橘的同心结构撞形。
-  // 不加裂纹 —— 24px 里任何不与圈同心的线段都会被读成螺旋的一部分（试过三次）。
-  woody() {
-    return [
-      { tag: 'ellipse', attrs: { cx: 12, cy: 12, rx: 8, ry: 6.9 } },
-      { tag: 'ellipse', attrs: { cx: 12, cy: 12, rx: 5.3, ry: 4.55 } },
-      { tag: 'ellipse', attrs: { cx: 12, cy: 12, rx: 2.5, ry: 2.15 } },
-    ];
-  },
-    // 树脂滴：水滴轮廓 + 内部一道斜向高光。
-  // 上一版是「短弧 + 小圆」，两者挨在一起像一张脸 —— 24px 下任何
-  // 两个相邻的圆点都会被读成眼睛。改成一道连续的开口弧，只表达"有体积"。
-  amber() {
-    return [
-      { tag: 'path', attrs: { d: 'M12 3.2C12 3.2 18 9.6 18 13.4A6 6 0 0 1 6 13.4C6 9.6 12 3.2 12 3.2Z' } },
-      { tag: 'path', attrs: { d: 'M9.1 14.6A3.1 3.1 0 0 0 12.4 17.4' } },
-    ];
-  },
-  // 叶：主脉 + 三对或四对侧脉
-  fresh() {
-    const pairs = 3;   // 三对侧脉：四对在 24px 里会黏连
-    let d = 'M12 5.4V18.4';
-    for (let k = 0; k < pairs; k++) {
-      const y = 8.2 + k * 2.6;
-      const w = 3.2 - k * 0.35;
-      d += 'M12 ' + r2(y) + 'L' + r2(12 - w) + ' ' + r2(y - 1.8)
-        + 'M12 ' + r2(y) + 'L' + r2(12 + w) + ' ' + r2(y - 1.8);
-    }
-    return [
-      { tag: 'path', attrs: { d: 'M12 20.2C4.6 16.2 5.4 6.4 12 3.2C18.6 6.4 19.4 16.2 12 20.2Z' } },
-      { tag: 'path', attrs: { d } },
-    ];
-  },
-  // 豆荚：斜置椭圆 + 中缝 + 一粒或两粒
-  gourmand() {
-    const out = [
-      { tag: 'ellipse', attrs: { cx: 12, cy: 12, rx: 5.2, ry: 8, transform: 'rotate(-18 12 12)' } },
-      { tag: 'path', attrs: { d: 'M12 4V20', transform: 'rotate(-18 12 12)' } },
-      { tag: 'circle', attrs: { cx: 10.6, cy: 9.6, r: 1.1 } },
-    ];
-    out.push({ tag: 'circle', attrs: { cx: 13.4, cy: 14.2, r: 1.1 } });
-    return out;
-  },
-};
-/* 每个小类的专属标识（类数以 data/taxonomy.json 为准，现为 28）。
-   推翻 D32「图案只编码家族」——用户明确要求「古龙水型用古龙独有标识，
-   青绿柑橘与芳香柑橘各自不同」。这个要求是对的：旧做法下同族小类的
-   标本图完全一样，用户选完看不出自己选的是哪一格。
-
-   但不是给同一个形状做哈希微差（那种"区别"是凭空造的）。每一枚画的是
-   该小类的**代表香材本体**：柠檬是横置尖椭圆，佛手柑是带颈的梨形，
-   橙花是五瓣，葡萄柚是正圆厚皮分瓣 —— 区别来自数据，不来自随机数。
-
-   24px 线稿的可辨识度有三条硬限制，是前面几轮试出来的：
-     1. 两个相邻的圆点一定被读成一张脸 → 母题里不留并排小圆；
-     2. 不与主形同心的线段会被读成螺旋的一部分 → 内部线必须对称或贯穿；
-     3. 外轮廓差异 >> 内部细节差异 → 优先换轮廓，内部线不超过两条。
-
-   统一 24×24 视框、无填充、stroke 由 CSS 给（0.7 viewBox 单位）、圆头端点。 */
-const SUB_MARKS = {
-  /* ---- 柑橘调 ---- */
-  // 古龙水型：一瓶古龙水。瓶身 + 瓶颈 + 瓶盖。
-  // 整套里唯一的"器物"轮廓，与其余三枚柑橘的果实轮廓不共享任何一截弧。
-  cologne: () => [
-    { tag: 'path', attrs: { d: 'M6.8 12.4H17.2V18.8C17.2 20.1 16.1 21.2 14.8 21.2H9.2C7.9 21.2 6.8 20.1 6.8 18.8Z' } },
-    { tag: 'path', attrs: { d: 'M10.6 12.4V9.6H13.4V12.4' } },
-    { tag: 'path', attrs: { d: 'M10.4 9.6H13.6V6.4H10.4Z' } },
-  ],
-  // 青绿柑橘：一颗青皮圆果 + 顶上一对叶。
-  'green-citrus': () => [
-    { tag: 'circle', attrs: { cx: 12, cy: 15.4, r: 5.8 } },
-    { tag: 'path', attrs: { d: 'M12 9.6C10 8.4 7.6 8.8 6.2 10.6C8.2 11.8 10.4 11.4 12 9.6Z' } },
-    { tag: 'path', attrs: { d: 'M12 9.6C14 8.4 16.4 8.8 17.8 10.6C15.8 11.8 13.6 11.4 12 9.6Z' } },
-  ],
-  // 柑橘花香（橙花）：上花下果，中间一段短梗。橙花长在果枝上 ——
-  // 这个「花 + 梗 + 果」的竖向三段是它的识别点。
-  'citrus-floral': () => {
-    const petal = 'M12 7.6C10.8 5.8 10.8 3.6 12 2.2C13.2 3.6 13.2 5.8 12 7.6Z';
-    const out = [];
-    for (let k = 0; k < 5; k++) {
-      out.push({
-        tag: 'path',
-        attrs: k ? { d: petal, transform: 'rotate(' + (k * 72) + ' 12 7.6)' } : { d: petal },
-      });
-    }
-    out.push({ tag: 'path', attrs: { d: 'M12 7.8V11.4' } });
-    out.push({ tag: 'circle', attrs: { cx: 12, cy: 16.6, r: 5 } });
-    return out;
-  },
-  // 芳香柑橘（佛手柑）：梨形果 + 顶叶 + 果顶的小凹点。整颗佛手柑是梨形的，
-  // 与青绿柑橘的正圆、橙花的"花+果"都不共享轮廓。
-  'aromatic-citrus': () => [
-    { tag: 'path', attrs: { d: 'M12 6.4C13.6 8.6 17.4 10.8 17.4 15.2C17.4 18.8 15 21.4 12 21.4C9 21.4 6.6 18.8 6.6 15.2C6.6 10.8 10.4 8.6 12 6.4Z' } },
-    { tag: 'path', attrs: { d: 'M12 6.4C11 4.6 9.6 3.4 7.8 3C7.6 5 8.8 6.6 12 6.4Z' } },
-    { tag: 'circle', attrs: { cx: 12, cy: 6.8, r: 0.9 } },
-  ],
-
-  /* ---- 花香调 ---- */
-  // 玫瑰：五瓣外轮廓（波浪边、无整圆）+ 内部一道螺旋花心。
-  // 外轮廓做成起伏的瓣边而不是正圆 —— 正圆会与咖啡豆、檀木截面撞形；
-  // 内部螺旋是玫瑰的识别点（它靠"卷"不靠"瓣"）。
-  rose: () => {
-    const outline = 'M12 3.2C14 3.2 15.1 4.6 16.4 5.2C17.9 5.9 19.6 5.6 20.5 7.1C21.4 8.6 20.6 10.1 20.8 11.7C21 13.3 21.8 14.8 20.9 16.2C20 17.6 18.3 17.4 16.9 18.2C15.6 19 14.6 20.4 12.9 20.6C11.2 20.8 10 19.6 8.4 19.2C6.8 18.8 5.1 19.1 4.2 17.7C3.3 16.3 4.1 14.7 3.9 13.1C3.7 11.5 2.9 10 3.8 8.6C4.7 7.2 6.4 7.4 7.8 6.6C9.1 5.8 10.1 3.2 12 3.2Z';
-    return [
-      { tag: 'path', attrs: { d: outline } },
-      { tag: 'path', attrs: { d: 'M12 12.4C12.5 11.4 13.8 11.3 14.4 12.1C15.2 13 14.8 14.7 13.6 15.3C12.1 16.1 10.1 15.4 9.4 13.8C8.6 11.9 9.4 9.7 11.3 8.8' } },
-    ];
-  },
-  // 白花（茉莉）：五枚细长尖瓣 + 一根下垂花梗 + 一叶。
-  // 与单一花在两点上分：瓣更窄、且有梗 —— 茉莉是吊在枝上的。
-  'white-floral': () => {
-    const petal = 'M12 12.2C10.9 9.6 10.9 6.4 12 4.2C13.1 6.4 13.1 9.6 12 12.2Z';
-    const out = [];
-    for (let k = 0; k < 5; k++) {
-      out.push({
-        tag: 'path',
-        attrs: k ? { d: petal, transform: 'rotate(' + (k * 72) + ' 12 12.2)' } : { d: petal },
-      });
-    }
-    out.push({ tag: 'path', attrs: { d: 'M12 14.6V21.2' } });
-    out.push({ tag: 'path', attrs: { d: 'M12 18.6C13.8 18 14.6 16.4 14.6 14.4C12.8 14.9 12 16.5 12 18.6Z' } });
-    return out;
-  },
-  // 果香花香（牡丹）：俯视的重瓣花 —— 六枚互相交叠的圆瓣 + 紧贴的花心。
-  // 牡丹的重瓣靠"瓣与瓣交叠"：瓣端是圆的、相邻瓣彼此压住；
-  // 画成尖瓣会与单一花撞形，画成同心圆会变靶心。
-  'fruity-floral': () => {
-    const out = [];
-    for (let k = 0; k < 6; k++) {
-      const a = ((k * 60 - 90) * Math.PI) / 180;
-      out.push({ tag: 'circle', attrs: { cx: r2(12 + 4.6 * Math.cos(a)), cy: r2(12 + 4.6 * Math.sin(a)), r: 3.9 } });
-    }
-    out.push({ tag: 'circle', attrs: { cx: 12, cy: 12, r: 2.2 } });
-    return out;
-  },
-  // 粉感花香（鸢尾）：三片下垂的圆头瓣（含中央一片）+ 上方一枚窄立瓣。
-  // 用"三垂一立、下重上轻"这个侧影，与白花/单一花那种"一圈向上开"相反。
-  'powdery-floral': () => {
-    // 一片以 (bx,by) 为根、朝 deg 方向（0=正上方，顺时针）、长 L、最宽 w 的圆头瓣
-    const petal = (bx, by, deg, L, w) => {
-      const a = (deg * Math.PI) / 180;
-      const ux = Math.sin(a), uy = -Math.cos(a);
-      const px = Math.cos(a), py = Math.sin(a);
-      const P = (t, s) => [r2(bx + ux * L * t + px * w * s), r2(by + uy * L * t + py * w * s)];
-      const A = P(0.3, 1.0), B = P(0.85, 0.8), T = P(1, 0), C = P(0.85, -0.8), D = P(0.3, -1.0);
-      return 'M' + r2(bx) + ' ' + r2(by)
-        + 'C' + A.join(' ') + ' ' + B.join(' ') + ' ' + T.join(' ')
-        + 'C' + C.join(' ') + ' ' + D.join(' ') + ' ' + r2(bx) + ' ' + r2(by) + 'Z';
-    };
-    return [
-      { tag: 'path', attrs: { d: petal(12, 11.2, 218, 9.4, 3.0) } },
-      { tag: 'path', attrs: { d: petal(12, 11.2, 270, 10.2, 3.2) } },
-      { tag: 'path', attrs: { d: petal(12, 11.2, 322, 9.4, 3.0) } },
-      { tag: 'path', attrs: { d: petal(12, 11.8, 0, 7.4, 1.5) } },
-    ];
-  },
-  // 辛香琥珀：一枚八角，连同一只短柄。
-  // 八角是"辛香"里唯一自带几何识别的原料：八枚舟形蓇葖围成一圈，
-  // 这个轮廓与所有同心圆类（玫瑰/檀木/咖啡豆）都不共享。
-  'green-floral': () => [
-    { tag: 'path', attrs: { d: 'M15.8 21.4C15.8 16.4 14.4 10.8 9.6 6.2' } },
-    { tag: 'path', attrs: { d: 'M15 17.6C13.4 16.4 11.4 16.6 10.2 18.2C11.4 19.8 13.4 19.8 15 17.6Z' } },
-    { tag: 'path', attrs: { d: 'M12.2 13.4C10.6 12.2 8.6 12.4 7.4 14C8.6 15.6 10.6 15.6 12.2 13.4Z' } },
-    { tag: 'path', attrs: { d: 'M10.4 9.6C8.8 8.4 6.8 8.6 5.6 10.2C6.8 11.8 8.8 11.8 10.4 9.6Z' } },
-  ],
-  // 单一花：一朵五瓣正花 + 花心。整套里唯一的"最素"花形 ——
-  // 别的花都靠结构（卷、梗、钟、枝、纹章）区分，留一朵正对观众的读起来不累。
-  soliflore: () => {
-    const petal = 'M12 12C9.6 9.2 9.6 5.8 12 3.6C14.4 5.8 14.4 9.2 12 12Z';
-    const out = [];
-    for (let k = 0; k < 5; k++) {
-      out.push({
-        tag: 'path',
-        attrs: k ? { d: petal, transform: 'rotate(' + (k * 72) + ' 12 12)' } : { d: petal },
-      });
-    }
-    out.push({ tag: 'circle', attrs: { cx: 12, cy: 12, r: 1.9 } });
-    return out;
-  },
-
-  /* ---- 木质调 ---- */
-  // 檀木：木料的横截面 —— 起伏的树皮外廓 + 偏心年轮 + 一道楔形裂。
-  // 外廓刻意做成不规则（不是圆），否则会与咖啡豆、玫瑰撞形；
-  // 年轮偏心是"木头"而非"行星"的关键。
-  sandalwood: () => [
-    { tag: 'path', attrs: { d: 'M12 3.4C15.6 3.4 18.4 5 19.4 8C20.4 11 20.2 14.4 19 17.2C17.8 20 15 20.8 12 20.8C9 20.8 6.2 20 5 17.2C3.8 14.4 3.6 11 4.6 8C5.6 5 8.4 3.4 12 3.4Z' } },
-    { tag: 'path', attrs: { d: 'M12.8 7.2C9.8 7.6 7.6 9.8 7.4 12.8C7.2 15.8 9.4 18.2 12.4 18.2C15.2 18.2 17.4 16 17.4 13.4C17.4 11 15.4 9 13 9' } },
-    { tag: 'path', attrs: { d: 'M12 12.4L14.8 15.2' } },
-  ],
-  // 干燥木质：一段躺着的木料 + 端面椭圆 + 两道干裂。
-  // 干裂是"干"的唯一视觉证据，必须从外沿崩进去，不能悬在中间。
-  // 木质（v2.2 合并类：干燥木质 + 芳香木质 + 苔藓木质）：一截斜置木段，右下端是椭圆切面，
-  // 另有两片叶自木段上缘生出。斜置＝不是容器（正放的圆柱会读成杯子）；切面＝木；
-  // 两片叶＝保留合并前芳香木质那一路的"草本压在木上"。
-  woody: () => [
-    { tag: 'path', attrs: { d: 'M6.4 17.6C8.4 14.6 10.4 11.6 12.0 8.8' } },
-    { tag: 'ellipse', attrs: { cx: '5.6', cy: '15', rx: '2.6', ry: '1.9' } },
-    { tag: 'path', attrs: { d: 'M4.6 14.2C4.2 15.0 4.6 15.8 5.6 16.0' } },
-    { tag: 'path', attrs: { d: 'M12.0 8.8C14.4 7.4 17.2 7.4 19.2 9.0C17.4 11.0 14.6 11.0 12.0 8.8Z' } },
-    { tag: 'path', attrs: { d: 'M9.4 13.4C6.8 12.6 4.4 13.6 3.4 16.0C5.8 17.0 8.4 16.0 9.4 13.4Z' } },
-    { tag: 'path', attrs: { d: 'M7.4 14.6C8.2 14.0 9.0 13.8 9.8 13.9' } },
-  ],
-  // 香根草：一束被短箍束住的根 —— 方箍在上、四根向下散开。
-  // 不能画"土面 + 下方根须"，那读成一棵树；这一枚上半身只有一个箍。
-  // 香根草：扇形张开的根须 —— 顶部一道短弧（被拔出的切口），根向左右张开成扇形，
-  // 末端渐细回钩、长短差异明显。扇形的"自然生长"是它不读成扫帚/梳子的唯一依据：
-  // 扫帚的根是彼此平行的。
-  vetiver: () => [
-    { tag: 'path', attrs: { d: 'M9.0 5.4C10.4 4.6 13.6 4.6 15.0 5.4C13.6 6.4 10.4 6.4 9.0 5.4Z' } },
-    { tag: 'path', attrs: { d: 'M9.4 6.2C7.4 8.6 5.2 11.6 3.8 15.2C3.3 16.5 3.3 18.0 3.9 19.4' } },
-    { tag: 'path', attrs: { d: 'M10.4 6.4C9.2 9.6 8.0 13.4 7.4 17.2C7.1 18.6 7.2 20.0 7.7 21.2' } },
-    { tag: 'path', attrs: { d: 'M11.4 6.6C11.0 10.2 10.7 14.4 10.8 18.4C10.8 19.6 11.0 20.6 11.4 21.5' } },
-    { tag: 'path', attrs: { d: 'M12.6 6.6C12.9 10.2 13.2 14.4 13.1 18.4C13.1 19.6 12.9 20.6 12.5 21.5' } },
-    { tag: 'path', attrs: { d: 'M13.6 6.4C14.8 9.6 16.0 13.4 16.6 17.2C16.9 18.6 16.8 20.0 16.3 21.2' } },
-    { tag: 'path', attrs: { d: 'M14.6 6.2C16.6 8.6 18.8 11.6 20.2 15.2C20.7 16.5 20.7 18.0 20.1 19.4' } },
-    { tag: 'path', attrs: { d: 'M8.6 9.6C7.6 9.0 6.7 9.1 6.0 9.8' } },
-    { tag: 'path', attrs: { d: 'M15.4 9.8C16.4 9.2 17.3 9.3 18.0 10.0' } },
-  ],
-  // 苔藓木质：一块隆起的岩 + 坡上三簇苔。
-  // 苔用"两三瓣小叶簇"而不是点阵：点阵在这个尺寸会糊成一坨脏点。
-  oud: () => [
-    { tag: 'path', attrs: { d: 'M7 6.2L16.8 5.4L19 14.6L13.6 19.8L5.6 16.4Z' } },
-    { tag: 'path', attrs: { d: 'M12.4 9.4C9.8 9.4 8 11 8 13.2C8 15.4 9.8 17 12.4 17C14.6 17 16.2 15.6 16.2 13.8C16.2 12 14.6 10.8 12.8 10.8' } },
-  ],
-
-  /* ---- 东方琥珀调 ---- */
-  // 香草琥珀：一根弯曲的香草荚 + 内嵌三粒籽。
-  // 荚必须"细长微弯"：直的矩形会读成巧克力棒，太宽会读成叶子。
-  // 琥珀（v2.2 合并类：香草琥珀 + 辛香琥珀）：一枚凸圆面宝石的侧视图 —— 平底 + 拱顶，
-  // 内部一道高光弧 + 一枚偏心内含物。凸圆面是琥珀最常见的成品形态；平底拱顶与
-  // 树脂的水滴（尖顶、有虫）在轮廓层面就分得开。
-  amber: () => [
-    { tag: 'path', attrs: { d: 'M5.0 15.6C5.0 9.6 8.1 5.4 12.0 5.4C15.9 5.4 19.0 9.6 19.0 15.6C19.0 16.8 16.0 17.6 12.0 17.6C8.0 17.6 5.0 16.8 5.0 15.6Z' } },
-    { tag: 'path', attrs: { d: 'M7.2 15.2C7.2 12.0 8.4 9.4 9.8 8.6' } },
-    { tag: 'path', attrs: { d: 'M16.4 10.4C17.2 11.8 17.6 13.4 17.4 15.0' } },
-    { tag: 'circle', attrs: { cx: '13.4', cy: '12.6', r: '0.95' } },
-  ],
-  // 暖焚香：香锥 + 底盘 + 两道短烟。
-  // 与冷焚香的"三支直立线香"形态完全不同 —— 同族两格必须是两种结构，不是粗细差别。
-  // 焚香（v2.2 合并类：冷焚香 + 暖焚香）：一枚香锥坐在浅盘上，盘口是椭圆（能盛灰），
-  // 上方两缕竖直 S 烟。锥身不画任何横线 —— 横线会把锥切成帆。
-  incense: () => [
-    { tag: 'path', attrs: { d: 'M12 7.0C13.6 10.1 15.3 13.3 15.9 15.1C16.4 16.5 14.4 17.5 12 17.5C9.6 17.5 7.6 16.5 8.1 15.1C8.7 13.3 10.4 10.1 12 7.0Z' } },
-    { tag: 'ellipse', attrs: { cx: '12', cy: '18.4', rx: '6.8', ry: '1.9' } },
-    { tag: 'path', attrs: { d: 'M5.2 18.4C5.2 19.5 8.2 20.3 12 20.3C15.8 20.3 18.8 19.5 18.8 18.4' } },
-    { tag: 'path', attrs: { d: 'M12 6.2C11.2 5.2 12.2 4.4 12.0 3.4' } },
-    { tag: 'path', attrs: { d: 'M13.4 5.6C14.2 4.8 13.4 4.0 13.9 3.2' } },
-  ],
-  // 树脂：一滴琥珀，里面裹着一只小虫。
-  // 琥珀与普通树脂滴的区别就是"里面有没有东西"，所以内部那枚椭圆是语义必需。
-  // 树脂：一滴裹着虫的树脂。底部是真正的半圆（A 5 5 arc），两侧内凹收成尖。
-  // 内里小虫（椭圆身 + 两对足 + 两根触角）是树脂与"一滴水"的唯一语义差别。
-  resinous: () => [
-    { tag: 'path', attrs: { d: 'M12 2.8C14.7 7.2 17.0 11.0 17.0 14.6A5.0 5.0 0 1 1 7.0 14.6C7.0 11.0 9.3 7.2 12 2.8Z' } },
-    { tag: 'ellipse', attrs: { cx: '12', cy: '15.4', rx: '1', ry: '1.52' } },
-    { tag: 'path', attrs: { d: 'M11.1 16.9L10.4 18.0' } },
-    { tag: 'path', attrs: { d: 'M12.9 16.9L13.6 18.0' } },
-    { tag: 'path', attrs: { d: 'M11.3 14.2L10.6 13.4' } },
-    { tag: 'path', attrs: { d: 'M12.7 14.2L13.4 13.4' } },
-    { tag: 'path', attrs: { d: 'M8.4 10.6C8.9 9.0 9.8 7.6 11.0 6.6' } },
-  ],
-  // 皮革：一片不规则的皮料 + 一圈虚线针脚。
-  // 皮革靠"软"与"缝"认人：外形必须不规则，针脚用虚线（虚线是缝、实线是描边）。
-  // 皮革：一张天然形状的皮（四角都不等）＋ 右下角卷成一小段筒（卷口椭圆＝厚度）＋
-  // 左侧切边三道横向纤维 ＋ 一道柔褶。皮革没有直角，所以外轮廓不用方框；
-  // 切边露出的横向纤维是皮革唯一的物理证据。
-  leather: () => [
-    { tag: 'path', attrs: { d: 'M5.0 7.6C8.2 6.2 12.8 6.0 16.0 7.0C18.0 7.6 19.4 8.8 19.2 10.2C19.0 11.6 17.4 12.4 17.6 13.6C17.8 14.8 19.0 15.6 18.4 16.8C17.6 18.2 15.0 18.6 12.4 18.4C9.4 18.2 6.0 17.4 4.8 16.0C4.0 14.9 4.4 13.6 4.8 12.0C5.2 10.4 4.4 9.0 5.0 7.6Z' } },
-    { tag: 'path', attrs: { d: 'M16.0 7.0C17.8 7.8 18.6 9.2 18.2 10.4C17.8 11.5 16.5 11.9 15.6 11.4' } },
-    { tag: 'path', attrs: { d: 'M15.6 11.4C16.6 11.5 17.4 11.1 17.6 10.3' } },
-    { tag: 'path', attrs: { d: 'M4.9 9.4C4.2 9.9 4.0 10.8 4.4 11.6' } },
-    { tag: 'path', attrs: { d: 'M4.8 12.4C4.1 12.9 3.9 13.8 4.3 14.6' } },
-    { tag: 'path', attrs: { d: 'M4.9 15.4C4.2 15.9 4.0 16.8 4.4 17.6' } },
-    { tag: 'path', attrs: { d: 'M8.0 9.4C10.6 8.7 13.4 8.7 15.4 9.3' } },
-    { tag: 'path', attrs: { d: 'M7.4 15.8C9.8 16.6 12.6 16.7 14.8 16.2' } },
-  ],
-
-  /* ---- 清新调 ---- */
-  // 水生：两道错相波纹 + 一枚下落的水珠。
-  // 波纹给"面"，水珠给"向下的力"；只有波纹会读成"波浪线"，不是水。
-  aquatic: () => [
-    { tag: 'path', attrs: { d: 'M3.4 16C5.4 13.8 7.4 13.8 9.4 16C11.4 18.2 13.4 18.2 15.4 16C17.4 13.8 19 13.8 20.6 15.6' } },
-    { tag: 'path', attrs: { d: 'M3.4 20.4C5.4 18.2 7.4 18.2 9.4 20.4C11.4 22.6 13.4 22.6 15.4 20.4C17.4 18.2 19 18.2 20.6 20' } },
-    { tag: 'path', attrs: { d: 'M12 2.8C13.4 5.2 14.2 7 14.2 8.2C14.2 9.6 13.2 10.6 12 10.6C10.8 10.6 9.8 9.6 9.8 8.2C9.8 7 10.6 5.2 12 2.8Z' } },
-  ],
-  // 绿叶：一片斜生的叶 + 主脉 + 三条侧脉。
-  // 叶必须"斜"：正立的叶会与鸢尾的垂瓣、香根草的根束撞形。
-  green: () => [
-    { tag: 'path', attrs: { d: 'M4.4 19.6C4.4 12.6 8.8 6.8 17.6 5.4C18.6 13.6 13.8 19.2 4.4 19.6Z' } },
-    { tag: 'path', attrs: { d: 'M5.8 18.4C9 15.6 12.8 12.6 17 10' } },
-    { tag: 'path', attrs: { d: 'M10.6 15.1C9.8 14.3 9.2 13.3 9 12.1M13.4 12.4C12.4 11.4 11.6 10.2 11.2 8.8M16 9.9C15.4 8.9 15 7.7 14.9 6.5' } },
-  ],
-  // 蕨（馥奇）：一根弧形的叶轴 + 左右各四片前倾的羽叶。
-  // 羽叶必须"前倾 + 越往上越短"；做成水平对称的鱼骨就变成"鱼刺"了。
-  fougere: () => [
-    { tag: 'path', attrs: { d: 'M10.4 21.6C10.4 16.6 11.4 11.2 14.4 6' } },
-    { tag: 'path', attrs: { d: 'M11.1 18.2C9.2 17.8 7.5 18.4 6.4 19.8M11.6 14.6C9.5 14 7.6 14.6 6.4 16.1M12.4 11C10.4 10.2 8.5 10.6 7.2 12M13.4 7.8C11.7 6.8 9.9 7 8.6 8.2' } },
-    { tag: 'path', attrs: { d: 'M11.1 18.2C12.9 17.4 14.5 17.7 15.7 18.9M11.6 14.6C13.4 13.7 15.1 13.9 16.3 15.1M12.4 11C14 9.9 15.7 9.9 16.9 10.9' } },
-  ],
-  // 茶香：一芽两叶。茶用的是"嫩芽"，所以中间那枚向上、且比两侧的叶更窄。
-  tea: () => [
-    { tag: 'path', attrs: { d: 'M12 20.8V10.4' } },
-    { tag: 'path', attrs: { d: 'M12 10.2C12 7 12.8 4.4 14.6 2.6C15.6 5.6 15 8.4 12 10.2Z' } },
-    { tag: 'path', attrs: { d: 'M11.8 12.6C9 11.8 6.4 12.8 5 15.6C8 16.6 10.8 15.4 11.8 12.6Z' } },
-    { tag: 'path', attrs: { d: 'M12.2 15.2C15 14.4 17.6 15.4 19 18.2C16 19.2 13.2 18 12.2 15.2Z' } },
-  ],
-
-  /* ---- 美食调 ---- */
-  // 香草甜（香草兰）：两片侧瓣 + 一片向下的唇瓣 + 花心。
-  // 兰花的结构就是"唇瓣向下"，与白花、单一花的向上开正好镜像。
-  'vanilla-gourmand': () => [
-    { tag: 'path', attrs: { d: 'M11.4 11C9.4 10.4 7.6 8.6 6.8 6.2C9.2 6 11 7.4 11.4 11Z' } },
-    { tag: 'path', attrs: { d: 'M12.6 11C14.6 10.4 16.4 8.6 17.2 6.2C14.8 6 13 7.4 12.6 11Z' } },
-    { tag: 'path', attrs: { d: 'M12 11.4C13 14 13.4 16.8 13 19.8C11.4 20.2 9.8 19.6 9.2 18.2C9.4 15.6 10.4 13.2 12 11.4Z' } },
-    { tag: 'circle', attrs: { cx: 12, cy: 11.4, r: 1.5 } },
-  ],
-  // 果味甜：两颗错开的浆果 + 各自的果梗。
-  // 单颗浆果会与柑橘的果撞形，所以用"两颗 + 错位"把轮廓拉成双团。
-  'fruity-gourmand': () => [
-    { tag: 'circle', attrs: { cx: 8.6, cy: 15.6, r: 4.8 } },
-    { tag: 'circle', attrs: { cx: 15.6, cy: 17.4, r: 3.6 } },
-    { tag: 'path', attrs: { d: 'M8.6 10.6C9.6 8 11.6 6 14 4.8' } },
-    { tag: 'path', attrs: { d: 'M15.6 13.6C15.8 11.4 16.6 9.8 18 8.6' } },
-  ],
-  // 咖啡可可：一颗咖啡豆 —— 椭圆 + 一道 S 形中缝 + 顶部一小段果柄。
-};
-
-const SUB_FIT = {
-  aquatic: [0.9091, 1.091, 0.705],
-  'aromatic-citrus': [0.9511, 0.587, 0.397],
-  'citrus-floral': [0.9021, 1.175, 1.265],
-  cologne: [1.1824, -2.189, -4.318],
-  woody: [1.0741, 0.077, -1.627],
-  fougere: [1.1218, -1.069, -3.481],
-  'fruity-floral': [1.0294, -0.353, -0.353],
-  'fruity-gourmand': [1.0802, -0.423, -1.935],
-  green: [1.2324, -1.636, -3.405],
-  'green-citrus': [1.4244, -5.093, -9.447],
-  'green-floral': [1.1513, -0.319, -3.888],
-  incense: [1.0175, -0.21, 0.044],
-  leather: [1.1506, -1.413, -2.281],
-  oud: [1.2153, -2.948, -3.313],
-  'powdery-floral': [1.177, 3.281, -1.182],
-  resinous: [1.0357, -0.428, 0.4],
-  rose: [0.9756, -0.049, 0.38],
-  sandalwood: [1.0057, -0.069, -0.17],
-  soliflore: [1.024, -0.288, -0.008],
-  tea: [0.9615, 0.462, 0.75],
-  amber: [1.2429, -2.915, -2.293],
-  'vanilla-gourmand': [1.2736, -3.284, -4.623],
-  vetiver: [1.016, -0.192, -1.36],
-  'white-floral': [1.0294, -0.353, -1.074],
-};
-
-const PLATE_FALLBACK = [{ tag: 'circle', attrs: { cx: 12, cy: 12, r: 7.4 } }];
+/* 构建标记：页面里 `document.documentElement.dataset.build` 会带上它。
+   用途是"这次看到的到底是哪份代码" —— 改完 app.js 如果这个值没变，
+   说明浏览器还在跑缓存的旧文件，别去猜渲染逻辑。 */
+const BUILD_ID = '2026-11-08-icon-art-only';
 
 const PLATE_LABEL = { citrus: '柑橘', floral: '花', woody: '木质', amber: '树脂', fresh: '叶', gourmand: '果实' };
 
@@ -1010,27 +616,50 @@ const ART_FILE = {
   'fruity-gourmand': 'gourmand-fruity-gourmand',
 };
 const ART_CACHE = new Map();
-function artInner(subId) {
+/* 已解析完成的内容单独记一份：artInner() 返回 Promise，微任务里替换图元会
+   让"先画线稿、再换彩图"多出一帧 —— 实测用户能看见约 1s 的旧线稿闪现。
+   ART_READY 让 scentPlate() 在【同步】阶段就能判断彩图在不在，在就直接画彩图，
+   线稿一次都不进 DOM。 */
+const ART_READY = new Map();
+function artPath(subId) {
   const f = ART_FILE[subId];
-  if (!f) return Promise.resolve('');
-  const p = './icon-specimen/svg/' + f + '.svg';
+  return f ? './icon-specimen/svg/' + f + '.svg' : '';
+}
+function artInner(subId) {
+  const p = artPath(subId);
+  if (!p) return Promise.resolve('');
   if (!ART_CACHE.has(p)) {
     ART_CACHE.set(p, fetch(p).then((r) => (r.ok ? r.text() : '')).then((t) => {
       if (!t) return '';
       /* 只取 <svg> 内部内容：外层 <svg> 由我们自己造，才能挂 class 与 viewBox */
-      return t.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')
-              .replace(/<title>[\s\S]*?<\/title>/g, '');
+      const inner = t.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')
+        .replace(/<title>[\s\S]*?<\/title>/g, '');
+      if (inner) ART_READY.set(p, inner);
+      return inner;
     }).catch(() => ''));
   }
   return ART_CACHE.get(p);
+}
+/* 首屏就把 24 枚全部拉进内存（合计 295.6KB / gzip 80.1KB，与香水库并行，
+   不阻塞渲染）。这样用户点到任何一格时彩图都已在 ART_READY 里，没有空窗期。 */
+function artWarmAll() {
+  Object.keys(ART_FILE).forEach((id) => { artInner(id).catch(() => {}); });
 }
 /* 同一枚图标可能被同时插进 DOM 的多个位置，渐变 id 必须唯一，
    否则第二次插入会引用到第一个实例的 defs。 */
 let artSeq = 0;
 function artNs(inner, ns) {
   return inner.replace(/id="([^"]+)"/g, (m, x) => 'id="' + x + '-' + ns + '"')
-              .replace(/url\(#([^)]+)\)/g, (m, x) => 'url(#' + x + '-' + ns + ')');
+    .replace(/url\(#([^)]+)\)/g, (m, x) => 'url(#' + x + '-' + ns + ')');
 }
+/* 彩图已就绪就直接返回可写进 <svg> 的内部内容；没就绪返回 ''。 */
+function artSvgReady(subId) {
+  const inner = ART_READY.get(artPath(subId));
+  return inner ? artNs(inner, 'a' + (++artSeq)) : '';
+}
+/* 尽早开始预热：不等 taxonomy、不等 DOMContentLoaded。
+   app.js 是 module，下载执行完就已经能发请求，与数据请求并行不冲突。 */
+if (typeof window !== 'undefined') artWarmAll();
 
 function scentPlate(sub) {
   const entries = (sub.notes || [])
@@ -1038,41 +667,20 @@ function scentPlate(sub) {
     .filter(Boolean);
   if (!entries.length) return null;
 
-  /* 只画一枚，画得大。
-     原本的设想是"每味香材一枚小图标"，实测行不通：每个小类的代表香材
-     全部落在同一个家族里（白花是茉莉+晚香玉，都是 floral），
-     逐味画会出来一排一模一样的图标 —— 那不是示意图，是重复。
-     而且三枚 22px 的小图标撑不起"示意图"这个位置，读起来还是徽标。
-     所以：按家族画一枚放大的标本线稿，香材名交给下面那行小字去说。 */
-  const family = entries[0].family;
-  /* 先找这一格自己的标识，找不到再退回家族母题。
-     每个小类各有一枚专属线稿（SUB_MARKS），家族母题（PLATE_MOTIFS）只作兜底：
-     数据里新增了没来得及画的小类时，宁可退回家族图，也不要画一个假的专属图。 */
-  const markFn = SUB_MARKS[sub.id];
-  const shapes = markFn ? markFn() : (PLATE_MOTIFS[family] || (() => PLATE_FALLBACK))();
-
+  /* 只画一枚，画得大。图标内容全部来自 ./icon-specimen/svg/ 的上色版，
+     这里不再有本地线稿：线稿是过渡期的兜底，实测会先闪一帧旧图形再被替换，
+     用户看得见，所以整条线稿通路连同 SUB_MARKS / PLATE_MOTIFS / SUB_FIT 一起删了。
+     彩图没到时先放一个空的同位 <svg>（占住 88px 的位，不画任何东西），
+     等 fetch 落地再把内容写进去 —— 既不会跳版，也不会闪旧图。 */
   const wrap = el('div', { class: 'hub-plate' });
-  const svg = svgEl('svg', {
-    class: 'plate-svg',
+  const box = svgEl('svg', {
+    class: 'plate-svg is-art',
     viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
-    fill: 'none',
     'aria-hidden': 'true', focusable: 'false',
   });
-  /* ⑤ 归一化：先把每枚的着墨包围盒平移回中心、缩放到同一尺寸，
-     再按 1/k 反向补偿线宽。不补偿的话 k=1.429 那枚线会粗到 2.6px、
-     k=0.886 那枚只有 1.6px，同一份样式表读出来是两套粗细。 */
-  const fit = SUB_FIT[sub.id] || SUB_FIT._default || [1, 0, 0];
-  const grp = svgEl('g', {
-    transform: 'translate(' + r2(fit[1]) + ' ' + r2(fit[2]) + ') scale(' + r2(fit[0]) + ')',
-  });
-  svg.appendChild(grp);
-  shapes.forEach(({ tag, attrs }) => {
-    const a = Object.entries(attrs).map(([k, v]) => [k, String(v)]);
-    /* 只给真的画线的图元补线宽；circle 无 d 也照样描边，一并补 */
-    a.push(['stroke-width', r2(PLATE_SW / fit[0])]);
-    grp.appendChild(svgEl(tag, Object.fromEntries(a)));
-  });
-  wrap.appendChild(svg);
+  const ready = artSvgReady(sub.id);
+  if (ready) box.innerHTML = ready;
+  wrap.appendChild(box);
   wrap.appendChild(el('div', { class: 'plate-rule' }));
   /* 名字最多列两味。实测四味的名字在 360px 视口是 144px 宽，
      而盘心只有 156px 且是圆的 —— 一行放不下、折两行又把「换一个大类」顶出去。
@@ -1085,18 +693,14 @@ function scentPlate(sub) {
   wrap.setAttribute('aria-label',
     '代表香材：' + entries.map((e) => e.zh + '（' + (PLATE_LABEL[e.family] || e.family) + '）').join('、'));
 
-  /* 上色 SVG 到位后替换掉线稿：加载失败就保留线稿，绝不空着。 */
-  artInner(sub.id).then((inner) => {
-    if (!inner) return;
-    const art = svgEl('svg', {
-      class: 'plate-svg is-art',
-      viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
-      'aria-hidden': 'true', focusable: 'false',
+  /* 当时还没到（首次进入、预热未完成）：等它到了再写进去。
+     没有线稿可保留，宁可空一小会儿，也不画一个旧的再换掉。 */
+  if (!ready) {
+    artInner(sub.id).then((inner) => {
+      if (!inner) return;
+      box.innerHTML = artNs(inner, 'a' + (++artSeq));
     });
-    art.innerHTML = artNs(inner, 'a' + (++artSeq));
-    const old = wrap.querySelector('.plate-svg');
-    if (old) old.replaceWith(art); else wrap.insertBefore(art, wrap.firstChild);
-  });
+  }
 
   return wrap;
 }
@@ -3205,17 +2809,6 @@ function next() {
   }
 }
 
-/* 「点选即自动前进」用的延时跳转。
-   为什么不能直接写 setTimeout(next, 480)：
-   用户点完选项可能立刻又按了界面上的「下一步」按钮 ——
-      t=0    手动 next() → 已经到下一屏
-      t=480  那个定时器仍在队列里 → 又跳一屏
-   结果是一次操作走了两屏，中间那屏的答案等于没答。
-   这里记住排程时的 step，触发时若已经不在那一屏就直接作废。 */
-function autoNext(ms) {
-  const from = state.step;
-  setTimeout(() => { if (state.step === from) next(); }, ms);
-}
 function prev() {
   if (state.step > 0) {
     state.step -= 1;
@@ -4235,6 +3828,7 @@ async function boot() {
   /* index.html 里已有静态骨架屏（不能靠这里注入 —— app.js 是 module，
      自己下载完才执行，那几秒里页面会是空的）。这里只负责抹掉它。 */
   try {
+    if (typeof document !== 'undefined') document.documentElement.dataset.build = BUILD_ID;
     // 以本模块的位置解析数据路径，而不是以页面位置。
     // 相对 fetch('./data/…') 会随【页面】所在目录变 —— 核查页放在 /tools/
     // 下时会错找 /tools/data/ 而 404（实测踩过）。以 import.meta.url 为基就没这问题。
@@ -4245,6 +3839,8 @@ async function boot() {
     ensureAffLinks().catch(() => {});
     /* 实物图清单也是压到底再读的便利层，顺手预热。 */
     ensurePhotos().catch(() => {});
+    /* 盘心彩图：与香水库并行预热，24 枚一起拉，用户点到哪格都有现成的。 */
+    artWarmAll();
     const res = await fetch(new URL('data/taxonomy.json', base));
     if (!res.ok) throw new Error(`taxonomy.json HTTP ${res.status}`);
     TAX = await res.json();

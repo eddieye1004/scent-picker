@@ -33,8 +33,7 @@
 |---|---|---|
 | `icon-specimen/svg/*.svg` | 24 枚全量覆盖（沿用旧文件名，`ART_FILE` 映射不变） | 24/24 写入，XML 全部可解析，渐变色与 `url(#)` 无悬空引用 |
 | `shots/icons-24-overview.html` / `.png` | 覆盖为最终版（标题去掉版本后缀、副标题改成本轮说明） | 581 KB / 479260 B，48 张卡（64px + 36px 两段）24 个 key 全覆盖 |
-| `app-art.js` | 只改一行注释里的体积数字（236KB/74.6KB → 281.3KB/79.3KB） | 逻辑零改动；`node --check` 通过 |
-| `app.js` | 追加彩色通路（2026-11-08，见第七节） | `SUB_MARKS`/`SUB_FIT` 仍保持原线稿（兜底用）；盘心改为 fetch 上色 svg 后替换 |
+| `app-art.js` / `app.js` | 两版都改用彩色通路；线稿整块删除（2026-11-08 第二轮，见第七节） | `SUB_MARKS`/`SUB_FIT`/`PLATE_MOTIFS` 已不存在；盘心同步写彩图，不再有替换动作 |
 | `data/taxonomy.json` | **未改** | v2.2.0，无 icon 字段，不含图标映射，无需替换 |
 | `shots/icons-24-overview-v2…v10.{html,png}` | 移入 `shots/_superseded-20261103/`（18 个文件 / 8.9 MB） | 活动路径下不再有旧版本 |
 | `icon-specimen/svg-v6`、`svg-v14-absorbed` | 移入备份目录 `scent-bak-20261103-154651/` | 项目 `icon-specimen/` 只剩 `svg/` |
@@ -50,9 +49,9 @@
 
 ## 五、遗留（未做，需用户裁定）
 
-1. `app.js` 的 `SUB_MARKS`/`SUB_FIT` 保留原线稿，只作兜底（上色 svg 加载失败时显示）。盘心正稿已改用上色 svg（第七节）。
+1. ~~`app.js` 的 `SUB_MARKS`/`SUB_FIT` 保留原线稿，只作兜底~~ —— **已于 2026-11-08 第二轮整块删除**，线稿不再存在（见第七节）。
 2. `shots/five-check.html`、`icon-specimen/REDRAW-20261031.md`、`docs/ICON-HANDOFF-20261102-v1.md` 里仍引用已移走的 `svg-v6` / `svg-v14-absorbed` 路径，属历史文档，未改。
-3. `shots/_superseded-20261103/`（8.9 MB）与 `shots/` 里大量探测图（合计 99 MB / 549 文件）尚未清，确认后可整批删除。
+3. `shots/` 已于 2026-11-08 清理：从 588 个文件 / 101.5 MB（含 4 个子目录共 1442 文件 / 143.9 MB）收敛到 **40 个文件 / 7.0 MB**。备份在 `C:/Users/16256/Documents/deepseek-harness/scent-shots-bak-20261108/`（1403 文件 / 137 MB + `MANIFEST.sha256`）。保留规则与脚本见第九节。
 
 ## 六、复跑命令
 
@@ -71,33 +70,65 @@ cd C:/Users/16256/ego/demo
 
 ## 七、盘心改用上色 SVG（2026-11-08）
 
-**推翻上一版的线稿重绘方案**：用户明确要求"把上色 SVG 直接挪过去，不要按线稿"。线稿方案（`marks24b.py`，24 枚 161 条 path）产物已全部回退，`SUB_MARKS`/`SUB_FIT` 恢复为备份原版（剪掉新加两段后与 `scent-bak-20261103-154651/app.js` 逐字节相同，`cur3 == bak ? True`）。
+**推翻上一版的线稿重绘方案**：用户明确要求"把上色 SVG 直接挪过去，不要按线稿"。线稿方案（`marks24b.py`，24 枚 161 条 path）产物已全部回退。
 
-### 实现
+**第二轮（同日）：线稿整条通路删除。** 第一版是「先画线稿、fetch 落地后替换成彩图」，实测用户能看到「先是老的、再是新的」两帧切换。修法不是加快替换，而是**不再画线稿**：
 
 | 位置 | 改动 |
 |---|---|
-| `app.js` 新插入（`function scentPlate(sub)` 之前） | `ART_FILE`（24 对 key→旧文件名）、`ART_CACHE`、`artInner(subId)`（fetch `./icon-specimen/svg/<file>.svg`，剥外层 `<svg>` 与 `<title>`）、`artSeq`、`artNs(inner, ns)`（给 id 与 `url(#…)` 加 `-<ns>` 后缀，避免 24 枚同页 id 冲突） |
-| `scentPlate()` 尾部（`return wrap;` 前） | `artInner(sub.id).then(...)` 造 `svg.plate-svg.is-art` 并替换掉线稿；**加载失败保留线稿，绝不空着** |
-| `styles.css` | `.wheel .plate-svg.is-art { fill: initial; stroke: none; stroke-width: 0; }` 及选中态覆盖——否则基类 `fill:none` 会把多色图糊成单色轮廓 |
+| `app.js` 删 | `PLATE_SW`（0.7）、`r2()`、`PLATE_MOTIFS`（6 个家族母题，2726 字符）、`SUB_MARKS`（24 个 key，14329 字符）、`SUB_FIT`（24 个 key + `_default`）、`PLATE_FALLBACK` —— 合计 **18 304 字符**，`node --check` 仍为 0 |
+| `app.js` 新增 | `ART_READY`（`Map`，存已解析好的 svg 内部字符串，供**同步**查询）、`artWarmAll()`（模块顶层立即预取 24 枚，不等 `DOMContentLoaded`、不等 taxonomy）、`artSvgReady(subId)`（就绪返回内部 html，未就绪返回 `''`） |
+| `scentPlate()` | 先造一个空的 `<svg class="plate-svg is-art" viewBox="0 0 24 24">` 占住 88px 的位（不会跳版），就绪就把内容 `innerHTML` 写进去；未就绪则等 `artInner()` 落地后再写同一个节点。**全程只有一个 svg 节点、只写一次内容，没有替换动作** |
+| `styles.css` | 不变（`.wheel .plate-svg.is-art { fill: initial; stroke: none; stroke-width: 0; }` + 选中态覆盖仍需要，因为基类是 `fill:none`） |
 
-净增 2593 B（`app.js` 213114 B vs 备份 214756 B），`node --check` = 0。
+净变化：`app.js` 215108 B → **189738 B**（-25370 B）。
 
-### 实测（`shotart.cjs`，真实页面 1440×900 DPR2，逐个点选 24 个小类）
+### 实测
 
-- **24/24 `art:true`，盘心全部 88×88**；元素数 10（cologne / incense）–57（powdery-floral），`tea` 50、`green` 45、`green-citrus` 43、`vetiver` 39。
-- 窄屏（`shotnarrow.cjs`）：390 / 360 视口盘心均 **36×36**；`plate-cap` 在 390 显示、360 隐藏（既有断点，非本轮引入）。
-- 证据图：`shots/art-plates.png`（24 枚真实页面逐格截图，1260×952）、`shots/art_<key>.png`（单枚）、`shots/art-narrow.png`（390/360 对照）。
+- `flashcheck.cjs`（点击后同一 JS 任务内采样）：24/24 点击瞬间 线稿节点 0、彩图节点 1。
+- `flashcheck2.cjs`（更严：检查 svg 数量 = 1、`is-art` = true、`innerHTML.length > 0`，并在 40/120/400ms 复查内容长度）：**bad at click 0 / content changed after click 0** —— 既没有线稿，也没有"先 A 后 B"的替换。
+- `coldcheck2.cjs`（禁缓存 + 限速 400KB/s + 250ms 延迟，冷启动首点 `cologne`）：点击瞬间 `{n:1, art:true, len:2677}`，预热后仍是 2677，内容未变。
+- `shotart.cjs`：24/24 `art:true`，盘心 88×88；元素数 10（cologne / incense）–57（powdery-floral）。
+- 窄屏（`shotnarrow.cjs`）：390 / 360 视口盘心均 **36×36**。
+- 证据图：`shots/art-plates.png`（24 枚真实页面逐格截图）、`shots/art_<key>.png`（单枚）、`shots/art-narrow.png`（390/360 对照）。
 
 ### 复跑
 
 ```bash
 N="F:/deepseek/resources/runtime/primary-runtime/dependencies/node/bin/node.exe"
-P="C:/Users/16256/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/python.exe"
 cd C:/Users/16256/Documents/deepseek-harness/default-workspace/scent-picker
 "$N" server.js 8123 &
 cd C:/Users/16256/ego/demo
-"$N" shotart.cjs        # 逐小类截图 + 量盘心
-"$N" shotnarrow.cjs     # 390/360 窄屏
-"$P" verify_only_art.py # 断言只动了彩色通路
+"$N" flashcheck2.cjs   # 断言点击瞬间即彩图、且内容不再变化（24/24）
+"$N" coldcheck2.cjs    # 冷缓存 + 限速下的首点
+"$N" shotart.cjs       # 逐小类截图 + 量盘心
+"$N" shotnarrow.cjs    # 390/360 窄屏
+```
+
+## 八、`shots/` 清理（2026-11-08）
+
+清理前 588 个文件／101.5 MB（含 `_old5`、`_superseded-20261103`、`_udd_art`、`_udd_nar` 四个子目录共 1442 文件／143.9 MB），清理后 **40 个文件／7.0 MB**。
+
+### 保留规则（三条，全部可复核）
+
+| 类别 | 内容 |
+|---|---|
+| A 最终交付物 | `icons-24-overview.{html,png}`、`icons-24-runtime.{html,png}`、`art-plates.png`、`art-narrow.png`、`art_<key>.png` ×24、`zoom24-five-sizes.png`、`ten-before-after.png` |
+| B 文档具名引用 | `docs/` 与 `icon-specimen/` 的 `.md` 里出现过的 `shots/<文件名>`：`five-check.html`、`icons-preview.png`、`icons-16-*.png`、`icons-28-overview.png`、`marks12-dry.png`、`marks12d-fix.png` |
+| C 其余全删 | 548 个文件 + 4 个子目录（含 122 张 `zz_*`、33 张 `inspect-*`、31 张 `v14/v15/v16/v17-*`、20 张 `marks*`、18 个 v2–v10 旧总览，以及两批 Playwright 用户数据目录 `_udd_art`/`_udd_nar` 共 820 文件） |
+
+备份：`C:/Users/16256/Documents/deepseek-harness/scent-shots-bak-20261108/`（1403 文件／137 MB + `MANIFEST.sha256` 1402 行，删除前逐文件校验 SHA256 通过后才执行删除）。
+
+### 清理后回归
+
+- `index.html`、`index-art.html`、`shots/icons-24-overview.html`、`shots/icons-24-runtime.html`、`shots/five-check.html`、`icon-specimen/preview.html`、`icon-specimen/svg/woody-vetiver.svg` 全部 200。
+- `shotart.cjs` 重跑：24/24 `art:true`，盘心 88×88 不变。
+
+### 复跑
+
+```bash
+P="C:/Users/16256/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/python.exe"
+cd C:/Users/16256/ego/demo
+"$P" clean_shots.py --dry   # 只报告保留/删除清单
+"$P" clean_shots.py --go    # 备份到 scent-shots-bak-<日期> 后删除
 ```

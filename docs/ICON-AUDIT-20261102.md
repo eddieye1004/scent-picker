@@ -184,7 +184,7 @@ $P audit14.py                          # 解析式 bbox / 描边档位 / 色相�
 
 ## 七、执行状态（2026-11-02 21:40）
 
-- **10 枚重画完成**：`ego/demo/next10/*.svg`，`autofit` 后全部落在 3.70–20.30，`bad=[]`。整版 `scent-picker/shots/icons-24-overview-v3.html` + `.png`（162 个 id，82 组成对重复属 64px/36px 两段预期结构）。
+- **10 枚重画完成**：`ego/demo/next10/*.svg`，`autofit` 后全部落在 3.70–20.30，`bad=[]`。整版 `scent-picker/shots/icons-24-overview-v3.html` + `.png`（162 个 id，82 组成对重复属 64px/36px 两段预期结构）。（该快照已于 2026-11-08 清理，存 `scent-shots-bak-20261108/_superseded-20261103/`）
 - **逐字节比对**：与 v2 相比 identical 14 / changed 10（正好是目标 10 枚）/ unexpected 0 / missing 0。
 - **前后对照**：`scent-picker/shots/ten-before-after.png`（2680×7536，每枚一行：改前 300px / 改后 300px / 旧新 88px / 旧新 36px）、`fixA.png`（木质檀木乌木香根草）、`fixB.png`（琥珀树脂皮革绿意）、`fixC.png`（水生茶香）。
 - **14 枚审计完成**：本文件第一至五节，含 7 枚 SAFE-FAIL、3 枚主轮廓超限、2 枚体积超标、逐枚 5–6 条具体缺陷定位。

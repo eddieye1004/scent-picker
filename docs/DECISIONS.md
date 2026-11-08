@@ -2364,3 +2364,25 @@ app_key 不合法时根本走不到验签那一步。
 详见 `docs/AFFILIATE-API.md`。新增脚本三个：
 `fetch-products.mjs`（搜索+匹配）、`merge-product-candidates.mjs`（候选转源表）、
 `test-union-api.mjs`（31 项）。
+
+## D58 · v31：盘心图标改用上色 SVG，运行时线稿整块删除（2026-11-08）
+
+**背景**：盘心的标本图一直是"只在自己 `SUB_MARKS` 里画一遍"的线稿，与 `icon-specimen/svg/` 的上色版是两套独立数据。24 枚上色版全量重绘后，运行时线稿欠账变成可见的错位（同一格在总览页和在页面里长得不一样）。
+
+**决定**：盘心直接用 `icon-specimen/svg/` 的上色 SVG，`SUB_MARKS` / `SUB_FIT` / `PLATE_MOTIFS` / `PLATE_FALLBACK` / `PLATE_SW` / `r2()` 整块删除。
+
+**为什么不保留线稿做兜底**：第一版实现是"先画线稿、fetch 落地后替换成彩图"，实测用户能看见约 1 帧到 1 秒的旧线稿 —— 反馈原话「还是先是老的 再是新的」。把替换做快没用，只有**不画**才能消除。现在的做法：
+
+1. `artWarmAll()` 在模块顶层（不等 `DOMContentLoaded`、不等 taxonomy）就把 24 枚全部预取进 `ART_READY`（合计 295.6KB / gzip 80.1KB，与香水库并行）；
+2. `scentPlate()` 先造一个空的 `<svg class="plate-svg is-art" viewBox="0 0 24 24">` 占住 88px 的位（不跳版），`ART_READY` 命中就同步 `innerHTML` 写入；
+3. 没命中则等 `artInner()` 落地后写**同一个节点**。全程只有一个 svg 节点、只写一次内容，**没有替换动作**。
+
+**代价**：离线或 `file://` 打开时盘心是空的（CORS 拦掉 fetch）。这是既有约束，`server.js` 是唯一支持的打开方式，`boot()` 的失败提示已写明。
+
+**验证**：`flashcheck2.cjs` 逐个小类点击，在同一 JS 任务内断言「svg 数量 = 1、`is-art` = true、`innerHTML.length > 0`」，再在 40/120/400ms 复查内容长度 —— 结果 24/24 全通过，`bad at click 0`、`content changed after click 0`。`coldcheck2.cjs`（禁缓存 + 400KB/s 限速 + 250ms 延迟）冷启动首点也是直接彩图。
+
+**连带改动**：
+- `scripts/test-render.mjs` 的桩补了两处能力 —— `innerHTML` 现在要解析 svg markup（原来只 strip 标签）、`fetch` 桩补 `text()`（原来只有 `json()`）。两处都是"桩缺能力就补桩"，不改断言绕开。
+- 原来断言「标本无填充 `fill=none`」改成「标本挂 `is-art`」：上色稿自带 fill，这条断言的语义随实现变了。
+- 原「`SUB_MARKS` 24 个 key 与 taxonomy 对齐」的断言，改成「`ART_FILE` 的 24 对映射与 taxonomy 对齐 + 文件都在磁盘上 + 图元数 ≥ 6 + 带渐变 + 两两不同」。
+- `app.js` 215108 B → 189738 B（-25370 B）；`node --check` = 0；`scripts/test-render.mjs` **PASS 246 / FAIL 0**。
