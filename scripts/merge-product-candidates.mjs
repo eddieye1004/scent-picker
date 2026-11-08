@@ -148,19 +148,38 @@ for (const row of accepted) {
   /* 图片：只有「链接被接受」的行才取图 —— 选错商品时它的主图也一定不对，
      给错图比不给图更糟（用户会以为这就是他问的那一瓶）。
 
-     字段优先级：white_image > pict_url（2026-11-08 实测 601 张白的通过率 73%）。
-     white_image 是淘宝「白底图」规范单独提供的，通常不带价签与贴纸；
-     pict_url 多是营销主图，带红色角标与直播贴纸，过不了判据就不该上页面。
-     这里只负责挑来源，不在这里判「干净与否」—— 判在 build-photos.py，
+     一图多源：候选图按「白底 > 营销主图 > 小图」排成候选数组，交给下游逐张试。
+     为什么不在这里只留一张：三档的覆盖率差得远（实测 3415 个商品）——
+       white_image   660 张  19.3%   通过判据 73%
+       pict_url     3415 张 100%     通过判据 16%（多数带价签/贴纸）
+       small_images 3113 个商品有  91%   抽 118 张通过 52.5%
+     只留 white_image 会让 1388 瓶里只有 168 瓶有图（覆盖率 12%），
+     而用户在页面上看到的就是「三张卡全是绘制瓶形」。
+     三档拼起来才能把覆盖率做上去。
+
+     这里只负责挑来源、排顺序，不判「干净与否」—— 判在 build-photos.py，
      因为那需要读像素，而这一步只有 URL。 */
-  const pic = (picked.whiteImage || picked.pictUrl || '').trim();
-  if (!pic) { imgBad++; continue; }
-  if (!isAllowedImage(pic)) { imgBad++; rejected.push([`taobao:${row.id}`, `图片域名不在白名单：${pic.slice(0, 60)}`]); continue; }
+  const cands = [];
+  if (picked.whiteImage) cands.push({ src: picked.whiteImage.trim(), kind: 'white' });
+  if (picked.pictUrl) cands.push({ src: picked.pictUrl.trim(), kind: 'marketing' });
+  for (const u of (picked.smallImages || [])) {
+    if (typeof u === 'string' && u) cands.push({ src: u.trim(), kind: 'small' });
+  }
+  const usable = cands.filter((c) => isAllowedImage(c.src));
+  if (!usable.length) {
+    imgBad++;
+    if (cands.length) rejected.push([`taobao:${row.id}`, `图片域名全不在白名单：${cands[0].src.slice(0, 60)}`]);
+    continue;
+  }
+  // 去重（small_images 里常有与主图重复的首张）
+  const seenSrc = new Set();
+  const uniq = usable.filter((c) => (seenSrc.has(c.src) ? false : (seenSrc.add(c.src), true)));
   imgs.taobao[row.id] = {
-    src: pic,
+    src: uniq[0].src,
+    kind: uniq[0].kind,
+    alts: uniq.slice(1).map((c) => ({ src: c.src, kind: c.kind })),
     itemId: String(picked.itemId || ''),
     gotAt: new Date().toISOString().slice(0, 10),
-    kind: picked.whiteImage ? 'white' : 'marketing',
   };
   imgAdded++;
 }

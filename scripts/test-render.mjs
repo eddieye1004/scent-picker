@@ -16,6 +16,38 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 
+/* ---------- 极简 SVG markup → TNode ----------
+   只为 innerHTML 服务：盘心写进来的是 24 枚上色 SVG 的内部内容。
+   认三种形态：自闭合 <tag .../>、开标签 <tag ...>、闭标签 </tag>。
+   属性只按 `k="v"` / `k='v'` 取，够覆盖上色稿用到的全部属性。 */
+function parseStubMarkup(src, parent) {
+  const out = [];
+  const stack = [{ node: { children: out, tagName: '#ROOT', attrs: {}, parentNode: parent }, name: '#ROOT' }];
+  const re = /<(\/?)([A-Za-z][\w:-]*)((?:\s+[\w:.-]+\s*=\s*"[^"]*")*)\s*(\/?)>|([^<]+)/g;
+  let m;
+  while ((m = re.exec(src))) {
+    if (m[5] != null) {
+      const txt = m[5];
+      if (txt.trim()) stack[stack.length - 1].node.children.push(txt);
+      continue;
+    }
+    const [, closing, name, attrsRaw, selfClose] = m;
+    if (closing) {
+      if (stack.length > 1) stack.pop();
+      continue;
+    }
+    const attrs = {};
+    const ar = /([\w:.-]+)\s*=\s*"([^"]*)"/g;
+    let a;
+    while ((a = ar.exec(attrsRaw || ''))) attrs[a[1]] = a[2];
+    const node = new TNode(name, attrs);
+    node.parentNode = stack[stack.length - 1].node === parent ? parent : stack[stack.length - 1].node;
+    stack[stack.length - 1].node.children.push(node);
+    if (!selfClose) stack.push({ node, name });
+  }
+  return out;
+}
+
 /* ---------- 极简 DOM ---------- */
 class TNode {
   constructor(tag, attrs = {}, kids = []) {
@@ -26,6 +58,9 @@ class TNode {
     this._text = null;
     this._listeners = {};
     this.style = {};
+    /* dataset：app.js 用 `documentElement.dataset.build` 写构建标记。
+       桩里做成普通对象就够 —— 只写不读，不需要往属性上映射 data-*。 */
+    this.dataset = {};
     this.classList = {
       _set: new Set(String(attrs.class || '').split(/\s+/).filter(Boolean)),
       add(c) { this._set.add(c); },
@@ -54,9 +89,13 @@ class TNode {
   set textContent(v) { this._text = String(v); this.children = []; }
   get innerHTML() { return this.textContent; }
   set innerHTML(v) {
-    // app.js 用到 innerHTML 的地方只有两处：进度提示和加载失败文案
-    this.children = [];
-    this._text = String(v).replace(/<[^>]*>/g, '') || null;
+    /* 早先这里只 strip 标签留纯文本 —— 因为 app.js 只有两处 innerHTML。
+       现在盘心写的是整段上色 SVG 的 markup，strip 掉就什么都查不到了，
+       于是补一个极简解析器：够认 <tag attr="v"/> 与嵌套，
+       能重建出 path / circle / ellipse / g / defs 这几类节点。
+       桩缺能力就补桩，不能改断言绕开 —— 否则测试和浏览器走两条路。 */
+    this.children = parseStubMarkup(String(v), this);
+    this._text = null;
   }
   setAttribute(k, v) {
     this.attrs[k] = String(v);
@@ -86,6 +125,17 @@ class TNode {
   removeChild(n) {
     const i = this.children.indexOf(n);
     if (i >= 0) { this.children.splice(i, 1); n.parentNode = null; }
+    return n;
+  }
+  /* replaceWith 与 insertBefore 同理：app.js:1098 `old.replaceWith(art)` 是
+     标准 DOM 方法，桩里没有就抛 "old.replaceWith is not a function"。
+     它只在 artInner() 的 promise 兑现后触发，所以本地跑常常"过了"，
+     而 check-head 导出 HEAD 跑就红 —— 这类「时序决定红绿」的假失败
+     比没有断言更浪费人：会让人去改业务代码绕开它。 */
+  replaceWith(n) {
+    const i = this.parentNode ? this.parentNode.children.indexOf(this) : -1;
+    if (typeof n !== 'string') n.parentNode = this.parentNode;
+    if (i >= 0) this.parentNode.children.splice(i, 1, n);
     return n;
   }
   append(...ns) { ns.flat().forEach((n) => n != null && this.appendChild(n)); }
@@ -156,6 +206,10 @@ class TNode {
 const appRoot = new TNode('main', { id: 'app' });
 globalThis.document = {
   _nodes: { '#app': appRoot },
+  /* app.js 在 boot() 里往 documentElement.dataset.build 写构建标记。
+     桩缺 documentElement 会抛，被 boot() 的 try/catch 吞成"加载失败"，
+     测试就只能看到空白页 —— 桩要补齐，不能让被测代码为桩让路。 */
+  documentElement: new TNode('html'),
   createElement: (t) => new TNode(t),
   // 圆盘用 SVG 画扇形，必须有 createElementNS —— 少了它 svgEl() 直接抛错，
   // 而 boot() 的 try/catch 会把它吞成"加载失败"，测试只会看到首屏空白。
@@ -182,8 +236,14 @@ globalThis.fetch = async (url) => {
     rel = String(url).replace(/^\.\//, '').replace(/^\//, '').replace(/\//g, path.sep);
   }
   const p = path.isAbsolute(rel) ? rel : path.join(ROOT, rel);
-  const txt = fs.readFileSync(p, 'utf8');
-  return { ok: true, status: 200, json: async () => JSON.parse(txt) };
+  /* text() 是后加的：盘心现在直接 fetch 上色 svg 并读 .text()。
+     桩只实现 json() 时 artInner() 会抛、被 catch 成 ''，盘心静默变空白。 */
+  try {
+    const txt = fs.readFileSync(p, 'utf8');
+    return { ok: true, status: 200, json: async () => JSON.parse(txt), text: async () => txt };
+  } catch (e) {
+    return { ok: false, status: 404, json: async () => ({}), text: async () => '' };
+  }
 };
 
 /* ---------- 跑 ---------- */
@@ -598,11 +658,12 @@ const plates = appRoot.querySelectorAll('.plate-svg');
 /* 一枚，不是三枚：实测每个小类的代表香材全部同属一个家族，
    逐味画会出来一排一模一样的图标。这条断言就是钉住那个结论的。 */
 ok('标本只画一枚（不是每味香材一枚）', plates.length === 1, `${plates.length} 枚`);
-/* 统一视框与无填充 —— 这就是"风格统一"的可断言部分。
-   缺一条，各张图之间就会出现笔法断层（有的填实、有的方头）。 */
+/* 统一视框 —— 这就是"风格统一"的可断言部分。
+   上色稿自带自己的 fill / stroke，所以外框不再要求 fill="none"，
+   而是要求它挂 is-art 且真的把上色内容写了进去（见下面 shapeCount）。 */
 ok('标本是 24×24 同一视框', plates[0].getAttribute('viewBox') === '0 0 24 24',
   plates[0].getAttribute('viewBox'));
-ok('标本无填充', plates[0].getAttribute('fill') === 'none', plates[0].getAttribute('fill'));
+ok('标本走的是上色通路（is-art）', plates[0].classList.contains('is-art'), plates[0].className);
 
 /* 里必须真有几何。桩里塞 markup 字符串的话会被剥成纯文本，
    容器在、图形空 —— 这是"看起来做了其实没做"的典型形态，必须抓住。 */
@@ -662,73 +723,60 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
 /* 不断言具体是哪一味：中圈格子的顺序由 taxonomy 决定，写死「葡萄柚」
    会把测试绑死在当前数据顺序上，数据一改就假失败。要守的是
    「名字跟着小类变」，这才是这条断言的意义。 */
-/* ---- 每类一枚标识：数据完整性 + 两两不撞形 ----
-   类数不写死：taxonomy 加类/减类时这里跟着走，
-   写死会在改分类体系时留下一句骗人的断言名。 */
+/* ---- 每类一枚图标：数据完整性 + 两两不重复 ----
+   线稿（SUB_MARKS / SUB_FIT）已于 2026-11-08 整块删除，盘心直接用
+   icon-specimen/svg/ 里的上色稿。所以这里改成校验 ART_FILE 这张映射表，
+   外加"每个映射到的文件真的存在、真的是 SVG、图元足够"。 */
 {
   const appJs = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
-  const s0 = appJs.indexOf('const SUB_MARKS');
+  const s0 = appJs.indexOf('const ART_FILE = {');
   let depth = 0;
   let e0 = -1;
   for (let i = appJs.indexOf('{', s0); i < appJs.length; i += 1) {
     if (appJs[i] === '{') depth += 1;
     else if (appJs[i] === '}') { depth -= 1; if (depth === 0) { e0 = i + 1; break; } }
   }
-  ok('能从 app.js 里切出 SUB_MARKS 块', s0 > 0 && e0 > s0);
-  /* r2 在 app.js 里定义在这块之后，直接求值会 ReferenceError，这里自带一份同名实现。
-     两处必须一致，都是「保留两位小数、去掉尾随 0」。 */
-  const r2 = (n) => (Math.round(n * 100) / 100).toString();
-  const MARKS = new Function('r2', appJs.slice(s0, e0) + '; return SUB_MARKS;')(r2);
+  ok('能从 app.js 里切出 ART_FILE 块', s0 > 0 && e0 > s0);
+  const ART = new Function(appJs.slice(s0, e0) + '; return ART_FILE;')();
 
   const TAXA_MARK = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/taxonomy.json'), 'utf8'));
   const allSubs = TAXA_MARK.families.flatMap((f) => f.subfamilies.map((s) => ({ id: s.id, fam: f.id })));
-  const missing = allSubs.filter((s) => typeof MARKS[s.id] !== 'function').map((s) => s.id);
-  ok('每个小类都有专属标识（不缺格）', missing.length === 0,
+  const missing = allSubs.filter((s) => typeof ART[s.id] !== 'string').map((s) => s.id);
+  ok('每个小类都有对应的上色 SVG（不缺格）', missing.length === 0,
     `缺 ${missing.length} 个: ${missing.join(',')}`);
-  const extra = Object.keys(MARKS).filter((k) => !allSubs.some((s) => s.id === k));
-  ok('没有多余的标识（不画数据里不存在的格）', extra.length === 0, extra.join(','));
+  const extra = Object.keys(ART).filter((k) => !allSubs.some((s) => s.id === k));
+  ok('没有多余的上色映射（不指向数据里不存在的格）', extra.length === 0, extra.join(','));
 
-  /* 几何签名：把每个图元的 tag 与全部属性拼起来。
-     不去光栅化 —— 测试里没有 canvas，而且几何签名已经能抓住
-     「轮廓与内部线完全一样、只差 1px 偏移」这类撞形（本轮真正的问题就是这个）。 */
-  const sig = (id) => JSON.stringify(MARKS[id]());
-  const seen = new Map();
-  const dup = [];
-  for (const s of allSubs) {
-    const k = sig(s.id);
-    if (seen.has(k)) dup.push(`${seen.get(k)} / ${s.id}`);
-    else seen.set(k, s.id);
-  }
-  ok(`全部 ${allSubs.length} 枚标识的图形全不相同`, dup.length === 0, dup.join(' ; '));
-  /* 同族内部尤其不能撞：外圈一次只展开一族，用户看到的永远只有同族那几格，
-     跨族撞形用户看不见，同族撞形就是「两格长得一样」。 */
-  const dupSameFam = [];
-  for (const fam of TAXA_MARK.families) {
-    const m = new Map();
-    for (const s of fam.subfamilies) {
-      const k = sig(s.id);
-      if (m.has(k)) dupSameFam.push(`${fam.id}: ${m.get(k)} / ${s.id}`);
-      else m.set(k, s.id);
-    }
-  }
-  ok('同族内部图形不重复', dupSameFam.length === 0, dupSameFam.join(' ; '));
-  /* 每枚要有足够的笔触，不能是一个点或一条孤线。
-     判据不是「图元个数 >= 2」——香根草是一束五条曲线，全打包在一条 path 里；
-     水生是两道波纹，同理。数 M 命令才反映实际笔触数。 */
-  const strokes = (shapes) => shapes.reduce((n, sh) => {
-    if (sh.tag !== 'path') return n + 1;
-    return n + String(sh.attrs.d || '').split('M').length - 1;
-  }, 0);
-  /* 但也不能反过来要求「必须多笔」：辛香琥珀是一根连续卷进的肉桂卷，
-     一笔到底才是对的。真正的下限是「不能只有一个点或一根直线」——
-     于是判据改成「图元数 + 曲线段数」的总和 >= 2。 */
-  const weight = (shapes) => shapes.reduce((n, sh) => {
-    if (sh.tag !== 'path') return n + 1;
-    const seg = String(sh.attrs.d || '').match(/[CLQ]/g);
-    return n + (seg ? seg.length : 1);
-  }, 0);
-  const thin = allSubs.filter((s) => weight(MARKS[s.id]()) < 2).map((s) => s.id);
-  ok('每枚标识都不是孤点孤线', thin.length === 0, thin.join(','));
+  /* 每个映射必须落到一个真实、可解析、图元足够的 svg 文件。
+     「文件在」不够 —— 空 svg 也能 200，那等于盘心画了个空白。 */
+  const files = allSubs.map((s) => ({ id: s.id, p: 'icon-specimen/svg/' + ART[s.id] + '.svg' }));
+  const gone = files.filter((f) => !fs.existsSync(path.join(ROOT, f.p))).map((f) => f.id);
+  ok('映射到的 SVG 文件都在磁盘上', gone.length === 0, gone.join(','));
+
+  const thin = [];
+  const noGrad = [];
+  files.forEach((f) => {
+    const full = path.join(ROOT, f.p);
+    if (!fs.existsSync(full)) return;
+    const svgTxt = fs.readFileSync(full, 'utf8');
+    const shapes = (svgTxt.match(/<(path|circle|ellipse|rect|polygon)\b/g) || []).length;
+    if (shapes < 6) thin.push(`${f.id}:${shapes}`);
+    if (!/url\(#/.test(svgTxt)) noGrad.push(f.id);
+  });
+  ok('每枚上色 SVG 的图元数都够（>= 6）', thin.length === 0, thin.join(','));
+  ok('每枚上色 SVG 都带渐变（不是单色块）', noGrad.length === 0, noGrad.join(','));
+
+  /* 上色稿之间不重复：直接比文件字节。同一份文件被映射给两格是典型手误。 */
+  const seenF = new Map();
+  const dupF = [];
+  files.forEach((f) => {
+    const full = path.join(ROOT, f.p);
+    if (!fs.existsSync(full)) return;
+    const k = fs.readFileSync(full, 'utf8');
+    if (seenF.has(k)) dupF.push(`${seenF.get(k)} / ${f.id}`);
+    else seenF.set(k, f.id);
+  });
+  ok('全部上色 SVG 两两不同', dupF.length === 0, dupF.join(' ; '));
 }
 
 ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textContent !== cap.textContent,
@@ -1500,12 +1548,14 @@ ok('结果页无 NaN/undefined', !/NaN|undefined/.test(resultText), resultText.s
 
   /* ⑥ 成品图集的规模与体积（v33 加了 scripts/build-photo-set.mjs 自动生成）。
      这三条钉的是"图集有没有被意外清空/撑爆"，不是"图好不好看"：
-     · 覆盖数：自动生成后至少 100 瓶（实测 168）。掉到个位数说明判据被改坏了。
-     · 体积：单张 < 40KB（实测均 8.9KB）。超了说明判据漏了场景图 ——
+     · 覆盖数：自动生成后至少 300 瓶（实测 370，来自 white/pict/small 三档候选）。
+       掉到一百多说明又退回了"只用 white_image"那条路（那版只有 168 瓶，
+       页面上三张卡几乎全是绘制瓶形 —— 用户就是这么发现的）。
+     · 体积：单张 < 40KB（实测均 8.8KB）。超了说明判据漏了场景图 ——
        场景图裁完仍带大面积背景，webp 压不下去。
      · 格式：必须是 webp。png/jpg 会带 EXIF 方向标记与体积。 */
   const filesOk = vals.filter((v) => fs.existsSync(path.join(ROOT, v)));
-  ok('photos.json 覆盖至少 100 瓶', filesOk.length >= 100, `实际 ${filesOk.length}`);
+  ok('photos.json 覆盖至少 300 瓶', filesOk.length >= 300, `实际 ${filesOk.length}`);
   const sizes = filesOk.map((v) => fs.statSync(path.join(ROOT, v)).size);
   const tooBig = filesOk.filter((v, i) => sizes[i] > 40 * 1024);
   ok('photos.json 单张图 < 40KB', tooBig.length === 0,
