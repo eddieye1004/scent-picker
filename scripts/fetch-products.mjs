@@ -162,19 +162,10 @@ async function queryJd(perfume) {
    实测截图见 C:/Users/16256/ego/aff-20261101/probe-upgrade.json。 */
 const TAOBAO_MATERIAL_METHOD = 'taobao.tbk.dg.material.optional.upgrade';
 
-async function queryTaobao(perfume) {
-  const appKey = process.env.TB_APP_KEY;
-  const secret = process.env.TB_APP_SECRET;
-  const adzone = process.env.TB_ADZONE_ID;
-  const keyword = `${perfume.brand} ${perfume.name}`.trim();
-  const params = buildTaobaoParams({
-    appKey, secret,
-    method: TAOBAO_MATERIAL_METHOD,
-    timestamp: gmt8Timestamp(),
-    biz: { q: keyword, adzone_id: adzone, page_no: 1, page_size: 20, platform: 2 },
-  });
-  const body = await withRetry(() => postForm(TAOBAO_GATEWAY, params), `TB ${perfume.id}`);
-  const node = unwrapTaobao(body, TAOBAO_MATERIAL_METHOD);
+/* 淘宝返回 → 候选数组。抽出来是为了让缓存重映射能复用同一套逻辑：
+   缓存里存了 raw，字段映射一改（比如这次加 whiteImage），
+   老缓存不重发请求也能拿到新字段。映射只有这一份，两边不会漂移。 */
+function mapTaobao(keyword, node) {
   const list = node.result_list?.map_data || [];
   const candidates = list.map((it) => {
     // 新旧结构都认：先把两个层级拍平，再取值
@@ -191,13 +182,37 @@ async function queryTaobao(perfume) {
       clickUrl: flat.click_url || '',
       /* 主图要留着。联盟「营销素材」与物料接口给的都是 img.alicdn.com 上的
          推广用图 —— 这是唯一一条「平台主动授权给推广者使用」的图片来源，
-         比抓电商详情页或第三方博客干净。拿到 pid 后的实物图就靠它。 */
+         比抓电商详情页或第三方博客干净。拿到 pid 后的实物图就靠它。
+
+         但 pict_url 与 white_image 不是一回事（2026-11-08 实测 601 张后确认）：
+         · pict_url    = 营销主图，多数带红色价签、「到手N件」角标、直播贴纸
+         · white_image = 白底/纯色底主图，淘宝为「白底图」规范单独提供的
+         拿 pict_url 当商品图，会直接违反「仅含香水本身，不含贴纸文字」这个要求。
+         两个都留着，取舍交给下游：white_image 优先（过判据率高、干净），
+         pict_url 兜底（可能带角标，过不了判据就不给图）。 */
       pictUrl: flat.pict_url || '',
+      whiteImage: flat.white_image || '',
       smallImages: flat.small_images?.string || [],
       couponShareUrl: flat.coupon_share_url || '',
     };
   });
-  return { keyword, candidates, raw: node };
+  return { keyword, candidates };
+}
+
+async function queryTaobao(perfume) {
+  const appKey = process.env.TB_APP_KEY;
+  const secret = process.env.TB_APP_SECRET;
+  const adzone = process.env.TB_ADZONE_ID;
+  const keyword = `${perfume.brand} ${perfume.name}`.trim();
+  const params = buildTaobaoParams({
+    appKey, secret,
+    method: TAOBAO_MATERIAL_METHOD,
+    timestamp: gmt8Timestamp(),
+    biz: { q: keyword, adzone_id: adzone, page_no: 1, page_size: 20, platform: 2 },
+  });
+  const body = await withRetry(() => postForm(TAOBAO_GATEWAY, params), `TB ${perfume.id}`);
+  const node = unwrapTaobao(body, TAOBAO_MATERIAL_METHOD);
+  return { ...mapTaobao(keyword, node), raw: node };
 }
 
 /* ---------- 主流程 ---------- */
@@ -244,6 +259,22 @@ if (existsSync(CACHE) && !FORCE) {
 }
 const cacheKey = (plat, p) => `${plat}:${p.id}:${p.brand} ${p.name}`.toLowerCase();
 
+/* 缓存里存的是 { keyword, candidates, raw }。candidates 是按**当时的**
+   映射逻辑拍平出来的，新增字段（比如 whiteImage）不会自己出现在老条目里 ——
+   缓存命中时用旧 candidates，新字段永远是 undefined。
+
+   这里在命中缓存时，若该条目有 raw，就用当前逻辑从 raw 重新映射一遍，
+   保证「改映射不必重发请求」。raw 缺失（京东侧不走这条）则退回旧 candidates。 */
+const remap = (plat, entry) => {
+  if (!entry || !entry.raw) return entry;
+  try {
+    const fresh = plat === 'taobao' ? mapTaobao(entry.keyword, entry.raw) : entry;
+    return { ...fresh, keyword: entry.keyword ?? fresh.keyword };
+  } catch {
+    return entry;   // raw 结构对不上就保留旧值，不比原样更差
+  }
+};
+
 const results = [];
 const stats = { queried: 0, accepted: 0, rejected: 0, cached: 0, failed: 0 };
 
@@ -251,7 +282,7 @@ for (const p of targets) {
   for (const plat of plats) {
     const ck = cacheKey(plat, p);
     let r = cache[ck];
-    if (r) stats.cached++;
+    if (r) { stats.cached++; r = remap(plat, r); }
     else {
       try {
         r = plat === 'jd' ? await queryJd(p) : await queryTaobao(p);

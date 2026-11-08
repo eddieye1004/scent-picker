@@ -1498,6 +1498,21 @@ ok('结果页无 NaN/undefined', !/NaN|undefined/.test(resultText), resultText.s
     vals.every((v) => fs.existsSync(path.join(ROOT, v))),
     vals.join(' | '));
 
+  /* ⑥ 成品图集的规模与体积（v33 加了 scripts/build-photo-set.mjs 自动生成）。
+     这三条钉的是"图集有没有被意外清空/撑爆"，不是"图好不好看"：
+     · 覆盖数：自动生成后至少 100 瓶（实测 168）。掉到个位数说明判据被改坏了。
+     · 体积：单张 < 40KB（实测均 8.9KB）。超了说明判据漏了场景图 ——
+       场景图裁完仍带大面积背景，webp 压不下去。
+     · 格式：必须是 webp。png/jpg 会带 EXIF 方向标记与体积。 */
+  const filesOk = vals.filter((v) => fs.existsSync(path.join(ROOT, v)));
+  ok('photos.json 覆盖至少 100 瓶', filesOk.length >= 100, `实际 ${filesOk.length}`);
+  const sizes = filesOk.map((v) => fs.statSync(path.join(ROOT, v)).size);
+  const tooBig = filesOk.filter((v, i) => sizes[i] > 40 * 1024);
+  ok('photos.json 单张图 < 40KB', tooBig.length === 0,
+    tooBig.length ? `${tooBig.length} 张超限，最大 ${Math.max(...sizes)}B` : `最大 ${Math.max(...sizes)}B`);
+  ok('photos.json 的值全是 .webp', filesOk.every((v) => v.endsWith('.webp')),
+    filesOk.filter((v) => !v.endsWith('.webp')).join(' | '));
+
   ART.set(null);   // 恢复"还没试过"，别影响后面的断言
 }
 

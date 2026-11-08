@@ -146,11 +146,22 @@ for (const row of accepted) {
   added++;
 
   /* 图片：只有「链接被接受」的行才取图 —— 选错商品时它的主图也一定不对，
-     给错图比不给图更糟（用户会以为这就是他问的那一瓶）。 */
-  const pic = picked.pictUrl || '';
+     给错图比不给图更糟（用户会以为这就是他问的那一瓶）。
+
+     字段优先级：white_image > pict_url（2026-11-08 实测 601 张白的通过率 73%）。
+     white_image 是淘宝「白底图」规范单独提供的，通常不带价签与贴纸；
+     pict_url 多是营销主图，带红色角标与直播贴纸，过不了判据就不该上页面。
+     这里只负责挑来源，不在这里判「干净与否」—— 判在 build-photos.py，
+     因为那需要读像素，而这一步只有 URL。 */
+  const pic = (picked.whiteImage || picked.pictUrl || '').trim();
   if (!pic) { imgBad++; continue; }
   if (!isAllowedImage(pic)) { imgBad++; rejected.push([`taobao:${row.id}`, `图片域名不在白名单：${pic.slice(0, 60)}`]); continue; }
-  imgs.taobao[row.id] = { src: pic.trim(), itemId: String(picked.itemId || ''), gotAt: new Date().toISOString().slice(0, 10) };
+  imgs.taobao[row.id] = {
+    src: pic,
+    itemId: String(picked.itemId || ''),
+    gotAt: new Date().toISOString().slice(0, 10),
+    kind: picked.whiteImage ? 'white' : 'marketing',
+  };
   imgAdded++;
 }
 

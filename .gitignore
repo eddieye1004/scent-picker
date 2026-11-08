@@ -72,3 +72,7 @@ data/affiliate-links.source.json
 .env.*
 !.env.example
 *.local.env
+
+# Python 字节码（scripts/build-photos.py 被 import 时会生成）
+__pycache__/
+*.pyc
