@@ -1171,13 +1171,13 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
 
      ① direct —— 三件套（target/pid/productBase）齐全，有佣金
         → `.buy-link` 且 `data-affiliate="true"`、rel 含 sponsored
-        → 跟一条 `aff-note` 广告披露（首句「广告」）
+        → 页面上**不挂**任何广告披露（2026-11-08 起按用户要求删除）
      ② link  —— 预生成直达页，无佣金
         → `.buy-link.is-search`、`data-affiliate="false"`、rel **不含** sponsored
         → **不挂**广告披露
      ③ search —— 平台搜索页兜底，零配置
         → `.buy-link.is-search`、`data-affiliate="false"`、rel **不含** sponsored
-        → 跟一句 `aff-note.is-search`，说明"这是搜索结果页"
+        → 跟一句 `.link-note`，说明"这是搜索结果页"
 
    为什么 `.is-search` 也复用 `.buy-link` 类：视觉上它确实是那张卡片的
    主要外链，样式复用避免两套按钮；语义靠 `data-kind` 与 rel 区分。 */
@@ -1308,20 +1308,20 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
     buy.every((a) => /noopener/.test(String(a.attrs.rel || '')) && /noreferrer/.test(String(a.attrs.rel || ''))),
     buy.map((a) => a.attrs.rel).join(' | '));
 
-  /* ---- 披露：一张卡上只要有任意一个 direct，就挂「广告」披露 ----
-     淘宝现在是 direct，所以每张卡一条 aff-note。
-     另外因为有两个渠道，每卡还会多一条 link-note 说明两者差异 ——
-     这一条**不是**广告披露，是"我们保证不了什么"的说明，
-     所以必须用 .link-note 而不是 .aff-note（两者混用会让
-     "有没有广告披露"在 DOM 层就分不出来，上一版踩过）。 */
+  /* ---- 披露：2026-11-08 起页面上不再出现任何广告披露文案 ----
+     用户明确要求删掉「点进去会有推广链接」那句备注。这条断言的作用
+     从「必须有」反转成「必须没有」——两边都得钉住，否则哪天有人
+     顺手加回来，测试不会响。
+
+     同时钉住保留的两条说明（它们不是广告披露，是事实说明）：
+       · 双渠道说明：讲两个按钮差在哪、价格没排序
+       · 搜索兜底说明：讲点进去是搜索结果不是商品页
+     两者都用 .link-note；.aff-note 这个类**不再出现在结果页**，
+     留作将来恢复披露时的钩子。 */
   const cards = [...appRoot.querySelectorAll('.pick')];
-  const notesByCard = cards.map((c) => c.querySelectorAll('.aff-note').length);
-  ok('有 direct 链接时每卡挂一条「广告」披露',
-    cards.length === 3 && notesByCard.every((n) => n === 1),
-    `每卡 ${notesByCard.join(',')}`);
-  ok('披露首句是「广告」',
-    notes.every((n) => n.textContent.trim().startsWith('广告')),
-    notes.map((n) => n.textContent.slice(0, 14)).join(' | '));
+  ok('结果页不挂任何广告披露文案',
+    notes.length === 0 && cards.every((c) => c.querySelectorAll('.aff-note').length === 0),
+    `全页 ${notes.length} 条 aff-note`);
   /* 双渠道说明必须说清"价格没排序"——这是实测结论，不能省。
      只对有搜索渠道的卡要求；纯直达链的卡不许挂（它只有一个入口，写了就是编）。 */
   /* 测试桩的 querySelector 不支持属性选择器（已知限制，见文件头注释），
