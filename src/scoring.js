@@ -307,7 +307,35 @@ export function scorePerfume(p, profile, taxonomy) {
     famHit += contribution;
     if (contribution > famBestW) { famBestW = contribution; famBest = fam; }
   }
-  const famScore = clamp01(famHit / 1.2) * (WEIGHTS.emotionFamily + WEIGHTS.occasionFamily);
+  /* 分母 = 该入口下 famHit 的**库内可达上界**，否则这一项永远拿不满。
+     上界实测（1388 瓶，scripts/probe-g7-team.mjs / probe-g7-c.mjs）：
+       · 香型入口、不答场合：6 个族全部精确 1.0000。
+       · 香型入口、答了场合：最大 **1.1760**（fresh + daily → trussardi-riflesso）——
+         场合 lerp 会把 famHit 抬到 1.0 以上，这是场合那 22 分携带的信息。
+       · 旧分母 1.2：无场合最高 43.33 / 52 = **83.3%**；带场合最高 50.96 / 52 = **98.0%**。
+         所以「83.3% 天花板」只对不答场合成立，不能当统一说法。
+       · 情绪入口：pref 是六族全非零的向量（和≈3.2），点积上界 1.52。
+
+     为什么按 occasion 分两档（1.18 / 1.00），而不是一律 1.0：
+     一律 1.0 会让「香型入口 + 场合」这一桶里 **2846 瓶（30 组求和）撞 clamp**，
+     被 clamp 吃掉的正好是 1.0→1.176 那段，也就是场合信号 —— 因子能拿满了，
+     但场合维度在这些瓶上失去区分力。取 1.18 略高于真实上界 1.176，
+     于是没有瓶撞顶，同时两个分支的 52 分同量纲。
+
+     三变体实测（probe-g7-c.mjs，30 组/桶，固定种子 20261108）：
+       有场合饱和瓶数  旧 1.2 / 一律 1.0 / 分档 = 0 / 2846 / **0**
+       有场合 top-1 换手（vs 旧 1.2）  = 10.0% / **0.0%**
+       matchPct 最大 97，未破 100
+     → 分档三条闸门全过，一律 1.0 卡在饱和。
+
+     无场合那档仍是 1.00：此时上界恰好 1.000，「主族完全命中」的瓶拿到 52 分
+     正是分母取可达上界的正常结果，不是 clamp 吃信号。
+
+     情绪入口保持 1.2 不动：若改 1.0，clean 有 204 瓶、cold+formal 有 376 瓶
+     并列拿满 52，纯情绪 lazy 单独 481 瓶，全组合最高 621 瓶 —— 因子退化成常数，
+     属于换打分体系而不是修分母。 */
+  const famDenom = profile.family ? (profile.occasion ? 1.18 : 1.0) : 1.2;
+  const famScore = clamp01(famHit / famDenom) * (WEIGHTS.emotionFamily + WEIGHTS.occasionFamily);
   score += famScore;
   if (famBest) {
     breakdown.push({
