@@ -51,10 +51,16 @@ const server = http.createServer((req, res) => {
       return;
     }
     const ext = path.extname(abs).toLowerCase();
+    /* no-store 而不是 no-cache：no-cache 只要求"用前必须验证"，但本服务器
+       不发光 ETag / Last-Modified，浏览器在部分情况下会直接复用本地副本，
+       结果就是"改了 app.js，页面里跑的还是旧版"（实测踩过：线稿已从代码里
+       删掉，浏览器仍在跑带线稿的旧 app.js，盘心先闪旧图）。
+       开发用静态服务器没有带宽顾虑，一律 no-store 最省事。 */
+    const noStore = ['.html', '.js', '.mjs', '.css', '.json', '.svg'].includes(ext);
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Content-Length': st.size,
-      'Cache-Control': 'no-cache',
+      'Cache-Control': noStore ? 'no-store, must-revalidate' : 'no-cache',
     });
     fs.createReadStream(abs).pipe(res);
   });

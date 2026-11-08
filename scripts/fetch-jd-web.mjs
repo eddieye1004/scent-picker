@@ -35,7 +35,13 @@ const CONFIG_FILE = path.join(CACHE, 'jd-web-config.json');
    JD_DRY=1 ego-browser ... 里 process.env.JD_DRY 是 undefined，
    process.argv 只有一个 ego.exe）。所以参数走配置文件，env 只作可选覆盖。 */
 const cfg = (() => {
-  try { return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch { return {}; }
+  try {
+    /* PowerShell 的 Set-Content -Encoding UTF8 会写 BOM（实测 239,187,191），
+       直接 JSON.parse 会抛异常 → cfg 变 {} → dry 被当成 false 真的去转链。
+       必须剥掉 BOM 再解析。 */
+    const raw = fs.readFileSync(CONFIG_FILE, 'utf8').replace(/^\uFEFF/, '');
+    return JSON.parse(raw);
+  } catch { return {}; }
 })();
 const pick = (envKey, cfgKey, dflt) => {
   const e = process.env[envKey];
