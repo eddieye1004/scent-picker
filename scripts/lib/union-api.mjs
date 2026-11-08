@@ -256,6 +256,52 @@ const CANDLE_PAT = /蜡烛|蜡燭|蠟燭|candle/i;
    只认明确的小容量（1-5ml）和典型小样词，10ml 旅行装不禁。 */
 const SAMPLE_PAT = /小样|试用装|分装|试管|体验装|\b[1-5]\s*ml\b/i;
 
+/* 类目闸门：只认**叶子层**是不是香水。
+   旧规则 `cat.includes('香水')` 是错的 —— 淘宝彩妆类目路径形如
+   `彩妆/香水/美妆工具/<叶子>`，**每一层父级都带「香水」二字**，
+   于是唇霜、散粉、腮红、遮瑕、甲油胶、美甲工具、粉饼、气垫、睫毛膏
+   全部被当香水放行。2026-11-08 在 v2 全量快照上实测：类目路径含「香水」
+   的 721 条候选里，17 种叶子只有 2 种（香水 700 / 香水套装 1）是香水，
+   其余 15 种共 20 条全是彩妆或试香礼盒。
+
+   为什么叶子白名单按「叶子含香水」而不是 `/(^|\/)香水$/` 一条正则：
+     · `$` 锚死只认「香水」二字，会把 `香水套装`、`香水精油` 这类真香水叶子
+       一起判死 —— 实测语料里这两类各 1 / 3 条，标题都是真香水（见报告）。
+     · 但正则也识别不出「叶子到底是不是彩妆」，拒收理由只能退回笼统的
+       「类目不是香水」，统计仍然分不清。所以要叶子名进理由，必须先取叶子。
+   已知风险（数据里没有，未能验证）：若淘宝出现 `香水瓶`、`香水座`（空瓶/车载摆件）
+   这类叶子，会被本条放过。当前 1,624 条候选里不存在，故不预先加否定词 ——
+   加了没数据的规则就是猜。等它出现、且在报告里被看见，再加一行。 */
+const PERFUME_LEAF_PAT = /香水/;
+
+/* 已知的彩妆叶子（全部来自实测语料，见 docs/reports/category-gate-report.md）。
+   只往里加**已被数据证实是彩妆**的叶子，不按「听着像彩妆」猜。
+   `膏` / `美容工具` / `假睫毛辅助工具` / `海绵` / `甲片` 这几个名字看不出品类，
+   是靠样例标题定的：
+     `…Terracotta粉底液`      → 粉底液/膏
+     `Lavender Purple Lipstick…` → 化妆/美容工具
+     `Strawberry Vanilla After Shave Oil…` → 假睫毛辅助工具
+     `1 Set of Beauty Egg Set…` → 美妆蛋/扑/海绵
+     `24pcs …False Nails…`     → 穿戴甲/甲片
+   `香发喷雾`（喷发香水/香发喷雾）**故意不放进这张表**：现有 3 条标题分别是
+   「AFNAN 9pm Night Out…香水…礼盒版」「Arabian Oud头发香水…发香喷雾」
+   「Lattafa His & Her Confession 情侣对香…」——发用香氛与瓶装香水是两条产品线，
+   但我没有证据说明这 3 条到底是发喷还是被卖家错放。判据上的结论相同（都拒），
+   差别只在理由：留在「未识别」这一档，报告里就能如实说「归因未定」。 */
+const NON_PERFUME_LEAVES = new Set([
+  '唇霜', '唇彩', '唇蜜', '唇釉', '唇泥',
+  '散粉', '蜜粉', '粉饼', '气垫', '粉底', '膏', '遮瑕', '素颜霜', '定妆喷雾',
+  '胭脂', '腮红', '阴影', '眼影', '眼线', '睫毛膏', '眉笔', '口红', '唇膏',
+  '甲油胶', '美甲工具', '甲片',
+  '修眉刀', '美容工具', '假睫毛辅助工具', '海绵',
+  '其它彩妆',
+]);
+
+const leafOf = (cat) => {
+  const parts = String(cat || '').split('/').map((s) => s.trim()).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : '';
+};
+
 /**
  * 判断标题所属品类是否合格。返回 { ok, reason }。
  * 这是 scoreMatch 的前置闸门，单独导出是为了能写用例钉住。
@@ -267,22 +313,63 @@ const SAMPLE_PAT = /小样|试用装|分装|试管|体验装|\b[1-5]\s*ml\b/i;
  *     标题只写英文名的正装，也会把「Dior Diorissimo 发夹」「ysl MANIFESTO 眼镜」
  *     这种同名非香水放进来（标题里恰好有"香水"两字就过了）
  * 京东不返回类目路径，那条链路只能回落到标题判据。
+ *
+ * 类目为空（京东，或淘宝没回 categoryText）→ 回落标题判据，**不是默认放行**：
+ * 标题里必须出现 PERFUME_WORDS 之一才过。这条是显式决定，理由：
+ *   · 京东整条链路不返回类目路径（前端 634 条淘宝链接之外，京东 0 条），
+ *     若改成「无类目即拒」，京东侧会静默归零，且没人会立刻发现；
+ *   · 标题判据在这条链路上已被 M14/G5/G7 三条用例钉住，是既有行为，不是新开口子；
+ *   · 代价是「标题写了香水、实际是沐浴露」这类要靠 NON_PERFUME_WORDS 拦 ——
+ *     那是另一道闸，本函数里先判，已覆盖。
+ * 类目字符串存在但切不出叶子（如 `"///"`）→ 等同无类目，走同一条回落路径。
+ * 理由：这种类目不含任何信息，按「类目优先」拒收等于用空串定罪，
+ * 而它和京东无类目在语义上是一回事，行为应当一致。
  */
 export function categoryGate(title, categoryText) {
   const t = String(title || '').toLowerCase();
-  const cat = String(categoryText || '');
+  const cat = String(categoryText || '').trim();
   /* 反向词与小样两条**先判**，且类目也救不了它们：
-     「香水小样」「香水沐浴露」在淘宝同样挂在香水类目下。 */
+     「香水小样」「香水沐浴露」在淘宝同样挂在香水类目下。
+     顺序不能动：叶子白名单是「放行」规则，只要有一条具体拒收理由成立，
+     它就必须输 —— 蜡烛标题挂在 `彩妆/香水/美妆工具/香水` 下是实测存在的（M22）。 */
   const bad = NON_PERFUME_WORDS.find((w) => t.includes(w));
   if (bad) return { ok: false, reason: `非香水品类（命中「${bad}」）` };
   if (CANDLE_PAT.test(t)) return { ok: false, reason: '非香水品类（蜡烛/香薰蜡燭）' };
   if (SAMPLE_PAT.test(t)) return { ok: false, reason: '小样/试用装' };
-  if (cat) {
-    if (cat.includes('香水')) return { ok: true, reason: '' };
-    return { ok: false, reason: `类目不是香水（${cat}）` };
+
+  const parts = cat ? cat.split('/').map((s) => s.trim()).filter(Boolean) : [];
+  const leaf = parts.length ? parts[parts.length - 1] : '';
+
+  /* 无类目 / 类目切不出叶子 → 回落标题判据（决定与理由见上面的注释）。 */
+  if (!leaf) {
+    if (!PERFUME_WORDS.some((w) => t.includes(w))) return { ok: false, reason: '标题无香水品类词' };
+    return { ok: true, reason: '' };
   }
-  if (!PERFUME_WORDS.some((w) => t.includes(w))) return { ok: false, reason: '标题无香水品类词' };
-  return { ok: true, reason: '' };
+
+  /* 路径里连「香水」二字都没有 → 明确不是香水，理由带上完整路径便于归因。 */
+  if (!cat.includes('香水')) return { ok: false, reason: `类目不是香水（${cat}）` };
+
+  /* 试香礼盒：路径在香水分支内，但卖的是试香装而不是正装。
+     实测 3 条（narciso ¥9.9 / amouage-guidance ¥29 / amouage-search ¥28），
+     叶子都是「工具」、标题分别是「明星香水体验礼」「…试香…」「爱慕香水…」。
+     旧规则靠 `cat.includes('香水')` 把它们当正装放行，是漏收小样的一条侧门；
+     SAMPLE_PAT 抓不到「试香」二字（那属于另一条规则，改动面更大，本次不动它）。 */
+  if (parts.includes('试香礼盒')) return { ok: false, reason: `类目是试香礼盒（非正装，${cat}）` };
+
+  if (NON_PERFUME_LEAVES.has(leaf)) {
+    return { ok: false, reason: `类目路径含香水但叶子是「${leaf}」（${cat}）` };
+  }
+
+  /* 叶子本身写着「香水」（香水 / 香水套装 / 香水精油）→ 这才是类目证据。 */
+  if (PERFUME_LEAF_PAT.test(leaf)) return { ok: true, reason: '' };
+
+  /* 未知叶子：拒收，理由里写叶子名。
+     为什么不做「未知叶子回落标题」：那会把「彩妆叶子 + 标题恰好写香水」放进来，
+     正是本次要消灭的那个漏洞（`修眉刀` 那条标题确实写着「男士香水」）。
+     未知叶子的代价是「淘宝新增香水叶子时覆盖静默下降」，但保险丝在这里：
+     理由字符串带叶子名，回归时会以「叶子未识别」成批出现，看得见、可计数、
+     补一行白名单就能修。放行是静默的，拒收是有声的，选有声的那个。 */
+  return { ok: false, reason: `类目叶子「${leaf}」未识别为香水（${cat}）` };
 }
 
 export function scoreMatch(perfume, title, aliasMap = {}, categoryText, fragAlias = null) {

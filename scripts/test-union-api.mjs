@@ -357,6 +357,113 @@ const r6 = scoreMatch({ brand: 'Guerlain', name: 'Mitsouko' },
   {}, '彩妆/香水/美妆工具/香水', fragMitsouko);
 check('R6 译名不能替代品牌关', r6.accept === false && r6.reason.includes('品牌'), JSON.stringify(r6));
 
+/* ---------- L 组：叶子类目闸门（2026-11-08） ----------
+   旧规则 `cat.includes('香水')` 的漏洞：淘宝彩妆类目路径是
+   `彩妆/香水/美妆工具/<叶子>`，**每一层父级都带「香水」**，
+   于是唇霜、散粉、甲油胶、睫毛膏全部被当香水放行。
+   v2 全量快照实测：路径含「香水」的 721 条里，只有叶子是香水的那 700+1 条是真香水。
+   这一组把「叶子才作数」钉住，并钉住它与蜡烛/小样三条规则的先后顺序。 */
+
+/* L1 叶子=香水、父级也含香水 → 放行（基线，防止改紧过头）。 */
+const l1 = categoryGate('YSL圣罗兰Libre香水 橙花自由之水', '彩妆/香水/美妆工具/香水');
+check('L1 叶子是香水时放行', l1.ok, l1.reason);
+
+/* L2 叶子=唇霜、父级含香水 → 拒收。这是旧规则漏掉的那类，
+    真实候选「Colors Matte Rose Lip Gloss Lipstick…lipgloss唇彩」。 */
+const l2 = categoryGate('Colors Matte Rose Lip Gloss Lipstick women gift lipgloss唇彩',
+  '彩妆/香水/美妆工具/唇彩/唇蜜/唇釉/唇泥/唇霜');
+check('L2 叶子是唇霜时拒收（父级含香水）',
+  !l2.ok && l2.reason.includes('唇霜'), l2.reason);
+
+/* L3 叶子=散粉 → 拒收。真实候选「huda beauty烘焙定妆散粉…cherry blossom」，
+    注意这条标题里恰好有 "cherry blossom"（Floris 的香名），靠打分拦不住。 */
+const l3 = categoryGate('现货海淘huda beauty烘焙定妆散粉控油持妆0.8g cherry blossom',
+  '彩妆/香水/美妆工具/蜜粉/散粉');
+check('L3 叶子是散粉时拒收', !l3.ok && l3.reason.includes('散粉'), l3.reason);
+
+/* L4 叶子=甲油胶 → 拒收。「美国ORLY指甲油20575 coffee break…」 */
+const l4 = categoryGate('美国ORLY指甲油20575 coffee break白领安吉丽娜提拉米苏奶咖啡色',
+  '彩妆/香水/美妆工具/甲油胶');
+check('L4 叶子是甲油胶时拒收', !l4.ok && l4.reason.includes('甲油胶'), l4.reason);
+
+/* L5 叶子=睫毛膏 → 拒收。「欧洲直邮Lancôme Lash Idôle …睫毛膏」，
+    挂的是 `彩妆/香水/美妆工具/睫毛膏`。它曾以 nameCover=1 被真正收进库里，
+    所以这条是**已发生的错配**，不是假想。 */
+const l5 = categoryGate('欧洲直邮Lancôme Lash Idôle 睫毛丰盈卷翘睫毛膏正品',
+  '彩妆/香水/美妆工具/睫毛膏');
+check('L5 叶子是睫毛膏时拒收', !l5.ok && l5.reason.includes('睫毛膏'), l5.reason);
+
+/* L6 叶子与「香水」同层但不是香水：`彩妆/香水/美妆工具/假睫毛`。
+    这条守的是「同层 ≠ 同品类」—— 只判父级有没有香水会在这里失手。 */
+const l6 = categoryGate('某牌 假睫毛 自然款', '彩妆/香水/美妆工具/假睫毛');
+check('L6 叶子是同层的假睫毛时拒收', !l6.ok, l6.reason);
+
+/* L7 顺序：蜡烛标题即便叶子是香水也要先被 CANDLE_PAT 拦下。
+    实测存在（M22 的两条：`…Kirke香薰蜡燭`、`…香氛蜡烛200g`，
+    类目都写 `彩妆/香水/美妆工具/香水`）。 */
+const l7 = categoryGate('蒂齐纳泰伦斯 Tiziana Terenzi罗马之南 Kirke香薰蜡燭',
+  '彩妆/香水/美妆工具/香水');
+check('L7 蜡烛优先于香水叶子', !l7.ok && l7.reason.includes('蜡烛'), l7.reason);
+
+/* L8 顺序：小样同理，类目是香水叶子也拦。
+    旧规则在 `试用装` 之外认 1-5ml，标题写 "1.5ml" 就该拒。 */
+const l8 = categoryGate('Kilian 凯利安 试管香水 1.5ml', '彩妆/香水/美妆工具/香水');
+check('L8 小样优先于香水叶子', !l8.ok && l8.reason.includes('小样'), l8.reason);
+
+/* L9 试香礼盒：路径在香水分支内、卖的是试香装。
+    实测 3 条（narciso ¥9.9 / amouage-guidance ¥29 / amouage-search ¥28），
+    叶子都是「工具」，标题分别写「明星香水体验礼」「…试香…」「爱慕香水…」。 */
+const l9 = categoryGate('爱慕秘藏神谕 试香 吟游诗人系列 木质花香调Guidance',
+  '彩妆/香水/美妆工具/试香礼盒/工具');
+check('L9 试香礼盒拒收（非正装）', !l9.ok && l9.reason.includes('试香礼盒'), l9.reason);
+
+/* L10 类目为空 → 回落标题判据，不是默认放行。
+    京东链路不返回类目，这条行为是既有的（M14/G5/G7），这里钉住「不是一律放行」。
+    注意右侧标题必须避开 PERFUME_WORDS 全部词形：`EDP` 也在表里，
+    写 "…2.5OZ EDP…" 会从品类词那条过，测不到「无类目」这件事（第一版断言就这么错的）。 */
+const l10a = categoryGate('CREED 信仰 Aventus 拿破仑之水 香水 100ml', '');
+const l10b = categoryGate('CREED AVENTUS 拿破仑 100ml 包邮', '');
+check('L10 类目为空时回落标题判据（无品类词则拒）',
+  l10a.ok && !l10b.ok, JSON.stringify([l10a.reason, l10b.reason]));
+
+/* L11 类目字符串存在但切不出叶子（空白 / 只有斜杠）→ 与「无类目」同一行为。
+    理由：空串不含任何信息，按「类目优先」定罪等于用空串拒收，
+    而它与京东无类目在语义上是一回事。 */
+const l11a = categoryGate('Dior Sauvage 香水 100ml', '   ');
+const l11b = categoryGate('Dior Sauvage 香水 100ml', '///');
+const l11c = categoryGate('Dior Sauvage 100ml', '///');
+check('L11 类目切不出叶子时等同无类目', l11a.ok && l11b.ok && !l11c.ok,
+  JSON.stringify([l11a.reason, l11b.reason, l11c.reason]));
+
+/* L12 已知香水叶子集合要覆盖「香水套装」与「香水精油」这两个实测存在的变体。
+    只写 `/(^|\/)香水$/` 会把它们判死（实测 1 条 + 3 条，标题都是真香水）。 */
+const l12a = categoryGate('AFNAN 阿芙南 Historic Olmeda奥尔梅达香水中东浓香水男士EDP',
+  '彩妆/香水/美妆工具/香水套装');
+const l12b = categoryGate('迪拜香精Ard Al Zaafaran ana abiyedh香水精油阿拉伯正品10ml',
+  '彩妆/香水/美妆工具/香水精油');
+check('L12 香水套装/香水精油叶子放行', l12a.ok && l12b.ok,
+  JSON.stringify([l12a.reason, l12b.reason]));
+
+/* L13 未识别叶子 → 拒收，且理由里带叶子名（可计数、可归因）。
+    这是本次的显式取舍：拒收有声（理由里写得出叶子），放行无声。
+    标题刻意不含「车载香」（那是 NON_PERFUME_WORDS 里的词，会先命中反向下落），
+    这样测到的才是「叶子未识别」这条分支。 */
+const l13 = categoryGate('某牌 香座 出风口装饰摆件', '彩妆/香水/美妆工具/车载香座');
+check('L13 未识别叶子拒收且理由带叶子名',
+  !l13.ok && l13.reason.includes('车载香座') && l13.reason.includes('未识别'), l13.reason);
+
+/* L14 scoreMatch 端到端：叶子是香水时正装仍 accept，叶子是唇霜时同一瓶被拒。
+    守的是「闸门改紧之后没有把真商品一起挡掉」。 */
+const l14a = scoreMatch({ brand: 'Yves Saint Laurent', name: 'Libre' },
+  '【直播间限时立减】YSL圣罗兰Libre香水 橙花自由之水生日礼物',
+  { 'Yves Saint Laurent': ['圣罗兰', 'YSL'] }, '彩妆/香水/美妆工具/香水');
+const l14b = scoreMatch({ brand: 'Yves Saint Laurent', name: 'Libre' },
+  '【直播间限时立减】YSL圣罗兰Libre香水 橙花自由之水生日礼物',
+  { 'Yves Saint Laurent': ['圣罗兰', 'YSL'] }, '彩妆/香水/美妆工具/唇彩/唇蜜/唇釉/唇泥/唇霜');
+check('L14 同一标题换叶子类目，结论随之改变（叶子才作数）',
+  l14a.accept && !l14b.accept && l14b.reason.includes('唇霜'),
+  JSON.stringify([l14a.accept, l14b.reason]));
+
 /* ---------- 输出 ---------- */
 console.log('\n===== 联盟 API 测试 =====');
 console.log(`PASS ${pass}   FAIL ${failures.length}`);
