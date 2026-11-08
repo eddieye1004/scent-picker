@@ -14,7 +14,7 @@ import {
   jdSign, buildJdParams, unwrapJd,
   taobaoSign, buildTaobaoParams, unwrapTaobao,
   gmt8Timestamp, jdValueString,
-  normalizeTokens, scoreMatch, pickBest,
+  normalizeTokens, scoreMatch, pickBest, categoryGate,
 } from './lib/union-api.mjs';
 
 let pass = 0;
@@ -160,12 +160,13 @@ check('M6 中英切分',
   normalizeTokens('信仰 拿破仑之水').length === 7,
   normalizeTokens('信仰 拿破仑之水').join(','));
 
-/* M7 pickBest 在多候选中取分最高者；并列时取标题更短的 */
+/* M7 pickBest 在多候选中取分最高者；并列时取标题更短的。
+   注意：两条都必须过品类闸门，否则失去可比性（M10-M14 之后）。 */
 const best = pickBest({ brand: 'Dior', name: 'Sauvage' }, [
   { title: 'DIOR 迪奥 Sauvage 旷野 男士香水 100ml 正装', price: 900 },
-  { title: 'DIOR Sauvage', price: 800 },
+  { title: 'DIOR Sauvage 香水', price: 800 },
 ]);
-check('M7 取最高分', best && best.title === 'DIOR Sauvage', best && best.title);
+check('M7 取最高分', best && best.title === 'DIOR Sauvage 香水', best && best.title);
 
 /* M8 候选全不达标时返回最低分那一条但 accept=false —— 调用方据此跳过 */
 const none = pickBest({ brand: 'Xyz', name: 'Qqq' }, [{ title: '完全无关的商品' }]);
@@ -173,6 +174,32 @@ check('M8 全不达标 accept=false', none && none.accept === false);
 
 /* M9 空候选不崩 */
 check('M9 空候选返回 null', pickBest({ brand: 'A', name: 'B' }, []) === null);
+
+/* M10 香皂能拿满分 —— 这是实测踩到的真问题（京东搜 CREED Aventus
+   第一名是「CREED 全系列香皂150g AVENTUS」），品类闸门必须拦住 */
+const m10 = scoreMatch({ brand: 'Creed', name: 'Aventus' },
+  'CREED【同价双11】全系列香皂150g AVENTUS');
+check('M10 香皂被品类闸门拒收', !m10.accept && m10.reason.includes('非香水'), JSON.stringify(m10));
+
+/* M11 口红同理（搜 Dior Dune 第一名是烈艳蓝金口红） */
+const m11 = scoreMatch({ brand: 'Dior', name: 'Dune' },
+  '迪奥（Dior）Dior烈艳蓝金口红绒雾720唇膏 香水礼盒');
+check('M11 口红被拒（含"香水"也要拒）', !m11.accept && m11.reason.includes('口红'), JSON.stringify(m11));
+
+/* M12 小样/试用装跳过 */
+const m12 = scoreMatch({ brand: 'Dior', name: 'Sauvage' },
+  '迪奥 Dior Sauvage 旷野淡香水 小样 2ml 试用装');
+check('M12 小样被拒', !m12.accept && m12.reason.includes('小样'), JSON.stringify(m12));
+
+/* M13 正装香水照常通过 —— 闸门不能把该收的也挡了 */
+const m13 = scoreMatch({ brand: 'Dior', name: 'Sauvage' },
+  'DIOR 迪奥 Sauvage 旷野男士淡香水 100ml EDP');
+check('M13 正装仍 accept', m13.accept && m13.score > 0.9, JSON.stringify(m13));
+
+/* M14 无品类词的标题拒收（比如只写"CREED Aventus 100ml"的杂货） */
+const m14 = scoreMatch({ brand: 'Creed', name: 'Aventus' },
+  'CREED Aventus 100ml 男士 礼盒装');
+check('M14 无品类词拒收', !m14.accept && m14.reason.includes('品类词'), JSON.stringify(m14));
 
 /* ---------- 输出 ---------- */
 console.log('\n===== 联盟 API 测试 =====');

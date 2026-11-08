@@ -189,9 +189,51 @@ export function normalizeTokens(s) {
  * 品牌不命中直接 0 分 —— JD/淘宝的标题是中文居多的，没有别名表时
  * 覆盖率会很低，这是**事实**，见 docs/AFFILIATE-API.md 第六节。
  */
+/* 品类词：商品标题里必须出现其一，才算"这是一瓶香水"。
+   被 M10/M11 逼出来的 —— 实测 京东搜 "CREED Aventus" 第一名是
+   「CREED【同价双11】全系列香皂150g AVENTUS」，品牌和香名双满分，
+   但它是香皂。搜 "Dior Dune" 第一名是「烈艳蓝金口红」。
+   只靠品牌+香名覆盖率，非香水商品能拿 1.0 分。 */
+const PERFUME_WORDS = [
+  '香水', '香氛', '淡香精', '浓香精', '淡香水', '古龙水', '香精',
+  'edp', 'edt', 'eau de parfum', 'eau de toilette', 'parfum', 'cologne', 'perfume',
+];
+
+/* 反向品类词：出现这些就是别的东西，直接判死，哪怕同时含"香水"
+   （京东标题爱写"香水沐浴露"、"香水洗衣液"）。 */
+const NON_PERFUME_WORDS = [
+  '香皂', '沐浴', '洗发', '护发', '洗手液', '身体乳', '护手霜', '润肤',
+  '口红', '唇膏', '唇釉', '粉底', '眼影', '面膜', '精华', '面霜', '洁面',
+  '牙膏', '纸巾', '抽纸', '洗衣液', '柔顺剂', '香薰蜡烛', '无火香薰', '车载香',
+  '剃须', '须后', '除臭', '止汗', '驱蚊', '空气清新',
+];
+
+/* 小样/试用装：单价低、佣金少、点进去体验差，直接跳过。
+   只认明确的小容量（1-5ml）和典型小样词，10ml 旅行装不禁。 */
+const SAMPLE_PAT = /小样|试用装|分装|试管|体验装|\b[1-5]\s*ml\b/i;
+
+/**
+ * 判断标题所属品类是否合格。返回 { ok, reason }。
+ * 这是 scoreMatch 的前置闸门，单独导出是为了能写用例钉住。
+ */
+export function categoryGate(title) {
+  const t = String(title || '').toLowerCase();
+  const bad = NON_PERFUME_WORDS.find((w) => t.includes(w));
+  if (bad) return { ok: false, reason: `非香水品类（命中「${bad}」）` };
+  if (SAMPLE_PAT.test(t)) return { ok: false, reason: '小样/试用装' };
+  if (!PERFUME_WORDS.some((w) => t.includes(w))) return { ok: false, reason: '标题无香水品类词' };
+  return { ok: true, reason: '' };
+}
+
 export function scoreMatch(perfume, title, aliasMap = {}) {
   const titleLower = String(title || '').toLowerCase();
   const titleTokens = new Set(normalizeTokens(title));
+
+  const gate = categoryGate(title);
+  if (!gate.ok) {
+    return { score: 0, brandHit: false, nameCover: 0, accept: false, reason: gate.reason };
+  }
+
   const brandRaw = String(perfume?.brand || '');
   const aliases = [brandRaw, ...(aliasMap[brandRaw] || [])];
   /* 中英两种命中方式必须分开判：
