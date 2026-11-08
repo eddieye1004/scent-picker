@@ -285,7 +285,7 @@ export function categoryGate(title, categoryText) {
   return { ok: true, reason: '' };
 }
 
-export function scoreMatch(perfume, title, aliasMap = {}, categoryText) {
+export function scoreMatch(perfume, title, aliasMap = {}, categoryText, fragAlias = null) {
   const titleLower = String(title || '').toLowerCase();
   const titleTokens = new Set(normalizeTokens(title));
 
@@ -311,7 +311,17 @@ export function scoreMatch(perfume, title, aliasMap = {}, categoryText) {
 
   const nameTokens = normalizeTokens(perfume?.name || '').filter((t) => t.length > 1 || /[\u4e00-\u9fa5]/.test(t));
   const hit = nameTokens.filter((t) => titleTokens.has(t)).length;
-  const nameCover = nameTokens.length ? hit / nameTokens.length : 0;
+  const latinCover = nameTokens.length ? hit / nameTokens.length : 0;
+
+  /* 中文译名命中：淘宝上很多香水**标题只有中文名**，没有英文名。
+     例：「欧洲直邮Guerlain娇兰 蝴蝶夫人精粹30ml 女士浓香EDP」——
+     品牌命中（娇兰），香名 "Mitsouko" 覆盖率 0%，旧逻辑判「香名覆盖率 0%」拒收。
+     译名来自 data/fragrance-aliases.json，每一条都带淘宝实测证据（hits>=2），
+     不是模型记忆 —— 这条限制是硬性的：没有证据的译名不许进表。
+     命中即视为香名覆盖（1.0），但它**不能**替代品牌关。 */
+  const cnNameHit = (fragAlias?.names || []).some((n) => n && titleLower.includes(String(n).toLowerCase()));
+  const nameCover = cnNameHit ? 1 : latinCover;
+  const nameVia = cnNameHit ? 'cn-alias' : 'latin';
 
   /* 性别冲突：瓶名说是女香，标题只说是男香（或反过来）→ 直接拒。
      不认识就放行（标题没写性别时不构成矛盾），只在两边都明确且相反时拒。 */
@@ -330,7 +340,7 @@ export function scoreMatch(perfume, title, aliasMap = {}, categoryText) {
   else if (genderClash) reason = '性别不符（瓶名与标题的男/女不一致）';
   else if (!accept) reason = `香名覆盖率 ${(nameCover * 100).toFixed(0)}% < 60%`;
 
-  return { score: Number(score.toFixed(4)), brandHit, nameCover: Number(nameCover.toFixed(4)), accept, reason };
+  return { score: Number(score.toFixed(4)), brandHit, nameCover: Number(nameCover.toFixed(4)), nameVia, accept, reason };
 }
 
 /* 淘宝物料搜索的查询词变体，按召回效果排序（360 瓶实测，2026-11-08）。
@@ -351,15 +361,33 @@ export function scoreMatch(perfume, title, aliasMap = {}, categoryText) {
    （更早一版实验脚本报过 55%，那是把「拿到候选」当成了「接受」——
      `pickBest` 总会返回分最高的那条，不管 `accept` 是不是 false。以 49.7% 为准。）
 
-   `jo-malone` 整族、`montale`、`mancera` 在四个变体下全部 0 结果 ——
-   那是淘宝上真的没有这些香水的推广计划，不是查询写法问题。 */
-export function taobaoQueryVariants(perfume, aliasMap = {}) {
+   `jo-malone` 整族、`montale`、`mancera` 在四个英文变体下全部 0 结果 ——
+   不是「淘宝上没有」，是**淘宝上只以中文名在售**。补了香名译名之后
+   （fragAlias 那一路），这 85 瓶里救回 13 瓶，剩下的 72 瓶再跑仍是 0 条。
+   所以「搜不到」要分成两种：没译名的（补表可救）和真没有推广计划的（补表无用）。 */
+export function taobaoQueryVariants(perfume, aliasMap = {}, fragAlias = null) {
   const name = String(perfume?.name || '').trim();
   const brand = String(perfume?.brand || '').trim();
   // 香名首词：砍掉括号与逗号之后的部分，"Love, Don't Be Shy" → "Love"
   const head = name.split(/[,(（]/)[0].trim();
   const cn = (aliasMap[brand] || []).find((s) => /[\u4e00-\u9fa5]/.test(s)) || '';
+
+  /* 香名级中文译名（data/fragrance-aliases.json）。为什么必须排在前面：
+     淘宝上这些香水**只以中文名在售**，英文名一个词都搜不到 ——
+     实测 `Mitsouko`、`Arabians Tonka`、`Cedrat Boise`、`English Pear & Freesia`
+     全是 0 结果，而 `蝴蝶夫人`(10 条)、`情迷咖啡`(3 条)、`香橼木`(11 条)、
+     `英国梨与小苍兰`(36 条) 都有正装。
+     关键词和译名分开：`QUATRE` 是能搜到的关键词，但它不是中文译名。 */
+  /* 顺序关键：**裸关键词在前，带品牌名在后**。
+     2026-11-08 实测，品牌名哪怕换成中文也照样把结果打成 0：
+       `祖玛珑 英国梨与小苍兰` → 0 条
+       `英国梨与小苍兰`        → 36 条（含祖马龙正装）
+     这是同一件事的第二次确认：淘宝 q 要求**每个词都命中**，
+     多一个品牌词就多一道闸。变体越短越靠前。 */
+  const kw = (fragAlias?.keywords || []).filter(Boolean);
   return [
+    ...kw,
+    ...kw.map((k) => (cn ? `${cn} ${k}` : k)),
     name,
     head,
     cn ? `${cn} ${head}` : '',
@@ -369,10 +397,10 @@ export function taobaoQueryVariants(perfume, aliasMap = {}) {
 
 /* 从一组候选里挑最好的一个。并列时取标题更短的那个 —— 更短的标题通常
    是正装而不是"XX 同款小样"，但这不是承诺，只是排序偏好。 */
-export function pickBest(perfume, candidates, aliasMap = {}) {
+export function pickBest(perfume, candidates, aliasMap = {}, fragAlias = null) {
   let best = null;
   for (const c of candidates || []) {
-    const m = scoreMatch(perfume, c.title, aliasMap, c.categoryText);
+    const m = scoreMatch(perfume, c.title, aliasMap, c.categoryText, fragAlias);
     const row = { ...c, ...m };
     if (!best) { best = row; continue; }
     if (row.score > best.score) best = row;

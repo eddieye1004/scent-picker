@@ -1,0 +1,113 @@
+{
+ "_readme": "品牌中文名的淘宝实测证据。strict = 标题同时含中文名+拉丁名且类目=香水的条数；loose = 仅含中文名的条数。核实日期 2026-11-08。",
+ "items": {
+  "Etat Libre d'Orange": {
+   "cn": "解放橘郡",
+   "strict": 7,
+   "loose": 40,
+   "evidence": "【自营】ETAT LIBRE D'ORANGE解放橘郡香水香氛小样2ml试香EDP"
+  },
+  "Boucheron": {
+   "cn": "宝诗龙",
+   "strict": 21,
+   "loose": 21,
+   "evidence": "欧洲直邮boucheron宝诗龙男士香水香调自然持久留香清新舒缓正品"
+  },
+  "Issey Miyake": {
+   "cn": "三宅一生",
+   "strict": 24,
+   "loose": 37,
+   "evidence": "三宅一生issey miyake香根草男士淡香水EDT 一生之水 节日礼物"
+  },
+  "Michael Kors": {
+   "cn": "迈克高仕",
+   "strict": 3,
+   "loose": 37,
+   "evidence": "美国直邮迈克高仕 璀璨如我 Michael Kors女士香水100ml正品木质"
+  },
+  "Cartier": {
+   "cn": "卡地亚",
+   "strict": 26,
+   "loose": 28,
+   "evidence": "香港直邮Cartier卡地亚猎豹香水50/100ml花香优雅自然送礼正品"
+  },
+  "Kayali": {
+   "cn": "卡亚利",
+   "strict": 39,
+   "loose": 40,
+   "evidence": "卡亚利Kayali男女士香水01/11/28/33/36/42/48/57/81号中东Parfum"
+  },
+  "Nishane": {
+   "cn": "妮姗",
+   "strict": 18,
+   "loose": 23,
+   "evidence": "Nishane妮姗乌龙茶香水Wulong ChaX小王子天真傲慢安尼皮影戏试香"
+  },
+  "Ex Nihilo": {
+   "cn": "无中生有",
+   "strict": 32,
+   "loose": 39,
+   "evidence": "Ex Nihilo香水exnihilo无中生有蓝之庇佑花之迷醉冬日暖绒小样"
+  },
+  "Moschino": {
+   "cn": "莫斯奇诺",
+   "strict": 26,
+   "loose": 39,
+   "evidence": "香港直邮Moschino莫斯奇诺小熊女士香水淡香精EDT100ml淡雅正品"
+  },
+  "Salvatore Ferragamo": {
+   "cn": "菲拉格慕",
+   "strict": 22,
+   "loose": 39,
+   "evidence": "【自营】FERRAGAMO菲拉格慕蓝色经典男士淡香水50mlEDT七夕礼物"
+  },
+  "James Heeley": {
+   "cn": "海利",
+   "strict": 2,
+   "loose": 38,
+   "evidence": "James Heeley詹姆斯海利鲜薄荷海洋之盐焚香教堂柚子椰子香水小样"
+  },
+  "Profumum Roma": {
+   "cn": "罗马之香",
+   "strict": 11,
+   "loose": 20,
+   "evidence": "ProfumumRoma罗马之香香水小样小众试香维瓦之水撒丁岛无花果"
+  },
+  "Lattafa": {
+   "cn": "拉塔法",
+   "strict": 38,
+   "loose": 40,
+   "evidence": "欧洲直邮Lattafa拉塔法维多利亚EDP100ML香水男女适用100ml正品"
+  },
+  "Dsquared2": {
+   "cn": "DSQUARED2",
+   "strict": 14,
+   "loose": 14,
+   "evidence": "小众香WOOD木缘DSQUARED2枫叶D二次方男女士木质淡香水简装100ml"
+  },
+  "Caron": {
+   "cn": "卡朗",
+   "strict": 39,
+   "loose": 40,
+   "evidence": "【双11狂欢】CARON卡朗自己麝香木质调淡香水檀香小众生日礼物"
+  },
+  "Tauer Perfumes": {
+   "cn": "陶尔",
+   "strict": 4,
+   "loose": 16,
+   "evidence": "陶尔之香Tauer Perfumes摩洛哥沙漠坎达哈玫瑰日落者香水"
+  },
+  "Elie Saab": {
+   "cn": "艾莉萨博",
+   "strict": 39,
+   "loose": 40,
+   "evidence": "Elie Saab爱丽艾莉萨博女士香水同名女风潮少女小样试管持久奶甜"
+  },
+  "Kenzo": {
+   "cn": "高田贤三",
+   "strict": 30,
+   "loose": 40,
+   "evidence": "保税仓原装现货Kenzo高田贤三凯卓风之恋水之恋淡香水30/50/100ml"
+  }
+ }
+}

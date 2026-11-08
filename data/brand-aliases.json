@@ -8,7 +8,8 @@
     "  别名错一条 → 该品牌会被错配到别家的商品上。所以：",
     "    ① 只在你确认过某个品牌的中文名之后，才把它加进来 / 留下来；",
     "    ② 拿不准的品牌直接删掉 —— 删掉的后果只是这瓶被拒（宁可少，不可错）。",
-    "格式：{ \"英文品牌名（与 perfumes.json 的 brand 字段逐字一致）\": [\"中文名\", \"缩写\"] }"
+    "格式：{ \"英文品牌名（与 perfumes.json 的 brand 字段逐字一致）\": [\"中文名\", \"缩写\"] }",
+    "2026-11-08 补 15 个品牌的中文名（淘宝实测：标题同时含中文名与拉丁名、类目=香水，至少 2 条；证据在 data/brand-alias-evidence.json）。前面那批凭记忆写的条目原样保留，未重新核实。"
   ],
   "Acqua di Parma": [
     "帕尔玛之水",
@@ -202,5 +203,65 @@
     "圣罗兰",
     "伊夫圣罗兰",
     "YSL"
+  ],
+  "Etat Libre d'Orange": [
+    "Etat Libre d'Orange",
+    "解放橘郡"
+  ],
+  "Boucheron": [
+    "Boucheron",
+    "宝诗龙"
+  ],
+  "Issey Miyake": [
+    "Issey Miyake",
+    "三宅一生"
+  ],
+  "Michael Kors": [
+    "Michael Kors",
+    "迈克高仕"
+  ],
+  "Cartier": [
+    "Cartier",
+    "卡地亚"
+  ],
+  "Kayali": [
+    "Kayali",
+    "卡亚利"
+  ],
+  "Moschino": [
+    "Moschino",
+    "莫斯奇诺"
+  ],
+  "Salvatore Ferragamo": [
+    "Salvatore Ferragamo",
+    "菲拉格慕"
+  ],
+  "James Heeley": [
+    "James Heeley",
+    "海利"
+  ],
+  "Profumum Roma": [
+    "Profumum Roma",
+    "罗马之香"
+  ],
+  "Dsquared2": [
+    "Dsquared2",
+    "DSQUARED2"
+  ],
+  "Caron": [
+    "Caron",
+    "卡朗"
+  ],
+  "Tauer Perfumes": [
+    "Tauer Perfumes",
+    "陶尔"
+  ],
+  "Elie Saab": [
+    "Elie Saab",
+    "艾莉萨博"
+  ],
+  "Kenzo": [
+    "Kenzo",
+    "高田贤三"
   ]
 }

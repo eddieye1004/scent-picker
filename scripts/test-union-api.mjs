@@ -310,6 +310,53 @@ const q6 = taobaoQueryVariants({ brand: 'Parfums de Marly', name: 'Layton' }, {}
 check('Q6 品牌+香名首词作为兜底存在',
   q6.includes('Parfums de Marly Layton'), JSON.stringify(q6));
 
+/* ---------- R 组：香名级中文译名（data/fragrance-aliases.json） ----------
+   背景（实测 2026-11-08）：淘宝上有一批香水**只以中文名在售**，
+   英文名搜不到任何结果 —— `Mitsouko`、`Arabians Tonka`、`Cedrat Boise`、
+   `English Pear & Freesia` 全部 0 条；`蝴蝶夫人`、`情迷咖啡`、`香橼木`、
+   `英国梨与小苍兰` 都有一堆正装。
+   所以译名表不是「锦上添花」，是这 85 瓶能否覆盖的唯一开关。 */
+
+const malt = { brand: 'Guerlain', name: 'Mitsouko' };
+const maltAlias = { Guerlain: ['娇兰'] };
+const fragMitsouko = { keywords: ['蝴蝶夫人'], names: ['蝴蝶夫人'] };
+
+/* R1 裸译名必须排第一。加品牌名（哪怕中文）会把结果打成 0 ——
+   实测 `祖玛珑 英国梨与小苍兰` → 0 条，`英国梨与小苍兰` → 36 条。
+   这条顺序就是覆盖率从 11/16 掉到 1/5 的原因，钉住它。 */
+const r1 = taobaoQueryVariants(malt, maltAlias, fragMitsouko);
+check('R1 香名译名排在查询变体第一位', r1[0] === '蝴蝶夫人', JSON.stringify(r1));
+
+/* R2 译名带品牌中文名的变体仍在（部分店铺标题确实写全称），但排在裸译名之后。 */
+const r2At = r1.indexOf('娇兰 蝴蝶夫人');
+check('R2 品牌中文名+译名变体存在且靠后', r2At > 0, JSON.stringify(r1));
+
+/* R3 无语料时退回原行为：不能因为加了参数就把没有译名的香水搞崩。 */
+const r3 = taobaoQueryVariants(malt, maltAlias, null);
+check('R3 无香名译名时不影响原有变体', r3[0] === 'Mitsouko', JSON.stringify(r3));
+
+/* R4 keywords 与 names 分开：`QUATRE` 是能搜到的关键词，但它不是中文译名。
+   把法语词写进 names 会让 scoreMatch 的「中文译名命中」判据误判。 */
+const fragQuatre = { keywords: ['QUATRE'], names: [] };
+const r4 = taobaoQueryVariants({ brand: 'Boucheron', name: 'Quatre En Rouge' },
+  { Boucheron: ['宝诗龙'] }, fragQuatre);
+check('R4 keywords 进查询词但 names 保持空', r4.includes('QUATRE') && fragQuatre.names.length === 0,
+  JSON.stringify(r4));
+
+/* R5 scoreMatch 认中文译名：标题只有中文名时（「娇兰 蝴蝶夫人精粹30ml」），
+   旧逻辑判「香名覆盖率 0%」拒收，现在应 accept 且 nameVia='cn-alias'。 */
+const r5 = scoreMatch({ brand: 'Guerlain', name: 'Mitsouko' },
+  '欧洲直邮Guerlain娇兰 蝴蝶夫人精粹30ml 女士浓香EDP 果香正品',
+  maltAlias, '彩妆/香水/美妆工具/香水', fragMitsouko);
+check('R5 中文译名命中即 accept', r5.accept === true && r5.nameVia === 'cn-alias', JSON.stringify(r5));
+
+/* R6 译名不能替代品牌关：标题有译名但没有品牌名 → 仍然拒。
+   否则「蝴蝶夫人」会匹配到同名大衣（实测淘宝真有一条「蝴蝶夫人 桑蚕丝羊绒双面呢大衣」）。 */
+const r6 = scoreMatch({ brand: 'Guerlain', name: 'Mitsouko' },
+  'YIKOwow 蝴蝶夫人 桑蚕丝羊绒双面呢大衣短外套 香水',
+  {}, '彩妆/香水/美妆工具/香水', fragMitsouko);
+check('R6 译名不能替代品牌关', r6.accept === false && r6.reason.includes('品牌'), JSON.stringify(r6));
+
 /* ---------- 输出 ---------- */
 console.log('\n===== 联盟 API 测试 =====');
 console.log(`PASS ${pass}   FAIL ${failures.length}`);

@@ -1,0 +1,192 @@
+{
+ "_readme": "香水/品牌中文译名。names = 中文译名；keywords = 实测能搜到的关键词（可含拉丁/法语原词，不当译名用）。每条都要带 evidence：淘宝香水类目商品标题里同时出现该词与品牌名的条数 hits（只收 hits>=2）。未达标的宁可不写。核实日期 2026-11-08。核验方法：跑 scripts/fetch-products.mjs 同一个接口，统计返回标题。",
+ "guerlain-mitsouko": {
+  "brandCn": "娇兰",
+  "keywords": [
+   "蝴蝶夫人"
+  ],
+  "hits": 10,
+  "evidence": "欧洲直邮Guerlain娇兰 蝴蝶夫人精粹30ml 女士浓香EDP 果香正品",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "蝴蝶夫人"
+  ]
+ },
+ "jo-malone-wood-sage-and-sea-salt": {
+  "brandCn": "祖玛珑",
+  "keywords": [
+   "鼠尾草与海盐"
+  ],
+  "hits": 4,
+  "evidence": "香港直邮Jo Malone 祖马龙 鼠尾草与海盐 50ml正品",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "鼠尾草与海盐"
+  ]
+ },
+ "montale-intense-cafe": {
+  "brandCn": "蒙塔莱",
+  "keywords": [
+   "情迷咖啡"
+  ],
+  "hits": 2,
+  "evidence": "蒙塔莱montale香水贪吃巧克力情迷咖啡浓缩咖啡感官本能试香小样",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "情迷咖啡"
+  ]
+ },
+ "mancera-cedrat-boise": {
+  "brandCn": "曼塞拉",
+  "keywords": [
+   "香橼木"
+  ],
+  "hits": 11,
+  "evidence": "Mancera曼塞拉香水香橼木紫色之花血色烟草珍珠柔软香草试香小样",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "香橼木"
+  ]
+ },
+ "maison-margiela-replica-beach-walk": {
+  "brandCn": "梅森马吉拉",
+  "keywords": [
+   "沙滩漫步"
+  ],
+  "hits": 35,
+  "evidence": "【正装】MMM梅森马吉拉 沙滩漫步 椰奶海水加小白花 很慵懒的感觉",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "沙滩漫步"
+  ]
+ },
+ "maison-margiela-replica-springtime-in-a-park": {
+  "brandCn": "梅森马吉拉",
+  "keywords": [
+   "春日公园"
+  ],
+  "hits": 21,
+  "evidence": "梅森马吉拉 春日公园淡香水 香味宜人花果香调 EDT",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "春日公园"
+  ]
+ },
+ "maison-margiela-replica-under-the-lemon-trees": {
+  "brandCn": "梅森马吉拉",
+  "keywords": [
+   "柠檬树下"
+  ],
+  "hits": 14,
+  "evidence": "欧洲直邮梅森马吉拉氛围感中性香水柠檬树下生日礼物正品清新",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "柠檬树下"
+  ]
+ },
+ "amouage-reflection-man": {
+  "brandCn": "爱慕",
+  "keywords": [
+   "镜中倒影"
+  ],
+  "hits": 10,
+  "evidence": "【正装】爱慕 镜中倒影45/镜中倒影（反射）男士",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "镜中倒影"
+  ]
+ },
+ "frederic-malle-rose-and-cuir": {
+  "brandCn": "馥马尔",
+  "keywords": [
+   "革调玫瑰"
+  ],
+  "hits": 9,
+  "evidence": "FREDERIC MALLE/德瑞克馥马尔  革调玫瑰 皮革调EDP 30/50/100/1*",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "革调玫瑰"
+  ]
+ },
+ "frederic-malle-portrait-of-a-lady": {
+  "brandCn": "馥马尔",
+  "keywords": [
+   "贵妇肖像"
+  ],
+  "hits": 2,
+  "evidence": "欧洲直邮Frederic Malle馥马尔女士香水 贵妇肖像玫瑰香草根 30/",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "贵妇肖像"
+  ]
+ },
+ "ex-nihilo-lust-in-paradise": {
+  "brandCn": "伊克西尼罗",
+  "keywords": [
+   "欲望天堂"
+  ],
+  "hits": 14,
+  "evidence": "Ex Nihilo exnihilo无中生有香水blue talisman蓝之庇佑欲望天堂",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "欲望天堂"
+  ]
+ },
+ "etat-libre-dorange-jasmin-et-cigarette": {
+  "brandCn": null,
+  "keywords": [
+   "茉莉与香烟"
+  ],
+  "hits": 3,
+  "evidence": "【双11狂欢】解放橘郡香水茉莉与香烟香水辛辣花香调雪茄女士淡香",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "茉莉与香烟"
+  ]
+ },
+ "etat-libre-dorange-fat-electrician": {
+  "brandCn": null,
+  "keywords": [
+   "胖电工"
+  ],
+  "hits": 2,
+  "evidence": "【双11狂欢】解放橘郡香水胖电工香水美食木质调女士留香木质小众",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "胖电工"
+  ]
+ },
+ "boucheron-quatre-en-rouge": {
+  "brandCn": null,
+  "keywords": [
+   "QUATRE"
+  ],
+  "hits": 4,
+  "evidence": "美国直邮W BOUCHERON QUATRE ICONIC 3.4OZ EDP宝诗龙 四个正品",
+  "verifiedAt": "2026-11-08"
+ },
+ "kayali-lovefest-burning-cherry-48": {
+  "brandCn": null,
+  "keywords": [
+   "燃烧樱桃"
+  ],
+  "hits": 8,
+  "evidence": "Kayali香水卡亚利48号燃烧樱桃 12号麝香 musk",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "燃烧樱桃"
+  ]
+ },
+ "carolina-herrera-good-girl-supreme": {
+  "brandCn": "卡罗琳娜海莱娜",
+  "keywords": [
+   "好女孩"
+  ],
+  "hits": 4,
+  "evidence": "欧洲直邮Carolina Herrera卡罗琳娜 海莱娜好女孩EDP浓香水8正品",
+  "verifiedAt": "2026-11-08",
+  "names": [
+   "好女孩"
+  ]
+ }
+}

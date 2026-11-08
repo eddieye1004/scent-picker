@@ -100,6 +100,20 @@ if (existsSync(ALIAS_PATH)) {
   catch (e) { console.error(`别名表读不了，按空表继续：${e.message}`); }
 }
 
+/* 香名级中文译名表：`{ "<perfume id>": { names, keywords, hits, evidence } }`。
+   与上面那张品牌级别名表分工不同 ——
+   · brand-aliases.json 解决「品牌英文名不在标题里」（迪奥/祖玛珑）
+   · fragrance-aliases.json 解决「香名英文名不在标题里」（蝴蝶夫人/香橼木）
+   第二张表的每条都必须带淘宝实测证据（hits>=2，见文件的 _readme），
+   没有证据的译名不许进表：猜错会把别家的货记到这瓶名下，比漏掉更糟。 */
+const FRAG_ALIAS_PATH = path.join(ROOT, 'data/fragrance-aliases.json');
+let FRAG_ALIAS = {};
+if (existsSync(FRAG_ALIAS_PATH)) {
+  try { FRAG_ALIAS = JSON.parse(await readFile(FRAG_ALIAS_PATH, 'utf8')); }
+  catch (e) { console.error(`香名译名表读不了，按空表继续：${e.message}`); }
+}
+const fragOf = (p) => FRAG_ALIAS[String(p?.id || '')] || null;
+
 /* ---------- 请求层：限速 + 退避 ----------
    两家都是"超了直接拒"，且拒绝也计入调用。所以宁可慢：
    京东 QPS 限制比淘宝宽，但统一按 350ms 间隔更省心。 */
@@ -249,7 +263,7 @@ async function queryTaobao(perfume) {
 
      为什么 q 里**不带品牌**：见 lib/union-api.mjs 的 taobaoQueryVariants 注释 ——
      加品牌名经常直接打成「无结果」。 */
-  const variants = taobaoQueryVariants(perfume, ALIAS);
+  const variants = taobaoQueryVariants(perfume, ALIAS, fragOf(perfume));
   let lastKeyword = variants[0] || '';
   let best = null;
   let bestRaw = null;
@@ -284,7 +298,7 @@ async function queryTaobao(perfume) {
     }
     if (!node) continue;
     const mapped = mapTaobao(keyword, node);
-    const cand = pickBest(perfume, mapped.candidates, ALIAS);
+    const cand = pickBest(perfume, mapped.candidates, ALIAS, fragOf(perfume));
     if (cand?.accept) { best = mapped; bestRaw = node; break; }
     /* 没达标也先留一份：所有变体都不达标时，这一份用来解释"为什么没命中" */
     if (!best) { best = mapped; bestRaw = node; }
@@ -375,7 +389,7 @@ for (const p of targets) {
         continue;
       }
     }
-    const best = pickBest(p, r.candidates, ALIAS);
+    const best = pickBest(p, r.candidates, ALIAS, fragOf(p));
     const row = {
       id: p.id,
       brand: p.brand,
