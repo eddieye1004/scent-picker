@@ -25,10 +25,17 @@
  *
  *   --limit N     只跑前 N 瓶（省配额，先验证流程）
  *   --ids a,b,c   只跑指定 id
+ *
+ * 缓存与候选表的写入边界（2026-11-08 事故后加的规则）：
+ *   缓存 `data/.cache/union-api.json` **只增不删** —— 本轮没跑的瓶，旧条目原样保留。
+ *   候选表 `data/products.candidates.json` 在「子集跑」时**不写**，避免把全量结果
+ *   覆盖成子集；要写就显式加 `--write-candidates`，或跑全量（既无 --limit 也无 --ids）。
+ *   事故经过：一次 85 瓶的验证跑把 1388 条缓存覆写成 85 条，全量候选表也变成 85 瓶
+ *   的子集，另一条线的样本源直接消失，重打接口约 1303 次才能补回。
  *   --dry         只打印第一瓶的请求参数与返回，不写文件
  *   --force       忽略缓存，重新请求
  */
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
@@ -89,6 +96,10 @@ const DRY = flag('--dry');
 const FORCE = flag('--force');
 const LIMIT = Number(opt('--limit', '0')) || 0;
 const ONLY = (opt('--ids', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
+/* 子集跑 = 只处理一部分瓶。子集跑时默认不写候选表，理由见文件头。
+   要覆盖候选表就显式 --write-candidates，或者跑全量（既无 --limit 也无 --ids）。 */
+const SUBSET = Boolean(LIMIT || ONLY.length);
+const WRITE_CAND = flag('--write-candidates') || !SUBSET;
 
 /* 别名表：中文最常见的译名。没有它，京东那些纯中文标题一条都匹配不上
    （实测：品牌英文名在标题里出现的比例远低于直觉）。这是**数据**，
@@ -347,11 +358,23 @@ if (!plats.length) {
   process.exit(1);
 }
 
-/* 缓存：断点续跑用。键含 keyword，改了品牌/香名会重新取。 */
+/* 缓存：断点续跑用。键含 keyword，改了品牌/香名会重新取。
+
+   **写入规则（2026-11-08 事故后定的，别改回去）**
+   1. 读到的旧条目一律保留 —— 本轮只处理 targets，没处理的瓶不该丢。
+   2. 写盘前比一次条数：新缓存少于旧缓存的一半就拒写，除非显式 --force。
+      理由：一次 85 瓶的验证跑曾把 1388 条覆写成 85 条，而脚本当时**没有任何提示**，
+      重打接口要 1303 次调用。静默的数据丢失比报错难查得多。
+   3. 先写 .tmp 再 rename —— 中途被杀不会留下半截 JSON。 */
 let cache = {};
+let oldCacheSize = 0;
 if (existsSync(CACHE) && !FORCE) {
-  try { cache = JSON.parse(await readFile(CACHE, 'utf8')); } catch { cache = {}; }
+  try {
+    cache = JSON.parse(await readFile(CACHE, 'utf8'));
+    oldCacheSize = Object.keys(cache).length;
+  } catch { cache = {}; }
 }
+if (oldCacheSize) console.log(`缓存已有 ${oldCacheSize} 条，本轮只增不删`);
 const cacheKey = (plat, p) => `${plat}:${p.id}:${p.brand} ${p.name}`.toLowerCase();
 
 /* 缓存里存的是 { keyword, candidates, raw }。candidates 是按**当时的**
@@ -413,11 +436,30 @@ if (DRY) {
   process.exit(0);
 }
 
-await writeFile(CACHE, JSON.stringify(cache), 'utf8');
+/* 缓存落盘：只增不删 + 条数护栏 + 原子写。
+   护栏阈值取「旧条数的一半」：正常跑量只会让条数变多；
+   骤降一半以上说明 targets 选错了（比如拿 85 瓶的子集跑全量），
+   这时拒写比默默丢数据安全。--force 是明确的「我知道在做什么」。 */
+const newCacheSize = Object.keys(cache).length;
+if (oldCacheSize && newCacheSize < oldCacheSize / 2 && !FORCE) {
+  console.error(`\n✗ 拒写缓存：旧 ${oldCacheSize} 条 → 新 ${newCacheSize} 条，掉了一半以上。`);
+  console.error('  这通常意味着本轮 targets 只是全库的一小部分。');
+  console.error('  要跑子集并保留其余条目：什么都不用加，脚本只增不删，上面的下降不该发生。');
+  console.error('  要故意重置缓存：加 --force。');
+  process.exitCode = 1;
+} else {
+  const tmp = CACHE + '.tmp';
+  await writeFile(tmp, JSON.stringify(cache), 'utf8');
+  await rename(tmp, CACHE);
+  console.log(`\n缓存 ${oldCacheSize} → ${newCacheSize} 条`);
+}
 
 /* 写盘策略：**只写被接受的**。被拒的留在 rejected 数组里供复核，
    但绝不进 picked 通道 —— 这条与 gen-affiliate-links.mjs 的
-   「一条都不合格就不写文件」是同一种态度。 */
+   「一条都不合格就不写文件」是同一种态度。
+
+   子集跑默认**不写**这张表：它是全量结果，覆盖成子集会让下游 merge 拿不到其余瓶，
+   而 merge 只并集不剔除，于是表现为「覆盖率无理由下跌」。 */
 const out = {
   generatedAt: new Date().toISOString().slice(0, 10),
   platforms: plats,
@@ -426,9 +468,15 @@ const out = {
   accepted: results.filter((r) => r.accepted),
   rejected: results.filter((r) => !r.accepted),
 };
-await writeFile(OUT_CAND, JSON.stringify(out, null, 2) + '\n', 'utf8');
-
-console.log(`\n已写 ${path.relative(ROOT, OUT_CAND)}`);
+if (WRITE_CAND) {
+  const tmp = OUT_CAND + '.tmp';
+  await writeFile(tmp, JSON.stringify(out, null, 2) + '\n', 'utf8');
+  await rename(tmp, OUT_CAND);
+  console.log(`\n已写 ${path.relative(ROOT, OUT_CAND)}`);
+} else {
+  console.log(`\n子集跑（${targets.length}/${perfumes.length} 瓶），未覆盖 ${path.relative(ROOT, OUT_CAND)}`);
+  console.log('  缓存已更新，可直接用于离线重放；要让下游看到候选表请加 --write-candidates。');
+}
 console.log(`  请求 ${stats.queried} · 缓存命中 ${stats.cached} · 失败 ${stats.failed}`);
 console.log(`  接受 ${stats.accepted} · 拒收 ${stats.rejected}（拒收明细见 rejected）`);
 console.log('\n下一步：node scripts/merge-product-candidates.mjs');
