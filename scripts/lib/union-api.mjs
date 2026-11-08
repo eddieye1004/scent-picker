@@ -306,13 +306,17 @@ export function scoreMatch(perfume, title, aliasMap = {}, categoryText) {
      `Grand Soir`                          → 有结果
    淘宝的 q 是分词匹配，品牌全称越长越容易一个词都对不上。
 
-   变体顺序与实测命中分布（360 瓶）：
-     0 纯香名        143 次命中
-     2 中文别名+香名首词 20 次
-     1 香名首词        少量
-     3 品牌+香名首词    少量
-   合计 198/360 = 55.0%。`jo-malone` 整族、`montale`、`mancera` 在四个变体下
-   全部 0 结果 —— 那是真的没有推广计划，不是查询写法问题。 */
+   变体顺序，以及**首轮命中**的分布（360 瓶实跑）：
+     0 纯香名            绝大多数命中落在这一项
+     2 中文别名+香名首词   次之
+     1 香名首词           少量
+     3 品牌+香名首词       少量
+   端到端写入 `products.candidates.json` 的结果：179/360 = 49.7% accept。
+   （更早一版实验脚本报过 55%，那是把「拿到候选」当成了「接受」——
+     `pickBest` 总会返回分最高的那条，不管 `accept` 是不是 false。以 49.7% 为准。）
+
+   `jo-malone` 整族、`montale`、`mancera` 在四个变体下全部 0 结果 ——
+   那是淘宝上真的没有这些香水的推广计划，不是查询写法问题。 */
 export function taobaoQueryVariants(perfume, aliasMap = {}) {
   const name = String(perfume?.name || '').trim();
   const brand = String(perfume?.brand || '').trim();
@@ -332,7 +336,7 @@ export function taobaoQueryVariants(perfume, aliasMap = {}) {
 export function pickBest(perfume, candidates, aliasMap = {}) {
   let best = null;
   for (const c of candidates || []) {
-    const m = scoreMatch(perfume, c.title, aliasMap);
+    const m = scoreMatch(perfume, c.title, aliasMap, c.categoryText);
     const row = { ...c, ...m };
     if (!best) { best = row; continue; }
     if (row.score > best.score) best = row;
