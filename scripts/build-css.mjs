@@ -47,6 +47,7 @@ const PARTS = [
   '_wheel18.css', /* 结果卡瓶形（v30）：pick-head 横排 + SVG 瓶身尺寸 */
   '_wheel19.css', /* 双渠道入口按钮（v31）：官方旗舰店 / 全网 两行结构 */
   '_wheel20.css', /* 结果卡商品实物图（v32）：与 _wheel18 共用 .pick-art 盒，缺图自动降级 */
+  '_wheel21.css', /* 盘心改用上色 SVG（v33）：清掉继承的 stroke 与 fill:none */
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');

@@ -34,7 +34,7 @@
 | `icon-specimen/svg/*.svg` | 24 枚全量覆盖（沿用旧文件名，`ART_FILE` 映射不变） | 24/24 写入，XML 全部可解析，渐变色与 `url(#)` 无悬空引用 |
 | `shots/icons-24-overview.html` / `.png` | 覆盖为最终版（标题去掉版本后缀、副标题改成本轮说明） | 581 KB / 479260 B，48 张卡（64px + 36px 两段）24 个 key 全覆盖 |
 | `app-art.js` | 只改一行注释里的体积数字（236KB/74.6KB → 281.3KB/79.3KB） | 逻辑零改动；`node --check` 通过 |
-| `app.js` | **未改** | `SUB_MARKS`/`SUB_FIT` 是运行时线稿（无填充、stroke 由 CSS 给）的另一套数据，与上色 svg 独立；本轮不动 |
+| `app.js` | 追加彩色通路（2026-11-08，见第七节） | `SUB_MARKS`/`SUB_FIT` 仍保持原线稿（兜底用）；盘心改为 fetch 上色 svg 后替换 |
 | `data/taxonomy.json` | **未改** | v2.2.0，无 icon 字段，不含图标映射，无需替换 |
 | `shots/icons-24-overview-v2…v10.{html,png}` | 移入 `shots/_superseded-20261103/`（18 个文件 / 8.9 MB） | 活动路径下不再有旧版本 |
 | `icon-specimen/svg-v6`、`svg-v14-absorbed` | 移入备份目录 `scent-bak-20261103-154651/` | 项目 `icon-specimen/` 只剩 `svg/` |
@@ -50,7 +50,7 @@
 
 ## 五、遗留（未做，需用户裁定）
 
-1. `app.js` 的 `SUB_MARKS`/`SUB_FIT` 仍是旧的线稿母题（如 `vetiver` 还是"一束根草"、`green-citrus` 还是"果+双叶"）。若 `index.html` 的盘心线稿要与新上色版语义一致，需另做一轮线稿重绘——这是独立工作，不在本轮 24 枚上色图范围内。
+1. `app.js` 的 `SUB_MARKS`/`SUB_FIT` 保留原线稿，只作兜底（上色 svg 加载失败时显示）。盘心正稿已改用上色 svg（第七节）。
 2. `shots/five-check.html`、`icon-specimen/REDRAW-20261031.md`、`docs/ICON-HANDOFF-20261102-v1.md` 里仍引用已移走的 `svg-v6` / `svg-v14-absorbed` 路径，属历史文档，未改。
 3. `shots/_superseded-20261103/`（8.9 MB）与 `shots/` 里大量探测图（合计 99 MB / 549 文件）尚未清，确认后可整批删除。
 
@@ -69,16 +69,35 @@ cd C:/Users/16256/ego/demo
 "$N" rebuild_v10.cjs                  # 重建总览页
 ```
 
-## 七、运行时线稿（`app.js` SUB_MARKS / SUB_FIT）· 2026-11-08
+## 七、盘心改用上色 SVG（2026-11-08）
 
-上色 svg 与运行时不加色线稿是**两套独立数据**，替换上色版不会自动更新线稿。
-本轮按重绘后的造型重新授权（author）24 枚线稿，写入 `app.js`：
+**推翻上一版的线稿重绘方案**：用户明确要求"把上色 SVG 直接挪过去，不要按线稿"。线稿方案（`marks24b.py`，24 枚 161 条 path）产物已全部回退，`SUB_MARKS`/`SUB_FIT` 恢复为备份原版（剪掉新加两段后与 `scent-bak-20261103-154651/app.js` 逐字节相同，`cur3 == bak ? True`）。
 
-- 生成器 `C:/Users/16256/ego/demo/marks24b.py` → `marks24b.json`（`{marks:{key:[d…]}, fits:{key:[k,dx,dy]}}`）。
-- **不能机械抽取**：早期 `mkmarks.py` 用 RDP 抽上色稿的最大填充面做线稿，24 枚在 88px 下全部不可读（只剩外轮廓）。线稿必须按每枚的构成重写，每枚 2–13 条 path，全 24 枚共 161 条。
-- 归一化：最长边 = 17 viewBox 单位，包围盒中心对齐 (12,12)，`SUB_FIT` 记录 `[k, dx, dy]`；`scentPlate()` 按 `1/k` 反补偿线宽（`PLATE_SW = 0.7`）。
-- 24 枚实测（真实页面 1440×900、DPR2，逐个点选小类后量 `.hub-plate .plate-svg`）：盘心全部 **88×88**，path 数 2–13，实测描边 0.58–0.74 px，`plate-cap` 文本齐全。
-- 数值自检：24 枚包围盒 17.0×10.8–17.0×17.0，中心偏差 0，无越界（脚本见 `verify24b.cjs` 同目录的一次性审计）。
-- 视觉对照：`shots/real-plates.png`（真实页面逐格截图，12 枚）、`shots/mkfinal.png`（24 枚 × 88/36/24 三档，直接读 `app.js` 的 SUB_MARKS 渲染）。
-- `node --check app.js` 通过；`app.js` 218725 B / 4212 行（原 151936 B / 4237 行，行数减少是因为旧线稿每条图元独占一行、新线稿同格式）。
-- 造型取舍（均为目视否决后定稿）：木段两端封圆弧、只留 2 条顺纹（多条横纹读成"卷纸"）；乌木改折线方料 + 4 条**竖向**顺纹（横向线读成面包）；香根草两端封口成桶形 + 8 条收在束内的草茎 + 两道紧贴的束带（散开的平行线读成竹签）；树脂一长一短两条不共心流纹（平行弧读成闭眼）；皮革三道**同向**折痕（交叉读成揉皱的纸）；焚香火星改折线簇（水滴读成柱顶的球）；粉感花用 5 片圆头花瓣（5 个分离圆读成齿轮）；香草美食奶油盘与荚交叠（分离读成"盘子加一根棒"）。
+### 实现
+
+| 位置 | 改动 |
+|---|---|
+| `app.js` 新插入（`function scentPlate(sub)` 之前） | `ART_FILE`（24 对 key→旧文件名）、`ART_CACHE`、`artInner(subId)`（fetch `./icon-specimen/svg/<file>.svg`，剥外层 `<svg>` 与 `<title>`）、`artSeq`、`artNs(inner, ns)`（给 id 与 `url(#…)` 加 `-<ns>` 后缀，避免 24 枚同页 id 冲突） |
+| `scentPlate()` 尾部（`return wrap;` 前） | `artInner(sub.id).then(...)` 造 `svg.plate-svg.is-art` 并替换掉线稿；**加载失败保留线稿，绝不空着** |
+| `styles.css` | `.wheel .plate-svg.is-art { fill: initial; stroke: none; stroke-width: 0; }` 及选中态覆盖——否则基类 `fill:none` 会把多色图糊成单色轮廓 |
+
+净增 2593 B（`app.js` 213114 B vs 备份 214756 B），`node --check` = 0。
+
+### 实测（`shotart.cjs`，真实页面 1440×900 DPR2，逐个点选 24 个小类）
+
+- **24/24 `art:true`，盘心全部 88×88**；元素数 10（cologne / incense）–57（powdery-floral），`tea` 50、`green` 45、`green-citrus` 43、`vetiver` 39。
+- 窄屏（`shotnarrow.cjs`）：390 / 360 视口盘心均 **36×36**；`plate-cap` 在 390 显示、360 隐藏（既有断点，非本轮引入）。
+- 证据图：`shots/art-plates.png`（24 枚真实页面逐格截图，1260×952）、`shots/art_<key>.png`（单枚）、`shots/art-narrow.png`（390/360 对照）。
+
+### 复跑
+
+```bash
+N="F:/deepseek/resources/runtime/primary-runtime/dependencies/node/bin/node.exe"
+P="C:/Users/16256/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/python.exe"
+cd C:/Users/16256/Documents/deepseek-harness/default-workspace/scent-picker
+"$N" server.js 8123 &
+cd C:/Users/16256/ego/demo
+"$N" shotart.cjs        # 逐小类截图 + 量盘心
+"$N" shotnarrow.cjs     # 390/360 窄屏
+"$P" verify_only_art.py # 断言只动了彩色通路
+```
