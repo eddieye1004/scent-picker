@@ -980,6 +980,58 @@ const PLATE_FALLBACK = [{ tag: 'circle', attrs: { cx: 12, cy: 12, r: 7.4 } }];
 
 const PLATE_LABEL = { citrus: '柑橘', floral: '花', woody: '木质', amber: '树脂', fresh: '叶', gourmand: '果实' };
 
+/* ===== 彩色图标：盘心直接用上色 SVG（2026-11-08）=====
+   线稿只是兜底。24 枚上色版在 ./icon-specimen/svg/ 合计 295.6KB / gzip 80.1KB，
+   按需 fetch + 内存缓存，首屏零代价；file:// 下会被 CORS 拦，必须跑 server.js。 */
+const ART_FILE = {
+  'cologne': 'citrus-cologne',
+  'green-citrus': 'green-citrus-a',
+  'citrus-floral': 'citrus-citrus-floral',
+  'aromatic-citrus': 'citrus-aromatic-citrus',
+  'rose': 'floral-rose',
+  'white-floral': 'white-floral-a',
+  'fruity-floral': 'floral-fruity-floral',
+  'powdery-floral': 'floral-powdery-floral',
+  'green-floral': 'floral-green-floral',
+  'soliflore': 'floral-soliflore',
+  'sandalwood': 'woody-sandalwood',
+  'vetiver': 'woody-vetiver',
+  'oud': 'oud-a',
+  'woody': 'woody-woody',
+  'amber': 'amber-amber',
+  'incense': 'amber-incense',
+  'resinous': 'amber-resinous',
+  'leather': 'amber-leather',
+  'aquatic': 'fresh-aquatic',
+  'green': 'fresh-green',
+  'fougere': 'fresh-fougere',
+  'tea': 'fresh-tea',
+  'vanilla-gourmand': 'gourmand-vanilla-gourmand',
+  'fruity-gourmand': 'gourmand-fruity-gourmand',
+};
+const ART_CACHE = new Map();
+function artInner(subId) {
+  const f = ART_FILE[subId];
+  if (!f) return Promise.resolve('');
+  const p = './icon-specimen/svg/' + f + '.svg';
+  if (!ART_CACHE.has(p)) {
+    ART_CACHE.set(p, fetch(p).then((r) => (r.ok ? r.text() : '')).then((t) => {
+      if (!t) return '';
+      /* 只取 <svg> 内部内容：外层 <svg> 由我们自己造，才能挂 class 与 viewBox */
+      return t.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')
+              .replace(/<title>[\s\S]*?<\/title>/g, '');
+    }).catch(() => ''));
+  }
+  return ART_CACHE.get(p);
+}
+/* 同一枚图标可能被同时插进 DOM 的多个位置，渐变 id 必须唯一，
+   否则第二次插入会引用到第一个实例的 defs。 */
+let artSeq = 0;
+function artNs(inner, ns) {
+  return inner.replace(/id="([^"]+)"/g, (m, x) => 'id="' + x + '-' + ns + '"')
+              .replace(/url\(#([^)]+)\)/g, (m, x) => 'url(#' + x + '-' + ns + ')');
+}
+
 function scentPlate(sub) {
   const entries = (sub.notes || [])
     .map((en) => TAX.noteIndex.entries.find((x) => normNote(x.en) === normNote(en)))
@@ -1032,6 +1084,20 @@ function scentPlate(sub) {
   wrap.setAttribute('role', 'img');
   wrap.setAttribute('aria-label',
     '代表香材：' + entries.map((e) => e.zh + '（' + (PLATE_LABEL[e.family] || e.family) + '）').join('、'));
+
+  /* 上色 SVG 到位后替换掉线稿：加载失败就保留线稿，绝不空着。 */
+  artInner(sub.id).then((inner) => {
+    if (!inner) return;
+    const art = svgEl('svg', {
+      class: 'plate-svg is-art',
+      viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
+      'aria-hidden': 'true', focusable: 'false',
+    });
+    art.innerHTML = artNs(inner, 'a' + (++artSeq));
+    const old = wrap.querySelector('.plate-svg');
+    if (old) old.replaceWith(art); else wrap.insertBefore(art, wrap.firstChild);
+  });
+
   return wrap;
 }
 

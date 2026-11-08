@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="水生"><title>水生</title><defs>
+  <radialGradient id="aqA" cx="0.36" cy="0.28" r="0.80"><stop offset="0" stop-color="#CFEFFC"/><stop offset="0.42" stop-color="#86C4E0"/><stop offset="1" stop-color="#2F6E96"/></radialGradient>
+  <linearGradient id="aqB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E2F5FD"/><stop offset="1" stop-color="#9ACFE4"/></linearGradient>
+</defs>
+  <path d="M 4 19.45 C 5.66 18.78 7.32 18.78 8.99 19.45 C 10 19.85 11 20.04 12 20.04 C 13 20.04 14 19.85 15.01 19.45 C 16.68 18.78 18.34 18.78 20 19.45" fill="none" stroke="#2A6480" stroke-width="0.52" opacity="0.34"/>
+  <path d="M 5.3 17.88 C 6.69 17.32 8.09 17.32 9.48 17.88 C 10.29 18.22 11.15 18.39 12 18.39 C 12.85 18.39 13.71 18.22 14.52 17.88 C 15.91 17.32 17.31 17.32 18.7 17.88" fill="none" stroke="#2A6480" stroke-width="0.61" opacity="0.56"/>
+  <path d="M 7.1 16.31 C 8.13 15.92 9.17 15.92 10.2 16.31 C 10.81 16.54 11.41 16.67 12 16.67 C 12.59 16.67 13.19 16.54 13.8 16.31 C 14.83 15.92 15.87 15.92 16.9 16.31" fill="none" stroke="#2A6480" stroke-width="0.72" opacity="0.82"/>
+  <path d="M 12 4.12 C 15.72 8.92 16.14 11.73 12 14.46 C 7.86 11.73 8.28 8.92 12 4.12 Z" fill="url(#aqA)" stroke="#2A6480" stroke-width="0.85"/>
+  <path d="M 8.54 10.51 C 9.57 12.26 11.15 13.65 12 14.46 C 12.85 13.65 14.43 12.26 15.46 10.51 C 14.56 11.5 13.26 12.26 12 12.53 C 10.74 12.26 9.44 11.5 8.54 10.51 Z" fill="url(#aqB)" stroke="none" opacity="0.72"/>
+  <path d="M 8.9 10.15 C 9.71 11.05 10.79 11.63 12 11.95 C 13.21 11.63 14.29 11.05 15.1 10.15" fill="none" stroke="#1C4A62" stroke-width="0.27" opacity="0.30"/>
+  <path d="M 9.66 7.76 C 8.9 9.56 9.08 11.5 9.98 13.03" fill="none" stroke="#F2FBFF" stroke-width="0.99" opacity="0.82"/>
+  <path d="M 10.79 6.46 C 10.38 7.31 10.16 8.17 10.16 8.98" fill="none" stroke="#FFFFFF" stroke-width="0.4" opacity="0.55"/>
+  <path d="M 14.47 9.25 C 14.7 10.46 14.29 11.9 13.26 13.16" fill="none" stroke="#1C4A62" stroke-width="0.4" opacity="0.36"/>
+  <circle cx="17.44" cy="6.69" r="0.52" fill="url(#aqA)" stroke="#2A6480" stroke-width="0.29"/>
+  <circle cx="17.27" cy="6.5" r="0.16" fill="#FFFFFF" opacity="0.72"/>
+  <circle cx="6.56" cy="6.69" r="0.52" fill="url(#aqA)" stroke="#2A6480" stroke-width="0.29"/>
+  <circle cx="6.39" cy="6.5" r="0.16" fill="#FFFFFF" opacity="0.70"/>
+</svg>
