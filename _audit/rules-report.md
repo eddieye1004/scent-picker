@@ -19,11 +19,9 @@
 | 优先级 | 类 | 判定条件 | 命中瓶数 | 占比 |
 |---|---|---|---|---|
 | 10 | 乌木 `oud` | 至少一个：oud | 59 | 11.0% |
-| 20 | 芳香木质 `woody-aromatic` | 至少一个：juniper / sage | 46 | 8.6% |
-| 30 | 苔藓木质 `mossy` | 必须全中：oakmoss + patchouli | 35 | 6.6% |
-| 40 | 檀木 `sandalwood` | 至少一个：sandalwood | 113 | 21.2% |
-| 50 | 香根草 `vetiver` | 至少一个：vetiver；排除：sandalwood | 70 | 13.1% |
-| 90 | 干燥木质 `dry-woody`（兜底） |  | 211 | 39.5% |
+| 20 | 檀木 `sandalwood` | 至少一个：sandalwood | 135 | 25.3% |
+| 30 | 香根草 `vetiver` | 至少一个：vetiver；排除：sandalwood | 90 | 16.9% |
+| 90 | 木质 `woody`（兜底） |  | 250 | 46.8% |
 
 校验：归属合计 534 / 534，未归属 **0**，多重归属 **0**（机制保证）。
 
@@ -45,11 +43,9 @@
 | 优先级 | 类 | 判定条件 | 命中瓶数 | 占比 |
 |---|---|---|---|---|
 | 10 | 皮革 `leather` | 至少一个：leather | 73 | 14.1% |
-| 20 | 冷焚香 `incense-cold` | 至少一个：incense / frankincense；排除：benzoin | 54 | 10.4% |
-| 30 | 暖焚香 `incense-warm` | 必须全中：benzoin；至少一个：incense / frankincense | 6 | 1.2% |
-| 40 | 树脂 `resinous` | 必须全中：benzoin + labdanum | 8 | 1.5% |
-| 50 | 辛香琥珀 `spicy-amber` | 至少一个：cinnamon / cardamom / saffron / clove；排除：vanilla | 74 | 14.3% |
-| 90 | 香草琥珀 `vanilla-amber`（兜底） |  | 304 | 58.6% |
+| 20 | 树脂 `resinous` | 必须全中：benzoin + labdanum | 9 | 1.7% |
+| 30 | 焚香 `incense` | 至少一个：incense / frankincense | 59 | 11.4% |
+| 90 | 琥珀 `amber`（兜底） |  | 378 | 72.8% |
 
 校验：归属合计 519 / 519，未归属 **0**，多重归属 **0**（机制保证）。
 
@@ -79,9 +75,9 @@
 
 | 品牌 · 名称 | 命中原料（规则相关） | 归属 |
 |---|---|---|
-| Maison Francis Kurkdjian · Baccarat Rouge 540 | cedarwood | 干燥木质 |
-| Parfums de Marly · Layton | patchouli, guaiac wood | 干燥木质 |
+| Maison Francis Kurkdjian · Baccarat Rouge 540 | cedarwood | 木质 |
+| Parfums de Marly · Layton | patchouli, guaiac wood | 木质 |
 | Parfums de Marly · Delina | vetiver | 香根草 |
 | Byredo · Mojave Ghost | vetiver, sandalwood, cedarwood | 檀木 |
-| Maison Margiela Fragrances · Replica By the Fireplace | guaiac wood | 干燥木质 |
-| Mancera · Cedrat Boise | oakmoss, patchouli | 苔藓木质 |
+| Maison Margiela Fragrances · Replica By the Fireplace | guaiac wood | 木质 |
+| Mancera · Cedrat Boise | oakmoss, patchouli | 木质 |

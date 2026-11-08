@@ -12,7 +12,7 @@ const path = require('path');
 const ROOT = 'C:/Users/16256/Documents/deepseek-harness/default-workspace/scent-picker';
 const TAX = path.join(ROOT, 'data', 'taxonomy.json');
 const tax = JSON.parse(fs.readFileSync(TAX, 'utf8'));
-if (tax.version !== '2.0.0') { console.error('版本不是 2.0.0：' + tax.version); process.exit(1); }
+if (!/^2\.[0-9]+\.[0-9]+$/.test(tax.version)) { console.error('版本不是 2.x：' + tax.version); process.exit(1); }
 
 /* ---- 与 rules.cjs 完全一致的级联定义（这里内联一份，避免跨文件依赖） ---- */
 const CITRUS = ['bergamot', 'lemon', 'mandarin', 'orange', 'grapefruit', 'lime', 'yuzu', 'neroli', 'orange blossom', 'petitgrain'];
@@ -27,11 +27,9 @@ const RULES = {
   ],
   woody: [
     { id: 'oud', priority: 10, any: ['oud'], why: '乌木的树脂+动物感强度会盖掉其它木质，必须先判' },
-    { id: 'woody-aromatic', priority: 20, any: ['juniper', 'sage'], why: '杜松/鼠尾草是"草本压在木上"的唯一标志，若无则不是芳香木质' },
-    { id: 'mossy', priority: 30, must: ['oakmoss', 'patchouli'], why: '苔藓木质＝苔（橡苔）+ 土（广藿香）两件齐备；只有广藿香的归干燥木质' },
-    { id: 'vetiver', priority: 40, any: ['vetiver'], not: ['sandalwood'], why: '香根草是"根 + 湿土"；与檀木同现时按檀木处理（见 boundary）' },
-    { id: 'sandalwood', priority: 50, any: ['sandalwood'], not: ['vetiver'], why: '檀木是"刨花 + 乳香"；与香根草互斥，避免一瓶两属' },
-    { id: 'dry-woody', priority: 90, always: true, fallback: true, why: '兜底：雪松/愈创木这类干裂块，以及与上述都不冲突的木质' },
+    { id: 'sandalwood', priority: 20, any: ['sandalwood'], why: '檀木优先（2026-10-31 裁决）：与香根草同现时归檀木' },
+    { id: 'vetiver', priority: 30, any: ['vetiver'], not: ['sandalwood'], why: '香根草＝根 + 湿土；含檀木的归檀木' },
+    { id: 'woody', priority: 90, always: true, fallback: true, why: '兜底木质：干裂木（雪松/愈创木）、土苔（橡苔+广藿香）、草本压木（杜松/鼠尾草）在 v2.2 合并为一类' },
   ],
   floral: [
     { id: 'soliflore', priority: 10, any: ['gardenia', 'magnolia', 'freesia', 'osmanthus'], why: '这四味几乎是"单一花作品"的专用原料，出现即判' },
@@ -43,11 +41,9 @@ const RULES = {
   ],
   amber: [
     { id: 'leather', priority: 10, any: ['leather'], why: '皮革是结构（烟熏+药感+树脂），一旦出现会主导整个后调' },
-    { id: 'incense-cold', priority: 20, any: ['incense', 'frankincense'], not: ['benzoin'], why: '冷焚香＝烟 + 乳香树脂，没有甜树脂来压暖' },
-    { id: 'incense-warm', priority: 30, any: ['incense', 'frankincense'], must: ['benzoin'], why: '暖焚香＝同一炉烟里加了安息香，甜树脂把烟压暖' },
-    { id: 'resinous', priority: 40, must: ['benzoin', 'labdanum'], why: '树脂类只谈树脂本身，安息香 + 劳丹脂是它的最小构成' },
-    { id: 'spicy-amber', priority: 50, any: ['cinnamon', 'cardamom', 'saffron', 'clove'], not: ['vanilla'], why: '辛香是"肉桂/豆蔻/藏红花/丁香"的辣；有香草的归香草琥珀' },
-    { id: 'vanilla-amber', priority: 90, always: true, fallback: true, why: '兜底：香草与琥珀的甜暖是这一族的地基' },
+    { id: 'resinous', priority: 20, must: ['benzoin', 'labdanum'], why: '树脂只谈树脂本身：安息香 + 劳丹脂是它的最小构成' },
+    { id: 'incense', priority: 30, any: ['incense', 'frankincense'], why: '焚香＝烟 + 乳香；冷/暖于 v2.2 合并，不再按安息香的有无区分' },
+    { id: 'amber', priority: 90, always: true, fallback: true, why: '兜底琥珀：香草奶甜、安息香膏甜、肉桂豆蔻辛甜都在这里（v2.2 由香草琥珀+辛香琥珀合并）' },
   ],
 };
 
@@ -78,12 +74,12 @@ const BOUNDARY = {
     exclude: ['无'],
     examples: ['Montale Black Aoud'],
   },
-  'woody-aromatic': {
+  '_dead_woody-aromatic': {
     check: ['不含 oud', '含 juniper 或 sage'],
     exclude: ['含橡苔 + 广藿香但无杜松/鼠尾草 → 苔藓木质'],
     examples: ['Creed Aventus（据库内 notes）'],
   },
-  'mossy': {
+  '_dead_mossy': {
     check: ['不含 oud、不含杜松/鼠尾草', '含 oakmoss 且含 patchouli'],
     exclude: ['只有广藿香 → 干燥木质', '只有橡苔 → 干燥木质'],
     examples: ['Mancera Cedrat Boise'],
@@ -98,7 +94,7 @@ const BOUNDARY = {
     exclude: ['含香根草 → 香根草'],
     examples: ['Kilian Angels\' Share（据库内 notes 无 vetiver）'],
   },
-  'dry-woody': {
+  '_dead_dry-woody': {
     check: ['不含 oud / 杜松 / 鼠尾草 / 橡苔+广藿香 / 香根草 / 檀木'],
     exclude: ['以上任一成立即归对应类'],
     examples: ['MFK Baccarat Rouge 540', 'Parfums de Marly Layton'],
@@ -138,12 +134,12 @@ const BOUNDARY = {
     exclude: ['无'],
     examples: ['Montale Arabians Tonka（据库内 notes 含 leather）'],
   },
-  'incense-cold': {
+  '_dead_incense-cold': {
     check: ['不含 leather', '含 incense 或 frankincense', '不含 benzoin'],
     exclude: ['含安息香 → 暖焚香'],
     examples: ['Afnan Supremacy Incense'],
   },
-  'incense-warm': {
+  '_dead_incense-warm': {
     check: ['不含 leather', '含 incense 或 frankincense', '含 benzoin'],
     exclude: ['无'],
     examples: ['暖焚香 6 瓶，见 rules-report.md'],
@@ -153,12 +149,12 @@ const BOUNDARY = {
     exclude: ['无'],
     examples: ['Amouage Gold Man（据库内 notes）'],
   },
-  'spicy-amber': {
+  '_dead_spicy-amber': {
     check: ['不含前述', '含 cinnamon / cardamom / saffron / clove 之一', '不含 vanilla'],
     exclude: ['含香草 → 香草琥珀'],
     examples: ['Montale Arabians Tonka（cinnamon）'],
   },
-  'vanilla-amber': {
+  '_dead_vanilla-amber': {
     check: ['不含前述所有特征'],
     exclude: ['无（兜底）'],
     examples: ['MFK Grand Soir'],
@@ -181,9 +177,9 @@ for (const f of tax.families) {
   }
 }
 
-tax.version = '2.1.0';
+tax.version = '2.2.0';
 tax.authored = '2026-10-31';
-tax.note = (tax.note || '') + ' | 2026-10-31 v2.1.0：四族（citrus/woody/floral/amber）新增优先级级联 rules 与每类 boundary；不增删小类，fresh/gourmand 结构未动。';
+tax.note = (tax.note || '') + ' | 2026-11-01 v2.2.0：合并冷/暖焚香→焚香、香草/辛香琥珀→琥珀、芳香木质/苔藓木质/干燥木质→木质（24 类）。规则表同步重写；木质新增 sandalwood 优先于 vetiver 的显式次序。旧 note：' + '2026-10-31 v2.1.0：四族（citrus/woody/floral/amber）新增优先级级联 rules 与每类 boundary；不增删小类，fresh/gourmand 结构未动。';
 
 fs.writeFileSync(TAX, JSON.stringify(tax, null, 2) + '\n', 'utf8');
 console.log(`写入 rules：${addedRules} 族；boundary：${addedBoundary} 类`);
