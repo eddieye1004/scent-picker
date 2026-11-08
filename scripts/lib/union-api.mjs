@@ -168,15 +168,30 @@ const STOP = new Set([
   'and', 'men', 'women', 'man', 'woman', 'ml', 'spray', 'natural', 'sprüher',
 ]);
 
+/* 切词：先按非字母数字切段，再**在每个段内把中文和拉丁字母分开**。
+
+   2026-11-08 修的真 bug：原版把整段判一次 `是否含中文`，含中文就逐字切开。
+   淘宝/京东的标题大量写成「凯利安Kilian Paris天使之享」「BYREDO MOJAVE
+   GHOST柏芮朵荒漠孤魂」，品牌名和中文品牌名是**连写**的，于是 "kilian"
+   被切成 k,i,l,i,a,n，"ghost" 被切成 g,h,o,s,t —— 品牌永远判不中，
+   香名覆盖率也被稀释。实测一次 30 瓶的批次里 5 条拒收、其中 3 条是这个原因：
+     parfums-de-marly-pegasus  玛丽之香Parfums…  → 品牌未命中
+     kilian-angels-share       凯利安Kilian…     → 品类词丢在逐字里
+     byredo-mojave-ghost       …MOJAVE GHOST柏芮朵 → 覆盖率 50%（ghost 丢失）
+
+   现在按「拉丁串」和「中文串」交替切：拉丁串整体成一个 token，
+   中文串才逐字切（中文没有词边界，单字是唯一可用的粒度）。 */
 export function normalizeTokens(s) {
-  return String(s || '')
-    .toLowerCase()
-    /* 中英混排：中文按单字切、英文按词切。中文单字会有噪音（"香""水"），
-       但品牌名匹配主要靠英文/别名命中，中文只用于辅助加权。 */
-    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, ' ')
-    .split(' ')
-    .filter((w) => w && !STOP.has(w))
-    .flatMap((w) => (/[\u4e00-\u9fa5]/.test(w) ? [...w] : [w]));
+  const text = String(s || '').toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, ' ');
+  const out = [];
+  for (const chunk of text.split(' ')) {
+    if (!chunk) continue;
+    for (const run of chunk.match(/[a-z0-9]+|[\u4e00-\u9fa5]+/g) || []) {
+      if (/^[a-z0-9]+$/.test(run)) out.push(run);
+      else out.push(...run);        // 中文逐字
+    }
+  }
+  return out.filter((w) => w && !STOP.has(w));
 }
 
 /**

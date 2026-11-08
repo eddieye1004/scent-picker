@@ -201,6 +201,39 @@ const m14 = scoreMatch({ brand: 'Creed', name: 'Aventus' },
   'CREED Aventus 100ml 男士 礼盒装');
 check('M14 无品类词拒收', !m14.accept && m14.reason.includes('品类词'), JSON.stringify(m14));
 
+/* ---------- M15–M17 中英连写的切词 ----------
+   实测真 bug（2026-11-08）：原 normalizeTokens 把"含中文的整段"逐字切开，
+   而淘宝/京东标题大量写成「中文品牌名 + 英文品牌名」连写，
+   于是英文品牌名被切成单字母，品牌永远判不中。
+
+   一次 30 瓶的批次里 5 条拒收、其中 3 条是这个原因。这三条固定住：
+   · 拉丁串整体成一个 token
+   · 中文串（不论和拉丁怎么连写）仍逐字切
+   · 混排标题能回到 accept */
+
+check('M15 中英连写时拉丁串不被拆碎',
+  normalizeTokens('玛丽之香Parfums de Marly珀加索斯 Pegasus香水')
+    .filter((t) => /^[a-z0-9]+$/.test(t)).join(',') === 'parfums,marly,pegasus',
+  normalizeTokens('玛丽之香Parfums de Marly珀加索斯 Pegasus香水').join(','));
+
+check('M16 中文仍逐字切（含紧邻拉丁的）',
+  normalizeTokens('凯利安Kilian天使之享').filter((t) => /[\u4e00-\u9fa5]/.test(t)).length === 7
+  && normalizeTokens('凯利安Kilian天使之享').includes('kilian'),
+  normalizeTokens('凯利安Kilian天使之享').join(','));
+
+const m17 = scoreMatch({ brand: 'Parfums de Marly', name: 'Pegasus' },
+  '玛丽之香Parfums de Marly珀加索斯 Pegasus香水香港直郵');
+check('M17 中英连写标题能 accept', m17.accept && m17.nameCover === 1, JSON.stringify(m17));
+
+/* M18 反向守卫：修复切词不能把该拒的也放过。
+   lancome-idole 的真实候选是睫毛膏，viktor-rolf-flowerbomb 的是 7ML 小样。 */
+const m18a = scoreMatch({ brand: 'Lancome', name: 'Idole' },
+  '欧洲直邮Lancôme Lash Idôle 睫毛丰盈卷翘睫毛膏正品');
+const m18b = scoreMatch({ brand: 'Viktor&Rolf', name: 'Flowerbomb' },
+  'Viktor&Rolf维果罗夫香水小样Flowerbomb鲜花炸弹露水Q版香水7ML');
+check('M18 切词修复后睫毛膏与小样仍被拒',
+  !m18a.accept && !m18b.accept, JSON.stringify([m18a.reason, m18b.reason]));
+
 /* ---------- 输出 ---------- */
 console.log('\n===== 联盟 API 测试 =====');
 console.log(`PASS ${pass}   FAIL ${failures.length}`);

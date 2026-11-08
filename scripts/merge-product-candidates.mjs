@@ -40,9 +40,25 @@ const AFF_HOSTS = {
   jd: ['u.jd.com', 'union-click.jd.com', '3.cn'],
 };
 
+/* 联盟接口返回的 click_url 是**协议相对地址**（`//s.click.taobao.com/t?e=...`），
+   直接 `new URL()` 会抛错、被这里判成「不是联盟域名」。
+   实测 2026-11-08：material.optional.upgrade 返回的两条都是这种形态，
+   两条都被静默拒收，日志只说「不是联盟域名的链接」——
+   看起来像域名判错了，其实是缺协议头。
+
+   补协议头放在**入表之前**（normalizeAffUrl），不在判据里悄悄改：
+   判据要能测出"给的是相对地址"，入表要的是能直接塞进 href 的绝对地址。 */
+function normalizeAffUrl(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  if (s.startsWith('//')) return 'https:' + s;
+  if (/^https?:\/\//i.test(s)) return s;
+  return s;                      // 其余形态原样返回，交给判据拒收
+}
+
 function isAffiliateUrl(platform, raw) {
   try {
-    const u = new URL(String(raw || '').trim());
+    const u = new URL(normalizeAffUrl(raw));
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
     const h = u.hostname.toLowerCase();
     return (AFF_HOSTS[platform] || []).some((d) => h === d || h.endsWith('.' + d));
@@ -121,11 +137,11 @@ for (const row of accepted) {
     else rejected.push([`jd:${row.id}`, '没有 skuId']);
     continue;
   }
-  /* 淘宝的 material.optional 直接返回 click_url，是真正的联盟链，可以直接落 */
-  const url = picked.clickUrl;
+  /* 淘宝的 material.optional.upgrade 直接返回 click_url，是真正的联盟链，可以直接落 */
+  const url = normalizeAffUrl(picked.clickUrl);
   if (!url) { skippedNoUrl++; rejected.push([`taobao:${row.id}`, '返回里没有 click_url']); continue; }
   if (!isAffiliateUrl('taobao', url)) { rejected.push([`taobao:${row.id}`, `不是联盟域名的链接：${url.slice(0, 60)}`]); continue; }
-  source.taobao[row.id] = url.trim();
+  source.taobao[row.id] = url;
   if (picked.itemId) skus.taobao[row.id] = String(picked.itemId);
   added++;
 

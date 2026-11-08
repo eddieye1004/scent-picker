@@ -1143,13 +1143,63 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
      于是同一条结果页上**同时存在两档**，断言必须按平台分开钉，
      否则「有佣金的那个被当成没佣金」和「没佣金的那个被当成有佣金」
      两种错误都测不出来（这正是上一版断言在改配置后立刻红的原因）。 */
-  /* 双平台 × 淘宝双渠道：每瓶京东 1 + 淘宝 2 = 3，3 瓶 × 3 = 9 */
-  ok('每瓶出京东 1 + 淘宝 2 共 3 个入口（3×3）', buy.length === 9, `实际 ${buy.length}`);
+  /* 数量断言从「每瓶固定 3 个」改成**按瓶分组的结构不变量**。
+     原因（2026-11-08）：淘宝物料接口打通后，`data/affiliate-links.json`
+     里真有几百条直达短链了，样例里某瓶一旦命中就会从「2 条搜索渠道」
+     变成「1 条直达链」—— 这是设计意图（direct > search），不是回归。
+     把总数钉死，等于让数据变好就把测试变红。
 
+     改成钉三条不变量，任何一条破了都是真错：
+       ① 每瓶至少 1 个淘宝入口；
+       ② 淘宝入口要么「直达链」，要么「official + market 成对」；
+       ③ 直达链与搜索链的文案各自成立（不能说反）。 */
   const byPlat = (p) => buy.filter((a) => String(a.attrs['data-platform']) === p);
   const jd = byPlat('jd');
   const tb = byPlat('taobao');
-  ok('京东 3 个、淘宝 6 个', jd.length === 3 && tb.length === 6, `jd=${jd.length} tb=${tb.length}`);
+  const tbByCard = new Map();
+  const cardOf = (a) => {
+    let n = a.parentNode;
+    while (n && !(n.classList && n.classList.contains('pick'))) n = n.parentNode;
+    return n;
+  };
+  for (const a of tb) {
+    const c = cardOf(a);
+    if (!c) continue;
+    if (!tbByCard.has(c)) tbByCard.set(c, []);
+    tbByCard.get(c).push(a);
+  }
+  ok('每瓶至少 1 个淘宝入口', tbByCard.size === 3 && [...tbByCard.values()].every((v) => v.length >= 1),
+    `卡片 ${tbByCard.size} 张，入口数 ${[...tbByCard.values()].map((v) => v.length).join(',')}`);
+
+  /* 三档 channel 的实际取值（app.js:3608/3635/3680/3692）：
+       product  → 直达这一瓶（真实短链或商品页）
+       official / market → 两条搜索渠道
+     先前用「有没有 data-channel」分档是错的 —— product 也带这个属性，
+     结果直达链被算进搜索渠道，三条断言连带红。 */
+  const SEARCH_CH = new Set(['official', 'market']);
+  const directTb = tb.filter((a) => !SEARCH_CH.has(String(a.attrs['data-channel'])));
+  const channelTb = tb.filter((a) => SEARCH_CH.has(String(a.attrs['data-channel'])));
+  ok('淘宝入口要么直达链、要么 official+market 成对',
+    [...tbByCard.values()].every((v) => {
+      const ch = v.filter((a) => SEARCH_CH.has(String(a.attrs['data-channel'])));
+      if (ch.length === 0) return true;                       // 全是直达链
+      const hasO = ch.some((a) => a.attrs['data-channel'] === 'official');
+      const hasM = ch.some((a) => a.attrs['data-channel'] === 'market');
+      return hasO && hasM;                                    // 有搜索就两条一起有
+    }),
+    [...tbByCard.values()].map((v) => v.map((a) => a.attrs['data-channel'] || '?').join('+')).join(' | '));
+
+  /* 直达链是「这一瓶」的商品页，搜索链是「搜索结果页」——
+     两种落地的事实不同，文案不能混。混了就是撒谎。 */
+  ok('直达链文案说「买这一瓶」不说「搜」',
+    directTb.every((a) => /买这一瓶/.test(a.textContent) && !/搜/.test(a.textContent)),
+    directTb.map((a) => a.textContent.replace(/\s+/g, ' ')).join(' | '));
+  ok('搜索链文案说「搜」不说「买这一瓶」',
+    channelTb.every((a) => /搜/.test(a.textContent) && !/买这一瓶/.test(a.textContent)),
+    channelTb.map((a) => a.textContent.replace(/\s+/g, ' ')).join(' | '));
+  ok('直达链落地在联盟转链域名上',
+    directTb.every((a) => appMod.__aff.isAffiliateHost('taobao', String(a.attrs.href))),
+    directTb.map((a) => String(a.attrs.href).slice(0, 46)).join(' | '));
 
   /* ---- 京东：没有 pid → 只能走第 ③ 档（搜索页，无佣金） ---- */
   ok('京东未配置佣金 → kind=search',
@@ -1168,6 +1218,7 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
          且拆成 official / market 两个渠道 ----
      两个渠道都必须带 pid（都真有佣金），所以都必须 sponsored + 广告披露；
      落地都是搜索结果而不是这一瓶，所以文案必须说「搜」不说「买」。 */
+  /* ---- 淘宝：有 pid → 带佣金，kind 一律 direct（直达链与搜索推广页都算） ---- */
   ok('淘宝有 pid → kind=direct',
     tb.every((a) => String(a.attrs['data-kind']) === 'direct'),
     tb.map((a) => a.attrs['data-kind']).join(','));
@@ -1177,14 +1228,12 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
   ok('淘宝佣金链接标 sponsored',
     tb.every((a) => String(a.attrs.rel || '').includes('sponsored')),
     tb.map((a) => a.attrs.rel).join(' | '));
-  ok('淘宝佣金链接落到 uland 且 pid 在 URL 里',
-    tb.every((a) => String(a.attrs.href).includes('uland.taobao.com')
+  /* 搜索渠道必须落到 uland 且带 pid；直达链走的是转链域名，没有 uland 的 pid 参数，
+     所以这条只对 channelTb 生效（对 tb 全体断言时，一旦某瓶命中直达链就红）。 */
+  ok('搜索渠道落到 uland 且 pid 在 URL 里',
+    channelTb.every((a) => String(a.attrs.href).includes('uland.taobao.com')
       && String(a.attrs.href).includes('pid=mm_')),
-    tb.map((a) => String(a.attrs.href).slice(0, 52)).join(' | '));
-  /* 文案不许把"搜索结果页"说成"这一瓶" */
-  ok('淘宝佣金链接文案说「搜」不说「买」',
-    tb.every((a) => /搜/.test(a.textContent) && !/买这一瓶/.test(a.textContent)),
-    tb.map((a) => a.textContent).join(' | '));
+    channelTb.map((a) => String(a.attrs.href).slice(0, 52)).join(' | '));
 
   /* ---- 官方 / 全网两个渠道必须真的可分 ----
      用户要的是「一个官方来源 + 第三方店铺」。能被静态站保证的区分方式
@@ -1192,8 +1241,8 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
      URL 里的关键词上，而不是钉文案 —— 文案可以改，URL 行为不能。 */
   const official = tb.filter((a) => String(a.attrs['data-channel']) === 'official');
   const market = tb.filter((a) => String(a.attrs['data-channel']) === 'market');
-  ok('淘宝每瓶各一个 official / market',
-    official.length === 3 && market.length === 3,
+  ok('official 与 market 数量相等（成对出现）',
+    official.length === market.length,
     `official=${official.length} market=${market.length}`);
   ok('official 渠道关键词带「官方旗舰店」',
     official.every((a) => decodeURIComponent(String(a.attrs.href)).includes('官方旗舰店')),
@@ -1203,8 +1252,8 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
     market.map((a) => decodeURIComponent(String(a.attrs.href)).slice(0, 70)).join(' | '));
   /* 两个渠道的 scope 短语必须渲染出来 —— 否则用户看不出按钮差在哪 */
   ok('两个渠道的适用范围都渲染在按钮里',
-    tb.every((a) => /官方旗舰店|全网/.test(a.textContent)),
-    tb.map((a) => a.textContent.replace(/\s+/g, ' ').slice(0, 30)).join(' | '));
+    channelTb.every((a) => /官方旗舰店|全网/.test(a.textContent)),
+    channelTb.map((a) => a.textContent.replace(/\s+/g, ' ').slice(0, 30)).join(' | '));
 
   /* 安全基线两档都要 */
   ok('全部外链都带 noopener noreferrer',
@@ -1217,15 +1266,30 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
      这一条**不是**广告披露，是"我们保证不了什么"的说明，
      所以必须用 .link-note 而不是 .aff-note（两者混用会让
      "有没有广告披露"在 DOM 层就分不出来，上一版踩过）。 */
-  ok('有 direct 链接时挂「广告」披露（每卡一条）', notes.length === 3, `实际 ${notes.length}`);
+  const cards = [...appRoot.querySelectorAll('.pick')];
+  const notesByCard = cards.map((c) => c.querySelectorAll('.aff-note').length);
+  ok('有 direct 链接时每卡挂一条「广告」披露',
+    cards.length === 3 && notesByCard.every((n) => n === 1),
+    `每卡 ${notesByCard.join(',')}`);
   ok('披露首句是「广告」',
     notes.every((n) => n.textContent.trim().startsWith('广告')),
     notes.map((n) => n.textContent.slice(0, 14)).join(' | '));
-  /* 双渠道说明必须说清"价格没排序"——这是实测结论，不能省 */
-  ok('双渠道说明写明价格未排序（每卡一条）', searchNotes.length === 3, `实际 ${searchNotes.length}`);
+  /* 双渠道说明必须说清"价格没排序"——这是实测结论，不能省。
+     只对有搜索渠道的卡要求；纯直达链的卡不许挂（它只有一个入口，写了就是编）。 */
+  /* 测试桩的 querySelector 不支持属性选择器（已知限制，见文件头注释），
+     所以"这卡有没有搜索渠道"从 buy 列表按卡分组判，不用 DOM 选择器。 */
+  const hasOfficial = (c) => (tbByCard.get(c) || []).some((a) => a.attrs['data-channel'] === 'official');
+  const cardsWithChannel = cards.filter(hasOfficial);
+  ok('有搜索渠道的卡各挂一条双渠道说明',
+    cardsWithChannel.length > 0 && cardsWithChannel.every((c) => c.querySelectorAll('.link-note').length === 1),
+    `有搜索渠道的卡 ${cardsWithChannel.length} 张，说明 ${searchNotes.length} 条`);
   ok('双渠道说明包含「价格未排序」',
     searchNotes.every((n) => /价格未排序|未排序/.test(n.textContent)),
     searchNotes.map((n) => n.textContent.slice(0, 20)).join(' | '));
+  const cardsDirectOnly = cards.filter((c) => !hasOfficial(c));
+  ok('只有直达链的卡不挂双渠道说明',
+    cardsDirectOnly.every((c) => c.querySelectorAll('.link-note').length === 0),
+    `纯直达链卡 ${cardsDirectOnly.length} 张`);
 
   /* 数据来源链接必须一直在 —— 降级只影响购买入口，不影响溯源。 */
   ok('降级后数据来源链接仍在',

@@ -144,6 +144,24 @@ async function queryJd(perfume) {
   return { keyword, candidates, raw: data };
 }
 
+/* **必须用 `.upgrade` 那个方法名，不是 `material.optional`。**
+   2026-11-08 隔离实测（同一套凭证，逐个方法调，见 probe-api2.mjs）：
+     taobao.time.get                              → ok
+     taobao.tbk.dg.material.optional              → 错误 11（未授权）
+     taobao.tbk.dg.material.optional.upgrade      → ok，正常返回商品
+     taobao.tbk.item.info.get                     → 错误 11（未授权）
+   权限包 27939 授权的是 upgrade 版本，不是旧版。两个方法的 biz 参数完全一样。
+
+   两个版本的**返回结构不同**，照旧版写会全部 undefined 而不报错：
+     旧版：it.item_id / it.title / it.pict_url / it.click_url 都在 map_data[i] 上
+     新版：map_data[i].{item_id, publish_info, item_basic_info}
+           · item_id        → map_data[i].item_id（顶层）
+           · title/pict_url → map_data[i].item_basic_info.*
+           · click_url      → map_data[i].publish_info.click_url
+           · 价格            → map_data[i].price_promotion_info 里（旧版是 zk_final_price）
+   实测截图见 C:/Users/16256/ego/aff-20261101/probe-upgrade.json。 */
+const TAOBAO_MATERIAL_METHOD = 'taobao.tbk.dg.material.optional.upgrade';
+
 async function queryTaobao(perfume) {
   const appKey = process.env.TB_APP_KEY;
   const secret = process.env.TB_APP_SECRET;
@@ -151,26 +169,34 @@ async function queryTaobao(perfume) {
   const keyword = `${perfume.brand} ${perfume.name}`.trim();
   const params = buildTaobaoParams({
     appKey, secret,
-    method: 'taobao.tbk.dg.material.optional',
+    method: TAOBAO_MATERIAL_METHOD,
     timestamp: gmt8Timestamp(),
     biz: { q: keyword, adzone_id: adzone, page_no: 1, page_size: 20, platform: 2 },
   });
   const body = await withRetry(() => postForm(TAOBAO_GATEWAY, params), `TB ${perfume.id}`);
-  const node = unwrapTaobao(body, 'taobao.tbk.dg.material.optional');
+  const node = unwrapTaobao(body, TAOBAO_MATERIAL_METHOD);
   const list = node.result_list?.map_data || [];
-  const candidates = list.map((it) => ({
-    platform: 'taobao',
-    itemId: it.item_id ?? it.num_iid,
-    title: it.title,
-    price: it.zk_final_price ?? null,
-    shop: it.shop_title || it.nick || '',
-    clickUrl: it.click_url || '',
-    /* 主图要留着。联盟「营销素材」与物料接口给的都是 img.alicdn.com 上的
-       推广用图 —— 这是唯一一条「平台主动授权给推广者使用」的图片来源，
-       比抓电商详情页或第三方博客干净。拿到 pid 后的实物图就靠它。 */
-    pictUrl: it.pict_url || '',
-    smallImages: it.small_images?.string || [],
-  }));
+  const candidates = list.map((it) => {
+    // 新旧结构都认：先把两个层级拍平，再取值
+    const basic = it.item_basic_info || {};
+    const publish = it.publish_info || {};
+    const promo = it.price_promotion_info || {};
+    const flat = { ...it, ...basic, ...publish, ...promo };
+    return {
+      platform: 'taobao',
+      itemId: it.item_id ?? flat.item_id ?? flat.num_iid,
+      title: flat.title || flat.short_title || '',
+      price: flat.zk_final_price ?? flat.reserve_price ?? null,
+      shop: flat.shop_title || flat.nick || '',
+      clickUrl: flat.click_url || '',
+      /* 主图要留着。联盟「营销素材」与物料接口给的都是 img.alicdn.com 上的
+         推广用图 —— 这是唯一一条「平台主动授权给推广者使用」的图片来源，
+         比抓电商详情页或第三方博客干净。拿到 pid 后的实物图就靠它。 */
+      pictUrl: flat.pict_url || '',
+      smallImages: flat.small_images?.string || [],
+      couponShareUrl: flat.coupon_share_url || '',
+    };
+  });
   return { keyword, candidates, raw: node };
 }
 
