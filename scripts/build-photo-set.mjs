@@ -53,6 +53,25 @@ const src = JSON.parse(fs.readFileSync(SRC, 'utf8'));
 const photos = JSON.parse(fs.readFileSync(PHOTOS, 'utf8'));
 photos.photos = photos.photos || {};
 
+/* 候选表里已经没有的瓶子，它的照片必须一起作废。
+   merge-product-candidates.mjs 会把判据判死的错配从候选表里删掉，
+   但 photos.json 是另一张表，没人清理就会把「错商品的图」一直发给页面。 */
+const srcIds = new Set(Object.keys(src.taobao || {}));
+const keepCutouts = new Set(Array.isArray(photos.cutouts) ? photos.cutouts : []);
+const orphaned = Object.keys(photos.photos).filter((id) => !srcIds.has(id) && !keepCutouts.has(id));
+if (orphaned.length) {
+  if (DRY) {
+    console.log(`--dry：将清掉 ${orphaned.length} 条已不在候选表的旧照片: ${orphaned.join(', ')}`);
+  } else {
+    for (const id of orphaned) {
+      delete photos.photos[id];
+      const f = path.join(IMG_DIR, `${id}.webp`);
+      try { fs.unlinkSync(f); } catch { /* 文件本来就不在 */ }
+    }
+    console.log(`清掉 ${orphaned.length} 条已不在候选表的旧照片: ${orphaned.join(', ')}`);
+  }
+}
+
 /* 摊平成「每瓶一个候选数组」 */
 const bottles = [];
 for (const [id, v] of Object.entries(src.taobao || {})) {
@@ -69,9 +88,14 @@ if (!todo.length) process.exit(0);
 /* 下载。失败不致命——那张候选图不可用，还有下一张。 */
 await fsp.mkdir(TMP, { recursive: true });
 const staged = [];   // { bottleId, file, kind, order }
+/* 下载失败的瓶子必须留名记录：一张候选都没下到 = 这瓶根本没进判据环节，
+   若不记录，它既不在 pass 也不在 noPhoto 里，统计表看起来"少了几十瓶"，
+   而报表给出的原因全是判据拒收 —— 读者会误以为判据太严，实际是图没下到。 */
+const dlFailed = [];   // { bottleId, why }
 let dlFail = 0, dlOk = 0;
 for (let i = 0; i < todo.length; i++) {
   const b = todo[i];
+  let got = 0;
   for (let k = 0; k < b.cands.length; k++) {
     const c = b.cands[k];
     const f = path.join(TMP, `${b.id}-${k}-${c.kind}.bin`);
@@ -84,11 +108,13 @@ for (let i = 0; i < todo.length; i++) {
       await fsp.writeFile(f, buf);
       staged.push({ bottleId: b.id, file: f, kind: c.kind, order: k });
       dlOk++;
+      got++;
     } catch { dlFail++; }
   }
+  if (!got) dlFailed.push({ bottleId: b.id, why: `下载失败（${b.cands.length} 张候选全部未取到）` });
   if ((i + 1) % 40 === 0) process.stdout.write(`  下载 ${i + 1}/${todo.length} 瓶（${dlOk} 张）\n`);
 }
-console.log(`下载 ${dlOk} 张，失败 ${dlFail}`);
+console.log(`下载 ${dlOk} 张，失败 ${dlFail}${dlFailed.length ? `，${dlFailed.length} 瓶一张都没下到` : ''}`);
 
 if (!staged.length) process.exit(0);
 
@@ -121,10 +147,18 @@ for (const r of recs) {
 }
 const picked = [...byBottle.values()];
 const pass = picked.filter((r) => r.ok);
-const noPhoto = picked.filter((r) => !r.ok);
+/* 一张候选都没下到的瓶子不在 byBottle 里（它们连 manifest 都没进），
+   显式补进 noPhoto，否则统计表少算它们、原因全归到判据头上。 */
+const noPhoto = [
+  ...picked.filter((r) => !r.ok),
+  ...dlFailed
+    .filter((d) => !byBottle.has(d.bottleId))
+    .map((d) => ({ id: d.bottleId, ok: false, why: d.why })),
+];
 
 const byKind = (k) => ({ ok: recs.filter((r) => r.kind === k && r.ok).length, all: recs.filter((r) => r.kind === k).length });
-console.log(`\n有图 ${pass.length}/${picked.length} 瓶 = ${(pass.length / Math.max(1, picked.length) * 100).toFixed(0)}%`);
+const denom = picked.length + dlFailed.filter((d) => !byBottle.has(d.bottleId)).length;
+console.log(`\n有图 ${pass.length}/${denom} 瓶 = ${(pass.length / Math.max(1, denom) * 100).toFixed(0)}%`);
 for (const k of ['white', 'marketing', 'small']) {
   const b = byKind(k);
   if (b.all) console.log(`  ${k.padEnd(10)} 单图判据通过 ${b.ok}/${b.all} = ${(b.ok / b.all * 100).toFixed(0)}%`);

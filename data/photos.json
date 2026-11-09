@@ -14,9 +14,9 @@
   "照片缺一张不是错误，是降级 —— 页面不会因此报错或留空。"
  ],
  "_meta": {
-  "count": 504,
+  "count": 500,
   "updated": "2026-11-09",
-  "note": "由 scripts/build-photo-set.mjs 生成：淘宝物料接口候选图（white_image / pict_url / small_images） → build-photos.py 判据（只查边框纯色 + 底色非中间灰）→ 裁切 208×352 webp。未通过判据的瓶子不给图，页面降级回绘制瓶形。 cutouts[] 里的 id 使用已抠图的透明 PNG 版本（背景全透明，页面不加白瓷底托）。"
+  "note": "由 scripts/build-photo-set.mjs 生成：淘宝物料接口候选图（white_image / pict_url / small_images） → build-photos.py 判据（只查边框纯色 + 底色非中间灰）→ 裁切 208×352 webp。未通过判据的瓶子不给图，页面降级回绘制瓶形。"
  },
  "photos": {
   "diptyque-eau-rose-toilette": "images/diptyque-eau-rose-toilette.webp",
@@ -108,7 +108,6 @@
   "trussardi-trussardi-black-extreme": "images/trussardi-trussardi-black-extreme.webp",
   "valentino-donna": "images/valentino-donna.webp",
   "valentino-uomo-toilette": "images/valentino-uomo-toilette.webp",
-  "valentino-valentina-parfum": "images/valentino-valentina-parfum.webp",
   "versace-bright-crystal-absolu": "images/versace-bright-crystal-absolu.webp",
   "versace-man-eau-fraiche-toilette": "images/versace-man-eau-fraiche-toilette.webp",
   "parfums-de-marly-layton": "images/parfums-de-marly-layton.webp",
@@ -116,7 +115,6 @@
   "tiziana-terenzi-kirke": "images/tiziana-terenzi-kirke.webp",
   "ralph-lauren-polo-blue": "images/ralph-lauren-polo-blue.webp",
   "hugo-boss-hugo-man": "images/hugo-boss-hugo-man.webp",
-  "viktor-rolf-spicebomb-extreme": "images/viktor-rolf-spicebomb-extreme.webp",
   "rabanne-phantom": "images/rabanne-phantom.webp",
   "roberto-cavalli-just-cavalli": "images/roberto-cavalli-just-cavalli.webp",
   "hugo-boss-boss-the-scent": "images/hugo-boss-boss-the-scent.webp",
@@ -127,7 +125,6 @@
   "acqua-di-parma-colonia-essenza": "images/acqua-di-parma-colonia-essenza.webp",
   "rabanne-pure-xs": "images/rabanne-pure-xs.webp",
   "davidoff-run-wild": "images/davidoff-run-wild.webp",
-  "ralph-lauren-polo-black": "images/ralph-lauren-polo-black.webp",
   "juliette-has-a-gun-lady-vengeance": "images/juliette-has-a-gun-lady-vengeance.webp",
   "rasasi-hawas-for-him": "images/rasasi-hawas-for-him.webp",
   "parfums-de-marly-haltane": "images/parfums-de-marly-haltane.webp",
@@ -384,7 +381,6 @@
   "rihanna-nude": "images/rihanna-nude.webp",
   "serge-lutens-la-fille-de-berlin": "images/serge-lutens-la-fille-de-berlin.webp",
   "tom-ford-bois-pacifique": "images/tom-ford-bois-pacifique.webp",
-  "tom-ford-vanilla-sex": "images/tom-ford-vanilla-sex.webp",
   "trussardi-trussardi-pure-jasmine": "images/trussardi-trussardi-pure-jasmine.webp",
   "trussardi-trussardi-uomo": "images/trussardi-trussardi-uomo.webp",
   "versace-eros-najim": "images/versace-eros-najim.webp",
