@@ -85,3 +85,13 @@ __pycache__/
 docs/PLAN-REVISION-20261108.md
 docs/UI-OPTIMIZATION-PLAN-20261108.md
 sloplint-baseline.json
+
+# 一次性备份与中转产物（2026-11-09 清理）
+# 判据：内容要么已在 git 历史里（`git cat-file -e <blob>` 能取到），
+# 要么是一次性中转（临时 patch）。留在工作区只会让 `git status` 永久挂着噪声。
+data/*.bak-*
+_audit/*.patch
+
+# 零散探针：只保留 scripts/probe-*.mjs 一层，禁止再往下建 probe 子目录，
+# 否则 `!scripts/probe-*.mjs` 的例外规则对子目录内部不生效。
+
