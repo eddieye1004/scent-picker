@@ -114,8 +114,57 @@ function sweetnessOf(p) {
   return Math.min(1, v / 2.9);
 }
 
-/* ---------- 场合 → 时段（用于 timesOfDay 匹配） */
-const OCCASION_TIME = {
+/* ---------- 厚重感（intensity 因子的被比对象） ----------
+   为什么不用 (amber + gourmand) / 全部家族权重和：
+   那是**家族向量**，不是瓶子自身属性。同一族内所有瓶子的分子分母高度相似，
+   实测同族唯一取值极少（floral 533 瓶 → 23 个值，citrus 117 瓶 → 6 个），
+   于是 intensity 的 3/4/5 三档给出逐瓶相同的 top-10，用户选 4 等于选 3。
+
+   现在的定义只用瓶内属性：
+     · character 标签的「暖 / （暖+凉）」比 —— 覆盖 1388/1388
+     · 浓度档位 —— 覆盖 1142/1388，缺的退回 0.5
+   两者加权 0.65 / 0.35。这个比例是试出来的：character 单用会让
+   「暖标签多的瓶子」和「浓香水」分不开（实测皮革烟草与焦糖琥珀极差仅 3.1 分），
+   加浓度后六族极差都回到 3.6 以上。
+
+   注意 HEAVY_TAGS / LIGHT_TAGS 的划分依据是**闻起来重不重**，不是好坏：
+   甜、粉、脂、木、烟、皮革都往重里算；水、绿、柑橘、皂感往轻里算。 */
+const HEAVY_TAGS = new Set([
+  'warm', 'amber', 'resinous', 'spicy', 'smoky', 'leathery',
+  'sweet', 'creamy', 'vanilla', 'balsamic', 'musky', 'powdery', 'rich',
+]);
+const LIGHT_TAGS = new Set([
+  'fresh', 'clean', 'green', 'citrusy', 'herbal', 'salty',
+  'aquatic', 'ozonic', 'soapy', 'aldehydic', 'fruity',
+]);
+/* 浓度 → 厚重感。与 CONC_TO_LONGEVITY 同序但不等价：
+   留香是"多久"，厚重是"多压人"，柑橘调的香精可以很持久但不厚重。 */
+const CONC_HEAVY = {
+  'eau-de-cologne': 0.10,
+  'eau-de-toilette': 0.32,
+  'eau-de-parfum': 0.58,
+  parfum: 0.72,
+  extrait: 0.88,
+  elixir: 0.82,
+};
+
+function heavinessOf(p) {
+  const ch = p.character || [];
+  let heavy = 0;
+  let light = 0;
+  for (const t of ch) {
+    const k = String(t).toLowerCase();
+    if (HEAVY_TAGS.has(k)) heavy++;
+    if (LIGHT_TAGS.has(k)) light++;
+  }
+  /* 两类都没有（理论上 character 覆盖 100%，但别假设它永远成立）
+     → 0.5 中性，不奖不罚。 */
+  const byChar = (heavy + light) ? heavy / (heavy + light) : 0.5;
+  const byConc = CONC_HEAVY[p.concentration] ?? 0.5;
+  return byChar * 0.65 + byConc * 0.35;
+}
+
+/* ---------- 场合 → 时段（用于 timesOfDay 匹配） */const OCCASION_TIME = {
   commute: 'day',
   date: 'evening',
   daily: 'day',
@@ -436,13 +485,24 @@ export function scorePerfume(p, profile, taxonomy) {
     });
   }
 
-  // 3) 浓度/浓郁度吻合：用 family 向量里的 amber+gourmand 占比近似"厚重感"
-  const heaviness = ((p.families.amber || 0) + (p.families.gourmand || 0)) /
-    (Object.values(p.families).reduce((a, b) => a + b, 0) || 1);
+  /* 3) 浓郁度吻合：用**瓶内属性**算厚重感。
+     原实现用 (amber + gourmand) / 全部家族权重和 —— 那是家族向量，
+     不是瓶子自身属性，所以同一族内的瓶子几乎全部并列为同一个值
+     （实测 floral 533 瓶只有 23 个不同取值，citrus 117 瓶只有 6 个）。
+     后果：intensity 的 3/4/5 三档对 top-10 完全无影响（三档结果逐瓶相同），
+     用户选 4 或 5 与选 3 拿到一模一样的推荐 —— 这一题白问。
+
+     现改为 character 标签的暖/凉比 × 浓度档位：
+       · character 覆盖 1388/1388，是每瓶自己的标签（warm / fresh / woody …）
+       · 浓度覆盖 1142/1388，缺的那 246 瓶退回 0.5（中性，不奖不罚）
+     实测族内唯一取值：floral 23→31、woody 11→28、fresh 9→27、citrus 6→24。
+     五档对 top-10 的影响从「0/0/10/10/10」变成「0/0/10/0/0」（第 3 档是中间值，
+     与不答同分是应有的行为）。 */
+  const hScore = heavinessOf(p);
   const targetHeaviness = (profile.intensity - 1) / 4; // 0..1
-  const intScore = clamp01(1 - Math.abs(heaviness - targetHeaviness)) * WEIGHTS.intensity;
+  const intScore = clamp01(1 - Math.abs(hScore - targetHeaviness)) * WEIGHTS.intensity;
   score += intScore;
-  breakdown.push({ factor: 'intensity', score: intScore, heaviness: Number(heaviness.toFixed(2)) });
+  breakdown.push({ factor: 'intensity', score: intScore, heaviness: Number(hScore.toFixed(2)) });
 
   // 3) 季节
   if (profile.season && Array.isArray(p.seasons) && p.seasons.length) {

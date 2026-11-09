@@ -2673,3 +2673,191 @@ test-jd-web 17 / 0 · test-category-gate 8 / 0
 3. **`stepHead` 不接受 answers 参数时，分叉测不出来**。第一版测试写 `S.head('anchor')` 两次，两次都读 `state.answers`，断言恒等通过 —— 等于没测。
 4. **切换入口会让步骤表在 7 与 6 之间变化，`state.step` 理论上会越界**。加了 `clampStep(step, len)` 夹到末屏。**但要说清：当前没有一条实际可达的越界路径** —— 改动入口的两个控件（家族轮盘、按感觉选的分段控件）都只在第 1 屏渲染，切换时 `state.step` 恒为 0。这条是防御性的，不是修 bug；第一版注释里我写了「实测路径：情绪入口答到第 7 屏 → 回退第 1 步 → 改选家族」，那是**编的**，没有实测过，已改成诚实的表述。
 5. **`clampStep` 的合法上界是 `len` 本身**，不是 `len - 1` —— `state.step === STEPS.length` 表示「结果页」，这是正常状态。写成 `len - 1` 会让结果页永远渲染不出来。
+
+## D63 · v38：两个圆盘按 A/F 方向重做 —— 分块靠缝、选中只留一个标记（2026-11-09）
+
+用户原话（m09539）：「重点首页的轮盘 颜色 轮廓设计 线条都要在优化 你先给我选项定方向 然后做出样图 确定完在优化；
+后面一步有一个圆盘没有进行优化 还是最旧的设计」。先出六个方向样图（A 标本册 / B 墨量分层 / C 一条蓝线 /
+D 与轮盘同语言 / E 刻度盘 / F 留白优先），定案（m09714）：「1 选A 统一颜色 但我希望保留区块的设计 和动态的效果　2选f」。
+
+### 一、改之前的问题（都是实测，不是观感）
+
+| 现象 | 量化 |
+|---|---|
+| 首屏六族"没有颜色" | 六个 `linearGradient` 的 stop 只差 2–4% 明度（`gFamCitrus #fbfcee` … `gFamGourmand #fcf7f1`），色相区分实际不存在 |
+| 真正被看见的是灰蓝箍 | 底盘 `#c3c9dc`（`styles/src/_wheel7.css:163`）+ 盘面径向 `#d2d8e6→#b3bbd2`，是全盘唯一的明度反差 |
+| 场合盘从未被前三轮优化覆盖 | `buildDisc()`（`scent-picker/app.js:250`）根节点 `class="disc"`，**没有 `wheel` 类**；D59/D61/D62 全部写在 `.wheel …` 下 |
+| 场合盘盘心是方块 | `base.css:421-461` `.disc-hub`：`42.7%` 见方、`border-radius:0`、2px 纯黑顶边、`::before` 画四角 L 角标 |
+
+### 二、落地
+
+1. **六族统一成纸白**：`scent-picker/app.js` 的 `gFamCitrus…gFamGourmand` 全部改成 `['0','#ffffff'] / ['0.58','#fdfdff'] / ['1','#f9fafd']`；深色 `gFamCitrusD…gFamGourmandD` 改成 `#262626 / #232323 / #1f1f1f`。**保留六个 id**：深色是另一套 id、结构要对称，悬停/选中三层覆盖建立在六条 fill 引用上，留六条才能只改这一处回滚。
+2. **盘体去掉灰蓝**：`_wheel7.css` 底座改 `var(--bg)` + `0 0 0 1px var(--line)` + `0 18px 44px -34px rgba(0,26,94,.40)`；两处径向盘面改 `var(--bg)`。深色（`_wheel14.css`）改 `#171717` + `0 0 0 1px #303030`，展开态 `#1a1a1a`。
+3. **新建 `scent-picker/styles/src/_wheel23.css`（第 23 层，已注册进 `scripts/build-css.mjs` 的 PARTS）**，八节：盘体 / 瓦片 / 盘心改圆 / 触屏反制 / 首屏分块 / 展开态 / 深色场合盘 / 深色首屏。
+4. **场合盘**：盘心 `border-radius:50%`、去 L 角标、`padding: 0 16px`、`justify-content:center`、`gap:6px`；瓦片 `#fafbfe` + 4px `var(--bg)` 缝。
+
+### 三、四次自我纠错（每条都是截图发现，都值得记）
+
+1. **白瓦片 + 白缝 = 分块消失**。第一版把缝写成 `var(--bg)`（白），1440 截图六族整片白，"保留区块"直接落空。改 `var(--bg-3)`。
+2. **灰缝被上游层吃掉**。`_wheel13.css:142` 有 `.wheel .disc-svg .sector-shape { stroke: var(--stroke-hi); stroke-width: 1 }`（0,3,0），在 PARTS 里排在 `_wheel7` 之后、`_wheel23` 之前 → 实测 computed 仍是 `rgba(255,255,255,.92)`/1px。**必须写在最后一层且特异性压到 0,3,0**（低于 hover 0,6,0、is-on 0,5,0，否则选中与悬停被盖）。修后实测 `rgb(232,232,232)` / `2.6px`。
+3. **倒角高光把缝削细**。`_wheel7.css:506` `filter: drop-shadow(0 -0.5px 0 rgba(255,255,255,.85))` 压在缝一侧，2.6px 变 1.6px 且一侧发虚 → `filter: none`。
+4. **盘心改圆后文字伸出圆周**。方框的角"可用"，圆形的角不存在：实测 222px 盘心、`.hub-desc` 宽 153.7px、距底 14px 时，那道弦只剩 107px，右端**伸出圆外 23px**。修法 `padding: 0 16px` + `justify-content:center` + `.hub-desc { max-width: 70% }`（70% 是量出来的上限：222px → 155px vs 圆周允许 158px；146px → 102px vs 105px）。**曾试 `padding: 14px 16px 15%`**——百分比按宽度解析，实测变成 `0 16px 78px`，内容被顶到上半，废弃。
+
+### 四、选中态：三次否决后只留一个标记
+
+- ① 扇区与盘心都翻蓝实心 → 222px 蓝圆 + 84px 蓝带两块等重的蓝挨着，视线无处落。
+- ② 扇区改 `blue-wash`、盘心仍蓝实心 → 蓝圆仍比标题重，全屏最重的东西是"已选定"标签。
+- ③ **定稿**：盘心不填色，只加 `0 0 0 1.5px var(--blue)` 蓝环 + `.hub-zh` 转蓝（`--ink-3` / `--ink-2` 各归位），扇区 `blue-wash` + 蓝字。全屏只剩一圈蓝环作位置标记 —— 这是 F「留白优先」的落点。
+
+### 五、深色：硬编码白必须逐个对照
+
+第五节/第六节给瓦片写的是 `fill:#ffffff`，深色下变成黑底上的白环（实测展开态整圈家族瓦片全白，比盘心标题亮两档）。第七、八节补对照：**瓦片比盘底亮一档、缝再亮一档**（`--bg-2` / `#3a3a3a`），与浅色同一套相对关系，而不是"深色就反过来用白"。
+
+### 六、验证
+
+| 项 | 结果 |
+|---|---|
+| `scripts/build-css.mjs --check` | ✓ 一致（220155 字节 / 7310 行 / 23 源层） |
+| `scripts/test-render.mjs` | PASS **269** / FAIL 0 |
+| `scripts/test-contrast.mjs` | PASS **42** / FAIL 0 |
+| `scripts/test-scoring.mjs` | PASS **133** / FAIL 0 |
+| `scripts/test-compliance.mjs` | PASS **10** / FAIL 0 |
+| `node --check app.js` | 0 |
+| 实测 computed | `.sector-shape` `stroke: rgb(232,232,232)` / `2.6px` / `fill: rgb(255,255,255)`；盘心 `border-radius: 50%`、`padding: 0 16px` |
+
+### 七、踩坑（工具层）
+
+1. **headless 截图会停在动画 0% 帧**。`hub-swap` 的 0% 是 `opacity:0`，截出来的盘心文字一片洗白，我据此去查颜色，白查了一轮。截图前必须 `document.getAnimations().forEach(a => a.finish())`。
+2. **`uibase8.cjs` / `disc_states.cjs` 在 CDP 端口被占时报 `TypeError: Cannot read properties of null (reading 'find')`**（`/json/list` 返回空）—— 换端口即可，本轮 8571–8913 段可用。
+3. **对比图单张不能超过约 1000px / 400 KB**。3160×910 的拼版在 GUI 里不渲染，改成 880–900px 单图后正常。
+
+## D62 · 问卷去冗余：三处「问了等于没问」（v37）
+
+用户问「有没有问过但没起作用的问题」，实测出三处，全部处理。
+
+### 一、第 5 步「你想要多浓」：5 档里 3 档完全无效
+
+| 档位 | 与「不答」的 top-10 重叠 | 判定 |
+|---|---|---|
+| 1 | 1/10 | 有效 |
+| 2 | 4/10 | 有效 |
+| **3** | **10/10** | 等于没答 |
+| **4** | **10/10** | 与 3 逐瓶相同 |
+| **5** | **10/10** | 与 3 逐瓶相同 |
+
+根因在 `src/scoring.js` 的 heaviness 定义：
+
+```js
+const heaviness = ((p.families.amber || 0) + (p.families.gourmand || 0)) /
+  (Object.values(p.families).reduce((a, b) => a + b, 0) || 1);
+```
+
+这是**家族向量**，不是瓶子自身属性。同一族内所有瓶子的分子分母高度相似 ——
+实测同族唯一取值 floral 533 瓶只有 23 个、woody 243 瓶 11 个、citrus 117 瓶 6 个。
+于是 intensity 只是给整个族加同一个分，族内无法区分。
+
+再叠一个：`scoring.js` 里 `const intensity = Number(answers.intensity) || 3;`
+不答就是 3，所以 3 档必然与不答同分。
+
+**改法**：新增 `heavinessOf(p)`，只用瓶内属性：
+
+```js
+const byChar = heavy / (heavy + light);   // character 标签的暖/凉比，覆盖 1388/1388
+const byConc = CONC_HEAVY[p.concentration] ?? 0.5;  // 覆盖 1142/1388
+return byChar * 0.65 + byConc * 0.35;
+```
+
+- `HEAVY_TAGS`：warm amber resinous spicy smoky leathery sweet creamy vanilla balsamic musky powdery rich
+- `LIGHT_TAGS`：fresh clean green citrusy herbal salty aquatic ozonic soapy aldehydic fruity
+- 划分依据是**闻起来重不重**，不是好坏。
+- 0.65/0.35 是试出来的：character 单用会让「暖标签多的」和「浓香水」分不开
+  （实测皮革烟草与焦糖琥珀极差仅 3.1 分），加浓度后六族极差都回到 3.6 以上。
+
+改后：`floral` 五档与不答的重叠变成 `0 / 2 / 10 / 1 / 1`（第 3 档是中间值，
+与不答同分是应有的行为）。族内唯一取值：floral 23→31、woody 11→28、
+fresh 9→27、citrus 6→24。
+
+### 二、第 4 步「次选季节」：全库最弱的一维
+
+`scripts/probe-q-drop.mjs`（200 组随机画像）实测：
+
+| 维度 | top-1 换 | top-3 换 | top-10 平均重叠 |
+|---|---|---|---|
+| **次选季节 seasonSecond** | 7.6% | 16.2% | **9.30/10** |
+| 主季节 season | 23.5% | 39.5% | 8.16/10 |
+| 受不了香调 dislikedNotes | 17.3% | 38.5% | 8.35/10 |
+
+13 个维度里它最弱，其余最弱的也有 8.16/10。
+
+**改法**：从 `renderContext()` 删掉整个「次选季节」控件，连同「主季节与次选不能相同」
+那条联动（`if (state.answers.seasonSecond === id) state.answers.seasonSecond = null;`）。
+
+**`scoring.js` 里的 seasonSecond 分支保留未删**（14 处）—— 它现在是一条休眠路径：
+没有任何 UI 能写这个字段，但老存档或外部调用方传进来仍按原逻辑算。
+删它要动 `WEIGHTS.seasonSecond` 与 `reasonText` 的 case，收益不抵风险。
+
+### 三、第 3 步：冷暖与甜度其实是气质的两个分量
+
+七个气质原型的 `dims` 正好是 `temp × sweet × weight` 的 2×2×2：
+
+| 原型 | temp | sweet | weight |
+|---|---|---|---|
+| 洁净清透 | −1 | −1 | −1 |
+| 雨后林地 | −1 | −1 | +1 |
+| 冰镇果露 | −1 | +1 | −1 |
+| 干爽草本 | +1 | −1 | −1 |
+| 皮革烟草 | +1 | −1 | +1 |
+| 蜜感白花 | +1 | +1 | −1 |
+| 焦糖琥珀 | +1 | +1 | +1 |
+
+**选了原型，冷暖与甜度就已经确定了。** 再单独问一遍是同一个信息问三次，
+而且三次回答还能互相矛盾。
+
+实测（150 组随机画像）：
+- 「只答气质」vs「气质 + 手答冷暖甜度」top-10 重叠 **5.35/10**、top-1 换 **44.0%**
+- 同一原型下，手答**一致**时总分 +20~22 分、手答**矛盾**时只 +10 分
+  → 现状允许用户用 ②③ 把 ① 的结论推翻一半，而界面上只显示「你选的是 X」，看不出来
+
+**改法**：新增 `deriveFromPreset(id)`，选原型时把结果写回 `state.answers`：
+
+```js
+temperature: c.dims.temp > 0 ? 'warm' : 'cool',
+sweetness:   c.dims.sweet > 0 ? 3 : 1,
+```
+
+写回 `state.answers` 而不是改 scoring 接口，是为了让打分那条路径一行都不用动。
+`temp` 不产出 `'neutral'`、`sweet` 不产出 2 —— 原型本身是二值的，
+硬造中间值等于编数据。
+
+副作用：这一屏原本 ① 占 7 张卡 + ②③ 各一排 + 两段 term-note，
+在 390×844 下把「下一步」推到折叠线以下（visual 实测 +21.2px）。
+现在只剩一组卡片 + 一段「挑不准？」的比喻说明。
+
+### 四、验证
+
+```
+test-render 269 / 0   test-scoring 133 / 0   test-contrast 42 / 0
+test-compliance 10 / 0   test-union-api 72 / 0   test-jd-web 17 / 0
+test-category-gate 10 / 0
+合计 553 PASS / 0 FAIL
+```
+
+测试改动：
+- 第 3 步原四条 `.seg` 断言（「有 2 个分段控件」「档位是 3 与 4」「都是 radiogroup」
+  「每个带一句说明」）**整组作废**，替换成四条新的：
+  `v37 第 3 步不再有冷暖/甜度分段控件`、`七个原型都带 dims`、
+  `每个原型都能推出冷暖与甜度`、`映射铺满 4 种组合（2×2）`、`随原型变化不是常量`。
+- `scripts/probe-q-drop.mjs` 的画像生成器不再生成 `seasonSecond`。
+
+### 五、踩坑
+
+1. **`probe-q-drop.mjs` 第一版把 `dislikedFamilies` 报成「可删」**，理由是「有效样本 0、重叠 10/10」。
+   那不是测出来的，是画像生成器从没设置过这个字段 —— **0 样本的维度不能给判定**。
+   已改成显示「⚠ 未测」，并补上只在情绪入口下生成该字段的逻辑。
+2. **单一画像会骗人**。我先用 `{family:floral, subfamily:white-floral, …}` 一组测，
+   得出「season / intensity / concentration / longevity / mood 五题全部 10/10 无影响」——
+   因为 family+subfamily 已经把池子收到很窄，别的维度轮不到起作用。
+   换成 200 组随机画像后结论完全不同。
+3. **七原型到冷暖甜度的映射是 4 种组合，不是 3 种**。我第一版凭「2×2×2 缺一格」的印象
+   写了「3 种」，测试当场报错（实测 4 种：cool/1 cool/3 warm/1 warm/3）。
+   缺的那一格在 **weight** 维度（冷+甜+重），不在 temp×sweet 平面上。

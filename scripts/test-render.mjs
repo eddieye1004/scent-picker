@@ -1003,23 +1003,45 @@ for (const [n, phrase] of stepNames) {
      留在原处会让这条循环在 n===6（现在是 anchor 屏）时去查 .choice-grid，
      报「(无 .choice-grid)」—— 那不是回归，是断言挂错了入口。 */
   if (n === 3) {
-    /* E3/E4：冷暖（3 档）与甜度（4 档）改成分段控件。
-       判据三条：形态是 .seg、语义是 radiogroup、方向键能换档。 */
+    /* v37：冷暖与甜度已合并进「整体气质」那一组卡片（见 app.js 的 deriveFromPreset）。
+       这一屏不再有分段控件，所以原来的四条 .seg 断言整组作废。
+       替换成三条钉住"合并后仍然能表达这两维"的断言：
+       ① 七个原型各有 dims；② 选了原型就写回 temperature/sweetness；
+       ③ 不再有第二、三个独立控件。 */
     const segs = appRoot.querySelectorAll('.seg');
-    ok('第 3 步有 2 个分段控件（冷暖 + 甜度）', segs.length === 2, `实际 ${segs.length}`);
-    const counts = [...segs].map((x) => x.querySelectorAll('.seg-item').length);
-    ok('分段控件档位是 3 与 4', counts.join(',') === '3,4', counts.join(','));
-    ok('每个分段控件都是 radiogroup',
-      [...segs].every((x) => x.attrs.role === 'radiogroup'),
-      [...segs].map((x) => x.attrs.role).join(','));
-    /* roving tabindex：整组只留一个 Tab 落点 */
-    ok('分段控件每组只有一个 Tab 落点',
-      [...segs].every((x) => [...x.querySelectorAll('.seg-item')]
-        .filter((b) => b.attrs.tabindex === '0' || b.attrs.tabindex === 0).length === 1),
-      '有多组存在两个 0');
-    /* 说明文字要跟着选中项换 —— 第一版漏了，点「偏凉」仍显示「偏暖」那句 */
-    const hints = appRoot.querySelectorAll('.seg-hint');
-    ok('每个分段控件都带一句说明', hints.length === 2, `实际 ${hints.length}`);
+    ok('v37 第 3 步不再有冷暖/甜度分段控件', segs.length === 0, `实际 ${segs.length}`);
+
+    const presets = appRoot.__presets || [];
+    ok('v37 七个原型都带 dims（temp/sweet/weight）',
+      presets.length === 7 && presets.every((c) => c.dims
+        && typeof c.dims.temp === 'number'
+        && typeof c.dims.sweet === 'number'
+        && typeof c.dims.weight === 'number'),
+      presets.map((c) => (c.dims ? `${c.id}:${c.dims.temp}/${c.dims.sweet}` : `${c.id}:无`)).join(' '));
+
+    /* dims 必须真的映射到 temperature/sweetness，且七个原型两两不同 ——
+       若两个原型推出同一组冷暖甜度，说明映射写漏了。 */
+    if (appRoot.__derivePreset) {
+      const derived = presets.map((c) => {
+        const d = appRoot.__derivePreset(c.id);
+        return d ? `${d.temperature}/${d.sweetness}` : 'null';
+      });
+      ok('v37 每个原型都能推出冷暖与甜度',
+        derived.every((x) => x !== 'null'), derived.join(' '));
+      /* temp 是二值、sweet 是二值 → 最多种组合 2×2 = 4 种。
+         七个原型正好铺满这 4 种（缺的那一格是"冷+甜+重"，
+         1228 瓶里只有 12 瓶，数据撑不起一个选项，见 D51）。
+         断言取 4 而不是 3 —— 我第一版凭"2×2×2 缺一格"的印象写了 3，
+         实际缺的那格在 weight 维度，不在 temp×sweet 平面上。 */
+      const uniq = [...new Set(derived)];
+      ok('v37 原型到冷暖甜度的映射铺满 4 种组合（2×2）',
+        uniq.length === 4, `${uniq.length} 种: ${uniq.sort().join(' ')}`);
+      ok('v37 冷暖甜度映射随原型变化（不是常量）',
+        new Set(presets.map((c) => c.dims.temp)).size === 2
+        && new Set(presets.map((c) => c.dims.sweet)).size === 2,
+        `temp 取值 ${[...new Set(presets.map((c) => c.dims.temp))].join(',')} / `
+        + `sweet 取值 ${[...new Set(presets.map((c) => c.dims.sweet))].join(',')}`);
+    }
   }
   if (n === 3) {
     /* 气质七个原型：由冷暖/甜度/初始偏好推导，首项按接近度排序。

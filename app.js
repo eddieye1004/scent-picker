@@ -41,7 +41,6 @@ const state = {
     anchorPerfume: null,        // perfume.id
     anchorNotes: [],            // 香调 en 列表
     season: null,
-    seasonSecond: null,
     concentration: null,
     longevity: null,
     /* 留香是否被用户手动改过。第 5 步「改 / 恢复推断值」靠它区分
@@ -1893,6 +1892,31 @@ function rankCharacterPresets(answers) {
   return scored.map((x) => x.item);
 }
 
+/* 从气质原型反推冷暖与甜度（v37）。
+   为什么可以反推：七个原型的 dims 正好是 temp × sweet × weight 的 2×2×2 缺一格
+   （见 CHARACTER_PRESET 每条定义）。选了哪个原型，冷暖与甜度就已经确定了 ——
+   再单独问一遍等于把同一个信息问三次，而用户的三次回答还可以互相矛盾。
+
+   实测（2026-11-09，150 组随机画像）：
+     「只答气质」vs「气质 + 手答冷暖甜度」top-10 重叠 5.35/10、
+     top-1 换 44.0% —— 差异不是来自新信息，而是来自"手答那两项能不能对上气质"。
+     同一原型下，手答一致时总分 +20~22 分、手答矛盾时只 +10 分，
+     即现状允许用户用②③把①的结论推翻一半，而界面上看不出来。
+
+   映射不追求精细：
+     · temp  -1 → 'cool'，+1 → 'warm'（原型里没有 neutral）
+     · sweet -1 → 1（不甜），+1 → 3（很甜）；中间档 2 不产出，
+       因为原型本身是二值的，硬造一个中间值等于编数据。
+   这两项仍然写进 state.answers，scoring 那条路径完全不用改。 */
+function deriveFromPreset(id) {
+  const c = CHARACTER_PRESET.find((x) => x.id === id);
+  if (!c || !c.dims) return null;
+  return {
+    temperature: c.dims.temp > 0 ? 'warm' : 'cool',
+    sweetness: c.dims.sweet > 0 ? 3 : 1,
+  };
+}
+
 /* ---------- 第 7 步：季节 ----------
    数据里 seasons 覆盖 4 季：春 382 / 夏 254 / 秋 389 / 冬 146。
    冬季只有 146 瓶 —— 这一点必须在界面上说明，否则用户选「冬」之后
@@ -2528,7 +2552,7 @@ function renderMood() {
   };
   paintSuggest();
 
-  wrap.appendChild(el('div', { class: 'chips-label' }, '① 整体气质（选一个）'));
+  wrap.appendChild(el('div', { class: 'chips-label' }, '整体气质（选一个）'));
   if (suggestNote) wrap.appendChild(suggestNote);
   wrap.appendChild(choiceGrid(
     ranked.map((c) => ({ id: c.id, zh: c.zh, desc: c.desc })),
@@ -2540,43 +2564,34 @@ function renderMood() {
          src/scoring.js 的 characterTags 按"是否命中"判断，不看权重。 */
       state.answers.characterTags = Object.keys(picked.tags || {});
       state.answers.characterNeg = picked.neg || [];
+      /* v37：冷暖与甜度由原型反推，不再单独问（见 deriveFromPreset 的注释）。
+         写回 state.answers 是有意的：scoring 那条路径一行都不用改，
+         temperature / sweetness 依旧是从 answers 里读两个字段。 */
+      const d = deriveFromPreset(id);
+      if (d) {
+        state.answers.temperature = d.temperature;
+        state.answers.sweetness = d.sweetness;
+      }
       paintSuggest();
     }
   ));
 
-  // ② 气味温度
-  wrap.appendChild(el('div', { class: 'chips-label' }, '② 气味的冷暖（选一个，可跳过）'));
-  /* 3 档、2–3 字、有序 —— 这是分段控件的定义场景。
-     卡片形态下占 145px，而它只需要一行。
-     desc 挪到 term-note 里说一次（原来每张卡各带一句，3 句其实在讲同一件事）。 */
-  let tempHint = null;
-  wrap.appendChild(segControl(TEMPERATURES, state.answers.temperature, (id) => {
-    state.answers.temperature = id;
-  }, '气味的冷暖', (id) => updateSegHint(tempHint, TEMPERATURES, id)));
-  tempHint = segHint(TEMPERATURES, state.answers.temperature);
-  wrap.appendChild(tempHint);
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '怎么判断？'),
-    ' 想两个你闻过的东西：一杯热牛奶（暖）、刚剥开的橘子皮（凉）。',
-    ' 喜欢"像洗完澡"多半偏凉，喜欢"像毛衣和木头"多半偏暖。'
-  ));
+  /* ② 气味冷暖 与 ③ 甜度 已在 v37 合并进 ①（2026-11-09）。
+     七个原型的 dims 是 temp × sweet × weight 的 2×2×2 缺一格，
+     选了原型就等于答了冷暖与甜度。原来三问并存时，
+     ②③ 可以推翻 ①（实测同原型下一致作答 +20~22 分、矛盾作答 +10 分），
+     而界面上只显示「你选的是 X」，用户看不出自己在自相矛盾。
 
-  // ③ 甜度
-  wrap.appendChild(el('div', { class: 'chips-label' }, '③ 能接受多甜（选一个，可跳过）'));
-  /* 4 档、有序（不甜 → 很甜）。同冷暖：卡片网格是无序语法，这里是刻度语法。 */
-  let sweetHint = null;
-  wrap.appendChild(segControl(
-    SWEETNESS,
-    state.answers.sweetness == null ? null : String(state.answers.sweetness),
-    (id) => { state.answers.sweetness = Number(id); },
-    '能接受多甜',
-    (id) => updateSegHint(sweetHint, SWEETNESS, id)
-  ));
-  sweetHint = segHint(SWEETNESS, state.answers.sweetness == null ? null : String(state.answers.sweetness));
-  wrap.appendChild(sweetHint);
+     删掉的还有一个副作用：这一屏原本 ①占 7 张卡 + ②③ 各一排 + 两段 term-note，
+     在 390×844 下把「下一步」推到折叠线以下（visual 实测 +21.2px）。
+     现在只剩一组卡片 + 一段说明。
+
+     下面这段"怎么判断冷暖"的说明保留 —— 它现在服务于**选原型**这件事：
+     用户看不懂「洁净清透 / 雨后林地」时，靠"热牛奶 vs 橘子皮"这类比喻来挑。 */
   wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '「晕甜」很常见：'),
-    ' 有人闻到甜香会头晕恶心，这不是矫情。有过这种反应就直接选「完全不甜」。'
+    el('strong', {}, '挑不准？'),
+    ' 想两个你闻过的东西：一杯热牛奶（暖、甜、重）、刚剥开的橘子皮（凉、不甜、轻）。',
+    ' 喜欢"像洗完澡"的挑左边那几项，喜欢"像毛衣和木头"的挑右边。'
   ));
 
   wrap.appendChild(navBar('mood'));
@@ -2628,16 +2643,12 @@ function renderContext() {
   wrap.appendChild(el('div', { class: 'chips-label' }, '② 主季节'));
   wrap.appendChild(segControl(seasonOpts, state.answers.season, (id) => {
     state.answers.season = id;
-    /* 主季节与次选季节不能同一个：切主季节时把冲突的次选清掉。
-       这条联动原来写在 choiceGrid 的回调里，换控件时必须一起搬过来，
-       否则用户会得到「主=春 次=春」这种自相矛盾的答案。 */
-    if (state.answers.seasonSecond === id) state.answers.seasonSecond = null;
   }, '主季节', (id) => updateSegHint(seasonHint, seasonOpts, id)));
   /* 未选时不能用 segHint 的默认行为：它会把第一项（春）那句解释当成
      "当前值"显示出来，配上 is-idle 的降级透明度，读起来像
      「你选了春，只是没高亮」—— 这是错误信息。
      实际影响比第 3 步更明显：冷暖/甜度那一屏下方紧跟着 term-note，
-     用户能读出"这是在讲怎么判断"；本屏下方直接是 ③ 次选季节，
+     用户能读出"这是在讲怎么判断"；本屏下方直接是覆盖率那段数字，
      一句「花开、微湿」孤零零挂着，只能读成"已选春"。
      所以这里在未选时说一句真正的指引，选中后才换成该季解释。 */
   seasonHint = segHint(seasonOpts, state.answers.season);
@@ -2646,15 +2657,16 @@ function renderContext() {
   }
   wrap.appendChild(seasonHint);
 
-  /* 次选季节：3 项（排除主季节），仍然用胶囊 —— 它本来就是"可选补一个"，
-     不需要每项都带解释。这里保留 choiceGrid 是因为它会随主季节变化重建，
-     而 segControl 的 roving tabindex 在项数变化时还要重算，收益不值。 */
-  wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:12px' }, '次选季节（可跳过）'));
-  wrap.appendChild(choiceGrid(
-    SEASONS.filter((x) => x.id !== state.answers.season),
-    state.answers.seasonSecond,
-    (id) => { state.answers.seasonSecond = id; }
-  ));
+  /* 次选季节已在 v37 删除（2026-11-09）。
+     实测依据（scripts/probe-q-drop.mjs 200 组随机画像）：
+     删掉它之后 top-1 只换 7.6%、top-3 换 16.2%、top-10 平均重叠 9.30/10 ——
+     全库 13 个维度里最弱的那个，其余维度最弱的也有 8.16/10。
+     它当初是为了"春秋两季都能穿"这类过渡香，但 scoring 里 season 与 seasonSecond
+     是两条独立加分，用户答了次选只是让第二季也拿满分，
+     而主季节命中时已经盖住了大部分场景 —— 收益落在噪声里。
+
+     这不是"少问一题"的取舍：那一屏同时还在讲季节覆盖率的数字，
+     留着两个季节控件会让「冬天候选少」这句话读起来像在说次选也算数。 */
 
   /* 这段数字是**用户可见**的，必须跟数据同步。
      实测踩过：上游从 1320 长到 1479 后，这里的「春 382 · 夏 254 · 秋 389 · 冬 146」
@@ -3039,7 +3051,7 @@ function restart() {
        明明由浓度推断、却被标成「手动」。两者都不在 restart 的键表里，
        属于「加字段时漏更新这里」的老毛病。 */
     characterPreset: null, characterTags: [], characterNeg: [],
-    season: null, seasonSecond: null,
+    season: null,
     concentration: null, longevity: null, longevityManual: false,
     dislikedFamilies: [], temperature: null, sweetness: null,
     anchorBrand: null, anchorPerfume: null, anchorNotes: [],
@@ -4138,6 +4150,11 @@ export const __steps = {
   clamp: clampStep,
 };
 
+/* 气质原型与它的推导函数。测试要验"选了原型就等于答了冷暖甜度"，
+   而这条关系只能从 app.js 里取到（CHARACTER_PRESET 不导出）。 */
+export const __presets = CHARACTER_PRESET;
+export const __derivePreset = deriveFromPreset;
+
 /* 重开一局。测试要验「情绪入口 7 步」必须能从干净状态走一遍，
    否则只能验到纯函数、验不到 navBar / render / 进度条。 */
 export const __restart = restart;
@@ -4146,7 +4163,17 @@ export const __restart = restart;
 /* 测试用：把推导函数挂到 #app 上，供 test-render 直接调用。
    它不碰 DOM 也不碰 state，是纯函数；挂一份比在测试里复制粘贴实现更可靠。 */
 if (typeof document !== 'undefined') {
-  const mount = () => { const a = document.querySelector('#app'); if (a) a.__rankProbe = rankCharacterPresets; };
+  const mount = () => {
+    const a = document.querySelector('#app');
+    if (!a) return;
+    a.__rankProbe = rankCharacterPresets;
+    /* v37：测试要直接验「原型 → 冷暖甜度」这条映射，
+       而各屏的 render 只用得到 CHARACTER_PRESET 本身，用不着这两个句柄。
+       挂在这里而不是 export，是因为测试走的是真渲染路径（读到的是 #app 元素），
+       而 ESM export 拿到的是模块作用域 —— 两条都留会让人不知道该用哪个。 */
+    a.__presets = CHARACTER_PRESET;
+    a.__derivePreset = deriveFromPreset;
+  };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
   else mount();
 }
