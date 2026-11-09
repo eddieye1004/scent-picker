@@ -376,6 +376,12 @@ if (existsSync(CACHE) && !FORCE) {
 }
 if (oldCacheSize) console.log(`缓存已有 ${oldCacheSize} 条，本轮只增不删`);
 const cacheKey = (plat, p) => `${plat}:${p.id}:${p.brand} ${p.name}`.toLowerCase();
+/* 缓存键不含查询词，所以「新增中文译名」后命中缓存会直接复用旧 raw，
+   新的查询变体根本没被发出去 —— 表现为「别名加了几十条，接受数一个都没涨」，
+   极难自查（实测踩过一次，白跑一轮全量）。
+   判据不是给键加料，而是**比对将要发出的第一个查询词与缓存里实际发出的那个**：
+   不同就当作未命中、重查。这条同时覆盖别名新增、变体顺序调整、品牌/香名改动。 */
+const firstQuery = (p) => (taobaoQueryVariants(p, ALIAS, fragOf(p)) || [])[0] || '';
 
 /* 缓存里存的是 { keyword, candidates, raw }。candidates 是按**当时的**
    映射逻辑拍平出来的，新增字段（比如 whiteImage）不会自己出现在老条目里 ——
@@ -400,6 +406,18 @@ for (const p of targets) {
   for (const plat of plats) {
     const ck = cacheKey(plat, p);
     let r = cache[ck];
+    /* 缓存里存的 keyword 是「上一轮实际发出去的第一个查询词」。它与现在要发的不一致
+       （别名新增、变体顺序调整、品牌或香名改动），说明这份结果已经过时 ——
+       当作未命中重查，而不是悄悄复用。 */
+    if (r && plat === 'taobao') {
+      const want = firstQuery(p);
+      const cachedQ = String(r.keyword || '');
+      const stale = want && !cachedQ.toLowerCase().includes(String(want).toLowerCase().slice(0, 12));
+      if (stale) {
+        stats.stale = (stats.stale || 0) + 1;
+        r = null;
+      }
+    }
     if (r) { stats.cached++; r = remap(plat, r); }
     else {
       try {

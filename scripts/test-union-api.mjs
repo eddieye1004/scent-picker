@@ -464,6 +464,33 @@ check('L14 同一标题换叶子类目，结论随之改变（叶子才作数）
   l14a.accept && !l14b.accept && l14b.reason.includes('唇霜'),
   JSON.stringify([l14a.accept, l14b.reason]));
 
+/* ---------- T 组：译名表的数据完整性（2026-11-09） ----------
+   这张表是手写 + 脚本收集混着的，最容易出两类错：
+   ① 写了译名却没有 evidence（后来的人无法复核，只能重跑一遍才知道真假）；
+   ② id 拼错了 —— perfumes.json 里没有这瓶，表里却有一条，永远用不上也没人发现。
+   两条都不是「代码错」，代码测试抓不到，只能对数据本身断言。 */
+{
+  const fsMod = await import('node:fs');
+  const perf = JSON.parse(fsMod.readFileSync('data/perfumes.json', 'utf8')).perfumes || [];
+  const ids = new Set(perf.map((p) => p.id));
+  const tbl = JSON.parse(fsMod.readFileSync('data/fragrance-aliases.json', 'utf8'));
+  const keys = Object.keys(tbl).filter((k) => k !== '_readme');
+
+  const noId = keys.filter((k) => !ids.has(k));
+  check('T1 译名表每条 id 都在香水库里', noId.length === 0, noId.join(','));
+
+  const noEv = keys.filter((k) => !tbl[k].evidence || !String(tbl[k].evidence).trim());
+  check('T2 译名表每条都带 evidence', noEv.length === 0, noEv.join(','));
+
+  const badName = keys.filter((k) => (tbl[k].names || []).some((n) => !/^[\u4e00-\u9fa5]{2,8}$/.test(n)));
+  check('T3 names 全是 2–8 字纯中文', badName.length === 0, badName.join(','));
+
+  /* names 是「译名」，keywords 是「能搜到的词」—— 后者允许是拉丁/法语原词。
+     把拉丁词写进 names 会让 scoreMatch 的 cnNameHit 误判（R4 的反向守护）。 */
+  const latinInNames = keys.filter((k) => (tbl[k].names || []).some((n) => /[a-z]/i.test(n)));
+  check('T4 names 里不许出现拉丁词', latinInNames.length === 0, latinInNames.join(','));
+}
+
 /* ---------- 输出 ---------- */
 console.log('\n===== 联盟 API 测试 =====');
 console.log(`PASS ${pass}   FAIL ${failures.length}`);
