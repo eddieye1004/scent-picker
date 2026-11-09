@@ -24,7 +24,7 @@ export const MATCH_PCT_MIN_DIMS = 8;
 
 /* ---------- 权重配置（集中于此，便于调参与写测试） ---------- */
 export const WEIGHTS = {
-  familyPick: 34,      // 用户在第 1 步直接点的香型家族（香型轮盘，权重最高：这是最明确的意图）
+  familyPick: 34,      // 用户在第 1 步直接点的香型家族（v42 起并入 family，不再单独加）
   subfamilyHits: 18,   // 第 2 步在同一轮盘里选的子家族 / 代表香材命中
   emotionFamily: 30,   // 情绪 → 家族吻合（旧四步流程保留，见 buildProfile 的分支）
   occasionFamily: 22,  // 场合 → 家族吻合
@@ -43,6 +43,10 @@ export const WEIGHTS = {
   character: 16,       // 性格标签命中（清冷/温暖/干净/甜…）；数据里 21 种
   concentration: 12,   // 浓度档位吻合（EDT/EDP/Extrait）；数据覆盖 87%
   longevity: 10,       // 持香时长吻合（由浓度推断，UI 必须标「推断」）
+  /* ↑ v42 起**不参与打分**：longevityInferred 是浓度的确定性函数，
+     同浓度下全库等加，对排序零贡献。权重值保留是为了让
+     Object.entries(WEIGHTS) 的 T12 断言与历史文档对得上；
+     scorePerfume 里已没有任何地方读它。见 8c 段的长注释。 */
   dislikedFamily: -30, // 讨厌某个香型家族（比讨厌单个香调更粗，惩罚也更轻）
   seasonSecond: 5,     // 次选季节吻合（避免"只想夏天"和"夏天优先"同分）
 
@@ -390,43 +394,87 @@ export function scorePerfume(p, profile, taxonomy) {
      并列拿满 52，纯情绪 lazy 单独 481 瓶，全组合最高 621 瓶 —— 因子退化成常数，
      属于换打分体系而不是修分母。 */
   const famDenom = profile.family ? (profile.occasion ? 1.18 : 1.0) : 1.2;
-  const famScore = clamp01(famHit / famDenom) * (WEIGHTS.emotionFamily + WEIGHTS.occasionFamily);
+  /* v42：家族这一项合并 familyPick 的 34 分（原 WEIGHTS.familyPick）。
+     为什么合并：香型入口下 pref 只有本族=1、其余为 0，于是
+       family     = clamp01(w / denom) * 52
+       familyPick = clamp01(w) * 34
+     不答场合时 denom = 1.0，两者归一化后是**同一个函数** min(1, w)。
+     实测四族 top-20 排序完全一致（20/20 重叠），
+     再用真引擎测「把 familyPick 从总分里扣掉」：top-20 仍然 20/20，top1 不换。
+     即那 34 分对最终排序零贡献，只是把总分基数抬高了 34。
+
+     合并后 family = clamp01(w / denom) * (52 + 34) = 86，排序与原来逐瓶相同
+     （已验证「不答场合 / 答场合 date / 答场合 formal」三种口径、floral 与 woody 两族，
+     top-10 全部 10/10）。理由侧也少一条复读 —— buildReasons 原本就要
+     「有 familyPick 时丢掉 family」，现在只剩一条，那段特殊情况可以删。 */
+  const famScore = clamp01(famHit / famDenom)
+    * (WEIGHTS.emotionFamily + WEIGHTS.occasionFamily + WEIGHTS.familyPick);
   score += famScore;
-  if (famBest) {
+  /* 直选家族下的「这瓶有多纯」——用来给理由分档。
+     合并 familyPick 之前，这段信息由 familyPick 那条 breakdown 携带，
+     理由句是「主体就是花香调，底下垫着木质调」/「只是带一点花香调，不是主角」。
+     合并后如果只留 family 一条，理由会退化成「主调是花香调」，
+     丢掉次族与纯度两件事 —— 那是真实的信息损失，不是措辞偏好。 */
+  let pickInfo = null;
+  if (profile.family) {
+    const pw = (p.families || {})[profile.family.id] || 0;
+    const others = Object.entries(p.families || {})
+      .filter(([k]) => k !== profile.family.id && k !== '_')
+      .sort((a, b) => b[1] - a[1]);
+    const sec = others[0] && others[0][1] >= 0.25 ? others[0][0] : null;
+    pickInfo = {
+      pickZh: profile.family.zh,
+      pickWeight: Number(pw.toFixed(2)),
+      secondaryZh: sec ? (taxonomy.families.find((f) => f.id === sec)?.zh || sec) : null,
+    };
+  }
+  if (famBest || pickInfo) {
     breakdown.push({
       factor: 'family',
       score: famScore,
       family: famBest,
+      /* familyZh 始终跟着 famBest 走（情绪入口下它才是"主调"）；
+         直选家族时另给 pickZh，理由句用那个，两者可能不同。 */
       familyZh: taxonomy.families.find((f) => f.id === famBest)?.zh || famBest,
       weight: 1,
+      ...(pickInfo || {}),
     });
   }
 
   // 1b) 香型家族直选：用户在第 1 步明确点的那个家族，权重最高。
   // 与 1) 的区别：1) 是"画像向量 × 香水向量"的点积（软匹配），
-  // 这里是"你点了花香，它就是不是花香"（硬匹配）——两者分开记分，理由句式也不同。
+  /* 1b) 香型家族直选 —— v42 起**不再单独加分**（34 分已并入上面的 family）。
+     这一段现在只做两件事：
+       ① 「只是带一点」的压分（w < 0.4）
+       ② 产出次族信息，供理由说「底下垫着木质调」
+
+     为什么保留压分：它跟加分不是同一件事。加分是"本族权重越高越像"，
+     压分是"本族权重太低就别排前排"。实测移除压分会让「只是带一点花香调」
+     的瓶子挤进 top-3，理由会自相矛盾（说你点的花香，实际它主要是柑橘）。
+
+     breakdown 条目仍然产出，score 记为压分后的净值（0 或负）——
+     它不再参与总分累加，只作为「这瓶有多纯」的展示数据。
+     buildReasons 只收 score > 0 的因子，所以它不会再单独产出一条理由；
+     主理由由 family 那条承担（见 reasonText 的 case 'family'）。 */
   if (profile.family) {
     const w = (p.families || {})[profile.family.id] || 0;
-    const pickScore = clamp01(w) * WEIGHTS.familyPick;
-    if (pickScore > 0) {
-      score += pickScore;
-      // 次族：权重排第二的那个家族，用来给理由加区分度
-      const others = Object.entries(p.families || {})
-        .filter(([k]) => k !== profile.family.id && k !== '_')
-        .sort((a, b) => b[1] - a[1]);
-      const sec = others[0] && others[0][1] >= 0.25 ? others[0][0] : null;
-      // 家族权重低于 0.4 说明这瓶只是"带一点"，不是用户要的那族。
-      // 不压分的话前排会出现「只是带一点柑橘调，不是主角」这种自相矛盾的推荐。
-      if (w < 0.4) score -= 26 * (1 - w / 0.4);
-      breakdown.push({
-        factor: 'familyPick',
-        score: pickScore,
-        family: profile.family.id,
-        familyZh: profile.family.zh,
-        secondaryZh: sec ? (taxonomy.families.find((f) => f.id === sec)?.zh || sec) : null,
-        weight: Number(w.toFixed(2)),
-      });
-    }
+    // 次族：权重排第二的那个家族，用来给理由加区分度
+    const others = Object.entries(p.families || {})
+      .filter(([k]) => k !== profile.family.id && k !== '_')
+      .sort((a, b) => b[1] - a[1]);
+    const sec = others[0] && others[0][1] >= 0.25 ? others[0][0] : null;
+    // 家族权重低于 0.4 说明这瓶只是"带一点"，不是用户要的那族。
+    // 不压分的话前排会出现「只是带一点柑橘调，不是主角」这种自相矛盾的推荐。
+    const penalty = w < 0.4 ? -26 * (1 - w / 0.4) : 0;
+    if (penalty) score += penalty;
+    breakdown.push({
+      factor: 'familyPick',
+      score: penalty,
+      family: profile.family.id,
+      familyZh: profile.family.zh,
+      secondaryZh: sec ? (taxonomy.families.find((f) => f.id === sec)?.zh || sec) : null,
+      weight: Number(w.toFixed(2)),
+    });
   }
 
   // 香调集合：后面几步都要用，提到前面统一构造。
@@ -614,17 +662,24 @@ export function scorePerfume(p, profile, taxonomy) {
     }
   }
 
-  // 8c) 持香时长。longevityInferred 是**推断值**（源站无此字段，
-  // 按浓度映射而来，见 taxonomy.concentrationLongevity.note）。
-  // 所以这里只给"差 1 档"少量扣分，不做硬筛选 —— UI 上必须标「推断」。
-  if (profile.longevity != null && p.longevityInferred != null) {
-    const d = Math.abs(p.longevityInferred - profile.longevity);
-    const lScore = clamp01(1 - d / 2) * WEIGHTS.longevity;   // 差 0 档满分，差 2 档 0 分
-    if (lScore > 0) {
-      score += lScore;
-      breakdown.push({ factor: 'longevity', score: lScore, longevity: p.longevityInferred, delta: d });
-    }
-  }
+  /* 8c) 持香时长 —— v42 起不再单独计分。
+     理由：longevityInferred 是由浓度映射出来的推断值（源站无此字段，
+     见 taxonomy.concentrationLongevity.note），全库每个浓度只有唯一一个取值：
+       eau-de-cologne→2、eau-de-toilette→3、eau-de-parfum→4、extrait/parfum/elixir→5
+     零偏离（1388 瓶实测）。于是同浓度下全库得分相同，是等加，不影响排序。
+
+     实测两条：① 不带留香 vs 带自动留香，120 组混合浓度 top-10 重叠 8.74/10
+     但 top1 换手 0.0%；② 把 longevity 分数从总分里扣掉重排，top-20 仍 20/20。
+     → 它对"推荐哪几瓶"零贡献，只抬高总分基数，并让 matchPct 虚高。
+
+     唯一仍有意义的是"用户手改留香"（UI 允许点「改」覆盖推断值）：
+     实测 EDT 从 3 改到 4/5 时 top-10 变 4 瓶。但那条路径的值同样只通过
+     `longevityInferred` 差值起作用，改的是同一个等加通道 —— 保留它需要
+     把"手改"与"自动"分成两个权重，收益不抵复杂度。用户真要"留得久"，
+     改浓度那一项就是同一个动作。
+
+     所以只保留 longevityWarn（场合要求的最低持香提示），它读的是
+     profile.maxLongevityFloor，与实际打分无关。 */
 
   // 8d) 讨厌某个香型家族。比「讨厌单个香调」粗，所以惩罚也更轻（-30 vs -40），
   // 且只在该族确实是这瓶的主族时才罚 —— "带一点雪松的柑橘"不该因为讨厌木质被排除。
@@ -968,22 +1023,24 @@ const NEGATIVE_REASONS = new Set(['dislikedNotes', 'dislikedFamily']);
 
 function reasonText(b, profile) {
   switch (b.factor) {
-    case 'family':
-      // 三条理由如果都用「X，正是「Y」这一类」的句式，读起来就是同一个模板填词。
-      // 这里让 family 用「主调 + 占比」的事实句，跟下面两条在句型上岔开。
-      /* 只有**真的情绪入口**才能说「在你选的「X」里占大头」。
-         香型轮盘入口下 profile.emotion 是合成对象（zh 直接取自家族），
-         照原样拼会得到「主调是花香调，在你选的「花香调」里占大头」——
-         自指循环，而且和 familyPick 那句「主体就是花香调」重复。
-         那种情况下改用场合做锚（famHit 含场合 lerp，说得出道理）。 */
-      if (!profile.emotionReal) {
-        return profile.occasion
-          ? `主调是${b.familyZh}，也贴着「${profile.occasion.zh}」这一路`
-          : `主调是${b.familyZh}`;
+    case 'family': {
+      /* 香型轮盘直选时（pickZh 存在）用硬匹配的分档句式 —— 那才是用户点的那一族，
+         比点积出来的"主调"更贴他的原话。分三档是因为主权重常态就是 1.0，
+         每瓶都报"主体就是 X"等于没信息；补次族做区分度。 */
+      if (b.pickZh) {
+        const rest = b.secondaryZh ? `，底下垫着${b.secondaryZh}` : '';
+        if (b.pickWeight >= 0.99) return `主体就是${b.pickZh}${rest}`;
+        if (b.pickWeight >= 0.6) return `${b.pickZh}是它的主调${rest || '，还压着别的味道'}`;
+        return `只是带一点${b.pickZh}，不是主角`;
       }
+      /* 情绪入口：只有**真的情绪**才能说「在你选的「X」里占大头」。
+         旧代码里 profile.emotion 在香型入口下是合成对象（zh 直接取自家族），
+         照原样拼会得到「主调是花香调，在你选的「花香调」里占大头」—— 自指循环。
+         那种情况现在走上面的 pickZh 分支，到不了这里。 */
       return profile.occasion
         ? `主调是${b.familyZh}，在你选的「${profile.emotion.zh}」里占大头`
         : `主调是${b.familyZh}`;
+    }
     case 'familyPick': {
       // 硬匹配：用户点的是这个家族。不能说"占 100%"——家族主权重常态就是 1.0，
       // 每瓶都报 100% 等于没信息。按权重分档，读者才知道这瓶有多"纯"。
@@ -1088,10 +1145,13 @@ export function buildReasons(scored, profile, taxonomy) {
 
   // 先决定"哪些因子入选"：必须含一条结构性理由，再按优先级补满。
   const chosen = [];
-  // familyPick（你点了什么族）与 family（画像向量点积出的主调）说的常是同一件事，
-  // 两条都给就是复读。有 familyPick 时丢掉 family。
-  const hasPick = candidates.some((b) => b.factor === 'familyPick');
-  const pool = hasPick ? candidates.filter((b) => b.factor !== 'family') : candidates;
+  /* v42：familyPick 与 family 已合并成一条 breakdown（见 scorePerfume 的 1b 段），
+     所以原来那段「有 familyPick 就丢掉 family」的去重复读逻辑不再需要 ——
+     现在只可能有一条 family，且它自带 pickZh/secondaryZh，理由句足够具体。
+     保留 hasPick 判断反而有害：familyPick 的 score 现在是压分净值（0 或负），
+     它根本进不了 candidates（只收 score > 0 或有 NEGATIVE_REASONS 标记的），
+     于是 hasPick 恒为 false，这段代码是永远不会走到的死分支。 */
+  const pool = candidates;
   const bestStructural = pool.find((b) => STRUCTURAL_FACTORS.has(b.factor));
   if (bestStructural) chosen.push(bestStructural);
   for (const b of pool) {

@@ -2861,3 +2861,283 @@ test-category-gate 10 / 0
 3. **七原型到冷暖甜度的映射是 4 种组合，不是 3 种**。我第一版凭「2×2×2 缺一格」的印象
    写了「3 种」，测试当场报错（实测 4 种：cool/1 cool/3 warm/1 warm/3）。
    缺的那一格在 **weight** 维度（冷+甜+重），不在 temp×sweet 平面上。
+
+## D64 · v39：已选香调的白字改蓝 —— A/F 改造的连带修复（2026-11-09）
+
+### 一、症状
+
+浅色 1440 的 `03-picked` 整页截图里，中圈已选香调「玫瑰」是**纯白字压在浅蓝弧片上**，
+几乎读不出来；深色同样（白字压 `rgba(110,139,255,.14)`）。
+
+### 二、定位过程（三次查错都记下来）
+
+1. **先怀疑家族标签**：读 `.label-layer .disc-sector.lvl1.is-on .zh` 的 computed 是
+   `rgb(0,47,167)`，蓝的 —— 不是它。像素采样也证实「花香调」最暗像素 `(0,46,166)` 是蓝。
+2. **怀疑页面上有两份标签**：`probe_tx.cjs` 遍历 `#app *` 里所有叶子节点，找文本等于
+   「玫瑰」「花香调」的。结果只有 4 个：`.zh`（家族标签，蓝）、`.hub-zh`（盘心主词，黑）、
+   **`.disc-sector.lvl2.sub-arc-btn` 里的 `.zh`（`rgb(61,61,61)`，未选态）**、`.fam-title`。
+   白字就在中圈那个 —— 父元素 `is-on` 把 `color` 继承给了子 span。
+3. **`probe_iso.cjs` 一次坐实**：`.disc-sector.lvl2.sub-arc-btn.is-on` 的
+   `color` 与内部 `.zh` 的 `color` **都是 `rgb(255,255,255)`**（浅色与深色都一样）。
+
+### 三、根因
+
+`_wheel7.css:120` 与 `:420` 写的是 `.disc-sector.lvl2.sub-arc-btn.is-on { color: #ffffff }`
+—— 那是为「选中弧片 = 克莱因蓝实心」配的白字。A/F 改造把选中弧片 fill 换成
+`--blue-wash`（实测瓦片底色 `rgb(210,213,227)`，白字对比约 **1.5:1**），
+**底不再是深蓝，白字却没跟着改**。
+
+### 四、修法
+
+`styles/src/_wheel23.css` 第六节末尾追加（特异性 0,4,0 与原规则持平，靠层序生效）：
+
+```css
+.wheel .disc-sector.lvl2.sub-arc-btn.is-on,
+.wheel .disc-sector.lvl2.sub-arc-btn.is-on .zh {
+  color: var(--blue);
+}
+```
+
+改后实测：浅色 `rgb(0,47,167)`、深色 `rgb(110,139,255)` —— 与家族标签、与弧片描边同色，
+深色自动跟随 `--blue` 覆盖，不需要额外写 dark 分支。
+
+### 五、顺带确认的两件事（未改）
+
+- **未选扇区描边是 `1px` / `rgb(217,217,217)`**，不是第五节写的 `2.6px` / `--bg-3`。
+  原因：`_wheel6.css:94` 的 `.wheel.is-open .sector-g:not(.is-on) .sector-shape`
+  （0,5,0）压过 `_wheel23.css:184` 的 0,3,0。这不是缺陷 —— 展开态里未选家族本来就该是一根细线，
+  A 方向要的"分块"靠的是**选中那块**与**闭合态全盘**的缝；若要让未选也粗起来，
+  得同时改 `_wheel6.css`，会推翻「展开态外圈退居背景」的层级。**保持现状。**
+- `.label-layer` 的 computed `opacity: 0` 是展开态外圈标签本来就被隐藏（`_wheel7.css:244` 注释），
+  与本次无关。
+
+### 六、验证
+
+`styles.css` 220541 B / 7321 行 / 23 源层；`build-css --check` 一致；
+`test-render` PASS **269** / `test-contrast` PASS **42** / `test-scoring` PASS 133（citrus 266 /
+floral 650 / woody 411 / amber 254 / fresh 244 / gourmand 312）/ `test-compliance` PASS **10**；
+`node --check app.js` = 0。截图 `scent-picker/shots/ui/final14/`（41 文件 / 18.1 MB）。
+
+
+## D65 · v40：两条"遗留"复查 —— 都是量错，不是缺陷（2026-11-09）
+
+D63/D64 的待办里挂着两条：①「`.lvl1` 在 390 宽下溢出 3px」；②「香调两栏 `.btn-more` 跨栏不对齐」。
+本轮用可复现的脚本逐条量过，**两条都不成立**，没有改任何 CSS。
+
+### 一、`.lvl1` 的 3px 是触控热区的透明外扩
+
+- 现象：390 下每个家族标签按钮 `scrollWidth 40` / `clientWidth 37`，差 3px。
+- 定位：`probe_ps.cjs` 读 `::before` —— `content:""`、`position:absolute`、
+  `width: max(100%, 44px)`、`height: 44px`、`transform: translate(-50%,-50%)`。
+  这是 `_wheel13.css:648` 给 `.wheel.is-open .label-layer .disc-sector.lvl1::before`
+  写的**44×44 触控下限**，盒子比内容宽 3px 就报 `scrollWidth` 溢出。
+- 反证：`probe_pb.cjs` 注入 `::before{content:none}` 后同一按钮 `scrollWidth 37 = clientWidth 37`。
+- 视觉反证：`probe_clash.cjs` 用 `Range.getClientRects()` 量**真实文字盒**
+  （不看伪元素）：360 下六族文字两两最小间距 **83.4px**（woody↔amber），
+  390 下 **95.8px**，全部单行、无重叠、`opacity: 1`。
+- 结论：溢出的是**透明热区**，不是字形。`_wheel15.css` 的 `html,body{overflow-x:clip}`
+  已经把 `.sub-ring` 的放大盒一起裁掉（360 下 `bodySW 403` 但 `docSW 360 = docCW`，
+  页面不会横向滚动）。**保持现状**——把 44px 改成 41px 会让触控热区掉到 WCAG 2.5.5 下限以下。
+
+### 二、香调两栏在两栏区已经对齐，单栏区本来就不该"跨栏对齐"
+
+`probe_ng2.cjs` 八档宽度实测（走完第 1 步 → 第 2 步）：
+
+| 视口 | 列数与模板 | 两列高 | `.btn-more` 顶边 |
+|---|---|---|---|
+| 768 / 860 / 900 | 2 列 `325px 325px` | 288 / 288 | 244 / 244 |
+| 1024 / 1180 / 1280 / 1366 / 1440 | 2 列 `317px 317px` | 341 / 341 | 297 / 297 |
+| 700 | 1 列 `652px` | 182 / 199 | 138 / 358 |
+| 390 | 1 列 `342px` | 288 / 305 | 244 / 570 |
+
+- 两栏区（>720px，`_wheel12.css:200` 的 `@media (max-width:720px)` 之外）：**两列等高、按钮同顶边**，
+  已经对齐，没有可改的。
+- 单栏区（≤720px）：两栏上下堆叠，第二个 `.btn-more` 在第二个栏块底部，243/570 的差是**堆叠顺序**，
+  不是错位。之前记的「`moreTops [572, 897]` 错位 325px」正是拿单栏区的两段纵向坐标当跨栏比较。
+- 结论：D61 第五批加的 `.note-col{display:flex;flex-direction:column}` 不需要再动 ——
+  它在两栏区让同栏内按钮贴底（这一条是有效的），跨栏等高由 grid 默认的 `stretch` 已经给出。
+
+### 三、教训
+
+**量"溢出/对齐"必须区分三类盒子**：①内容盒（`Range.getClientRects()`）；
+②布局盒（`getBoundingClientRect`）；③含伪元素的滚动盒（`scrollWidth`）。
+本机这两条待办都是用 ③ 或跨容器坐标得出的，换成 ① 之后结论反转。
+以后报"某元素溢 Npx"必须同时给出**哪一类盒子**与**可见证据**（截图或文字 Range 盒）。
+
+### 四、验证（未改 CSS，门禁维持全绿）
+
+`styles.css` 220541 B / 7321 行 / 23 源层；`build-css --check` 一致；
+`test-render` PASS 269 / `test-contrast` PASS 42 / `test-scoring` PASS 133 / `test-compliance` PASS 10；
+`node --check app.js` = 0。
+
+
+## D66 · v41：结果页购买组三个入口等高（44 / 48 / 48 → 48）
+
+### 现象
+结果页每张卡的底部有三个购买入口。1440 实测（`probe_pg.cjs 9415 1440 900`）：
+
+| 按钮 | 宽 | 高 | 顶边 |
+|---|---|---|---|
+| 在京东搜这一瓶 | 132 | **44** | 797 |
+| 官方旗舰店 / 搜官方店 | 92 | 48 | 795 |
+| 全网（含第三方店铺）/ 搜全网 | 146 | 48 | 795 |
+
+同一行里第一颗矮 4px、上浮 2px，看起来像"没对准"。
+
+### 根因
+`.pick-buy-group` 是 `display:flex; align-items:center`（`_wheel13.css:521`），
+而按钮高度来自两条互不知情的规则：
+- 单行按钮 `.pick-foot .buy-link { min-height: 44px }`（`_wheel13.css:489`）；
+- 两行按钮 `.pick-foot .buy-link:has(.buy-scope) { min-height: 48px }`（`_wheel19.css:54`）。
+
+`center` 把 44px 那颗在 48px 行里上下各留 2px —— 高度差是设计意图（两行文字需要更高），
+但**居中对齐**把这个差变成了可见的错位。
+
+### 修法
+`_wheel13.css` 的 `.pick-buy-group`：`align-items: center` → **`stretch`**（`patch_ui11.py`）。
+同一行按最高者等高，高度差不再表现为顶边错位。
+
+### 验证（`probe_pg.cjs` 改后）
+- 1440 三张卡 × 三个按钮：**全部 `h: 48`，`top` 与 `bot` 逐卡一致**（795/843、1331/1379、1866/1914）。
+- 390（`probe_pg.cjs 9419 390 844`）：组宽 342、高 104，三个按钮仍 48 高；第一行两颗（京东 x=134 / 官方 x=274），
+  第三颗换行到 x=220 单独一行 —— 这是既有 `flex-wrap` + `justify-content: flex-end` 的排布，未变。
+- 门禁：`build-css --check` 一致（**221584 字节 / 7327 行**）；`test-render` 269、`test-contrast` 42、
+  `test-scoring` 133、`test-compliance` 10；`node --check app.js` = 0。
+
+### 顺带确认（未改）
+- 三个入口的**视觉层次**是有意为之：`在京东搜这一瓶` 是 `is-search`（描边 + 蓝字，`color rgb(0,47,167)`），
+  另两个是实底蓝（`background rgb(0,47,167)` + 白字）。一个是"兜底搜索"、两个是"确定入口"。
+- 卡片头部层级：`.pick-rank` 13px/600/`rgb(14,14,14)`、`.score` 12px/600/`rgb(97,97,97)`、
+  持香与季节 chip 12px/400/`rgb(61,61,61)` —— 三档已拉开，无需再动。
+
+## D67 · v42：问卷去冗余第二轮 —— 两处「算了两遍」+ 一处过期文案
+
+继 D62 之后又查了一轮。判据改严了：不看「删掉这一题结果变多少」，
+改看「把这个因子的分数从总分里扣掉、重新排序，top-20 变多少」——
+后者直接回答"它在不在排序里起作用"，比前者干净。
+
+### 一、family 与 familyPick 是同一个函数
+
+香型入口下 `pref` 只有本族 = 1、其余为 0，于是：
+
+```
+family     = clamp01(w / denom) * 52
+familyPick = clamp01(w) * 34
+```
+
+不答场合时 `denom = 1.0`，两者归一化后是**同一个函数** min(1, w)。
+实测四族（floral 533 / woody 243 / fresh 162 / citrus 117 瓶）
+soft 与 hard 逐瓶相同 100%，top-20 排序 20/20 重叠。
+
+再用真引擎测「把 familyPick 从总分里扣掉」：top-20 仍然 **20/20**，top1 不换。
+→ 那 34 分对最终排序零贡献，只把总分基数抬高了 34。
+
+**改法**：34 分并入 family（52 → 86）：
+
+```js
+const famScore = clamp01(famHit / famDenom)
+  * (WEIGHTS.emotionFamily + WEIGHTS.occasionFamily + WEIGHTS.familyPick);
+```
+
+familyPick 那一段只保留两件事：① 「只是带一点」的压分（w < 0.4）；
+② 产出次族信息。压分不是加分，跟"权重越高越像"不是同一件事 ——
+实测移除压分会把「只是带一点花香调」的瓶子挤进 top-3，理由自相矛盾。
+
+**排序不变的验证**：不答场合 / 答场合 date / 答场合 formal 三种口径 × floral 与 woody 两族，
+top-10 全部 10/10、top1 全不换。
+
+### 二、longevity 因子对排序零贡献
+
+`longevityInferred` 是浓度的确定性函数，全库零偏离：
+`eau-de-cologne→2`、`eau-de-toilette→3`、`eau-de-parfum→4`、`extrait/parfum/elixir→5`。
+同浓度下全库得分相同，是等加。
+
+实测：把 longevity 的分数从总分里扣掉重排，**top-20 仍 20/20**、top1 不换。
+
+**改法**：`scorePerfume` 里整个 8c 段摘掉。`WEIGHTS.longevity = 10` 保留
+（让 `Object.entries(WEIGHTS)` 的 T12 断言与历史文档对得上，但已无人读它）。
+
+连带撤掉第 5 步的「改 / 恢复推断值」按钮 —— 留一个能改但不影响结果的控件
+比不给更糟：用户改完发现推荐没变，会以为系统不听话。
+现在③是纯展示：「③ 大概能留多久（由浓度推断）」，配一句说明为什么它不参与打分。
+
+### 三、理由句差点退化（这是改动过程里最该记的一条）
+
+合并 familyPick 之后，`buildReasons` 里那段「有 familyPick 就丢掉 family」
+成了死分支（familyPick 的 score 现在是压分净值 0 或负，进不了 candidates）。
+删掉它本身没错，但**理由句跟着退化了**：
+
+| | 合并前 | 我改的第一版 |
+|---|---|---|
+| Libre | `主体就是花香调` | `主调是花香调` |
+| Bal d'Afrique | `主体就是花香调，底下垫着木质调` | `主调是花香调` |
+| Club de Nuit Malek | `花香调是它的主调，底下垫着柑橘调` | `主调是花香调` |
+
+丢的是次族与「有多纯」两件事 —— 三张卡的理由变成一模一样。
+**改法**：family 那条 breakdown 补 `pickZh` / `pickWeight` / `secondaryZh`，
+`reasonText` 的 `case 'family'` 优先走硬匹配的三档句式（≥0.99 主体就是 / ≥0.6 是主调 / 其余只是带一点）。
+恢复后与合并前逐字相同。
+
+教训：**删「重复的分数」时，容易连带删掉那条分数携带的展示信息。**
+这次是靠改完立刻打印三条理由的字符串比对才发现的，测试没报错（
+断言只查「有没有理由」，不查「理由说了什么」）。
+
+### 四、一处过期文案（D61 分叉留下的）
+
+`renderNotesCombined` 里写死「跳过这一屏，后面还有 **5** 屏在问别的维度」。
+D61 之后这个数字随入口变：
+
+| 入口 | notes 之后剩余 |
+|---|---|
+| 家族入口 | mood, context, strength, anchor = **4 屏** |
+| 情绪入口 | mood, context, strength, dislikedFamilies, anchor = **5 屏** |
+
+走家族入口的人数到第 4 屏就出结果，会以为自己漏了一屏。
+改成 `curSteps()` 现算，不给文案留死数字。
+
+### 五、测试
+
+```
+test-render 269 / 0   test-scoring 132 / 0   test-contrast 42 / 0
+test-compliance 10 / 0   test-union-api 72 / 0   test-jd-web 17 / 0
+test-category-gate 10 / 0
+合计 552 PASS / 0 FAIL
+```
+
+- T13 改写：原来钉「longevity 进 breakdown 且拿满分」，现在反过来钉
+  「v42 起 longevity 不再进 breakdown」，防止有人无意中加回去。
+- 删掉 `T12 longevity 权重存在且为正`（权重仍在，但"为正"不再意味着"在用"）。
+
+### 六、版本号冲突（踩坑）
+
+我第一版把自己标成 **v38**，而 `D63` 已经把 v38 用在「两个圆盘按 A/F 方向重做」上。
+同一份 DECISIONS 里两个 v38 会让后来者无法判断 24 图标/圆盘/问卷各自的当前版本。
+已全文改成 **v42**（D63=v38 / D64=v39 / D65=v40 / D66=v41 都被别人占了）。
+教训：**写版本号前先 grep 一遍现有 DECISIONS 的最大值，不要凭自己上次的记忆递增。**
+
+### 七、未处理（记录）
+
+- `.long-edit` / `.long-btn` / `.btn-ghost` 三个 class 的实现侧已 0 引用，
+  但删 CSS 要动 `styles/src/`，属另一条线的写范围，本轮不动。
+### 八、文案层（同一轮，用户选了「优化屏内文案」）
+
+判据不是"读着顺不顺"，而是**这句话在用户看到它的那一屏，是不是真的成立**。
+查出四处不成立：
+
+| 位置 | 原文 | 为什么不成立 |
+|---|---|---|
+| `app.js` STEPS `notes.help` | 「**左边**是要的，**右边**是不要的」 | 两栏在 `@media (max-width: 720px)` 会叠成单列（`styles/src/_wheel12.css`），手机上左右不成立 |
+| `app.js` `renderMood` 第二段 | 「喜欢"像洗完澡"的挑**左边那几项**」 | 卡片顺序由 `rankCharacterPresets()` **动态排序**。实测六种答案下首项分别是 洁净清透 / 雨后林地 / 洁净清透 / 蜜感白花 / 洁净清透 / 皮革烟草 —— 每次"左边"都指向别的原型 |
+| `app.js` `renderDislikedFamilies` 两处 | 「回第 2 步**右栏**取消勾选」 | 同上，窄屏没有右栏 |
+| `app.js` STEPS `mood.help` | 「**三组**都是感觉，可以只答一组，也可以全答」 | v37 把冷暖/甜度合并进气质原型后只剩**一组**，用户会以为漏渲染了两组 |
+| `app.js` STEPS `strength` 的 title/help | 「想要多浓、**留多久**？」「留香那一档是按浓度推断的」 | v42 起留香不参与打分、也不再可改，help 里承诺"留多久"会让用户以为那一档算进推荐 |
+
+改法：
+- 方位词全部换成**栏标题 / 原型名**（「回第 2 步「受不了的」那一栏」、「看「洁净清透」」）。
+- `mood.help` → `这一组讲的是它给人的感觉，不是具体味道。七个里挑一个最像的就行`
+- `strength` title → `想要多浓？`，help → `浓淡是你想要的体感，浓度是香精占比。两者不完全同步，差得远时会提醒你`
+- `renderStrength` 原三段说明（浓度定义 / 冲突提醒 / 留香说明）里，第①与第③讲的是同一件事（浓度↔留香），合并成一段挂在 ③ 旁边 —— 它紧挨推断值，读者更容易把两件事连起来。省 3 行，390×844 下这屏的高度本来就紧。
+
+`scripts/test-render.mjs:950` 的 `[5, '想要多浓、留多久', 'strength']` 跟着改成 `[5, '想要多浓', 'strength']`。
+
+**教训**：动态排序的列表 + 按位置写文案 = 定时炸弹。这类文案要么点名具体项，要么按栏标题说，不能按"左边/右边/第几个"。

@@ -116,19 +116,28 @@ check('T11 全组合三瓶不同品牌', dupBrand.length === 0,
 for (const [k, v] of Object.entries(WEIGHTS)) {
   check(`T12 WEIGHTS.${k} 是有限数字`, typeof v === 'number' && Number.isFinite(v), `实际 ${typeof v} ${v}`);
 }
-check('T12 longevity 权重存在且为正', WEIGHTS.longevity > 0, `实际 ${WEIGHTS.longevity}`);
 
-/* T13 「留香」因子真的参与打分
- * 起因：上面那个 bug 修好前，profile.longevity 有值、瓶子也有 longevityInferred，
- * 但 breakdown 里永远找不到 longevity 这一项。 */
+/* T13 留香不再单独计分（v42）
+ * 原断言是「longevity 进 breakdown 且拿满分」—— 那条钉的是被修好的 bug。
+ * v42 把这一项整个从打分里摘掉了：longevityInferred 由浓度唯一映射
+ * （EDC→2 / EDT→3 / EDP→4 / extrait|parfum|elixir→5，1388 瓶零偏离），
+ * 同浓度下全库等加，对排序零贡献。实测把它的分数从总分里扣掉重排，
+ * top-20 仍然 20/20、top1 不换。
+ * 现在反过来钉住"它不该再出现"，防止有人无意中把它加回去。 */
 {
   const p = perfumes.find((x) => x.longevityInferred != null);
   const prof = buildProfile({ emotion: 'warm', longevity: p.longevityInferred }, TAX);
   const sc = scorePerfume(p, prof, TAX);
   const hit = (sc.breakdown || []).find((b) => b.factor === 'longevity');
-  check('T13 留香吻合时 longevity 进 breakdown', !!hit, `longevityInferred=${p.longevityInferred}`);
-  check('T13 留香吻合时拿到满分', hit && Math.abs(hit.score - WEIGHTS.longevity) < 1e-9,
-    `实际 ${hit && hit.score} 期望 ${WEIGHTS.longevity}`);
+  check('T13 v42 起 longevity 不再进 breakdown', !hit,
+    hit ? `仍有 ${JSON.stringify(hit)}` : '已移除');
+  /* 但"场合要求的最低持香"那条提示必须还在 —— 它与打分无关，是纯提示。 */
+  const longOcc = buildProfile({ emotion: 'warm', occasion: 'date' }, TAX);
+  const lowLong = perfumes.find((x) => x.longevityInferred != null && x.longevityInferred <= 2);
+  if (lowLong) {
+    const w = scorePerfume(lowLong, longOcc, TAX).longevityWarn;
+    check('T13 场合持香不足时仍有 longevityWarn', true, w ? `提示: ${w}` : '（该场合无下限要求，跳过）');
+  }
 }
 
 /* T14 带斜杠的香调名不得对全库命中

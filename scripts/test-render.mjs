@@ -947,7 +947,7 @@ if (dislikeTwin) {
 const stepNames = [
   [3, '给人什么感觉', 'mood'],
   [4, '什么时候用它', 'context'],
-  [5, '想要多浓、留多久', 'strength'],
+  [5, '想要多浓', 'strength'],
   [6, '试过、并且喜欢', 'anchor'],
 ];
 for (const [n, phrase] of stepNames) {

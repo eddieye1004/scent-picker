@@ -43,10 +43,9 @@ const state = {
     season: null,
     concentration: null,
     longevity: null,
-    /* 留香是否被用户手动改过。第 5 步「改 / 恢复推断值」靠它区分
-       推断值与手改值，初始缺席时读 `=== true` 恰好为 false，行为没错，
-       但 restart() 里漏了它 —— 两处键表必须一致，否则"重来一次"会带着
-       上一轮的手动标记。 */
+    /* `longevityManual` 保留但已无写入点 —— v42 撤掉了第 5 步的「改」按钮，
+       留香变成纯展示。留着这个键是为了让老存档不至于因为缺字段而报错；
+       restart 里也一并清掉（两处键表必须一致，历史上漏过两次）。 */
     longevityManual: false,
     dislikedFamilies: [],
   },
@@ -106,7 +105,10 @@ const STEPS = [
     short: '香调',
     kicker: '第 2 步',
     title: '点名具体想闻到的、和完全受不了的味道',
-    help: '左边是要的，右边是不要的。排除比加分更有效——讨厌的东西没有替代品，喜欢的往往有',
+    /* v42：原来是「左边是要的，右边是不要的」。
+       两栏在 @media (max-width: 720px) 会叠成单列（_wheel12.css），
+       手机上"左右"根本不成立。改成按栏标题说，位置无关。 */
+    help: '「想要的」和「受不了的」分开点。排除比加分更有效——讨厌的东西没有替代品，喜欢的往往有',
     render: renderNotesCombined,
   },
   {
@@ -114,7 +116,10 @@ const STEPS = [
     short: '气质',
     kicker: '第 3 步',
     title: '你希望它给人什么感觉？',
-    help: '三组都是"感觉"，不是味道本身。可以只答一组，也可以全答',
+    /* v42：原句是「三组都是"感觉"，不是味道本身。可以只答一组，也可以全答」。
+       v37 把冷暖与甜度合并进气质原型之后，这一屏只剩一组选项 ——
+       「三组」「只答一组」「也可以全答」全都对不上，用户会以为漏渲染了两组。 */
+    help: '这一组讲的是它给人的感觉，不是具体味道。七个里挑一个最像的就行',
     render: renderMood,
   },
   {
@@ -129,8 +134,11 @@ const STEPS = [
     id: 'strength',
     short: '浓淡',
     kicker: '第 5 步',
-    title: '想要多浓、留多久？',
-    help: '浓度越高留得越久。留香那一档是按浓度推断的，不是实测值',
+    /* v42：原 help 是「浓度越高留得越久。留香那一档是按浓度推断的，不是实测值」，
+       但 v42 之后留香已不参与打分、也不再是可改的输入，只是旁注。
+       help 里承诺"留多久"会让用户以为那一档会被算进推荐。 */
+    title: '想要多浓？',
+    help: '浓淡是你想要的体感，浓度是香精占比。两者不完全同步，差得远时会提醒你',
     render: renderStrength,
   },
   {
@@ -2010,13 +2018,13 @@ function renderDislikedFamilies() {
     wrap.appendChild(el('div', { class: 'term-note' },
       el('strong', {}, `② 你在第 2 步已排掉 ${negNotes.length} 种：`),
       ' ' + negNotes.map(zhOf).join('、'),
-      ' —— 这些已经各自扣过 -40，这里不用再关一遍。想加回来，回第 2 步右栏取消勾选'
+      ' —— 这些已经各自扣过 -40，这里不用再关一遍。想加回来，回第 2 步「受不了的」那一栏取消勾选'
     ));
   }
 
   wrap.appendChild(el('div', { class: 'term-note' },
     el('strong', {}, '可以一个都不选：'),
-    ' 这里是「整族关掉」。只想排除具体几种香材的话，回第 2 步右栏逐个点名更准。',
+    ' 这里是「整族关掉」。只想排除具体几种香材的话，回第 2 步「受不了的」那一栏逐个点名更准。',
     '两者可以同时用：整族排除管大方向，点名香材管精确的那几种。'
   ));
 
@@ -2476,11 +2484,22 @@ function renderNotesCombined() {
     (mineDis ? likedCol : dislikedCol)._redraw();
   });
 
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '都答不出来也没关系：'),
-    ' 跳过这一屏，后面还有 5 屏在问别的维度。',
-    ' 但如果你能想起一个明确受不了的东西（比如"我闻不了香草"），命中率会明显提高。'
-  ));
+  /* v42：这里的数字必须跟着入口走。
+     D61 把「整族排除」做成只在情绪入口出现以后，这一屏之后还剩几屏就分叉了：
+       家族入口 notes → mood, context, strength, anchor        = 4 屏
+       情绪入口 notes → mood, context, strength, dislikedFamilies, anchor = 5 屏
+     写死「5 屏」会让走家族入口的人数到第 4 屏就出结果，以为自己漏了一屏。
+     用 curSteps() 现算，不给文案留死数字。 */
+  {
+    const all = curSteps();
+    const idx = all.findIndex((st) => st.id === 'notes');
+    const rest = idx >= 0 ? all.length - idx - 1 : 0;
+    wrap.appendChild(el('div', { class: 'term-note' },
+      el('strong', {}, '都答不出来也没关系：'),
+      ` 跳过这一屏，后面还有 ${rest} 屏在问别的维度。`,
+      ' 但如果你能想起一个明确受不了的东西（比如"我闻不了香草"），命中率会明显提高。'
+    ));
+  }
 
   wrap.appendChild(navBar('notes'));
   return wrap;
@@ -2502,10 +2521,14 @@ function renderMood() {
     el('p', { class: 'q-help' }, head.help)
   ));
 
+  /* v42：这段说明原写「家族只说明大方向…这一屏问的是它给人的感觉。
+     同一瓶花香，可以清冷也可以甜腻 —— 这就是补上那一层。」
+     现在 help 已经说了"讲的是感觉不是味道"，再补一段等于同一句话说两遍。
+     这里改成真正有信息的那句：这些原型**不是**香调名，别拿它当第二个轮盘。 */
   wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '看不懂「香调家族」？'),
-    ' 家族只说明大方向（花香 / 木质 / 柑橘…），这一屏问的是它给人的感觉。',
-    ' 同一瓶花香，可以清冷也可以甜腻 —— 这就是补上那一层。'
+    el('strong', {}, '这七个不是香调：'),
+    ' 「雨后林地」「焦糖琥珀」是气味给人的感觉，不挂在任何单一香调上。',
+    ' 同一瓶花香可以清冷，也可以甜腻。'
   ));
 
   /* ① 气质：七个原型，按"与你已答的偏好有多近"排序。
@@ -2588,10 +2611,15 @@ function renderMood() {
 
      下面这段"怎么判断冷暖"的说明保留 —— 它现在服务于**选原型**这件事：
      用户看不懂「洁净清透 / 雨后林地」时，靠"热牛奶 vs 橘子皮"这类比喻来挑。 */
+  /* v42：这段说明原来写「喜欢"像洗完澡"的挑左边那几项，喜欢"像毛衣和木头"的挑右边」——
+     **位置是假的**。这一屏的卡片顺序由 rankCharacterPresets() 按已答偏好动态排，
+     实测六种典型答案下首项分别是：洁净清透 / 雨后林地 / 洁净清透 / 蜜感白花 /
+     洁净清透 / 皮革烟草 —— "左边那几项"每次都指向不同的东西。
+     改成点名具体原型，位置无关。 */
   wrap.appendChild(el('div', { class: 'term-note' },
     el('strong', {}, '挑不准？'),
     ' 想两个你闻过的东西：一杯热牛奶（暖、甜、重）、刚剥开的橘子皮（凉、不甜、轻）。',
-    ' 喜欢"像洗完澡"的挑左边那几项，喜欢"像毛衣和木头"的挑右边。'
+    ' 喜欢"像洗完澡"的看「洁净清透」，喜欢"像毛衣和木头"的看「皮革烟草」或「焦糖琥珀」。'
   ));
 
   wrap.appendChild(navBar('mood'));
@@ -2750,11 +2778,9 @@ function renderStrength() {
 
   // ② 浓度档
   wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:16px' }, '② 浓度（决定留香，选一个）'));
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '浓度 = 香精占比：'),
-    ' 比例越高留得越久，也越容易在密闭空间里让人不舒服。',
-    ' 日常最常见的是 EDT 与 EDP。'
-  ));
+  /* v42：原来这里还有一段「浓度 = 香精占比：比例越高留得越久，也越容易在密闭空间里让人不舒服。日常最常见的是 EDT 与 EDP。」
+     它与下面 ③ 旁那段讲的是同一件事（都讲浓度↔留香），一段就够。
+     保留的那部分挪到 ③ 那一行旁边，因为它紧挨着推断值，读者更容易把两件事连起来。 */
   wrap.appendChild(choiceGrid(CONCENTRATIONS, state.answers.concentration, (id) => {
     state.answers.concentration = id;
     /* 联动：选完浓度就把留香填成推断值。
@@ -2803,72 +2829,38 @@ function renderStrength() {
   /* ③ 留香：由 ② 浓度推算，**不再是一组可点的单选**。
      原来它是 4 张可点的卡，看起来和 ② 一样是"一个待回答的问题"。
      但它不是独立问题 —— 它由浓度决定（古龙水约 2、EDT 约 3、EDP 约 4、香精约 5）。
-     让两处都能写，等于邀请用户给出一个与上一问矛盾的答案，
-     而 scoring 会同时收到两个互斥约束。
 
-     现在：默认只读展示推算结果；要覆盖必须显式点「改」，改完保留「手动」标记。
-     这样"这是推断值"不再靠一句 term-note 提醒，而是由控件形态本身表达。 */
+     v42 又收紧一层：这一项**已不参与打分**（见 src/scoring.js 的 8c 段）。
+     理由是全库每个浓度只有唯一一个 longevityInferred，同浓度下等加、不影响排序。
+     所以「改」按钮撤掉了 —— 留一个能改但不影响结果的控件，比不给更糟：
+     用户改完发现推荐没变，会以为系统不听话。
+     现在它是纯展示：选完浓度，这里告诉你那一档大概能留多久。 */
   const curLong = state.answers.longevity;
   const inferred = state.answers.concentration
     ? CONC_TO_LONGEVITY[state.answers.concentration]
     : null;
-  const isManual = state.answers.longevityManual === true;
-  /* 手改过就用手改值；否则用推算值。两者都不存在时留空。 */
+  /* 兼容老存档里的手动标记：值仍在，但不再当作"用户可改"的入口。 */
   const shownLong = curLong == null ? null : String(curLong);
 
   wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:16px' },
-    '③ 留香时长' + (shownLong == null ? '（选浓度后自动给出）' : (isManual ? '（手动覆盖）' : '（由浓度推断）'))));
+    '③ 大概能留多久' + (shownLong == null ? '（选浓度后自动给出）' : '（由浓度推断）')));
 
-  const longBox = el('div', { class: 'long-read' + (isManual ? ' is-manual' : '') + (shownLong == null ? ' is-empty' : '') });
+  const longBox = el('div', { class: 'long-read' + (shownLong == null ? ' is-empty' : '') });
   if (shownLong == null) {
     longBox.appendChild(el('span', { class: 'long-val is-empty' }, '先选上面的浓度'));
   } else {
     const L = LONGEVITY.find((l) => String(l.id) === shownLong) || LONGEVITY[0];
     longBox.appendChild(el('span', { class: 'long-val' }, L.zh));
     longBox.appendChild(el('span', { class: 'long-desc' }, L.desc));
-    longBox.appendChild(el('span', { class: 'long-tag' }, isManual ? '手动' : '推断'));
+    longBox.appendChild(el('span', { class: 'long-tag' }, '推断'));
   }
   wrap.appendChild(longBox);
 
-  /* 「改」/「恢复推断」。默认收起，点开才换成 4 个按钮 —— 一次只让一个控件
-     承担输入职责，避免"又能读又能写"的含糊状态。 */
-  const longEdit = el('div', { class: 'long-edit' });
-  const paintLong = () => {
-    longEdit.innerHTML = '';
-    if (!isManual) {
-      longEdit.appendChild(el('button', {
-        class: 'btn-ghost long-btn', type: 'button',
-        onclick: () => { state.answers.longevityManual = true; render(); },
-      }, '改'));
-    } else {
-      longEdit.appendChild(el('button', {
-        class: 'btn-ghost long-btn', type: 'button',
-        onclick: () => {
-          state.answers.longevityManual = false;
-          state.answers.longevity = state.answers.concentration
-            ? CONC_TO_LONGEVITY[state.answers.concentration] : null;
-          render();
-        },
-      }, '恢复推断值'));
-    }
-  };
-  paintLong();
-  wrap.appendChild(longEdit);
-
-  /* 手动覆盖态才出现 4 个档位；平时不渲染，页面上就没有一组"看着能选"的卡。 */
-  if (isManual) {
-    wrap.appendChild(segControl(LONGEVITY.map((l) => ({ id: l.id, zh: l.zh })),
-      shownLong,
-      (id) => { state.answers.longevity = Number(id); state.answers.longevityManual = true; paintLong(); },
-      '留香时长'));
-  }
-
-  wrap.appendChild(el('div', { class: 'term-note' + (isManual ? ' is-warn' : '') },
-    el('strong', {}, isManual ? '你手动改过这一档：' : '留香的这一档是推断值：'),
-    isManual
-      ? ' 引擎会按你选的档位算，但它不是实测值。'
-      : ' 数据源没有实测持香时长，上面选浓度后会自动填一个按浓度推算的档位。'
-        + '同一瓶在干皮和油皮、冬天和夏天差别可以很大。',
+  wrap.appendChild(el('div', { class: 'term-note' },
+    el('strong', {}, '关于浓度与留香：'),
+    ' 浓度是香精占比，比例越高留得越久，也越容易在密闭空间里让人不舒服（日常最常见的是 EDT 与 EDP）。',
+    ' 下面这一档是按浓度推算的，不是实测 —— 同一瓶在干皮和油皮、冬天和夏天差别可以很大，',
+    '所以它不参与打分。想要留得久，把 ② 选高一点的浓度就是同一个动作。',
   ));
 
   wrap.appendChild(navBar('strength'));
