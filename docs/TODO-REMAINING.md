@@ -33,8 +33,20 @@
 
 | 平台 | 覆盖 | 状态 |
 |---|---|---|
-| 淘宝 | **661 / 1388**（47.6%） | 已接上，短链全部 `s.click.taobao.com`，带推广位归因 |
+| 淘宝 | **668 / 1388**（48.1%） | 已接上，短链全部 `s.click.taobao.com`，带推广位归因 |
 | 京东 | **1 / 1388** | 链路已端到端跑通（注入 batchData → batchGetCode → GBK CSV），但**只有进了联盟商品池的 sku 才转得出短链**；详见下方「JD 可转链性」 |
+
+**2026-11-10：品牌池法 +7（661 → 668）**。淘宝的常规路径是「按香名搜索」，但对 niche 品牌这条路很弱（搜索要每个词都命中，长香名一多就 0 条）。改用**反向路径**：先按品牌中文名把整个品牌在淘宝的在售池捞下来，再拿池子里的每一条标题去比对我库里的待补瓶。
+
+- 池子规模：65 个品牌、56,181 条候选、5,836 条去重后带 `clickUrl`（单品牌最大 Prada 1,676 / Dior 1,792 / Bvlgari 1,773）
+- 命中：`pickBest` + 品类闸门 → 78 条候选；再四道闸门 → **7 条入库**
+- 四道闸门（每一条都是被真实错配逼出来的）：
+  1. **香名的每个有意义词都必须出现在标题里**（否则 `A la rose` 会匹配到 `La rose`，`Sauvage Parfum` 匹配到 `Sauvage EDT`）
+  2. **一个 itemId 只能服务一瓶**（同一件货被多瓶认领 = 证据不足）
+  3. **浓度必须一致**（标题写了 EDT 就不能给 EDP 瓶）
+  4. **必须有一个"区别性"词**——不能只有品牌名/浓度词/套装词（否则 `Ô de Lancôme` 会匹配到「兰蔻停产香水千禧玫瑰」）
+- 被闸门拦掉的典型：`montblanc-legend-eau-de-parfum` → 标题「Legend **Spirit**」（是另一个 flanker）；`dior-sauvage-eau-de-parfum` → 标题「Q版10ML中样」；`juliette-has-a-gun-banana-rush` → 10ml 套装
+- 入库 7 条：`dior-joy-by-dior`、`creed-spice-and-wood`、`armaf-the-pride-of-armaf-pour-homme`、`givenchy-ange-ou-demon-parfum`、`montale-intense-roses-musk`、`montale-intense-starry-nights`、`montale-wood-and-spices`
 
 **2026-11-09 更新：用户决定「淘宝只追有热度分的那 256 瓶，京东开始尝试」**。
 
