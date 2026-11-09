@@ -70,7 +70,7 @@
     /* 底托比页面纸（#141414）亮两档，跟 --bg-2 盘心同族，
        不引入新色值。上下留 3px 是因为瓶子贴底，底托要托住它。 */
     background: #2a2a2a;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     padding: 2px 2px 1px;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07);
     /* 提白去掉：白底要保住"瓷台"的读法，压暗就变脏灰。

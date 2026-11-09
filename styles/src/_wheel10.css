@@ -74,7 +74,7 @@
    "点完之后大圈环还挂着，过一会儿才没"。错峰保留（顺序还读得出），
    但整条链必须在中圈长到一半之前收干净。 */
 .wheel.is-lifting .label-layer .disc-sector.lvl1 {
-  animation: labelVanish 180ms cubic-bezier(.4, 0, .9, 1) both;
+  animation: labelVanish var(--t-fade) var(--ease-in) both;
   animation-delay: calc(var(--i, 0) * 12ms);
   will-change: transform, opacity;
 }
@@ -95,7 +95,7 @@
    提前压会让子元素动画在透明层里播；不压则容器一直占着 opacity 1，
    虽然看不见但会参与合成。 */
 .wheel.is-lifting .label-layer {
-  animation: layerFadeOut 90ms linear both;
+  animation: layerFadeOut var(--t-press) linear both;
   animation-delay: 240ms;
 }
 @keyframes layerFadeOut {
@@ -105,7 +105,7 @@
 
 /* 回：整层先亮起，六个文字再逐级推出来（由内向外沿径向放大） */
 .wheel.is-returning .label-layer {
-  animation: layerFadeIn 140ms linear both;
+  animation: layerFadeIn var(--t-micro) linear both;
   animation-delay: 60ms;
 }
 @keyframes layerFadeIn {
@@ -113,7 +113,7 @@
   to   { opacity: 1; }
 }
 .wheel.is-returning .label-layer .disc-sector.lvl1 {
-  animation: labelReturn 320ms cubic-bezier(.16, 1, .3, 1) both;
+  animation: labelReturn var(--t-long) var(--ease-out) both;
   /* 240ms 而不是 110ms：让文字排在扇区之后。
      用户要的是"以中圈为原点、由内向外逐级渐显"——
      现在的层级顺序是 中圈容器(0) → 弧段(100) → 家族扇区(180) → 家族文字(240)。
@@ -131,7 +131,7 @@
    v15 的 fanReturn 从 .93 起，只有 7% 的量，在 228px 半径的环上不足 2px，
    读不出"拉出"。改成从 .80 起（20% 量 ≈ 14px 位移），中段过冲 1.03。 */
 .wheel.is-returning .sector-g {
-  animation: fanPullOut 340ms cubic-bezier(.16, 1, .3, 1) both;
+  animation: fanPullOut var(--t-long) var(--ease-out) both;
   /* 180ms：排在弧段之后、家族文字之前。三层延迟 100 / 180 / 240
      构成一条从盘心到边缘的波，间隔 80 / 60ms —— 越靠外间隔越短，
      读起来是"扩散"而不是"排队"。 */
@@ -171,7 +171,7 @@
    长了 —— 这就是"滞后边框"的最后一段。改成 0 起、且 150ms 就收完，
    到大盘一半时间（230ms）时外圈已经完全干净。 */
 .wheel.is-lifting .sector-g {
-  animation: fanCollapse 150ms cubic-bezier(.4, 0, .95, 1) both;
+  animation: fanCollapse var(--t-micro) var(--ease-in) both;
   animation-delay: 0ms;
   will-change: transform, opacity;
 }
@@ -201,7 +201,7 @@
        1.55 → 154–240  （越出家族环内沿 158 与盘外 240）
      1.43 是"中线正好落在大圈中线"的那个值，也是 0 处相交的最小值。 */
 .wheel.is-lifting .sub-ring {
-  animation: ringGrowStrong 460ms cubic-bezier(.16, 1, .3, 1) both;
+  animation: ringGrowStrong var(--t-celebrate) var(--ease-out) both;
   will-change: transform, opacity;
 }
 @keyframes ringGrowStrong {
@@ -212,7 +212,7 @@
 }
 
 .wheel.is-returning .sub-ring {
-  animation: ringShrinkStrong 300ms cubic-bezier(.4, 0, .9, .2) both;
+  animation: ringShrinkStrong var(--t-long) var(--ease-in) both;
   will-change: transform, opacity;
 }
 @keyframes ringShrinkStrong {
@@ -226,7 +226,7 @@
    （.52 × .90 = .47），前 90ms 会小到看不出，然后突然追上 —— 节奏打架。
    弧段这里只保留 −2° 回正与淡入，让"放大"这件事只有一个来源。 */
 .wheel.is-open .sub-arc {
-  animation: arcFadeRise 300ms linear both;
+  animation: arcFadeRise var(--t-long) linear both;
   /* 100ms 起：中圈容器 0ms 起放大，弧段等它长到约 70% 再淡入，
      否则七段一开始就在超大尺寸上全亮，放大过程被完全盖住。 */
   animation-delay: calc(100ms + var(--i, 0) * 28ms);
@@ -240,7 +240,7 @@
 
    用户报的"滞后边框"，最后一层原因在这里：`.sub-channel`（凹槽环）
    在 `_wheel8.css` 里是 `transition: opacity 200ms linear` + `is-open` 时
-   opacity 1 —— 也就是**容器一展开它就立刻开始亮**，200ms 全亮。
+   opacity 1 —— 也就是**容器一展开它就立刻开始亮**，var(--t-fade) 全亮。
    而七段弧片要到 100ms 才开始淡入、最长到 340ms。
 
    于是 100–300ms 之间会看到一条完整的蓝灰色圆环：弧片还没盖上，
@@ -266,7 +266,7 @@
   opacity: 0;
 }
 .wheel.is-open .sub-channel {
-  animation: channelIn 140ms linear 130ms both;
+  animation: channelIn var(--t-micro) linear 130ms both;
 }
 @keyframes channelIn {
   from { opacity: 0; }
@@ -275,7 +275,7 @@
 /* 退场：槽要比弧片晚收（弧片 60ms 起、200ms 走完），
    否则弧片还在、槽先没了，七段会浮在无底的白上。 */
 .wheel.is-open .sub-ring.is-exit .sub-channel {
-  animation: channelOut 120ms linear 90ms both;
+  animation: channelOut var(--t-micro) linear 90ms both;
 }
 @keyframes channelOut {
   from { opacity: 1; }
@@ -306,7 +306,7 @@
   transform: scale(.93);
   transform-origin: 240px 240px;
   transform-box: view-box;
-  transition: transform 120ms cubic-bezier(.3, 0, .2, 1);
+  transition: transform var(--t-micro) var(--ease-press);
   will-change: transform;
 }
 /* 按下时的提亮**必须挂 `.sub-arc`** —— filter 在弧段上，不在组上。
@@ -317,16 +317,16 @@
   filter: brightness(1.08);
   stroke: var(--blue);
   stroke-width: 1.6;
-  transition: filter 120ms cubic-bezier(.3, 0, .2, 1),
-              stroke 120ms cubic-bezier(.3, 0, .2, 1),
-              stroke-width 120ms cubic-bezier(.3, 0, .2, 1);
+  transition: filter var(--t-micro) var(--ease-press),
+              stroke var(--t-micro) var(--ease-press),
+              stroke-width var(--t-micro) var(--ease-press);
 }
 /* 松开时描边要回到常态，否则按过一次的段会永久带着蓝边 */
 .wheel .sub-g .sub-arc {
-  transition: filter 90ms cubic-bezier(.3, 0, .2, 1),
-              stroke 120ms cubic-bezier(.3, 0, .2, 1),
-              stroke-width 120ms cubic-bezier(.3, 0, .2, 1),
-              fill 160ms cubic-bezier(.4, 0, .2, 1);
+  transition: filter var(--t-press) var(--ease-press),
+              stroke var(--t-micro) var(--ease-press),
+              stroke-width var(--t-micro) var(--ease-press),
+              fill var(--t-hover) var(--ease-std);
 }
 /* 文字按钮的居中位移在基类 `.disc-sector` 的 transform 里，
    这里若只写 scale 会把 translate(-50%,-50%) 覆盖掉 —— 文字每帧被推到右下再弹回。
@@ -337,7 +337,7 @@
 }
 /* 松开后回到常态要稍快（90ms）：按下的回应可以慢，回弹必须脆 */
 .wheel .sub-g {
-  transition: transform 90ms cubic-bezier(.3, 0, .2, 1);
+  transition: transform var(--t-press) var(--ease-press);
   transform-origin: 240px 240px;
   transform-box: view-box;
 }
@@ -355,7 +355,7 @@
   /* **不能用 `both`**：`both` 会让末帧的 `transform: scale(1)` 永久覆盖声明值，
      于是"按下已选中的那一段"永远看不到 0.955（实测 transform 恒为 identity）。
      arcPop 的末帧本来就是 identity，不填充也停在同一个位置。 */
-  animation: arcPop 520ms cubic-bezier(.16, 1, .3, 1);
+  animation: arcPop var(--t-celebrate) var(--ease-out);
   transform-origin: 240px 240px;
   transform-box: view-box;
   /* 刻意不写 will-change：`.is-on` 是常驻类（确认后一直挂着），

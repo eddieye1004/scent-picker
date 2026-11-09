@@ -130,13 +130,16 @@ body {
    没有圆点、没有勾、没有动画。 */
 .progress {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* 段数由 app.js 写在行内 `--steps` 上。原先写死 repeat(4, 1fr)，
+     而 STEPS 已经是 7 步 —— 7 段挤进 4 列会断成 4+3 两行，
+     整条读起来像两截虚线，不是一根进度尺。兜底 7 与当前步数一致。 */
+  grid-template-columns: repeat(var(--steps, 7), 1fr);
   margin-bottom: 10px;
 }
 .progress i {
   display: block;
   background: var(--bg-3);
-  transition: background-color 160ms linear;
+  transition: background-color var(--t-hover) linear;
 }
 .progress i.done { }
 .progress i.now  { }
@@ -229,9 +232,11 @@ body {
   transform: rotate(var(--disc-rot, 0deg));
   transform-origin: 50% 50%;
   /* 拖拽中不要过渡，否则手指和圆盘会脱节；松手后的惯性由 JS 逐帧驱动，
-     也不该由 CSS 接管。所以这里只在「非拖拽」时给一个极短的抖动缓冲。 */
-  will-change: transform;
+     也不该由 CSS 接管。所以这里只在「非拖拽」时给一个极短的抖动缓冲。
+     D60：`will-change` 不常驻 —— 常驻会把这一层永久提成独立合成层，
+     整盘每帧都要为它多做一次合成。改成只在拖拽类挂上时才提示。 */
 }
+.disc.is-dragging .disc-rot { will-change: transform; }
 
 /* 拖拽中：光标抓手，扇区不响应 hover（手指划过会一路点亮，很吵）。 */
 .disc.is-dragging { cursor: grabbing; }
@@ -245,7 +250,11 @@ body {
    圆盘底部都落在 963px，全部要滚动才能看全。62vh 是量出来的——
    抬头 + 进度 + 问题区在紧凑模式下约占 300px，留 30px 余量。 */
 @media (min-width: 621px) {
-  .disc { width: min(88vw, var(--discw), 62vh); }
+  /* v35：选择器从 `.disc` 提到 `.disc.wheel`。
+     `.wheel`（`_wheel4.css:15`）也是 0,1,0 且在本层之后，同特异性下
+     base 的 vh 约束被整条覆盖 —— 四个实测视口里圆盘宽度全是 520px，
+     62/56/54/50vh 一档都没生效。提到 0,2,0 后与层序无关。 */
+  .disc.wheel { width: min(88vw, var(--discw), 62vh); }
 }
 
 /* 中矮屏（≤1000px 高，含 MacBook Air 15 的 982、1440×900、1536×864）：
@@ -262,7 +271,7 @@ body {
   .stage-lead .q-help { font-size: 16px; }
   /* 62vh 在这一档被 --discw 520 顶住了，实际没生效；56vh 才真的把圆盘压下去。
      压下去之后还要再收 action 条，否则提示语会掉出首屏（实测 900 高时差 19px）。 */
-  .disc { width: min(88vw, var(--discw), 56vh); margin-top: 6px; }
+  .disc.wheel { width: min(88vw, var(--discw), 56vh); margin-top: 6px; }
   .actions { margin-top: 8px; padding-top: 10px; }
   footer.foot { margin-top: 32px; }
 }
@@ -279,7 +288,7 @@ body {
   .stage-lead .q-kicker { margin-bottom: 6px; }
   .stage-lead .q-title { font-size: 22px; margin-bottom: 6px; }
   .stage-lead .q-help { font-size: 14px; }
-  .disc { width: min(88vw, var(--discw), 54vh); margin-top: 8px; }
+  .disc.wheel { width: min(88vw, var(--discw), 54vh); margin-top: 8px; }
   .actions { margin-top: 16px; padding-top: 14px; }
   footer.foot { margin-top: 28px; }
 }
@@ -293,7 +302,7 @@ body {
   .progress-meta { margin-bottom: 10px; }
   .stage-lead .q-title { font-size: 22px; margin-bottom: 4px; }
   .stage-lead .q-help { font-size: 14px; }
-  .disc { width: min(88vw, var(--discw), 50vh); margin-top: 4px; }
+  .disc.wheel { width: min(88vw, var(--discw), 50vh); margin-top: 4px; }
   /* 圆盘压到 360px 时盘心只有 122px，14% 的纵向内边距吃掉 34px，
      只剩 86px 装三行字——实测 scrollHeight 138 > clientHeight 120，内容溢出。
      这一档把纵向内边距收到 9%，字号降一级，行高收紧。 */
@@ -316,7 +325,7 @@ body {
   fill: var(--bg);
   stroke: var(--edge);
   stroke-width: 1;
-  transition: fill 160ms cubic-bezier(.4, 0, .2, 1), stroke 160ms cubic-bezier(.4, 0, .2, 1);
+  transition: fill var(--t-hover) var(--ease-std), stroke var(--t-hover) var(--ease-std);
 }
 .disc-svg .sector-g { cursor: pointer; }
 
@@ -382,7 +391,7 @@ body {
   min-width: 56px;
   min-height: 44px;
   cursor: pointer;
-  transition: color 160ms linear;
+  transition: color var(--t-hover) linear;
 }
 .disc-sector .en {
   font-family: var(--font-mono);
@@ -392,7 +401,7 @@ body {
   letter-spacing: 0.04em;
   color: var(--ink-3);
   text-transform: uppercase;
-  transition: color 160ms linear;
+  transition: color var(--t-hover) linear;
 }
 /* 选中扇区上的文字反白：--bg 纯白压在 --ink #0e0e0e 上是 19.30，远超标准。
    Swiss 里唯一允许的反白场景。 */
@@ -447,8 +456,8 @@ body {
      三行居中时 215px 的框里只占中间 73px，上下各空 57px —— 那是"空"不是"留白"。
      分带之后同三条文字撑满整个框高，框的大小和内容的体量对得上。 */
   justify-content: space-between;
-  transition: border-color 180ms cubic-bezier(.4,0,.2,1),
-              background-color 180ms cubic-bezier(.4,0,.2,1);
+  transition: border-color var(--t-fade) var(--ease-std),
+              background-color var(--t-fade) var(--ease-std);
 }
 
 /* 四角角标：8px 的 L 形短线，象限对称。
@@ -470,7 +479,7 @@ body {
     linear-gradient(var(--ink-3), var(--ink-3)) right bottom / 8px 1px no-repeat,
     linear-gradient(var(--ink-3), var(--ink-3)) right bottom / 1px 8px no-repeat;
   opacity: .55;
-  transition: opacity 180ms cubic-bezier(.4,0,.2,1);
+  transition: opacity var(--t-fade) var(--ease-std);
 }
 
 /* 悬停态：上边线本来已是墨色，这里把整圈边界收到墨色、底色提亮一档、
@@ -511,7 +520,7 @@ body {
   text-transform: uppercase;
   color: var(--ink-3);
   font-weight: 500;
-  transition: color 180ms cubic-bezier(.4,0,.2,1);
+  transition: color var(--t-fade) var(--ease-std);
 }
 .disc-hub .hub-zh {
   font-size: 22px;
@@ -519,7 +528,7 @@ body {
   line-height: 1.1;
   letter-spacing: -0.025em;
   color: var(--accent);
-  transition: color 180ms cubic-bezier(.4,0,.2,1);
+  transition: color var(--t-fade) var(--ease-std);
 }
 .disc-hub .hub-desc {
   font-size: 12px;
@@ -533,7 +542,7 @@ body {
   flex: none;
   max-height: 34px;
   overflow: hidden;
-  transition: color 180ms cubic-bezier(.4,0,.2,1);
+  transition: color var(--t-fade) var(--ease-std);
 }
 .disc-hub.is-idle .hub-zh { color: var(--ink-2); }
 
@@ -545,7 +554,11 @@ body {
 }
 .disc-hub.is-swap .hub-zh,
 .disc-hub.is-swap .hub-desc {
-  animation: hub-swap 180ms cubic-bezier(.2,0,.2,1) both;
+  /* v35：原来带 `both`。动画 180ms 早就 finished，但 fill-mode:both 让元素
+     长期停在一个独立合成层里；与 520px 的 .disc-core 同层叠时会被错误合成，
+     整页截图里这行说明渲染成 6–15% 强度的残影（视口截图看不出来，长截图才暴露）。
+     去掉 fill：元素本来就在 DOM 里，有终态，不需要从 0 起。 */
+  animation: hub-swap var(--t-fade) var(--ease-std);
 }
 
 @media (max-width: 620px) {
@@ -616,7 +629,7 @@ body {
   font-size: 12px;
   color: var(--ink-3);
   opacity: 0;
-  transition: opacity 160ms linear;
+  transition: opacity var(--t-hover) linear;
   padding-top: 3px;
 }
 .opt:hover .tick { opacity: 1; }
@@ -657,7 +670,7 @@ body {
   border: 0;
   /* 拖动时方块轻微撑开 + 加深，是「手在捏着它」的最轻表达；
      20→22px 只有 2px 的差别，但足以让人确认「我抓住了」。 */
-  transition: transform 160ms cubic-bezier(.4, 0, .2, 1), background-color 160ms linear;
+  transition: transform var(--t-hover) var(--ease-std), background-color var(--t-hover) linear;
 }
 .scale input[type="range"]:active::-webkit-slider-thumb {
   background: var(--ink);
@@ -668,7 +681,7 @@ body {
   border-radius: 0;
   background: var(--accent);
   border: 0;
-  transition: transform 160ms cubic-bezier(.4, 0, .2, 1), background-color 160ms linear;
+  transition: transform var(--t-hover) var(--ease-std), background-color var(--t-hover) linear;
 }
 .scale input[type="range"]:active::-moz-range-thumb {
   transform: scale(1.1);
@@ -680,15 +693,19 @@ body {
   display: flex;
   justify-content: space-between;
   gap: 16px;
+  /* v35：12px/--ink-3 与读数说明同重，"清爽 / 浓"这组端点没被读成辅助信息。
+     它只是刻度两端的注记，比读数说明再让一级。 */
   font-size: 12px;
   letter-spacing: 0.04em;
   color: var(--ink-3);
+  opacity: .82;
   margin-top: 2px;
 }
 .scale-read {
-  margin-top: 24px;
+  /* v35：原来离滑杆 24 + 14 = 38px，读数与它要解释的控件脱节。收到 12px。 */
+  margin-top: 12px;
   border-top: 1px solid var(--ink);
-  padding-top: 14px;
+  padding-top: 0;
   font-size: 16px;
   color: var(--ink-2);
   line-height: 1.5;
@@ -701,7 +718,11 @@ body {
   color: var(--ink);
   line-height: 1.2;
 }
-.scale-read span { font-size: 14px; color: var(--ink-2); }
+/* v35：说明句原来 14px/--ink-2，与 26px 主词之间只靠一个 <br> 分层。
+   改成独立一行 + 降一档，让「3 / 5 · 中等」独占视觉重心。
+   <br> 保留在模板里（test-render 会读该串），这里把它的行盒收掉。 */
+.scale-read br { display: none; }
+.scale-read span { display: block; margin-top: 4px; font-size: 13px; color: var(--ink-3); }
 
 /* ---------- 香调多选 ----------
    Swiss 的标签是方框加打字机感，不用胶囊、不用阴影。 */
@@ -895,11 +916,14 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
   align-items: baseline;
   gap: 12px;
   margin-bottom: 8px;
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  /* v35：原来 12px/500/--ink-3 —— 与同一行最右边的 `.score` 字号、字重、
+     颜色三项全等，序号本该是最先扫到的信息却和徽标同权。提到 13px/600/--ink，
+     只让这一个头部元素吃最重的墨。 */
+  font-size: 13px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ink-3);
-  font-weight: 500;
+  color: var(--ink);
+  font-weight: 600;
 }
 /* 编号：等宽加大字号。Swiss 的编号就是信息本身，不是装饰。 */
 .pick-rank .n {
@@ -912,7 +936,9 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
 .pick-rank .score {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--ink-2);
+  /* v35：--ink-2 与序号同权，降到 --ink-3 让顺序读得出来
+     （--ink-3 在白底 6.19:1，仍在正文档内） */
+  color: var(--ink-3);
   margin-left: auto;
   letter-spacing: 0;
 }
@@ -1023,7 +1049,10 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
   font-size: 12px;
   letter-spacing: 0.02em;
   color: var(--ink-2);
-  border: 1px solid var(--line);
+  /* v35：原 1px var(--line)（1.41:1）在 12px 标签上肉眼不可见，
+     等于画了个看不见的框。改用控件边界色 --stroke-ui（3.28:1），
+     它是"控件边界"而不是"装饰线"，这一档才对。 */
+  border: 1px solid var(--stroke-ui);
   padding: 3px 7px;
   border-radius: 0;
 }
@@ -1126,7 +1155,7 @@ footer.foot a:hover { color: var(--accent); }
   stroke: var(--edge);
   stroke-width: 1;
   stroke-dasharray: 2 6;
-  transition: opacity 160ms linear;
+  transition: opacity var(--t-hover) linear;
 }
 
 /* 两层标签各自一个定位层：层本身铺满圆盘，标签用百分比落位。
@@ -1161,7 +1190,7 @@ footer.foot a:hover { color: var(--accent); }
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  transition: color 160ms linear;
+  transition: color var(--t-hover) linear;
 }
 /* 中圈标签：只放中文，字号小一档，因为子家族本来就是收窄后的信息 */
 .wheel .disc-sector.lvl2 {
@@ -1190,9 +1219,9 @@ footer.foot a:hover { color: var(--accent); }
   fill: var(--bg-2);
   stroke: var(--edge);
   stroke-width: 1;
-  transition: fill 160ms cubic-bezier(.4,0,.2,1),
-              stroke 160ms cubic-bezier(.4,0,.2,1),
-              opacity 160ms cubic-bezier(.4,0,.2,1);
+  transition: fill var(--t-hover) var(--ease-std),
+              stroke var(--t-hover) var(--ease-std),
+              opacity var(--t-hover) var(--ease-std);
 }
 .wheel .mid-layer .sector-g:hover .sector-shape,
 .wheel .mid-layer .sector-g.is-hot .sector-shape {
@@ -1212,10 +1241,10 @@ footer.foot a:hover { color: var(--accent); }
    与旧圆盘的 42.7% 同一算法（见 app.js 顶部注释），只是半径变小。 */
 .wheel .disc-hub {
   /* 空态展开到内孔内接正方形，选中后收回 —— 尺寸变化本身就在说"这一层出现了" */
-  transition: width 220ms cubic-bezier(.4,0,.2,1),
-              height 220ms cubic-bezier(.4,0,.2,1),
-              background-color 180ms cubic-bezier(.4,0,.2,1),
-              border-color 180ms cubic-bezier(.4,0,.2,1);
+  transition: width var(--t-fade) var(--ease-std),
+              height var(--t-fade) var(--ease-std),
+              background-color var(--t-fade) var(--ease-std),
+              border-color var(--t-fade) var(--ease-std);
 }
 /* r1i = 158，158×√2 = 223.4，223.4/480 = 46.55%，留 0.35% 余量 → 46.2% */
 .wheel .disc-hub.is-wide {
@@ -1261,8 +1290,11 @@ footer.foot a:hover { color: var(--accent); }
   margin-top: 8px;
   border-top: 1px solid var(--ink);
   padding-top: 14px;
-  min-height: 96px;
-  transition: opacity 160ms linear;
+  /* v35：原来 min-height:96px。空态只有一行 14px 说明，96px 里 75px 是空白；
+     而转盘屏的纵向预算本来就紧。收成 0，让空态自然只有一行高；
+      填充态的内容自己撑高。 */
+  min-height: 0;
+  transition: opacity var(--t-hover) linear;
 }
 .fam-panel.is-empty { border-top-color: var(--line); }
 .fam-empty {
@@ -1333,7 +1365,9 @@ footer.foot a:hover { color: var(--accent); }
   .wheel .disc-hub { }
   .wheel .disc-hub .hub-zh { }
   .wheel .disc-hub .hub-desc { }
-  .fam-panel { margin-top: 18px; min-height: 120px; }
+  /* v35b：桌面那条已收到 36px，但手机断点里仍是 120px —— 空态只装一行字，
+     多出来的 84px 是纯空白。跟着桌面一起收。 */
+.fam-panel { margin-top: 18px; min-height: 36px; }
   .fam-title { font-size: 22px; }
   .fam-style { font-size: 14px; }
   .fam-rows { grid-template-columns: 56px 1fr; font-size: 14px; }
@@ -1351,7 +1385,10 @@ footer.foot a:hover { color: var(--accent); }
   .wheel .disc-sector.lvl2 { font-size: 12px; max-width: 26%; }
 
   #app { padding-top: 18px; }
-  .masthead h1 { font-size: 22px; }
+  /* v35：原来是 22px，与下一行 `.q-title` 的 22px 完全相同 —— 390 宽下
+     抬头标题和问题标题字号、字重、颜色三项全等，层级只剩 28px 的间距。
+     提到 24px 拉开一档。 */
+  .masthead h1 { font-size: 24px; }
   .masthead .lede { font-size: 14px; margin-top: 4px; }
   .stage-lead { margin-top: 14px; }
   .stage-lead .q-title { font-size: 22px; }
@@ -1408,12 +1445,34 @@ footer.foot a:hover { color: var(--accent); }
   --radius-sm: 2px;
   --radius-lg: 8px;
 
-  /* ---- 动效：一条缓动、三档时长。位移永不超过 8px ---- */
+  /* ---- 动效：四条缓动、七档时长。位移永不超过 8px ----
+     D60 把散在 10 个源层里的 11 种曲线、16 种时长收成这两张表。
+     判据只有一条：同一个动作在任何屏上必须是同一个时长、同一条曲线。
+     曲线四条按"动作性质"分，不按"谁先写的"分：
+       --ease-std    通用（Tab/悬停/描边/文字色）—— Material standard
+       --ease-out    出场与生长（弹出、放大、淡入）—— 前段快、后段长收
+       --ease-press  按下（下沉）—— 前段更陡，抓"立刻回应"
+       --ease-in     收起与退场（散开、缩小、消失）—— 慢起快收
+       --ease        旧名保留，等同出场曲线（历史层大量引用，不改指向） */
   --ease: cubic-bezier(.32, .72, 0, 1);   /* 出场：快起慢收，200-320ms */
   --ease-in: cubic-bezier(.4, 0, 1, 1);   /* 收起：慢起快收，只给按下 */
-  --t-press: 80ms;    /* 按下。要"立刻"回应，超过 100ms 会觉得钝 */
-  --t-hover: 160ms;   /* 悬停 */
-  --t-move: 240ms;    /* 位移与层级切换 */
+  --ease-out: cubic-bezier(.16, 1, .3, 1); /* 弹出/生长：近指数衰减 */
+  --ease-std: cubic-bezier(.4, 0, .2, 1);  /* 通用 */
+  --ease-press: cubic-bezier(.3, 0, .2, 1); /* 按下 */
+
+  /* 时长七档。每档一个语义，不再按数值临时挑：
+     press 80 → micro 120 → hover 160 → fade 180 → move 240
+     → long 300 → celebrate 520（scene 260 见 _wheel22） */
+  --t-press: 80ms;     /* 按下。要"立刻"回应，超过 100ms 会觉得钝 */
+  --t-micro: 120ms;    /* 极短反馈：刻度、逐条错峰、局部变暗 */
+  --t-hover: 160ms;    /* 悬停、描边与文字色 */
+  --t-fade: 180ms;     /* 淡入淡出、盘心换字 */
+  --t-move: 240ms;     /* 位移与层级切换 */
+  --t-long: 300ms;     /* 大件生长/收缩（弧带、圆盘缩放） */
+  /* 460 不是凑出来的：`markIn` 是 200ms 延迟 + 260ms 时长，正好收在 460，
+     弧带生长与中圈虚线标记同时落位。arcPop/arcConfirm 原本各写 520，
+     收到 460 后三者共用一档，且不破坏这条对齐。 */
+  --t-celebrate: 460ms; /* 确认与回弹（arcPop / arcConfirm / ringGrowStrong） */
 
   /* ---- 阴影：同色相不用黑，全站左上受光右下投影 ---- */
   --sh-lift: 0 1px 0 rgba(255,255,255,.14) inset, 0 10px 30px -10px rgba(0,26,94,.42);

@@ -41,7 +41,7 @@
   opacity: 0;
   pointer-events: auto;
   cursor: pointer;
-  transition: opacity 220ms cubic-bezier(.4, 0, .2, 1);
+  transition: opacity var(--t-fade) var(--ease-std);
 }
 /* 悬停 / 键盘聚焦 / 盘心正在讲的那一块：整块浮回满亮度。
    这是"大圈已消失"之后唯一的回看点，也是换大类的入口提示。
@@ -103,8 +103,11 @@
    过程中向左上偏 20px（截图可见）。容器一律用百分比原点。 */
 .wheel .sub-ring {
   transform-origin: 50% 50%;
-  transition: transform 420ms cubic-bezier(.2, .9, .25, 1),
-              opacity 260ms linear;
+  /* 420 与 app.js 的 exitTimer(420) 是同一个数：.is-exit 挂上后
+       JS 420ms 就清空弧段，这里写成别的值会被提前掐断。
+       所以它是一个「与 JS 共用的字面量」，不进时长档表。 */
+  transition: transform 420ms var(--ease-out),
+              opacity var(--t-scene) linear;
 }
 .wheel.is-open .sub-ring { transform: scale(1.43); }
 /* 未展开时缩在盘心里；退场时缩回去（.is-exit 由 app.js 挂 420ms） */
@@ -135,7 +138,7 @@
   to   { opacity: 1; transform: scale(1) rotate(0deg); }
 }
 .sub-ring.is-exit .sub-arc {
-  animation: arcFallOut 200ms cubic-bezier(.4, 0, 1, 1) both;
+  animation: arcFallOut var(--t-fade) var(--ease-in) both;
   animation-delay: calc(60ms + (var(--n, 1) - 1 - var(--i, 0)) * 20ms);
   pointer-events: none;
 }
@@ -144,7 +147,7 @@
   to   { opacity: 0; transform: scale(.86) rotate(3deg); }
 }
 .wheel .disc-sector.lvl2.sub-arc-btn {
-  animation: subTextIn 240ms linear both;
+  animation: subTextIn var(--t-move) linear both;
   animation-delay: calc(170ms + var(--i, 0) * 34ms);
 }
 @keyframes subTextIn {
@@ -152,7 +155,7 @@
   to   { opacity: 1; }
 }
 .sub-ring.is-exit .disc-sector.lvl2.sub-arc-btn {
-  animation: subTextOut 150ms linear both;
+  animation: subTextOut var(--t-micro) linear both;
   animation-delay: calc(60ms + (var(--n, 1) - 1 - var(--i, 0)) * 20ms);
   pointer-events: none;
 }
@@ -183,7 +186,7 @@
 }
 .wheel .sub-g.is-on .sub-arc-btn { color: #ffffff; font-weight: 600; }
 .wheel .sub-g.is-on .sub-arc {
-  animation: arcConfirm 520ms cubic-bezier(.2, .9, .25, 1) both;
+  animation: arcConfirm var(--t-celebrate) var(--ease-out) both;
   animation-delay: 0ms;
 }
 @keyframes arcConfirm {

@@ -48,6 +48,7 @@ const PARTS = [
   '_wheel19.css', /* 双渠道入口按钮（v31）：官方旗舰店 / 全网 两行结构 */
   '_wheel20.css', /* 结果卡商品实物图（v32）：与 _wheel18 共用 .pick-art 盒，缺图自动降级 */
   '_wheel21.css', /* 盘心改用上色 SVG（v33）：清掉继承的 stroke 与 fill:none */
+  '_wheel22.css', /* 视觉统一（D59）：线条三档 / 发丝线合 token / 切屏过渡 / 控件抬起-落下 */
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');

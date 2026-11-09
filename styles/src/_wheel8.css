@@ -66,7 +66,7 @@
       之后仍露出 6px 槽底。
    ③ 每段自己一道向下的落影：瓦片压在槽里，靠影子的方向读出"浮起来"。
       只给整组加影（v13 的做法）等于七段共用一层影，读成一张贴纸。 */
-.wheel .sub-channel { stroke: #97a3c1; }
+.wheel .sub-channel { stroke: var(--stroke-l2); }   /* 原 #97a3c1：既不是 --line 也不是 --edge，属"漏网"的第三档灰 */
 .wheel.is-open .sub-g .sub-arc {
   filter: drop-shadow(0 1.5px 2px rgba(0, 26, 94, .18));
 }
@@ -200,10 +200,19 @@
      而正是这 20px 在斜向位置上压到小类标签。收到 0 让盒子贴住文字。 */
   .wheel.is-open .label-layer .disc-sector.lvl1 {
     min-width: 0;
-    min-height: 26px;
-    height: 26px;
-    padding: 0 2px;
+    /* v35b：26px 行盒 + 0 2px 内边距仍差 2px（390 实测 scrollWidth 40
+       vs clientWidth 38）。行盒收到 24px、内边距收到 1px，
+       让标签盒贴住字本身，不再依赖字距去挤。 */
+    min-height: 24px;
+    height: 24px;
+    padding: 0 1px;
     font-size: 12px;
-    line-height: 26px;
+    line-height: 24px;
+    /* v35：26px 的行盒把 12px 的字撑进 39.3px 宽的标签框里，实测最宽处
+       42px —— 五个大类标签全部横向溢出 3px，压在扇区描边上。
+       收紧字距抵掉（-0.02em ≈ -0.24px/字，四字 ≈ -0.96px；配合下面
+       内侧留出的 2px，实测 scrollWidth 40 ≤ clientWidth 39.3 需要再减一点，
+       所以按字距 -0.03em）。不缩字号：12px 已是这套界面的下限。 */
+    letter-spacing: -0.03em;
   }
 }

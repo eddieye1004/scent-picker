@@ -23,7 +23,14 @@
   position: absolute;
   inset: 0;
   transform-origin: center center;
-  transition: transform 340ms cubic-bezier(.32,.72,0,1);
+  transition: transform var(--t-long) var(--ease);
+}
+/* D60：will-change 只在这层真的要做缩放动画时才挂。
+   常驻的话整块盘从首帧起就是独立合成层，滚动与拖拽都跟着贵。
+   .is-lifting/.is-returning 是展开/返回动画窗口（app.js 780ms 后摘掉），
+   .is-open 是缩放后的稳定态，两者都不需要再提示。 */
+.wheel.is-lifting .disc-core,
+.wheel.is-returning .disc-core {
   will-change: transform;
 }
 .wheel.is-open .disc-core { }
@@ -32,7 +39,7 @@
    扇区只留色块作为「选的是哪一块」的空间锚点。 */
 .wheel .label-layer {
   /* 与 340ms 圆盘缩放同段：图层显隐挂在缩放末段，慢 40ms 会读成"标签掉队" */
-  transition: opacity 200ms linear;
+  transition: opacity var(--t-fade) linear;
 }
 .wheel.is-open .label-layer {
 }
@@ -93,11 +100,11 @@
   border-radius: var(--radius);
   color: var(--ink-2);
   box-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 6px 18px -12px rgba(0,26,94,.28);
-  transition: background-color 160ms cubic-bezier(.4,0,.2,1),
-              border-color 160ms cubic-bezier(.4,0,.2,1),
-              color 160ms cubic-bezier(.4,0,.2,1),
-              box-shadow 160ms cubic-bezier(.4,0,.2,1),
-              transform 160ms cubic-bezier(.4,0,.2,1);
+  transition: background-color var(--t-hover) var(--ease-std),
+              border-color var(--t-hover) var(--ease-std),
+              color var(--t-hover) var(--ease-std),
+              box-shadow var(--t-hover) var(--ease-std),
+              transform var(--t-hover) var(--ease-std);
 }
 .wheel .disc-sector.lvl2.sub-sq.is-hot {
   background: var(--bg-2);
@@ -126,11 +133,11 @@
   gap: 4px;
   padding: 12px 14px;
   border-radius: var(--radius);
-  transition: width 260ms cubic-bezier(.32,.72,0,1),
-              height 260ms cubic-bezier(.32,.72,0,1),
-              background-color 200ms cubic-bezier(.4,0,.2,1),
-              border-color 200ms cubic-bezier(.4,0,.2,1),
-              color 200ms cubic-bezier(.4,0,.2,1);
+  transition: width var(--t-scene) var(--ease),
+              height var(--t-scene) var(--ease),
+              background-color var(--t-fade) var(--ease-std),
+              border-color var(--t-fade) var(--ease-std),
+              color var(--t-fade) var(--ease-std);
 }
 /* 缩小态盘心可以更大：小饼直径 56%，内接正方形 39.6% */
 .wheel.is-open .disc-hub {
@@ -200,7 +207,7 @@
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-thickness: 1px;
-  transition: color 160ms linear, border-color 160ms linear;
+  transition: color var(--t-hover) linear, border-color var(--t-hover) linear;
 }
 .wheel .hub-reset:hover { color: var(--ink); }
 .wheel .hub-reset:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }

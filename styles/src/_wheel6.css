@@ -40,10 +40,10 @@
   border: 1px solid var(--line);
   border-radius: 999px;
   cursor: pointer;
-  transition: color 160ms cubic-bezier(.4, 0, .2, 1),
-              border-color 160ms cubic-bezier(.4, 0, .2, 1),
-              background-color 160ms cubic-bezier(.4, 0, .2, 1),
-              transform 80ms cubic-bezier(.4, 0, .2, 1);
+  transition: color var(--t-hover) var(--ease-std),
+              border-color var(--t-hover) var(--ease-std),
+              background-color var(--t-hover) var(--ease-std),
+              transform var(--t-press) var(--ease-std);
 }
 .wheel .wheel-back:hover {
   color: var(--ink);
@@ -111,9 +111,9 @@
    ============================================================ */
 .wheel .plate-svg {
   stroke: var(--ink-3);
-  transition: stroke 160ms cubic-bezier(.4, 0, .2, 1),
-              transform 180ms cubic-bezier(.2, 0, .2, 1),
-              opacity 160ms cubic-bezier(.4, 0, .2, 1);
+  transition: stroke var(--t-hover) var(--ease-std),
+              transform var(--t-fade) var(--ease-std),
+              opacity var(--t-hover) var(--ease-std);
   transform: scale(.92);
 }
 .wheel .disc-hub.is-picked .plate-svg {
@@ -123,8 +123,8 @@
 .wheel .plate-cap {
   color: var(--ink-3);
   opacity: .6;
-  transition: color 160ms cubic-bezier(.4, 0, .2, 1),
-              opacity 160ms cubic-bezier(.4, 0, .2, 1);
+  transition: color var(--t-hover) var(--ease-std),
+              opacity var(--t-hover) var(--ease-std);
 }
 .wheel .disc-hub.is-picked .plate-cap {
   color: var(--ink-2);

@@ -1,0 +1,499 @@
+/* ============================================================
+   v34 · D59 视觉统一：线条三档 / 切屏过渡 / 控件反馈
+   ------------------------------------------------------------
+   用户指令（2026-11-08）：保持克莱因蓝与字体不变，统一并优化
+   线条、框架、轮廓；增强页面切换过渡；完善动画触发与节奏；
+   桌面与手机保持一致。
+
+   为什么另开一层而不是回去改历史层：
+   圆的框线散在 `_wheel4c` / `_wheel7` / `_wheel11` / `_wheel13`
+   四处，每一处都在"补上一次的补丁"（`_wheel11:162` 的 7 层阴影
+   被 `_wheel13:58` 覆盖成 5 层，其中 4px / 5px 两层 inset 在
+   251px 的框上只差 1px，实测不可见）。逐层回改要动 4 个文件、
+   且要维持 394 条历史覆盖关系不变 —— 风险远大于收益。
+   这一层只做一件事：**把"线"收敛成三档 token，其余不动**。
+
+   三档的定义（沿用 D50 的物理角色，不改配色）：
+     L1 外框  --stroke-l1  1px   把盘从纸里框出来
+     L2 中圈  --stroke-l2  3.4   凹槽环，只在中圈出现
+     L3 盘心  --stroke-l3  2px   内容所在那层，最重
+
+   除这三档之外，只允许存在两种辅助线，且各自有唯一 token：
+     --stroke-hi  1px 内亮线（受光面，白）
+     --hair       1px 发丝线（装饰内圈，不承载边界语义）
+
+   为什么把 rgba(0,26,94,.05/.08/.085)/#eceef6/#e8ebf4 这批
+   写死浅色统一成 --hair：它们原本是三个不同版本的"盘心内圈"，
+   在同一张图上叠了两三道，肉眼分不清谁是谁。合成一个 token 后，
+   深色模式只需在 `_wheel14` 之外覆盖一处 —— 我的深色覆盖写在
+   本层末尾，晚于 `_wheel14`，所以能压住它写死的 #3d3d3d。
+   ============================================================ */
+
+:root {
+  /* 发丝线：盘内装饰圈。对白底约 1.1:1 —— 它本来就不是边界，
+     是"表盘刻度的那种若有若无"。不要拿它做控件边。 */
+  --hair: rgba(0, 26, 94, .06);
+
+  /* 盘心外那圈"空气"：原先 5px / 7px 两个宽度混用，
+     统一到 6px。它是层次分隔，不是线，所以不参与三档。 */
+  --halo-w: 6px;
+  --halo: rgba(0, 26, 94, .02);
+
+  /* 焦点环：全站只有一种画法 */
+  --focus-w: 2px;
+  --focus: var(--blue);
+
+  /* ---- 切屏时长（动画统一入口）----
+     100–150 即时反馈 / 150–300 状态变化 / 300–600 视图切换。
+     切屏属于"视图切换"，但纯静态页没有路由，不需要 300ms 以上：
+     260ms 是"能察觉是一次换屏"的上限，再长就会觉得卡。 */
+  --t-scene: 260ms;
+  --t-scene-out: 140ms;
+
+  /* ---- 控件反馈（3-B 抬起 + 落下）----
+     hover 抬起 1px + 一道短影，press 落回 1px 且影归零。
+     1px 是唯一不会被读成"抖动"的位移量；2px 在 8 项网格里
+     会让相邻项看起来在互相推挤。 */
+  --lift-y: -1px;
+  --sink-y: 1px;
+  --sh-hover: 0 2px 6px -3px rgba(0, 26, 94, .22);
+}
+
+/* ---------------- 一、发丝线：三处写死浅色 → 一个 token ---------------- */
+
+/* 盘心（闭合态）：原 `_wheel7.css:637` 写死 #e8ebf4 */
+.wheel .disc-hub {
+  border-color: var(--hair);
+}
+
+/* 盘心（展开态）：原 `_wheel7.css:215` 写死 #eceef6 */
+.wheel.is-open .disc-hub {
+  border-color: var(--hair);
+}
+
+/* 中圈刻线：原 `_wheel7.css:479` / `_wheel11.css:109` 两处写死
+   rgba(0,26,94,.08) 与 .085 —— 同一道线两个版本叠着。
+   注意特异性：刻线的真实规则是 `.wheel.is-open .sub-ring::before`（0,3,0），
+   只写 `.wheel .sub-ring::before`（0,2,0）赢不了它（第一版就踩了，
+   实测展开态仍是 .085）。所以这里按 0,3,0 对齐，并保留 dashed 与宽度
+   （test-render L360-361 守着这两项）。 */
+.wheel .sub-ring::before,
+.wheel.is-open .sub-ring::before {
+  border-color: var(--hair);
+}
+
+/* 盘心内圈那道"表盘刻度"：原 `_wheel7.css:708` 写死 rgba(0,26,94,.05)。
+   它挂的是 `::after` 而不是 `.wheel-back` —— 别按名字猜。 */
+.wheel .disc-hub::after {
+  border-color: var(--hair);
+}
+
+/* ---------------- 二、盘的外框：7 层 → 4 层 ---------------- */
+
+/* 只保留能分辨的四层：外勾线、内亮线、贴身影、远影。
+   删掉的两层（4px 白 inset、5px 淡蓝 inset）在 251–520px 的框上
+   与相邻层只差 1px，实测计算样式不同但截图逐像素一致 —— 属于
+   "看起来在调、其实没画出来"的声明，留着只会让后来者不敢改。 */
+.wheel::after {
+  box-shadow:
+    0 0 0 var(--stroke-l1-w) var(--stroke-l1),
+    0 0 0 1px var(--stroke-hi) inset,
+    0 16px 34px -18px rgba(0, 26, 94, .42),
+    0 48px 96px -58px rgba(0, 26, 94, .72);
+}
+
+/* ---------------- 三、盘心：5 层 → 4 层，空气圈统一 6px ---------------- */
+
+/* `_wheel13.css:96/107/120` 三条各自 5 层，其中
+   `0 1px 0 rgba(255,255,255,.95) inset` 与 `0 0 0 1px var(--stroke-hi) inset`
+   在同一个盘心上叠了两道白（一道距边 0、一道距边 1px），
+   在 154px 的盘心上一共就 2px，读起来是"边有点发毛"而不是"有厚度"。
+   这里只留一道。 */
+.wheel:not(.is-open) .disc-hub {
+  box-shadow:
+    0 0 0 var(--stroke-l3-w) var(--stroke-l3),
+    0 0 0 1px var(--stroke-hi) inset,
+    0 0 0 var(--halo-w) var(--halo),
+    0 8px 26px -14px rgba(0, 26, 94, .28);
+}
+
+.wheel.is-open .disc-hub {
+  box-shadow:
+    0 0 0 var(--stroke-l3-w) var(--stroke-l3),
+    0 0 0 1px var(--stroke-hi) inset,
+    0 0 0 var(--halo-w) var(--halo),
+    0 14px 32px -20px rgba(0, 26, 94, .46);
+}
+
+/* 悬停只换色不加粗（D50 的既有判断，保留） */
+.wheel:not(.is-open) .disc-hub.is-hover,
+.wheel.is-open .disc-hub.is-hover {
+  box-shadow:
+    0 0 0 var(--stroke-l3-w) var(--blue-amb),
+    0 0 0 1px var(--stroke-hi) inset,
+    0 0 0 var(--halo-w) var(--halo),
+    0 10px 28px -18px rgba(0, 26, 94, .34);
+}
+
+/* 窄屏：2px 双线在 312–342px 的盘上会糊，按既有断点收到 1.5px */
+@media (max-width: 620px) {
+  .wheel:not(.is-open) .disc-hub {
+    box-shadow:
+      0 0 0 1.5px var(--stroke-l3),
+      0 0 0 1px var(--stroke-hi) inset,
+      0 0 0 calc(var(--halo-w) - 1px) var(--halo),
+      0 8px 20px -14px rgba(0, 26, 94, .26);
+  }
+  .wheel.is-open .disc-hub {
+    box-shadow:
+      0 0 0 1.5px var(--stroke-l3),
+      0 0 0 1px var(--stroke-hi) inset,
+      0 0 0 calc(var(--halo-w) - 1px) var(--halo),
+      0 12px 26px -16px rgba(0, 26, 94, .42);
+  }
+}
+
+/* ---------------- 四、圆角：五个散档 → 三档 ----------------
+
+   原本全站出现 0 / 2 / 3 / 4 / 8 / 50% / 999px 七种。
+   收敛成：0（贴边结构）、--radius-sm 2px（小标记）、--radius 4px（卡片与控件）、
+   50%（圆盘与盘心）、999px（胶囊）。8px 与 3px 没有人是"故意要这个数"，
+   都是从别的版本抄过来忘了改。 */
+
+.top-badge { border-radius: var(--radius-sm); }   /* 原 2px，本来就是它 */
+.pick-art { border-radius: var(--radius-sm); }    /* 原 3px —— 3px 全站唯一一处，改成既有档 */
+.combo-list { border-radius: var(--radius); }     /* 原 8px，比卡片圆角大一倍没有理由 */
+.combo-item { border-radius: var(--radius); }     /* 原 8px，同上 */
+
+/* ---------------- 五、焦点环：一种画法 ----------------
+   原来 19 处 `2px solid var(--blue)` + 1 处 `var(--accent)`。
+   --accent 在浅色版已经是蓝（base.css:1403），但这个名字迟早会被
+   别处改回朱红，焦点环不该跟着变。统一到 --focus。 */
+.opt:focus-visible,
+.chip:focus-visible,
+.btn:focus-visible,
+.btn.ghost:focus-visible,
+.choice:focus-visible,
+.seg-item:focus-visible,
+.long-btn:focus-visible,
+.buy-link:focus-visible,
+.wheel-back:focus-visible,
+.disc-sector:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---------------- 六、控件反馈：抬起 + 落下（3-B）----------------
+
+   为什么不做 3-A（只改颜色）：现在 .choice / .chip / .opt / .btn.ghost
+   的 hover 只换底色或描边，四类控件的手感互不相同 —— .chip 会内缩、
+   .btn 会下沉、.choice 什么位移都没有。同一个"我要选它"的动作在
+   四类控件上给出四种物理反馈，是这一屏最松散的地方。
+
+   为什么不做 3-C（只改线重）：描边从 1.5 加到 2.5px 在白底灰线上
+   几乎看不出来（--line 1.41 / --edge 4.54，加粗只放大 1px 的深色），
+   实测截图差 0.02 的亮度，等于没反馈。
+
+   选 3-B 的判据：位移 1px 是唯一既能被察觉、又不会在 8 项网格里
+   造成"互相推挤"错觉的量；配一道 -3px 扩散的短影，读起来是
+   "这块东西浮在纸上"，和整站"纸 + 印刷"的语言一致。
+
+   注意 :active 一律用 translateY(var(--sink-y)) 而不是 scale()：
+   scale 会让文字一起变形，1.2% 的压缩在中文字形上表现为"发糊"。 */
+
+.long-btn,
+.choice,
+.chip,
+.opt,
+.btn.ghost {
+  transition:
+    background-color var(--t-hover) var(--ease),
+    border-color var(--t-hover) var(--ease),
+    color var(--t-hover) var(--ease),
+    box-shadow var(--t-hover) var(--ease),
+    transform var(--t-press) var(--ease);
+}
+
+.long-btn:hover,
+.choice:hover,
+.chip:hover,
+.opt:hover,
+.btn.ghost:hover {
+  transform: translateY(var(--lift-y));
+  box-shadow: var(--sh-hover);
+}
+
+/* 按下：落回并吃掉影子。同时给 80ms 的短时长 ——
+   按下必须在下一帧就成立，160ms 会读成"慢半拍"。 */
+.long-btn:active,
+.choice:active,
+.chip:active,
+.opt:active,
+.btn.ghost:active {
+  transform: translateY(var(--sink-y));
+  box-shadow: none;
+  transition-duration: var(--t-press);
+}
+
+/* .chip 原来额外有一个 scale(.97)，与位移叠加会读成"被捏了一下"。
+   保留 scale、去掉位移对它没意义 —— 它本来就有；这里只把两者合并写清。 */
+.chip:active { transform: translateY(var(--sink-y)) scale(.97); }
+
+/* 选中项不吃抬起：它已经在"被按下去"的状态，再浮起来会自相矛盾 */
+.choice.is-on:hover,
+.chip[aria-pressed="true"]:hover,
+.opt[aria-pressed="true"]:hover {
+  transform: none;
+  box-shadow: 0 0 0 0 transparent;
+}
+
+/* 主按钮 .btn 已有自己的下沉（`base.css:1498` translateY(1px) scale(.988)），
+   它是唯一"实心蓝底"的控件，保持原样不动 —— 换掉会让主行动按钮
+   和次要按钮变成同一档重量。 */
+
+/* ---------------- 七、切屏过渡（2-A 硬切 + 2-B 下压上浮）----------------
+
+   用户明确要求"页面不用每个都做一样的"。所以按屏分配两种语言：
+
+     cut    只用透明度，零位移，140ms —— 用于"信息密度变了"的屏
+            （香型→香调、场景→浓度），此时用户在做选择而不是在浏览，
+            位移会打断"我连续答了几题"的线性感。
+     settle 下沉 8px 淡入，260ms —— 用于"进入新阶段"的屏
+            （首屏、心情），位移承担"翻过一页"的提示。
+     rise   上浮 14px 淡入，260ms —— 结果页专用，位移最大，
+            因为这是全流程唯一"给你答案"的一屏。
+
+   关于"出屏"：没有做旧屏快照。原因是 render() 会整页重建，做一份
+   `.scene-ghost` 克隆意味着 140ms 内 DOM 里存在两份 `.disc-hub` /
+   `.plate-svg`，而 `test-render.mjs` 有 40 余处按类名计数 —— 会直接
+   把断言打红，且这些计数正是"元素不重复"的守门。退而求其次：
+   出屏瞬间消失、新屏 140ms 淡入，观感上就是一次带软边的硬切，
+   这本身就是 2-A 想要的效果（决策记录见 D59）。
+   ---------------------------------------------------------------- */
+
+#app[data-scene="cut"] .fade-in {
+  animation: sceneCutIn var(--t-scene-out) linear both;
+}
+#app[data-scene="settle"] .fade-in {
+  animation: sceneSettleIn var(--t-scene) var(--ease) both;
+}
+#app[data-scene="rise"] .fade-in {
+  animation: sceneRiseIn var(--t-scene) var(--ease) both;
+}
+
+@keyframes sceneCutIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes sceneSettleIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes sceneRiseIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------------- 八、减少动效：减位移，不减反馈 ----------------
+
+   原则：`prefers-reduced-motion` 要去掉的是"移动"，不是"反馈"。
+   所以这里保留透明度变化与颜色变化，只把位移与缩放压平；
+   进度条、按压、切屏仍然会给出可见的响应。
+   `base.css:1669` 那条把 duration 压到 1ms 的兜底继续生效，
+   本块只补它没管到的 transform。 */
+@media (prefers-reduced-motion: reduce) {
+  /* 时长不在这里写 —— `base.css:1673` 已用 `animation-duration: 1ms !important`
+     把所有动画压平，本层写多少都会被它盖掉。这里只负责一件事：
+     把"位移/缩放"这类**位移量**清零，颜色与透明度变化保留。
+     效果 = 内容瞬间出现（反馈还在），但没有任何滑动（不引起不适）。 */
+  #app[data-scene] .fade-in {
+    animation-name: sceneCutIn;
+    transform: none;
+  }
+  .long-btn:hover,
+  .choice:hover,
+  .chip:hover,
+  .opt:hover,
+  .btn.ghost:hover,
+  .long-btn:active,
+  .choice:active,
+  .chip:active,
+  .opt:active,
+  .btn.ghost:active {
+    transform: none;
+  }
+}
+
+/* 无悬停能力的设备：抬起态不存在，按住才有反馈 */
+@media (hover: none) {
+  .long-btn:hover,
+  .choice:hover,
+  .chip:hover,
+  .opt:hover,
+  .btn.ghost:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* D60：触屏上 `:hover` 会粘住 —— 点完高亮不退，用户以为"选中了"。
+     下面这些控件此前没有反制块，逐个退回各自的静止态取值。
+     每条都照抄 base 层的原始声明，不写"看起来对"的颜色。 */
+  .pick-foot a:hover,
+  footer.foot a:hover {
+    color: var(--ink-2);
+    text-decoration-thickness: 1px;
+  }
+  .wheel .hub-reset:hover { color: var(--ink-3); opacity: .7; }
+  .wheel .hub-skip:hover {
+    color: var(--ink-3);
+    background: transparent;
+    border-color: var(--edge);
+    border-style: dashed;
+  }
+  .wheel .wheel-back:hover {
+    color: var(--ink-2);
+    background: var(--bg);
+    border-color: var(--stroke-ui);
+  }
+  .seg-item:hover { background: transparent; color: var(--ink-2); }
+  .seg-item.is-on:hover { background: var(--fill-blue); color: #fff; }
+  .combo-input:hover { border-color: var(--edge); }
+  .combo-item:hover { background: transparent; color: var(--ink-2); }
+  .buy-link:hover { background: var(--fill-blue); color: #fff; }
+  .pick-foot .buy-link.is-search:hover {
+    color: var(--blue);
+    background: transparent;
+    border-color: var(--stroke-ui);
+  }
+  .wheel .disc-sector.lvl2.sub-sq:hover:not(:disabled) {
+    background: var(--bg);
+    border-color: var(--edge);
+    color: var(--ink-2);
+  }
+}
+
+/* ---------------- 九、深色模式对齐 ----------------
+   本层晚于 `_wheel14`，所以这里必须把上面改过的每条都补一份深色，
+   否则深色下会退回 `_wheel14` 的旧五层阴影（内高光 .10 那套）。 */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* 深底上的发丝线要比浅色版更亮一点才有"刻线"的意思，
+       但不能接近 --line(#3a3a3a)，否则会和中圈凹槽打架 */
+    --hair: rgba(255, 255, 255, .07);
+    --halo: rgba(0, 0, 0, .45);
+    --sh-hover: 0 2px 8px -3px rgba(0, 0, 0, .72);
+  }
+
+  .wheel::after {
+    box-shadow:
+      0 0 0 var(--stroke-l1-w) var(--stroke-l1),
+      0 0 0 1px rgba(255, 255, 255, .06) inset,
+      0 16px 34px -18px rgba(0, 0, 0, .70),
+      0 48px 96px -58px rgba(0, 0, 0, .85);
+  }
+
+  .wheel:not(.is-open) .disc-hub {
+    box-shadow:
+      0 0 0 var(--stroke-l3-w) var(--stroke-l3),
+      0 0 0 1px rgba(255, 255, 255, .10) inset,
+      0 0 0 var(--halo-w) var(--halo),
+      0 8px 26px -14px rgba(0, 0, 0, .60);
+  }
+  .wheel.is-open .disc-hub {
+    box-shadow:
+      0 0 0 var(--stroke-l3-w) var(--stroke-l3),
+      0 0 0 1px rgba(255, 255, 255, .10) inset,
+      0 0 0 var(--halo-w) var(--halo),
+      0 14px 32px -20px rgba(0, 0, 0, .72);
+  }
+  .wheel:not(.is-open) .disc-hub.is-hover,
+  .wheel.is-open .disc-hub.is-hover {
+    box-shadow:
+      0 0 0 var(--stroke-l3-w) var(--blue-amb),
+      0 0 0 1px rgba(255, 255, 255, .12) inset,
+      0 0 0 var(--halo-w) var(--halo),
+      0 10px 28px -18px rgba(0, 0, 0, .62);
+  }
+
+  @media (max-width: 620px) {
+    .wheel:not(.is-open) .disc-hub {
+      box-shadow:
+        0 0 0 1.5px var(--stroke-l3),
+        0 0 0 1px rgba(255, 255, 255, .10) inset,
+        0 0 0 calc(var(--halo-w) - 1px) var(--halo),
+        0 8px 20px -14px rgba(0, 0, 0, .58);
+    }
+    .wheel.is-open .disc-hub {
+      box-shadow:
+        0 0 0 1.5px var(--stroke-l3),
+        0 0 0 1px rgba(255, 255, 255, .10) inset,
+        0 0 0 calc(var(--halo-w) - 1px) var(--halo),
+        0 12px 26px -16px rgba(0, 0, 0, .70);
+    }
+  }
+
+  /* 深色下 hover 的影子是纯黑，不能沿用浅色那道蓝黑 */
+  .choice:hover,
+  .chip:hover,
+  .opt:hover,
+  .btn.ghost:hover,
+  .long-btn:hover {
+    border-color: var(--edge);
+  }
+}
+
+/* ---------------- 七、场合屏（第 4 步）盘心空态降重 ----------------
+
+   这一屏的盘心是 222×222 的实心灰方块（`--bg-2` #f5f5f5）+ 2px 纯黑顶边，
+   四角还有 0.55 不透明的 L 形角标。它周围的扇区/环全是 1px 细线 + 半透明填充，
+   于是这块实心方块成了整屏最重的东西 —— 而它承载的信息只是「还没选」。
+
+   改法：空态（.is-idle）把底子放空、顶边降到 --line，选中后再恢复重量。
+   只在第 4 步生效（`#app[data-step="context"]`），不动其余屏的盘心。 */
+
+#app[data-step="context"] .disc-hub.is-idle {
+  background: transparent;
+  border-top-color: var(--line);
+}
+#app[data-step="context"] .disc-hub.is-idle::before { opacity: .34; }
+
+/* ---------------- 八、纵向预算：吸底动作条 ----------------
+
+   7 步里第 3/4/5 步的内容高度超过一屏（1440×900 实测主按钮底边
+   1135 / 1266 / 981，390×844 更是 7 步里 6 步出屏）。内容不该砍 ——
+   每屏的选项都是必要的 —— 所以固定底部动作条，而不是压缩卡片密度。
+
+   为什么不用 `position: fixed`：fixed 会脱离文档流，页脚区域会被永久遮挡，
+   而且横竖屏切换后 `bottom` 基准会变。`sticky` 留在流里，滚到底自动让位。
+
+   阈值：(max-height: 950px) 覆盖 1440×900 / 1366×768 / 1280×720；
+   (max-width: 620px) 覆盖手机的一切高度 —— 手机上滚一屏才看到主按钮
+   是最糟的形态，宁可常驻。 */
+
+@media (max-height: 950px), (max-width: 620px) {
+  .actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 6;
+    margin-top: 20px;
+    /* 底色必须实心且盖住内容：半透明会在滚动时透出卡片边角 */
+    background: var(--bg);
+    border-top: 1px solid var(--line);
+    /* 上下的呼吸由 padding 给，不用 margin —— margin 在 sticky 里会让露出的
+       内容从缝里穿过去 */
+    padding: 14px 0 16px;
+    /* 底部渐变让"下面还有内容"这件事有暗示，而不是被硬边切断 */
+    box-shadow: 0 -12px 18px -16px rgba(0, 26, 94, .28);
+  }
+
+  /* 页脚本体留出动作条的高度，避免最后一行被永久压住 */
+  main { padding-bottom: 8px; }
+}
+
+@media (max-width: 620px) {
+  /* 手机上的动作条更薄，并贴到安全区 */
+  .actions {
+    padding: 10px 0 calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+}

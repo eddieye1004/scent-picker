@@ -108,7 +108,7 @@
   background: none;
   border: 1px solid rgba(0, 26, 94, .085);
   pointer-events: none;
-  animation: markIn 260ms cubic-bezier(.16, 1, .3, 1) 200ms both;
+  animation: markIn var(--t-scene) var(--ease-out) 200ms both;
 }
 @keyframes markIn {
   from { opacity: 0; transform: scale(.97); }

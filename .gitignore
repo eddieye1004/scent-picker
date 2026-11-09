@@ -73,9 +73,15 @@ data/affiliate-links.source.json
 !.env.example
 *.local.env
 
-# Python �ֽ��루scripts/build-photos.py �� import ʱ�����ɣ�
+# Python 字节码（scripts/build-photos.py 在 import 时生成）
 __pycache__/
 *.pyc
 
-# DSH �Ự��ʱ����
+# DSH 会话临时数据
 .dsh/
+
+# 视觉改版的计划文档与 sloplint 基线（用户明确「视觉优化这块不用你负责」，m11953）
+# 留在工作区供人工参考，不入库；要启动视觉改版时再单独拉一条线。
+docs/PLAN-REVISION-20261108.md
+docs/UI-OPTIMIZATION-PLAN-20261108.md
+sloplint-baseline.json

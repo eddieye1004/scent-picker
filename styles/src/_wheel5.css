@@ -30,7 +30,7 @@
   border-radius: 50%;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 200ms linear;
+  transition: opacity var(--t-fade) linear;
 }
 .wheel.is-open .sub-ring::before { opacity: 1; }
 @media (max-width: 620px) {
@@ -106,9 +106,9 @@
   border-radius: 999px;
   cursor: pointer;
   flex: none;
-  transition: color 160ms cubic-bezier(.4, 0, .2, 1),
-              border-color 160ms cubic-bezier(.4, 0, .2, 1),
-              background-color 160ms cubic-bezier(.4, 0, .2, 1);
+  transition: color var(--t-hover) var(--ease-std),
+              border-color var(--t-hover) var(--ease-std),
+              background-color var(--t-hover) var(--ease-std);
 }
 .wheel .hub-skip:hover {
   color: var(--bg);

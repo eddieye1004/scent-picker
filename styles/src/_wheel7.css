@@ -48,8 +48,8 @@
      否则每段会绕自己的包围盒中心缩放，读起来像七个各转各的。 */
   transform-box: view-box;
   transform-origin: 240px 240px;
-  transition: fill 160ms cubic-bezier(.4, 0, .2, 1),
-              stroke 160ms cubic-bezier(.4, 0, .2, 1);
+  transition: fill var(--t-hover) var(--ease-std),
+              stroke var(--t-hover) var(--ease-std);
 }
 .wheel.is-open .sub-arc {
 }
@@ -108,7 +108,7 @@
   white-space: nowrap;
   pointer-events: auto;
   cursor: pointer;
-  transition: color 160ms cubic-bezier(.4, 0, .2, 1);
+  transition: color var(--t-hover) var(--ease-std);
 }
 @keyframes arcLabelIn {
   from { opacity: 0; }
@@ -165,7 +165,7 @@
     0 0 0 1px #b8bed3,
     0 26px 60px -42px rgba(0, 26, 94, .55),
     0 2px 6px -4px rgba(0, 26, 94, .18);
-  transition: background 240ms cubic-bezier(.4, 0, .2, 1);
+  transition: background var(--t-move) var(--ease-std);
 }
 /* 展开后家族盘缩到 60%，盘体本身不变 —— 盘子还在，
    只是上面那层的扇区收进去了。底座颜色随状态微调，避免整块白到发空。 */
@@ -174,8 +174,8 @@
 /* 家族扇区：白件 */
 .wheel .disc-svg .sector-shape {
   stroke-width: 1;
-  transition: fill 160ms cubic-bezier(.4, 0, .2, 1),
-              stroke 160ms cubic-bezier(.4, 0, .2, 1);
+  transition: fill var(--t-hover) var(--ease-std),
+              stroke var(--t-hover) var(--ease-std);
 }
 .wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
 .wheel .disc-svg .sector-g.is-hot .sector-shape {
@@ -260,9 +260,9 @@
   font-weight: 600;
   letter-spacing: -0.01em;
   box-shadow: 0 6px 16px -10px rgba(0, 26, 94, .55);
-  transition: background 160ms cubic-bezier(.4, 0, .2, 1),
-              box-shadow 160ms cubic-bezier(.4, 0, .2, 1),
-              transform 120ms cubic-bezier(.4, 0, .2, 1);
+  transition: background var(--t-hover) var(--ease-std),
+              box-shadow var(--t-hover) var(--ease-std),
+              transform var(--t-micro) var(--ease-std);
 }
 .wheel .hub-go:hover { background: var(--fill-blue-deep); }
 .wheel .hub-go:active {
@@ -668,7 +668,7 @@
 /* 2. 凹槽环：比家族盘深一档，弧段的缝里露出它 */
 .wheel .sub-channel {
   opacity: 0;
-  transition: opacity 200ms linear;
+  transition: opacity var(--t-fade) linear;
 }
 .wheel.is-open .sub-channel { opacity: 1; }
 

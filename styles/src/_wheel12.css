@@ -32,6 +32,15 @@
   .choice-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* v35：390 上 7 张卡竖排 531px，一屏 844 里只能看到 2.4 张。
+   收紧 gap 与内边距（不动字号、不砍描述行），压到 480 左右，
+   让第 4 张完整进入首屏。 */
+@media (max-width: 620px) {
+  .choice-grid { gap: 6px; }
+  .choice { padding: 10px 12px; }
+  .choice-desc { line-height: 1.45; }
+}
+
 .choice {
   /* 44px 是触控下限，这里实际 62px 起（padding 12 + 主行 20 + 副行 18 + 12）
      —— 带解释的项必须比纯文字按钮更高，否则拇指容易点偏到相邻项。 */
@@ -50,8 +59,8 @@
   font-family: var(--font-body);
   text-align: left;
   cursor: pointer;
-  transition: border-color 160ms var(--ease), background-color 160ms var(--ease),
-              box-shadow 160ms var(--ease);
+  transition: border-color var(--t-hover) var(--ease), background-color var(--t-hover) var(--ease),
+              box-shadow var(--t-hover) var(--ease);
 }
 .choice:hover {
   /* 边界色用 --edge（4.54:1），不是 --line（1.41:1）——
@@ -97,6 +106,17 @@
   box-shadow: 0 6px 18px -10px rgba(165, 52, 47, .5);
 }
 
+/* v35：深色主题把 --danger 从 #a4262c 换成 #ff8a80（浅粉），
+   而 `.choice.is-on` 的字色写死成 #fff —— 白压浅粉只有 2.28:1，
+   不到 AA 的一半。同一份样式里另外两处「红底」都用 var(--bg)
+   （深色下自动变 #141414）压出来 8.07，只有这一条写死白色。
+   补深色分支：字色跟着 --bg 走，浅色主题不受影响。 */
+@media (prefers-color-scheme: dark) {
+  .choice-neg.is-on,
+  .choice-neg.is-on .choice-zh { color: var(--bg); }
+  .choice-neg.is-on .choice-desc { color: rgba(20, 20, 20, .72); }
+}
+
 /* ---------------- 二、术语解释块 ----------------
    新手友好的落点。三条规矩：
      ① 只在"这个词真的会让人卡住"的屏出现（气质/浓度/留香/排除），
@@ -132,6 +152,13 @@
 .progress i {
   height: 2px;
 }
+
+/* v35：香调两栏的「展开全部 58 个香调」按钮原先跟着内容流走 ——
+   左栏比右栏少一行 chip，两个按钮就错位 325px（实测 572 vs 897 的顶边）。
+   把 .note-col 变成纵向 flex，让 chips 吸水、按钮压到底。 */
+.note-col { display: flex; flex-direction: column; }
+.note-col .chips { flex: 1 1 auto; align-content: flex-start; }
+.note-col .btn-more { margin-top: 12px; align-self: flex-start; }
 
 /* ---------------- 四、锚点屏的两个下拉框 ----------------
    复用浏览器原生 select：102 个品牌 + 该品牌的若干瓶，原生下拉在

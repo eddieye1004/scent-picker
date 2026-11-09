@@ -219,7 +219,7 @@
 
 /* 图层显隐钉在 200ms：它跟 340ms 缩放同段起跑，慢 40ms 会读成「标签掉队」。
    基础层写的是 220ms，这里覆盖掉。 */
-.wheel .label-layer { transition: opacity 200ms linear; }
+.wheel .label-layer { transition: opacity var(--t-fade) linear; }
 
 @media (prefers-reduced-motion: reduce) {
   /* 惯性是 requestAnimationFrame 驱动的，CSS 媒体查询管不到它，
