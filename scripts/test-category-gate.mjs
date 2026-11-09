@@ -71,6 +71,21 @@ const g8 = scoreMatch({ brand: 'Montblanc', name: 'Legend Spirit' },
 check('G8 无中文别名时品牌关仍拦下（已知缺口，补别名后此断言应改）',
   !g8.accept && g8.reason === '品牌名未出现在标题里', JSON.stringify(g8));
 
+/* G9 室内喷雾/居家喷雾：2026-11-09 京东那轮的真实误配。
+   标题「祖玛珑（jomalone）满室幽香居家香水氛系列室内喷雾 英国梨和小苍兰」
+   含「香水」二字，旧规则放行 —— 但它是居家扩香，不是穿在身上的香水。
+   这是唯一一次在**京东**链路上抓到的品类误配，所以钉成断言。 */
+const g9 = categoryGate('祖玛珑（jomalone）满室幽香居家香水氛系列室内喷雾 英国梨和小苍兰-English Pear', '');
+check('G9 室内喷雾即便标题含「香水」也拒', !g9.ok && g9.reason === '非香水品类（室内/居家喷雾）', g9.reason);
+
+/* G10 反向守卫：只加「室内喷雾/居家喷雾」，**没有**加「喷雾」。
+   淘宝 8603 条候选里含「喷雾」的 75 条绝大多数是真香水
+   （香体喷雾 / 头发香氛喷雾 / 淡香水喷雾 EDT），不能被这条误杀。 */
+const g10a = categoryGate('BYREDO 柏芮朵 Bal d Afrique非洲舞会 香体喷雾 75正品', '彩妆/香水/美妆工具/香水');
+const g10b = categoryGate('Diptyque蒂普提克 Tam Dao 檀道淡香水喷雾EDT 50ml', '彩妆/香水/美妆工具/香水');
+check('G10 香体喷雾/淡香水喷雾 仍放行（没把「喷雾」整词拉黑）', g10a.ok && g10b.ok,
+  JSON.stringify([g10a.reason, g10b.reason]));
+
 /* ---------- 输出 ---------- */
 console.log('\n===== 品类闸门测试 =====');
 console.log(`PASS ${pass}   FAIL ${failures.length}`);

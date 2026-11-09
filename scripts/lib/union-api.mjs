@@ -252,6 +252,18 @@ const NON_PERFUME_WORDS = [
    所以用正则认「蜡烛/蜡燭/蠟燭/candle」四个写法，不做整词枚举。 */
 const CANDLE_PAT = /蜡烛|蜡燭|蠟燭|candle/i;
 
+/* 室内喷雾/居家喷雾：2026-11-09 京东那轮抓到一例真实误配 ——
+     jo-malone-english-pear-and-freesia → sku 10229033684805
+     标题「祖玛珑（jomalone）满室幽香居家香水氛系列**室内喷雾** 英国梨和小苍兰」
+   标题里有「香水」二字，品类词表放行，但卖的是居家扩香喷雾，不是穿在身上的香水。
+
+   为什么**只加这三个词，不加「喷雾」**：淘宝 8603 条候选里含「喷雾」的有 75 条，
+   绝大多数是真香水（「BYREDO 香体喷雾」「CARNAL FLOWER 头发香氛喷雾」
+   「Tam Dao 淡香水喷雾 EDT」）—— 把「喷雾」加进否定词会误杀一批正装。
+   而「室内喷雾/居家喷雾/room spray」在淘宝 8603 条候选里命中 **0** 条，
+   加进来对淘宝零影响，只堵京东那条侧门。 */
+const ROOM_SPRAY_PAT = /室内喷雾|居家喷雾|room\s*spray/i;
+
 /* 小样/试用装：单价低、佣金少、点进去体验差，直接跳过。
    只认明确的小容量（1-5ml）和典型小样词，10ml 旅行装不禁。 */
 const SAMPLE_PAT = /小样|试用装|分装|试管|体验装|\b[1-5]\s*ml\b/i;
@@ -335,6 +347,7 @@ export function categoryGate(title, categoryText) {
   const bad = NON_PERFUME_WORDS.find((w) => t.includes(w));
   if (bad) return { ok: false, reason: `非香水品类（命中「${bad}」）` };
   if (CANDLE_PAT.test(t)) return { ok: false, reason: '非香水品类（蜡烛/香薰蜡燭）' };
+  if (ROOM_SPRAY_PAT.test(t)) return { ok: false, reason: '非香水品类（室内/居家喷雾）' };
   if (SAMPLE_PAT.test(t)) return { ok: false, reason: '小样/试用装' };
 
   const parts = cat ? cat.split('/').map((s) => s.trim()).filter(Boolean) : [];

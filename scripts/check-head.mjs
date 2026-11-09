@@ -29,7 +29,7 @@ const SUITES = [
   ['test-scoring.mjs', 133],
   ['test-compliance.mjs', 10],
   ['test-union-api.mjs', 72],
-  ['test-category-gate.mjs', 8],
+  ['test-category-gate.mjs', 10],
   ['test-jd-web.mjs', 17],
 ];
 
