@@ -2386,3 +2386,290 @@ app_key 不合法时根本走不到验签那一步。
 - 原来断言「标本无填充 `fill=none`」改成「标本挂 `is-art`」：上色稿自带 fill，这条断言的语义随实现变了。
 - 原「`SUB_MARKS` 24 个 key 与 taxonomy 对齐」的断言，改成「`ART_FILE` 的 24 对映射与 taxonomy 对齐 + 文件都在磁盘上 + 图元数 ≥ 6 + 带渐变 + 两两不同」。
 - `app.js` 215108 B → 189738 B（-25370 B）；`node --check` = 0；`scripts/test-render.mjs` **PASS 246 / FAIL 0**。
+
+## D59 · v34：视觉统一 —— 线条三档 / 切屏过渡 / 控件反馈（2026-11-08）
+
+**背景**：图标任务收尾后转入 UI 全盘优化。用户在四个方向里选定：线条走 **1-B**（双层结构收敛成三档）、切屏 **A+B 按屏混用**（不要求每屏一致）、控件 **3-B**（抬起 + 落下）、响应式维持 **4-A**（等比缩放）。硬约束：克莱因蓝 `#002FA7` 与字体栈一律不动。
+
+**做法：新增第 22 个源层 `styles/src/_wheel22.css`，不回去改历史层。**
+
+为什么另开一层：圆的框线散在 `_wheel4c` / `_wheel7` / `_wheel11` / `_wheel13` 四处，每一处都在补上一次的补丁（`_wheel11:162` 的 7 层阴影被 `_wheel13:58` 覆盖成 5 层，其中 4px / 5px 两层 inset 在 251px 的框上只差 1px，实测不可见）。逐层回改要动 4 个文件、且要维持 394 条历史覆盖关系不变 —— 风险远大于收益。
+
+### 一、线条收敛
+
+三档沿用 D50 的物理角色，不改配色：
+
+| 档 | token | 宽度 | 角色 |
+|---|---|---|---|
+| L1 | `--stroke-l1` | 1px | 把盘从纸里框出来 |
+| L2 | `--stroke-l2` | 3.4 | 凹槽环，只在中圈出现 |
+| L3 | `--stroke-l3` | 2px | 内容所在那层，最重 |
+
+三档之外只允许两种辅助线，各有唯一 token：`--stroke-hi`（1px 内亮线）、`--hair`（1px 发丝线，装饰内圈，不承载边界语义）。
+
+**新增 `--hair: rgba(0,26,94,.06)`**，替掉三处不同版本的"盘心内圈"写死浅色：`_wheel7.css:637` `#e8ebf4`、`:215` `#eceef6`、`:708` `rgba(0,26,94,.05)`，外加中圈虚线的 `_wheel7.css:479` `.08` 与 `_wheel11.css:109` `.085`。它们原本在同一张图上叠了两三道，肉眼分不清谁是谁。
+
+**阴影收层**：`.wheel::after` 7 层 → 4 层；`.disc-hub`（闭合 / 展开 / 悬停）5 层 → 4 层。删掉的 `0 1px 0 rgba(255,255,255,.95) inset` 与 `0 0 0 1px var(--stroke-hi) inset` 在同一个盘心上叠了两道白（一道距边 0、一道距边 1px），在 154px 的盘心上一共就 2px，读起来是"边有点发毛"而不是"有厚度"。`--halo-w` 从 5px/7px 混用统一到 6px。
+
+**圆角五档 → 三档**：`.top-badge` 2px 与 `.pick-art` 3px → `--radius-sm`；`.combo-list` / `.combo-item` 8px → `--radius`。
+
+**焦点环一种画法**：10 个选择器的 `:focus-visible` 统一 `outline: var(--focus-w) solid var(--focus)` + `outline-offset: 2px`，替掉原来 19 处 `2px solid var(--blue)` 与 1 处 `var(--accent)`（`--accent` 在浅色版已是蓝，但这个名字迟早被改回朱红，焦点环不该跟着变）。
+
+### 二、控件反馈（3-B）
+
+`.long-btn / .choice / .chip / .opt / .btn.ghost` 统一：hover 抬起 1px + 一道 `0 2px 6px -3px` 短影，active 落回 1px 且影归零。颜色走 `--t-hover` 160ms，位移走 `--t-press` 80ms。
+
+选 3-B 而不是 3-A/3-C 的判据：3-A（只改颜色）会让四类控件给出四种不同物理反馈 —— `.chip` 内缩、`.btn` 下沉、`.choice` 完全没位移；3-C（只加粗描边）在白底灰线上实测亮度差 0.02，等于没反馈。1px 是唯一既能被察觉、又不会在 8 项网格里造成"互相推挤"错觉的位移量。
+
+`:active` 一律用 `translateY` 不用 `scale()` —— scale 会让文字一起变形，1.2% 的压缩在中文字形上表现为"发糊"。主按钮 `.btn` 保留它原有的 `translateY(1px) scale(.988)`：它是全站唯一实心蓝底控件，换掉会与次要按钮同档。
+
+### 三、切屏过渡（2-A + 2-B 按屏混用）
+
+`render()` 写 `app.dataset.scene`，三档 keyframes 挂在 `#app[data-scene=...] .fade-in`：
+
+| scene | 动效 | 时长 | 用在哪 |
+|---|---|---|---|
+| `cut` | `sceneCutIn` 纯透明度，零位移 | 140ms linear | 香调 / 场景 / 浓度 / 锚点 —— 用户在做选择，位移会打断"连续答题"的线性感 |
+| `settle` | `sceneSettleIn` 下沉 8px 淡入 | 260ms `--ease` | 首屏 / 心情 / 整族排除 —— 进入新阶段 |
+| `rise` | `sceneRiseIn` 上浮 14px 淡入 | 260ms `--ease` | 结果页专用，位移最大 |
+
+没有做旧屏快照 `.scene-ghost`：`render()` 是整页重建，做克隆意味着 140ms 内 DOM 里存在两份 `.disc-hub` / `.plate-svg`，而 `test-render.mjs` 有 40 余处按类名计数 —— 会直接打红，且这些计数正是"元素不重复"的守门。退而求其次：旧屏瞬消、新屏淡入，观感上是一次带软边的硬切，这本身就是 2-A 想要的效果。
+
+`prefers-reduced-motion` 只写 `animation-name: sceneCutIn` 与 `transform: none`，**不写时长** —— `base.css:1673` 的 `*{animation-duration:1ms !important}` 会盖掉一切时长声明。效果 = 内容瞬间出现、无滑动，反馈仍在（减位移不减反馈）。
+
+### 四、验证
+
+| 项 | 结果 |
+|---|---|
+| `styles.css` | 202929 B / 6714 行 / 22 个源层，`build-css.mjs --check` 一致 |
+| `test-render.mjs` | PASS 246 / FAIL 0 |
+| `test-contrast.mjs` | PASS 42 / FAIL 0 |
+| `test-scoring.mjs` | PASS 106 |
+| `test-compliance.mjs` | PASS 10 |
+| `node --check app.js` | 0 |
+| 计算样式门禁（`uicheck.cjs`） | 浅色 `--hair` / `--halo` / `--halo-w` / `--t-scene` / `--lift-y` 全部生效；`ringBeforeBorder` 与 `hubAfterBorder` 从 `.085` / `.05` 变为 `rgba(0,26,94,.06)`；深色全部 `rgba(255,255,255,.07)` |
+| 全流程走查（`rp2.cjs`） | 8 屏 scene 依次 `settle → cut → settle → cut → cut → settle → cut → rise`，结果页 `scene: rise` |
+
+**没有用逐像素截图做门禁**：同一份代码连跑两次只有 26/40 张一致（390/360 整页高度抖 40px、1440 展开态有像素差），加 `document.fonts.ready` 只从 24/40 提到 26/40。本机 headless 截图本身不确定，逐像素对比不能作为验收手段。改用计算样式断言（确定性）+ 关键流程走查。
+
+### 五、两条踩坑记录（供后来者）
+
+1. **`.disc-hub` 的 `border-width` 是 0** —— `_wheel13.css:97/108/134` 三处 `border: 0` 把宽度清零，L3 全靠 `box-shadow: 0 0 0 2px` 画。所以改 `border-color` 对盘心边框没有视觉效果，`--hair` 只在 `.disc-hub::after`（内圈刻度）上可见。
+2. **改展开态必须显式提高特异性** —— 中圈刻线的真实规则是 `.wheel.is-open .sub-ring::before`（0,3,0），只写 `.wheel .sub-ring::before`（0,2,0）赢不了；第一版实测展开态仍是 `.085`，白改。
+
+**连带注意**：`test-contrast.mjs` 按"选择器列表里最后一条命中规则"取值，把 `.long-btn` 加进复合选择器列表时必须放首位，否则 `border-color: var(--stroke-ui)` 那条断言直接红（实测 FAIL 1 → 改序后 PASS 42）。
+
+## D60 · 动效归一：8 档时长 / 5 条曲线 / 触屏反制 / 合成层
+
+D59 把线条与切屏收成一套语言之后，动效本身还是散的。本轮先量后改。
+
+### 一、改之前实测（`ego/demo/motan.py`）
+
+| 项 | 数量 | 明细 |
+|---|---|---|
+| `animation` 真声明 | 22 条 | duration **15 种**：90 120 140×2 150×2 180×2 200 240 260 300×2 320 340 460 520×2 900 1400 |
+| `transition` 声明 | 32 条 | duration **8 种**：160×16 180×4 200×3 120×2 340 240 220 90 |
+| easing 字面量 | 69 处 | `(.4,0,.2,1)` 47 · `(.3,0,.2,1)` 6 · `(.16,1,.3,1)` 5 · `(.32,.72,0,1)` 3 · 其余 8 |
+| `var(--ease*)` 引用 | 35 / 104 | 即有 2/3 是字面复制 |
+| `:hover` 规则 | 84 条 | 只有 15 条在 `@media (hover: hover)` / `(pointer: fine)` 内 |
+| `will-change` | 13 处 | `.disc-core` 与 `.disc-rot` 是**常驻**（不在任何动画类下） |
+
+运行时实测（`motionprobe.cjs` 读 computed）：**问题不是"动画太多"，是同一类动作有 3–4 个时长**。`is-pressing` 系列同时存在 90ms 与 120ms；`sub-arc` 的 stroke 走 120ms、fill 走 160ms；idle-open 一帧内同时跑 13 条动画、transition 分 18 组。
+
+### 二、时长收成 8 档（全部落在 `base.css` 一批 token）
+
+| token | 值 | 用途 | 使用次数 |
+|---|---|---|---|
+| `--t-press` | 80ms | 按下 | 10 |
+| `--t-micro` | 120ms | 极短反馈、逐条错峰 | 13 |
+| `--t-hover` | 160ms | 悬停、描边、文字色 | 67 |
+| `--t-fade` | 180ms | 淡入淡出、盘心换字 | 22 |
+| `--t-move` | 240ms | 位移与层级切换 | 4 |
+| `--t-long` | 300ms | 大件生长/收缩 | 5 |
+| `--t-scene-out` | 140ms | 切屏退场（D59） | — |
+| `--t-scene` | 260ms | 切屏进场（D59） | 6 |
+| `--t-celebrate` | 460ms | 确认与回弹 | 3 |
+
+`--t-celebrate` 从 520 收到 460 不是凑整：`markIn` 是 `200ms 延迟 + 260ms 时长 = 460`，弧带生长与中圈刻线标记正好同时落位；`arcPop` / `arcConfirm` / `ringGrowStrong` 共用这一档后仍满足 `test-render` 的过冲断言。
+
+改完后 `styles.css` 的 `transition` / `animation` 声明里**只剩 4 处字面量**，且每一处都有不能进档表的理由：
+
+| 位置 | 字面量 | 为什么不归一 |
+|---|---|---|
+| `.btn.is-busy::after` | `900ms` | 无限循环的转圈，不属于反馈节奏 |
+| `.skeleton-ring::before` | `1400ms` | 同上 |
+| `.wheel .sub-ring` | `420ms` | **与 `app.js` 的 `exitTimer = setTimeout(clearSubRing, 420)` 共用一个数**：JS 420ms 后清空弧段，CSS 写成别的值会被提前掐断。已在源层写明"这是与 JS 共用的字面量" |
+| 三处 `animation-delay` | `60 / 120 / 240ms` | 是**错峰起点**不是时长；真正的错峰靠 `calc(var(--i) * Nms)` |
+
+### 三、曲线收成 5 条，字面量从 69 处降到 0
+
+`--ease` / `--ease-in` / `--ease-out` / `--ease-std` / `--ease-press` 五个 token 现在覆盖全部 106 处引用，**源层里只剩 `base.css` 定义 token 那 5 行 `cubic-bezier`**（即定义本身，不是使用）。`--ease` 保留旧指向（`(.32,.72,0,1)`）不动 —— 历史层 32 处引用它，改指向会同时改变生长动画的观感，属于范围外。
+
+### 四、触屏反制（本轮能力缺口）
+
+84 条 `:hover` 里 69 条没有移动端守护，点一下高亮不退，用户会以为"选中了"。D59 已给 `.btn/.chip/.opt/.long-btn/.choice/.btn.ghost` 补过反制，本轮补齐剩下 9 类：
+
+`.pick-foot a` / `footer.foot a`（回到 `--ink-2` + 1px 下划线）· `.wheel .hub-reset`（`--ink-3` + `opacity .7`）· `.wheel .hub-skip`（透明底 + `--edge` 虚线边）· `.wheel .wheel-back`（`--bg` 底 + `--stroke-ui` 边）· `.seg-item`（透明底 + `--ink-2`，`.is-on` 保持蓝底白字）· `.combo-input`（`--edge` 边）· `.combo-item`（透明底 + `--ink-2`）· `.buy-link`（`--fill-blue` + 白字）· `.pick-foot .buy-link.is-search`（透明底 + `--blue` 字 + `--stroke-ui` 边）· `.wheel .disc-sector.lvl2.sub-sq`（`--bg` 底 + `--edge` 边 + `--ink-2` 字）。
+
+**每一条都照抄 base 层的原始声明**，没有一条是"看起来对"的新颜色 —— 这正是反制块最容易写错的地方（写错后触屏下反而比改之前更花）。
+
+### 五、去掉常驻 `will-change`
+
+`.disc-rot`（`base.css:233`）与 `.wheel .disc-core`（`_wheel4.css:27`）原先无条件常驻 `will-change: transform`，等于首帧起就把整盘提成独立合成层，滚动与拖拽都要为它多做一次合成。改为：
+
+- `.disc.is-dragging .disc-rot` —— 只在拖拽时提示
+- `.wheel.is-lifting .disc-core, .wheel.is-returning .disc-core` —— 只在展开/返回的 780ms 动画窗口内提示
+
+稳定态（`.is-open`、`.is-picked`）不挂。改后真实 `will-change` 声明从 13 处降到 **9 处，且全部挂在状态类下**（`.sub-ring.is-exit …` 那条是 `auto`，用于主动释放）。
+
+### 六、验证
+
+| 项 | 结果 |
+|---|---|
+| `styles.css` | 203264 B / 6784 行 / 22 个源层，`build-css.mjs --check` 一致 |
+| `test-render.mjs` | PASS 246 / FAIL 0（`animation-delay: 0ms`、`arcPop` 的 `scale(1.03)`、`arcPop` 不得 `both`、`ringGrowStrong` 末帧 `scale(1.49)` 全部仍成立） |
+| `test-contrast.mjs` | PASS 42 / FAIL 0 |
+| `test-scoring.mjs` | PASS 106（citrus 266 / floral 650 / woody 411 / amber 254 / fresh 244 / gourmand 312） |
+| `test-compliance.mjs` | PASS 10 |
+| `node --check app.js` | 0 |
+| 时长 token 覆盖 | `transition`/`animation` 声明内 `var(--t-*)` 共 131 处，字面量仅 4 类（见上表） |
+| 曲线字面量 | 5 处，全部在 `base.css` 的 token 定义行 |
+| `:hover` 反制 | `@media (hover: none)` 从 1 个反制块扩到 2 个，覆盖 22 个控件选择器 |
+| 全流程走查（`scenecheck.cjs`） | 8 屏 scene 仍为 `settle → cut → settle → cut → cut → settle → cut → rise`；reduced-motion 下 `fade = sceneCutIn 0.001s`（退化为瞬间出现，位移取消、反馈保留） |
+| 截图 | `shots/ui/final9/` 40 张（4 视口 × 浅深 × 5 状态） |
+
+### 七、踩坑
+
+1. **`animation` 简写里第二个时间值是 delay，不是 duration**。批量把字面量换成 token 时，`channelOut 120ms linear 90ms both` 这种写法会被正则一把替换成两个 `var(--t-micro)`，结果 delay 变成 120ms、退场反而变慢。第一版就踩到了，后改为**逐条手写、只换 duration 位**，并用"同一条 animation 里不得出现两个 `var(--t-`"作自检。
+2. **`autofit` 式的全局替换会打穿语义**：`420ms` 在 `.sub-ring` 上不是"时长档"，是和 JS 共享的数值。凡是"JS 等它、或它等 JS"的时间都必须留在字面量里，并就地写注释说明。
+3. **反制块要抄原始值，不要抄"设计意图"**。`.wheel .hub-skip:hover` 把 `border-style` 从 `dashed` 改成 `solid`，反制时必须把 `dashed` 写回去 —— 只写 `border-color` 会让触屏上留着一圈实线边。
+4. **`@media (hover: none)` 里的选择器特异性要和 `:hover` 规则持平或更高**。`.wheel .disc-sector.lvl2.sub-sq:hover:not(:disabled)` 是 0,4,0，反制必须同样带上 `:not(:disabled)` 才压得住。
+
+## D61 · 问卷入口分叉：整族排除只在情绪入口出现（v36）
+
+问卷七步里，第 6 步「有没有哪一类你完全不想要」在**家族入口下结构上不可能生效**。
+实测之后按入口分叉，而不是删掉或放宽扣分。
+
+### 一、改之前实测（`scripts/probe-q-marginal.mjs 60`、`scripts/probe-step6-options.mjs`）
+
+60 组随机画像，抽掉一个维度看 top-10 榜内有几个位置换人（0 = 完全没影响，10 = 全换）：
+
+| 维度 | 榜内换人 | 判定 |
+|---|---|---|
+| 第1步·小类 | 5.64 | 最强 |
+| 第3步·气质 | 4.18 | 强 |
+| 第5步·浓度 | 3.13 | 强 |
+| 第2步·喜欢 | 2.86 | 中 |
+| 第3步·甜度 | 2.53 | 中 |
+| 第2步·受不了 | 2.15 | 中 |
+| 第4步·场合 | 2.15 | 中 |
+| 第3步·气温 | 2.12 | 中 |
+| 第5步·浓淡 | 1.77 | 弱 |
+| 第5步·留香 | 1.61 | 弱 |
+| 第4步·季节 | 1.13 | 很弱 |
+| 第4步·次要季节 | 0.73 | 很弱 |
+| **第6步·整族排除** | **0.34** | **接近无效** |
+
+进一步按入口拆开（`scripts/probe-step6-options.mjs`，30 种「选一族 + 排除另一族」组合）：
+
+| 入口 | 改变 top-3 的组合 |
+|---|---|
+| 家族入口 | **0 / 30** |
+| 情绪入口 | **15 / 36**（另 6/36 改变第 1 名） |
+
+### 二、根因
+
+`scent-picker/src/scoring.js` 的候选池逻辑：
+
+```js
+const isDominant = (s) => { /* 该瓶的主族 === 用户选的族 */ };
+if (profile.family) {
+  const L1 = scored.filter(isDominant);
+  ranked = L1.length >= topN ? L1 : (L2.length >= topN ? L2 : scored);
+}
+```
+
+选了家族之后，候选池被过滤成**只有该族主导的瓶子**。实测六个族全是 `10/10 同族`：
+
+| 族 | 主导瓶数 |
+|---|---|
+| citrus | 117 |
+| floral | 533 |
+| woody | 243 |
+| amber | 191 |
+| fresh | 162 |
+| gourmand | 142 |
+
+而扣分条件是「该族 = 这瓶的主族」：
+
+```js
+const top = fams.sort((a, b) => b[1] - a[1])[0];
+const hit = profile.dislikedFamilies.find((f) => top && top[0] === f);
+if (hit) { score += WEIGHTS.dislikedFamily; }
+```
+
+池子里 100% 都是用户自己选的那一族，排除任何**别的**族都永远打不中。
+排除**本族**倒是会全部 −30，但整池同扣等于没扣（实测 top-3 顺序完全不变）。
+
+### 三、为什么不选另外两条路
+
+| 方案 | 实测 | 否决理由 |
+|---|---|---|
+| 删掉这一屏 | 情绪入口会损失 15/36 的有效能力 | 情绪入口那边是真有用的，不能为了另一个入口的毛病一起删 |
+| 放宽扣分到「该族权重 ≥ 0.5」 | 家族入口 10/30 生效 | 会连带改变情绪入口结果（实测 `cold` + 排除 `fresh` 三瓶全换），而情绪侧本来正常工作，没必要动 |
+| 改问法（只在家族入口改文案） | 打分不变 | 用户点了一样没效果 —— 是把白问包装得像有用，比露出来更糟 |
+
+### 四、做法
+
+`STEPS` 里给「整族排除」加一个 `when` 谓词，把 `STEPS` 变成全集、由 `curSteps()` 动态过滤：
+
+```js
+{
+  id: 'dislikedFamilies',
+  /* 只在**情绪入口**下出现。
+     · 家族入口：30 种组合里 0 种改变 top-3（池子被 isDominant 收窄，扣分打不中）
+     · 情绪入口：36 种组合里 15 种改变 top-3、6 种改变第 1 名 */
+  when: (a) => !a.family,
+}
+```
+
+所有读 `STEPS.length` 的地方（`next()` / `finish()` / `renderProgress()` / `renderMasthead()` / `render()` / 数据加载回调）全部改走 `curSteps()`。
+`stepHead(id, answers)` 也接受显式 answers，否则测试里两次调用都读 `state.answers`，测不出分叉。
+
+结果：
+
+| 入口 | 步数 | 「整族排除」位置 |
+|---|---|---|
+| 家族入口（转盘选了族） | 6 | 不出现 |
+| 情绪入口（按感觉选） | 7 | 第 6 步 |
+| 未答任何入口 | 7 | 第 6 步（保留全集，不隐藏） |
+
+### 五、为什么必须改所有 `STEPS.length`
+
+两套数字一旦分叉，界面会显示「共 7 步」但只有 6 屏，用户翻到第 6 屏就出结果，会以为漏了一屏。
+`curSteps()` 的注释里写死了这条。
+
+### 六、验证
+
+```
+test-render 263 PASS / 0 FAIL   （原 245，+18 项入口分叉与越界断言）
+test-scoring 133 / 0
+test-contrast 42 / 0 · test-compliance 10 / 0 · test-union-api 72 / 0
+test-jd-web 17 / 0 · test-category-gate 8 / 0
+合计 545 PASS / 0 FAIL
+```
+
+新增断言（`scripts/test-render.mjs` 末尾「v36 入口分叉」段）：
+- 全集 7 步、家族入口 6 步、情绪入口 7 步、未答 7 步
+- 家族入口不含 `dislikedFamilies`、情绪入口含
+- `stepHead('anchor', {family})` === `第 6 步 / 共 6 步`；`stepHead('anchor', {emotion})` === `第 7 步 / 共 7 步`；`stepHead('dislikedFamilies', {emotion})` === `第 6 步 / 共 7 步`
+- 真跑一遍情绪入口：重开一局 → 点「按感觉选」→ 界面显示「共 7 步」→ 一路点到「完全不想要」→ 该屏 `aria-multiselectable="true"`、不是 radiogroup
+- `clampStep` 五条：`7→6`、`6→6`（结果页）、`3→3`、`-1→0`、`NaN→0`；家族入口 6 个下标全部映射到可渲染步骤
+
+### 七、踩坑
+
+1. **测试原来只走家族入口**。「整族排除」那三条 aria 断言挂在主循环 `n === 6` 上，分叉之后 `n === 6` 变成 anchor 屏，三条一起报「(无 .choice-grid)」。那不是回归，是断言挂错了入口 —— 必须同时测两条入口。
+2. **`ok('第 13 步有看推荐按钮')` 是个假编号**。这个"13"是历史遗留写死的，从来不等于真实步数。删掉编号、改判「有没有看推荐按钮」，否则每次调步骤都会误报一次，且报错信息看不出真因。
+3. **`stepHead` 不接受 answers 参数时，分叉测不出来**。第一版测试写 `S.head('anchor')` 两次，两次都读 `state.answers`，断言恒等通过 —— 等于没测。
+4. **切换入口会让步骤表在 7 与 6 之间变化，`state.step` 理论上会越界**。加了 `clampStep(step, len)` 夹到末屏。**但要说清：当前没有一条实际可达的越界路径** —— 改动入口的两个控件（家族轮盘、按感觉选的分段控件）都只在第 1 屏渲染，切换时 `state.step` 恒为 0。这条是防御性的，不是修 bug；第一版注释里我写了「实测路径：情绪入口答到第 7 屏 → 回退第 1 步 → 改选家族」，那是**编的**，没有实测过，已改成诚实的表述。
+5. **`clampStep` 的合法上界是 `len` 本身**，不是 `len - 1` —— `state.step === STEPS.length` 表示「结果页」，这是正常状态。写成 `len - 1` 会让结果页永远渲染不出来。

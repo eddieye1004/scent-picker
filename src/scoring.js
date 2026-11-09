@@ -7,7 +7,7 @@
  *   3. 缺失字段不猜：没有价格就不做价格筛选；没有扩散度就不编扩散度。
  */
 
-import { tokenize, matchesNote, aliasesOf, normNote } from './notes.js';
+import { tokenize, matchesNote, aliasesOf, normNote, hasTokenSubsequence } from './notes.js';
 
 export const SCHEMA_VERSION = '1.1.0';
 
@@ -41,7 +41,8 @@ export const WEIGHTS = {
      这样「同一个人用旧四步答完」与「答满十步」的分数是可比的：
      新增维度最多再加 58 分，旧盘面满分约 108，占比 35%，是"细化"不是"改写"。 */
   character: 16,       // 性格标签命中（清冷/温暖/干净/甜…）；数据里 21 种
-  concentration: 12,   // 浓度档位吻合（EDT/EDP/Extrait）；数据覆盖 87%  longevity: 10,       // 持香时长吻合（由浓度推断，UI 必须标「推断」）
+  concentration: 12,   // 浓度档位吻合（EDT/EDP/Extrait）；数据覆盖 87%
+  longevity: 10,       // 持香时长吻合（由浓度推断，UI 必须标「推断」）
   dislikedFamily: -30, // 讨厌某个香型家族（比讨厌单个香调更粗，惩罚也更轻）
   seasonSecond: 5,     // 次选季节吻合（避免"只想夏天"和"夏天优先"同分）
 
@@ -208,6 +209,11 @@ export function buildProfile(answers, taxonomy) {
     subfamily,
     subfamilyNotes: new Set((subfamily?.notes || []).map((n) => String(n).toLowerCase())),
     emotion: emotion || { id: 'family-' + family.id, zh: family.zh },
+    /* 这一位是给理由生成用的：香型入口下 emotion 是**合成对象**（zh 就取自家族），
+       若把它当成"用户选过的感受词"写进句子，就会出现
+       「主调是花香调，在你选的「花香调」里占大头」这种自指循环。
+       所以显式记下"这是真的情绪入口吗"，理由侧据此换句式。 */
+    emotionReal: !!emotion,
     occasion: occasion || null,
     intensity,
     families: totalVec,
@@ -380,12 +386,27 @@ export function scorePerfume(p, profile, taxonomy) {
 
   // 命中判定统一走 matchesNote：按词匹配 + 显式别名，
   // 不再用双向子串（那会让 "Tuberose" 里的 rose 被当成玫瑰）。
+  //
+  // 两个坑（都已实测踩过）：
+  //   ① noteEntryOf 的 key 是 normNote(en)（"neroli / orange blossom" →
+  //      "neroli orange blossom"）+ 各个别名。UI 存进 likedNotes 的却是**原始 en**
+  //      （带斜杠和小写空格的 "neroli / orange blossom"），直接 get(key) 拿不到。
+  //      拿不到就会掉进下面的兜底分支 —— 而旧兜底是 `out.push(key)` 无条件判命中，
+  //      后果是「橙花」这一项对全部 1388 瓶都算命中，用户点它等于没点。
+  //   ② 兜底不能是"查不到就算命中"，也不能是"查不到就算没命中"：
+  //      emotionMap 里的锚点写过 "tonka" / "soap" / "fig" 这种简写，别名表里没有，
+  //      但它们确实是合法香调。正确做法是拿这串词本身去和瓶子的香调做 token 子序列
+  //      匹配 —— 匹配不上才算没命中。
   const hitsOf = (selection) => {
     const out = [];
     for (const key of selection) {
-      const entry = profile.noteEntryOf?.get(key);
-      if (!entry) { out.push(key); continue; } // 没有条目时退化为 key 自身
-      if (noteTokens.some((toks) => matchesNote(entry, null, toks))) out.push(key);
+      const entry = profile.noteEntryOf?.get(normNote(key));
+      if (entry) {
+        if (noteTokens.some((toks) => matchesNote(entry, null, toks))) out.push(key);
+      } else {
+        const needle = tokenize(key);
+        if (needle.length && noteTokens.some((toks) => hasTokenSubsequence(toks, needle))) out.push(key);
+      }
     }
     return out;
   };
@@ -890,7 +911,16 @@ function reasonText(b, profile) {
     case 'family':
       // 三条理由如果都用「X，正是「Y」这一类」的句式，读起来就是同一个模板填词。
       // 这里让 family 用「主调 + 占比」的事实句，跟下面两条在句型上岔开。
-      // occasion 在香型轮盘入口下可能为 null，不能拼进句子。
+      /* 只有**真的情绪入口**才能说「在你选的「X」里占大头」。
+         香型轮盘入口下 profile.emotion 是合成对象（zh 直接取自家族），
+         照原样拼会得到「主调是花香调，在你选的「花香调」里占大头」——
+         自指循环，而且和 familyPick 那句「主体就是花香调」重复。
+         那种情况下改用场合做锚（famHit 含场合 lerp，说得出道理）。 */
+      if (!profile.emotionReal) {
+        return profile.occasion
+          ? `主调是${b.familyZh}，也贴着「${profile.occasion.zh}」这一路`
+          : `主调是${b.familyZh}`;
+      }
       return profile.occasion
         ? `主调是${b.familyZh}，在你选的「${profile.emotion.zh}」里占大头`
         : `主调是${b.familyZh}`;

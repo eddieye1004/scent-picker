@@ -31,6 +31,10 @@ const state = {
        行为与旧四步流程逐位一致。 */
     characterPreset: null,
     characterTags: [],
+    /* 气质原型的「禁止标签」。第 3 步预选/换选都会写它（见 renderMood），
+       但初始值一直缺席 —— 于是「没答气质」与「答过又清空」在引擎侧长得一样。
+       补上初始值，让 restart() 与这里保持同一份键表。 */
+    characterNeg: [],
     temperature: null,          // 'warm' | 'cool' | 'neutral'
     sweetness: null,            // 0..3
     anchorBrand: null,
@@ -40,6 +44,11 @@ const state = {
     seasonSecond: null,
     concentration: null,
     longevity: null,
+    /* 留香是否被用户手动改过。第 5 步「改 / 恢复推断值」靠它区分
+       推断值与手改值，初始缺席时读 `=== true` 恰好为 false，行为没错，
+       但 restart() 里漏了它 —— 两处键表必须一致，否则"重来一次"会带着
+       上一轮的手动标记。 */
+    longevityManual: false,
     dislikedFamilies: [],
   },
   result: null,
@@ -130,6 +139,15 @@ const STEPS = [
     title: '有没有哪一类你完全不想要？',
     help: '整族划掉。比逐个香调排除更粗，但更快——不想再看到木质就整族关掉',
     render: renderDislikedFamilies,
+    /* 只在**情绪入口**下出现。
+       实测（scripts/probe-step6-options.mjs，2026-11-09）：
+       · 家族入口：30 种「选一族 + 排除另一族」组合里 **0 种**改变 top-3。
+         原因是候选池被 isDominant 过滤成 100% 本族（六个族实测全 10/10），
+         而扣分条件要求「该族 = 这瓶的主族」—— 排除任何别的族都打不中。
+         这一屏对家族入口用户等于白问，点了没反应比不给这个入口更糟。
+       · 情绪入口：36 种组合里 15 种改变 top-3、6 种改变第 1 名。真有用，不能删。
+       所以按入口动态出现，而不是整屏删掉或放宽扣分条件（后者会连带污染情绪侧）。 */
+    when: (a) => !a.family,
   },
   {
     id: 'anchor',
@@ -141,6 +159,26 @@ const STEPS = [
   },
 ];
 
+/* 当前生效的步骤表。STEPS 是全集，带 when() 的项按答案动态出现：
+   「整族排除」只在情绪入口下有意义（实测家族入口 0/30，见该步骤定义处的注释）。
+   为什么不做成常量查找表 —— 因为答案会在第 1 步被改，集合必须每次重算。
+
+   注意：所有「第 N 步 / 共 M 步」与进度段数都必须走这个函数，
+   不能再读 STEPS.length。两套数字一旦分叉，界面会显示「共 7 步」但只有 6 屏，
+   用户翻到第 6 屏就出结果，会以为漏了一屏。 */
+function curSteps(answers = state.answers) {
+  return STEPS.filter((st) => !st.when || st.when(answers));
+}
+
+/* 把步骤下标夹进当前步骤表的合法范围。
+   为什么单独抽出来：`render()` 里要用它挡越界，而「切换入口会让步骤表变短」
+   这件事在测试里也必须能直接验（`__steps.clamp`），不必真的点几十次。
+   `list.length` 本身是合法值 —— 它表示「结果页」。 */
+function clampStep(step, len) {
+  if (!Number.isFinite(step) || step < 0) return 0;
+  return step > len ? len : step;
+}
+
 /* 按 step id 取「第 N 步 / 共 M 步」那一行。
    为什么要有这个函数：v19 之前每个 render 里都写 STEPS[5] 这种硬编码下标，
    中间插一屏就全部错位，而且**不报错**，只是编号显示成错的。
@@ -151,11 +189,12 @@ const STEPS = [
    页面直接白屏报 "stepHead is not defined"。这类"删代码删掉相邻函数"
    的事故，测试里的 ESM import 会抛错，但浏览器只会显示加载失败，
    两种表现差很远，所以留这条注释。 */
-function stepHead(id) {
-  const i = STEPS.findIndex((x) => x.id === id);
-  const st = STEPS[i] || { kicker: '', title: '', help: '' };
+function stepHead(id, answers = state.answers) {
+  const list = curSteps(answers);
+  const i = list.findIndex((x) => x.id === id);
+  const st = list[i] || { kicker: '', title: '', help: '' };
   return {
-    kicker: `第 ${i + 1} 步 / 共 ${STEPS.length} 步`,
+    kicker: `第 ${i + 1} 步 / 共 ${list.length} 步`,
     title: st.title,
     help: st.help,
   };
@@ -1455,20 +1494,54 @@ function renderFamily() {
     onChange: (fam, sub) => {
       state.answers.family = fam ? fam.id : null;
       state.answers.subfamily = sub ? sub.id : null;
+      /* 两条入口互斥：选了家族就清掉情绪，否则 buildProfile 会以家族为准，
+         而界面上「用感觉选」还亮着，用户以为自己两条都算数。 */
+      if (fam) state.answers.emotion = null;
       // 轮盘是两层，选完不该立刻跳走——用户可能还想在中圈再收一层。
       // 所以这里只更新家族说明区与底部按钮，前进由按钮控制。
       paintFamilyPanel(fam);
       // 底部按钮必须跟着重画：它的 disabled 与提示语都取决于"选了没有"。
       // 只改 state 不重画的话，用户选完家族按钮还是灰的，看着像坏了。
-      const old = document.querySelector('.actions');
-      if (old && old.parentNode) {
-        const fresh = navBar('family');
-        old.parentNode.replaceChild(fresh, old);
-      }
+      refreshNav('family');
     },
   }));
 
+  /* --- 说不清？用感觉选 ---
+     香型轮盘要求用户认识「柑橘调 / 东方琥珀调」这些词，而目标用户正是
+     完全不认识它们的人。此前这条路是**死路**：answers.emotion 在
+     app.js 里只有初始化和 restart 两处写入，没有任何控件能赋值，
+     而 finish() 又硬性要求 answers.family —— 于是「按感觉选」这个引擎
+     一直支持的入口，在界面上根本走不通（scoring.js:151 的两条入口只活了
+     一条）。
+
+     六个情绪词全部来自 TAX.emotionMap，不新造词。
+     选情绪会清掉已选的家族并以情绪为准（反过来选家族会清掉情绪），
+     两条入口永远只有一个生效 —— 这也是 buildProfile 的实际语义。
+
+     v35 顺序调整：这一段原来排在主按钮**之前**。它不是主路径，却占了
+     46px 控件 + 标题 + 说明共 147.6px，把「下一步」顶到 1440×900 的 955px
+     处（视口只有 900）—— 用户必须先看完一个可选控件，才看得到唯一的主操作。
+     现在先给主按钮，再给退路。叙事上也更顺：先走主路，走不通再换。 */
   wrap.appendChild(navBar('family'));
+
+  wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:24px' },
+    '不想按大类选？也可以按感觉挑一个（二选一，和上面互斥）'));
+  const EMO_OPTS = (TAX.emotionMap || []).map((e) => ({ id: e.id, zh: e.zh, desc: e.desc }));
+  wrap.appendChild(segControl(
+    EMO_OPTS,
+    state.answers.emotion,
+    (id) => {
+      state.answers.emotion = id;
+      /* 整屏重画：轮盘要用 selFamily=null 重建，否则盘心还停在刚选的那族，
+         界面说「选了花香」、引擎却按情绪算。这一屏没有长列表，重绘不丢位置。 */
+      state.answers.family = null;
+      state.answers.subfamily = null;
+      render();
+    },
+    '说不清香型时按感觉选'
+  ));
+  wrap.appendChild(segHint(EMO_OPTS, state.answers.emotion));
+
   // 详情放按钮之后：先让用户能立刻前进，再给"这个大类是什么"的补充阅读。
   // 反过来放的话，一选中家族说明区就把"下一步"顶到折叠线以下，
   // 桌面 1440×900 实测按钮落在 1131px 处，必须滚动才点得到。
@@ -1882,9 +1955,29 @@ function renderDislikedFamilies() {
   });
   wrap.appendChild(box);
 
+  /* ② 已经点名排掉的香材 —— 只读回顾，不是第二个问题。
+     第 2 步的「完全受不了」两栏在九十秒前答过，到这一屏用户通常已经忘了
+     自己点过哪几个。不回顾的话，他在这里整族关掉「木质」，却忘了自己刚
+     点名受不了 cedarwood（那本来已经在 -40 里），会以为系统漏听了。
+     刻意不用 .choice / .choice-grid：这一屏的 .choice-grid 必须只有上面
+     那一组多选（scripts/test-render.mjs:998 取的是第一个 .choice-grid），
+     而且这也不是一组可点的东西。 */
+  const negNotes = state.answers.dislikedNotes || [];
+  if (negNotes.length) {
+    const zhOf = (en) => state.answers.dislikedZh?.[en] || en;
+    /* 不用新 class：styles*.css 不在本席位的写范围，凭空造一个
+       .note-review 只会得到一排无样式裸文字。这里复用既有 .term-note，
+       把名单拼成一句 —— 它本来就允许长句 + strong 起头。 */
+    wrap.appendChild(el('div', { class: 'term-note' },
+      el('strong', {}, `② 你在第 2 步已排掉 ${negNotes.length} 种：`),
+      ' ' + negNotes.map(zhOf).join('、'),
+      ' —— 这些已经各自扣过 -40，这里不用再关一遍。想加回来，回第 2 步右栏取消勾选'
+    ));
+  }
+
   wrap.appendChild(el('div', { class: 'term-note' },
     el('strong', {}, '可以一个都不选：'),
-    ' 这里是「整族关掉」。只想排除具体几种香材的话，回第 4 / 5 步逐个点名更准。',
+    ' 这里是「整族关掉」。只想排除具体几种香材的话，回第 2 步右栏逐个点名更准。',
     '两者可以同时用：整族排除管大方向，点名香材管精确的那几种。'
   ));
 
@@ -2207,7 +2300,7 @@ function renderNotesCombined() {
 
   if (!DATA?.perfumes?.length) {
     ensurePerfumes()
-      .then(() => { if (STEPS[state.step]?.id === 'notes') render(); })
+      .then(() => { if (curSteps()[state.step]?.id === 'notes') render(); })
       .catch((err) => { wrap.appendChild(el('p', { class: 'q-help' }, `香调表加载失败：${err.message}`)); });
     wrap.appendChild(el('div', { class: 'skeleton' },
       el('div', { class: 'skeleton-ring' }),
@@ -2645,6 +2738,41 @@ function renderStrength() {
     render();
   }));
 
+  /* ②' 浓度与浓郁度打架时说一句 —— 只提醒，不替用户改。
+     两问在同一屏：①问"多浓"（1–5 的体感），②问"哪种浓度"（EDC…Parfum）。
+     常识上它们强相关（古龙水基本不可能是 5/5 那种压人的浓），但数据里
+     1388 瓶的 concentration 与「厚重感」相关系数并不高 —— 有清淡的 Parfum，
+     也有呛人的 EDT。所以这里**只在高反差时提醒**，不预选、不联动：
+     替用户改浓度等于把两问合并成一问，而它们测的确实是两件事。
+
+     阈值取 2 档（例如要 5/5 却选了古龙水，或只要 1/5 却选了香精）：
+     差 1 档是常态，说了等于每屏都挂一句废话。 */
+  {
+    const INTENSITY_BAND = {
+      'eau-de-cologne': [1, 2],
+      'eau-de-toilette': [2, 3],
+      'eau-de-parfum': [3, 4],
+      'parfum': [4, 5],
+      'extrait': [4, 5],
+      'elixir': [4, 5],
+    };
+    const conc = state.answers.concentration;
+    const band = conc ? INTENSITY_BAND[conc] : null;
+    const want = Number(state.answers.intensity);
+    if (band && want) {
+      const gap = want < band[0] ? band[0] - want : (want > band[1] ? want - band[1] : 0);
+      if (gap >= 2) {
+        const concZh = (CONCENTRATIONS.find((c) => c.id === conc) || {}).zh || conc;
+        wrap.appendChild(el('div', { class: 'term-note is-warn' },
+          el('strong', {}, '这两项差得有点远：'),
+          ` 你要的是 ${want}/5（${INTENSITY_LABEL[want][0]}），但选了${concZh}。`,
+          ' 浓淡是体感、浓度是香精占比，两者不完全同步 —— 真想要那个体感，',
+          ' 回头把 ① 调回中间档更稳妥；不改也能出结果，只是候选会少一些。'
+        ));
+      }
+    }
+  }
+
   /* ③ 留香：由 ② 浓度推算，**不再是一组可点的单选**。
      原来它是 4 张可点的卡，看起来和 ② 一样是"一个待回答的问题"。
      但它不是独立问题 —— 它由浓度决定（古龙水约 2、EDT 约 3、EDP 约 4、香精约 5）。
@@ -2732,6 +2860,16 @@ const CONC_TO_LONGEVITY = {
 };
 
 /* ---------- 导航条 ---------- */
+/* 只重画底部的 .actions，不动整屏。
+   为什么需要它：第 1 步的轮盘 onChange 与「按感觉选」都不整屏重绘
+   （重绘会让轮盘转场动画重播、滚动位置跳走），但按钮的 disabled 与
+   提示语取决于"到底答了没有"，不重画就会停在旧的灰按钮上。 */
+function refreshNav(stepId) {
+  const old = document.querySelector('.actions');
+  if (!old || !old.parentNode) return;
+  old.parentNode.replaceChild(navBar(stepId), old);
+}
+
 function navBar(stepId) {
   const bar = el('div', { class: 'actions' });
 
@@ -2743,8 +2881,15 @@ function navBar(stepId) {
   bar.appendChild(el('div', { class: 'spacer' }));
 
   if (stepId === 'family') {
-    const done = !!state.answers.family;
-    bar.appendChild(el('span', { class: 'hint' }, done ? '中圈可选，不选就按大类推荐' : '先在外圈挑一个大类'));
+    /* 两条入口都算「答过了」：轮盘选家族，或下面那排「按感觉选」。
+       只认 family 时，用情绪入口的人会被这个 disabled 卡在第 1 步 ——
+       而那恰好是不认识香型词汇的用户，等于把兜底路也堵死。 */
+    const byFamily = !!state.answers.family;
+    const byEmotion = !!state.answers.emotion;
+    const done = byFamily || byEmotion;
+    bar.appendChild(el('span', { class: 'hint' }, done
+      ? (byFamily ? '中圈可选，不选就按大类推荐' : '按感觉选也可以，中圈可不选')
+      : '先在外圈挑一个大类，或者用下面的「按感觉选」'));
     bar.appendChild(el('button', {
       class: 'btn', type: 'button', disabled: done ? null : 'disabled',
       onclick: next,
@@ -2803,7 +2948,8 @@ function navBar(stepId) {
 
 /* ---------- 流程 ---------- */
 function next() {
-  if (state.step < STEPS.length - 1) {
+  const list = curSteps();
+  if (state.step < list.length - 1) {
     state.step += 1;
     render();
   }
@@ -2823,7 +2969,11 @@ async function finish(btn) {
      的"场景"屏、且**允许不答**，这条守卫会把用户从最后一屏静默弹回
      第 2 步（香调屏），表现得像"点了看推荐没反应"。
      缺场合只是少一个打分因子（WEIGHTS.occasionFamily），不该阻断流程。 */
-  if (!state.answers.family) { state.step = 0; render(); return; }
+  /* 唯一硬约束：必须给出一个入口 —— 香型轮盘选了家族，或者用「按感觉选」选了情绪。
+     原来只认 family，把 emotion 这条引擎早就支持的入口卡死了
+     （scoring.js:151 的两条入口在生产路径上只活了一条）。
+     两条都给不出时才回第 1 步：那时引擎确实无从下手，recommend 会 throw。 */
+  if (!state.answers.family && !state.answers.emotion) { state.step = 0; render(); return; }
   // 库还没到时，这里会等它下完 —— 只有「四步全答完、但库仍在下载」才会卡到这。
   // 等待期间必须给出可见反馈：按钮换成进度文案并禁用，否则用户会连点几次。
   const busy = setBusy(btn, '正在比对…');
@@ -2835,7 +2985,7 @@ async function finish(btn) {
        而且通常早已在缓存里。失败不影响结果页。 */
     await ensurePhotos().catch(() => {});
     state.result = recommend(state.answers, d.perfumes, TAX, { topN: 3 });
-    state.step = STEPS.length;
+    state.step = curSteps().length;
     render();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } finally {
@@ -2868,9 +3018,15 @@ function restart() {
   state.answers = {
     family: null, subfamily: null, emotion: null, occasion: null, intensity: 3,
     likedNotes: [], dislikedNotes: [], likedZh: {}, dislikedZh: {},
-    characterPreset: null, characterTags: [], season: null, seasonSecond: null,
-    concentration: null, longevity: null, dislikedFamilies: [],
-    temperature: null, sweetness: null,
+    /* characterNeg 与 longevityManual 是前两轮漏掉的：前者是气质原型的
+       「禁止标签」，不清就会带着上一轮的排除项进新一轮打分（用户重选气质后
+       仍被扣分，且界面上看不出来）；后者是留香手动覆盖标记，不清会让新一轮
+       明明由浓度推断、却被标成「手动」。两者都不在 restart 的键表里，
+       属于「加字段时漏更新这里」的老毛病。 */
+    characterPreset: null, characterTags: [], characterNeg: [],
+    season: null, seasonSecond: null,
+    concentration: null, longevity: null, longevityManual: false,
+    dislikedFamilies: [], temperature: null, sweetness: null,
     anchorBrand: null, anchorPerfume: null, anchorNotes: [],
   };
   state.result = null;
@@ -2881,18 +3037,22 @@ function restart() {
 /* ---------- 渲染 ---------- */
 function renderProgress() {
   const box = el('div');
-  const bar = el('div', { class: 'progress' });
-  const total = STEPS.length;
+  /* 段数写进 CSS 变量：`base.css` 原本写死 `repeat(4, 1fr)`，
+     7 段塞进 4 列会断成 4+3 两行 —— 整条读起来像两截虚线而不是一根进度尺。
+     现在段数来自 curSteps()：家族入口 6 段、情绪入口 7 段，两套都得对。 */
+  const list = curSteps();
+  const bar = el('div', { class: 'progress', style: `--steps: ${list.length}` });
+  const total = list.length;
   for (let i = 0; i < total; i++) {
     const cls = i < state.step ? 'done' : i === state.step ? 'now' : '';
     bar.appendChild(el('i', { class: cls }));
   }
   /* v19：进度条下方那一行标签原来硬编码四项（'香型','场合','浓度','香调'）。
-     步骤一扩到 10 步就会越界读到 undefined，所以改成从 STEPS 派生：
+     步骤一扩到 10 步就会越界读到 undefined，所以改成从步骤表派生：
      每个步骤自己在定义里没给 short 时，退回到 kicker 里的中文。
-     十段进度条本身也太密（每段只有 3px 宽），改成"每 2 段并 1 段"会更糊，
-     所以保留 10 段，只把段高从 3px 收到 2px（见 _wheel12.css）。 */
-  const labels = STEPS.map((st) => st.short || st.title.slice(0, 4));
+     注意 `state.step` 可能等于 total（结果页），此时 labels[state.step] 是
+     undefined —— 下面的三元已经先判了 `>= total`，不会再读到它。 */
+  const labels = list.map((st) => st.short || st.title.slice(0, 4));
   const meta = el('div', { class: 'progress-meta' },
     el('span', {}, state.step >= total ? '推荐结果' : labels[state.step]),
     el('span', {}, state.step >= total ? `完成 · 共 ${total} 步` : `${state.step + 1} / ${total}`)
@@ -2902,7 +3062,7 @@ function renderProgress() {
 }
 
 function renderMasthead() {
-  const isResult = state.step >= STEPS.length;
+  const isResult = state.step >= curSteps().length;
   return el('header', { class: 'masthead' },
     // 封面标题里的「第一瓶」是全站唯一的高分量蓝色。
     // 用 em 而不是 span：它承载的是语义强调（"第一瓶"才是这个产品的承诺），
@@ -3706,19 +3866,53 @@ function renderFooter() {
 
 function render() {
   const app = $('#app');
-  /* 切步前记下焦点落在哪个可交互元素上。整页重建会把原节点连同焦点一起丢掉，
+  /* 切屏前记下焦点落在哪个可交互元素上。整页重建会把原节点连同焦点一起丢掉，
      键盘用户每走一步都要从头 Tab 穿过页头才能回到题目 —— 实测切步后
      activeElement 是 BODY。 */
   const prevFocus = document.activeElement;
   const hadFocusInside = prevFocus && prevFocus !== document.body && app.contains(prevFocus);
 
+  /* 切屏语言按屏分配，不搞一刀切（D59）。
+     三档定义在 `styles/src/_wheel22.css` 的 data-scene 段：
+       cut    零位移淡入      —— 作答中的屏（用户在选择，位移会打断线性感）
+       settle 下沉 8px 淡入   —— 转换阶段的屏（首屏 / 心情 / 排除）
+       rise   上浮 14px 淡入  —— 结果页（全流程唯一"给答案"的一屏） */
+  const SCENE = {
+    family: 'settle',
+    notes: 'cut',
+    mood: 'settle',
+    context: 'cut',
+    strength: 'cut',
+    dislikedFamilies: 'settle',
+    anchor: 'cut',
+  };
+  const list = curSteps();
+  /* 越界保护（防御性，2026-11-09）。
+     入口切换会让步骤表在 7 与 6 之间变化，理论上 `state.step` 可能落在新表之外。
+     我核过当前 UI：改动入口的两个控件（家族轮盘、按感觉选的分段控件）都只在
+     第 1 屏渲染，所以切换时 `state.step` 恒为 0，**当前一条实际可达路径都没有**。
+     留着是为了让「容器长度与下标」这对不变量有兜底，将来把入口搬到别的屏也不会炸。
+     夹到末屏而不是回第 1 步：用户刚改的是入口，不该被扔回开头重答。 */
+  state.step = clampStep(state.step, list.length);
+  const isResult = state.step >= list.length;
+  app.dataset.scene = isResult
+    ? 'rise'
+    : (SCENE[list[state.step].id] || 'cut');
+
+  /* 步骤 id 同时写进 DOM，供 CSS 认屏。
+     原先只有 `_wheel17.css` 用 `main:has(.disc):has(.seg)` 认"场景屏"，
+     结果是转盘屏（第 1 步也有 .disc + .seg 情绪段选）被一起命中，
+     masthead 的 28px 下边距在那一屏被压成 6px —— 换屏时整页会跳 12–22px。
+     写一个显式属性，认屏就不靠"这个屏碰巧有什么元素"。 */
+  app.dataset.step = isResult ? 'result' : list[state.step].id;
+
   app.innerHTML = '';
   app.appendChild(renderMasthead());
   app.appendChild(renderProgress());
-  if (state.step >= STEPS.length) {
+  if (isResult) {
     app.appendChild(renderResult());
   } else {
-    app.appendChild(STEPS[state.step].render());
+    app.appendChild(list[state.step].render());
   }
   app.appendChild(renderFooter());
 
@@ -3890,6 +4084,22 @@ export const __art = {
   /* 让测试能注入清单，不必在磁盘上放真图。 */
   set: (v) => { PHOTOS = v; },
 };
+
+/* 步骤表的入口分叉本身要能被测（v36）。
+   为什么必须单独暴露：家族入口 6 步 / 情绪入口 7 步这件事，
+   只有「点两遍第 1 步、数一遍进度条」才看得见；而 test-render 的主流程
+   走的是家族入口，情绪入口那一支在常态下**一条断言都碰不到**。
+   把它做成纯函数暴露出来，两条入口的分叉就都能直接验。 */
+export const __steps = {
+  all: STEPS,
+  cur: curSteps,
+  head: stepHead,
+  clamp: clampStep,
+};
+
+/* 重开一局。测试要验「情绪入口 7 步」必须能从干净状态走一遍，
+   否则只能验到纯函数、验不到 navBar / render / 进度条。 */
+export const __restart = restart;
 
 
 /* 测试用：把推导函数挂到 #app 上，供 test-render 直接调用。

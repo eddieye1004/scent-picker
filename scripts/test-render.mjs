@@ -933,16 +933,22 @@ if (dislikeTwin) {
 /* v19：出结果前要再走 5 屏（气质 / 季节 / 浓度 / 留香 / 整族排除）。
    每屏都给一句断言，顺带把「新增的屏真的能渲染、能前进」测掉 ——
    否则只要某一屏的 navBar 分支漏写，用户就会卡在那里出不了结果。 */
-/* v22：7 步。顺序见 app.js 的 STEPS ——
+/* v22：7 步全集。顺序见 app.js 的 STEPS ——
    1 香型 / 2 香调点名（双栏）/ 3 气质（三组）/ 4 场景（场合+季节）
    5 浓淡持久（滑块+浓度+留香联动）/ 6 整族排除 / 7 已知款
-   合并原则是"一屏只问一类事"，不是"相邻就合"。 */
+   合并原则是"一屏只问一类事"，不是"相邻就合"。
+
+   v36 起「整族排除」按入口动态出现（app.js 的 STEPS[].when）：
+   · 家族入口（本文件中前面选了家族）→ 6 步，没有「完全不想要」那一屏
+   · 情绪入口（按感觉选）      → 7 步，有
+   所以下面这段循环走的是**家族入口的 6 步**；情绪入口的 7 步另有一段断言
+   （搜 `v36 入口分叉`）。两段合起来才覆盖全集，
+   只测一条会在另一条静默坏掉时全部通过。 */
 const stepNames = [
   [3, '给人什么感觉', 'mood'],
   [4, '什么时候用它', 'context'],
   [5, '想要多浓、留多久', 'strength'],
-  [6, '完全不想要', 'dislikedFamilies'],
-  [7, '试过、并且喜欢', 'anchor'],
+  [6, '试过、并且喜欢', 'anchor'],
 ];
 for (const [n, phrase] of stepNames) {
   /* 顺序很重要：先点前进、再断言落在第 n 步。
@@ -956,10 +962,11 @@ for (const [n, phrase] of stepNames) {
   ok(`进入第 ${n} 步（${phrase}）`, getStepText().includes(phrase), getStepText().slice(0, 80));
 
   /* E6：品牌从原生 select 换成可搜索组合框。
-     133 项原生下拉只能滚，是全场唯一无法用输入法到达的地方。 */
-  if (n === 7) {
+     133 项原生下拉只能滚，是全场唯一无法用输入法到达的地方。
+     家族入口下 anchor 是第 6 步（v36 起「整族排除」不出现）。 */
+  if (n === 6) {
     const combos = appRoot.querySelectorAll('.combo-input');
-    ok('第 7 步品牌是可搜索组合框', combos.length === 1, `实际 ${combos.length}`);
+    ok('末步品牌是可搜索组合框', combos.length === 1, `实际 ${combos.length}`);
     ok('组合框是 combobox 语义',
       combos.length === 1 && combos[0].attrs.role === 'combobox',
       combos.length ? String(combos[0].attrs.role) : '-');
@@ -990,18 +997,11 @@ for (const [n, phrase] of stepNames) {
     ok('刻度亮起项与滑块读数一致', shown !== null && onTick === shown,
       `亮第 ${onTick} 个，界面读数是 ${shown}`);
   }
-  if (n === 6) {
-    /* E7：这一屏是全场唯一的多选卡片组，但它和单选组共用 .choice-grid。
-       没有显式文案与 aria-multiselectable 时，视觉与读屏都说不出"可以选多个"。 */
-    const t = getStepText();
-    ok('第 6 步写明「可多选」', t.includes('可多选'), t.slice(0, 80));
-    const g = appRoot.querySelector('.choice-grid');
-    ok('第 6 步容器标了 aria-multiselectable',
-      !!g && g.attrs['aria-multiselectable'] === 'true',
-      g ? String(g.attrs['aria-multiselectable']) : '(无 .choice-grid)');
-    ok('第 6 步不是 radiogroup（是多选）',
-      !!g && g.attrs.role !== 'radiogroup', g ? String(g.attrs.role) : '-');
-  }
+  /* 「整族排除」那三条 aria 断言已从这里移走 ——
+     家族入口下这一屏不再出现（app.js 的 STEPS[].when）。它们现在挂在
+     文件末尾的「v36 入口分叉」段，在情绪入口下重新跑一遍。
+     留在原处会让这条循环在 n===6（现在是 anchor 屏）时去查 .choice-grid，
+     报「(无 .choice-grid)」—— 那不是回归，是断言挂错了入口。 */
   if (n === 3) {
     /* E3/E4：冷暖（3 档）与甜度（4 档）改成分段控件。
        判据三条：形态是 .seg、语义是 radiogroup、方向键能换档。 */
@@ -1058,7 +1058,11 @@ for (const [n, phrase] of stepNames) {
 }
 
 const finishBtn = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('看推荐'));
-ok('第 13 步有看推荐按钮', !!finishBtn);
+/* 断言"有看推荐按钮"，不写死步号 —— v36 起步数按入口变（家族 6 / 情绪 7），
+   写死「第 13 步」这种历史遗留编号，每次调整步骤都会误报一次，
+   而且报错信息里看不出真正的原因（它只是在数一个已经不存在的编号）。 */
+ok('末步有看推荐按钮', !!finishBtn,
+  `按钮：${appRoot.querySelectorAll('.btn').map((x) => x.textContent.trim()).join(' | ').slice(0, 120)}`);
 if (finishBtn) {
   finishBtn.dispatch('click');
   await new Promise((r) => setTimeout(r, 400));
@@ -1608,6 +1612,102 @@ ok('结果页无 NaN/undefined', !/NaN|undefined/.test(resultText), resultText.s
 // 抽样打印第一瓶，供人工核对
 console.log('\n--- 第一瓶渲染结果 ---');
 console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
+
+/* ---------- v36 入口分叉：家族 6 步 / 情绪 7 步 ----------
+   上面的主流程走的是**家族入口**（第 1 步在轮盘里选了家族），
+   那一支下「整族排除」不出现，所以它的三条 aria 断言在这里补测。
+   不补的话，这段代码在情绪入口坏掉时会全绿通过 ——
+   而情绪入口恰是「整族排除」唯一真正有效的那一支。
+
+   同时钉住两条入口的步数与「共 N 步」文案必须一致：
+   两套数字一旦分叉，用户会看到「共 7 步」但翻到第 6 屏就出结果。 */
+{
+  const S = appMod.__steps;
+  ok('v36 步骤全集是 7 步', S.all.length === 7, `实际 ${S.all.length}`);
+  ok('v36 全集里有「整族排除」', S.all.some((x) => x.id === 'dislikedFamilies'));
+
+  /* 纯函数层：家族入口 6 步、情绪入口 7 步 */
+  const byFam = S.cur({ family: 'floral' });
+  const byEmo = S.cur({ emotion: 'cold' });
+  const empty = S.cur({});
+  ok('v36 家族入口 6 步', byFam.length === 6, `实际 ${byFam.length}`);
+  ok('v36 情绪入口 7 步', byEmo.length === 7, `实际 ${byEmo.length}`);
+  ok('v36 家族入口不含「整族排除」', !byFam.some((x) => x.id === 'dislikedFamilies'),
+    byFam.map((x) => x.id).join(','));
+  ok('v36 情绪入口含「整族排除」', byEmo.some((x) => x.id === 'dislikedFamilies'),
+    byEmo.map((x) => x.id).join(','));
+  ok('v36 未答任何入口时有 7 步（保留全集，不隐藏）', empty.length === 7, `实际 ${empty.length}`);
+
+  /* 「第 N 步 / 共 M 步」必须跟着入口走 —— 这是用户唯一能看见的数字。
+     注意 head() 必须显式传 answers，否则两次都读 state.answers，
+     测出来永远相等，等于没测。 */
+  const headFam = S.head('anchor', { family: 'floral' });
+  const headEmo = S.head('anchor', { emotion: 'cold' });
+  ok('v36 家族入口「试过并且喜欢」是第 6 步 / 共 6 步',
+    headFam.kicker === '第 6 步 / 共 6 步', headFam.kicker);
+  ok('v36 情绪入口「试过并且喜欢」是第 7 步 / 共 7 步',
+    headEmo.kicker === '第 7 步 / 共 7 步', headEmo.kicker);
+  /* 同一屏在两条入口下的序号必须不同 —— 上两条同时成立时这一条是冗余的，
+     但它防的是「两个头部都硬编码成同一个数字」这种改法。 */
+  ok('v36 同一屏在两条入口下序号不同', headFam.kicker !== headEmo.kicker,
+    `${headFam.kicker} vs ${headEmo.kicker}`);
+  /* 「整族排除」在情绪入口下是第 6 步（共 7） */
+  const headDis = S.head('dislikedFamilies', { emotion: 'cold' });
+  ok('v36 情绪入口「整族排除」是第 6 步 / 共 7 步',
+    headDis.kicker === '第 6 步 / 共 7 步', headDis.kicker);
+
+  /* 越界保护：切换入口会让步骤表从 7 缩短到 6，
+     而 state.step 可能还停在 7（结果页）或 6（旧的第 7 屏）。
+     不夹的话 `list[state.step]` 是 undefined，`.render()` 抛错白屏。
+     实测复现路径：情绪入口答到第 7 屏 → 回退第 1 步 → 改选家族。 */
+  ok('v36 越界夹取：step=7 在 6 步表里夹到 6', S.clamp(7, 6) === 6, String(S.clamp(7, 6)));
+  ok('v36 越界夹取：step=6 在 6 步表里保持 6（=结果页）', S.clamp(6, 6) === 6, String(S.clamp(6, 6)));
+  ok('v36 越界夹取：step=3 不动', S.clamp(3, 6) === 3, String(S.clamp(3, 6)));
+  ok('v36 越界夹取：负数是 0', S.clamp(-1, 6) === 0, String(S.clamp(-1, 6)));
+  ok('v36 越界夹取：NaN 是 0', S.clamp(NaN, 6) === 0, String(S.clamp(NaN, 6)));
+  /* 每个合法下标都必须能取到一个真实步骤，不能是 undefined */
+  const allReachable = [0, 1, 2, 3, 4, 5].every((i) => !!byFam[i] && typeof byFam[i].render === 'function');
+  ok('v36 家族入口 6 个下标全部有可渲染步骤', allReachable,
+    byFam.map((x) => x.id).join(','));
+
+  /* 情绪入口下真的点到那一屏：重开一局，用「按感觉选」进第 1 步。
+     不能只验纯函数 —— 那样 navBar / render / 进度条任何一处漏改都测不到。 */
+  const restartFn = appMod.__restart;
+  if (restartFn) {
+    restartFn();
+    await new Promise((r) => setTimeout(r, 300));
+    const emoSeg = appRoot.querySelectorAll('.seg').find((s) => s.attrs['aria-label']
+      && /感觉/.test(s.attrs['aria-label']));
+    /* 情绪段控件的 aria-label 是「说不清香型时按感觉选」，取第一个 .seg 也够 */
+    const seg = emoSeg || appRoot.querySelectorAll('.seg')[0];
+    const emoItem = seg ? seg.querySelectorAll('.seg-item')[0] : null;
+    ok('v36 第 1 步有「按感觉选」分段控件', !!emoItem);
+    if (emoItem) {
+      emoItem.dispatch('click');
+      await new Promise((r) => setTimeout(r, 300));
+      const prog = getStepText();
+      ok('v36 情绪入口显示「共 7 步」', /共 7 步/.test(prog), prog.slice(0, 60));
+      /* 一路点到「整族排除」那一屏 */
+      let guard = 0;
+      while (guard++ < 8) {
+        const b = appRoot.querySelectorAll('.btn').find((x) => x.textContent.includes('下一步'));
+        if (!b) break;
+        b.dispatch('click');
+        await new Promise((r) => setTimeout(r, 200));
+        if (getStepText().includes('完全不想要')) break;
+      }
+      const t = getStepText();
+      ok('v36 情绪入口能走到「完全不想要」那一屏', t.includes('完全不想要'), t.slice(0, 80));
+      ok('v36 该屏写明「可多选」', t.includes('可多选'), t.slice(0, 80));
+      const g = appRoot.querySelector('.choice-grid');
+      ok('v36 该屏容器标了 aria-multiselectable',
+        !!g && g.attrs['aria-multiselectable'] === 'true',
+        g ? String(g.attrs['aria-multiselectable']) : '(无 .choice-grid)');
+      ok('v36 该屏不是 radiogroup（是多选）',
+        !!g && g.attrs.role !== 'radiogroup', g ? String(g.attrs.role) : '-');
+    }
+  }
+}
 
 fs.unlinkSync(tmpApp);
 

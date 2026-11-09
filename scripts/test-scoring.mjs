@@ -107,6 +107,98 @@ for (const emotion of emotions) {
 check('T11 全组合三瓶不同品牌', dupBrand.length === 0,
   dupBrand.slice(0, 3).join(' ; '));
 
+/* T12 权重表完整性：每个键必须是有限数字
+ * 起因（2026-11-08 实测）：`WEIGHTS.concentration` 那一行末尾的注释把下一行
+ * `longevity: 10,` 一起吞进了注释里，于是 `WEIGHTS.longevity === undefined`。
+ * 后果是"留香"整道题永远不起作用 —— `clamp01(...) * undefined` 得到 NaN，
+ * 而 `if (lScore > 0)` 对 NaN 恒为 false，因子被静默跳过。106 项测试一条没红，
+ * 因为没有任何一条断言检查权重表本身。 */
+for (const [k, v] of Object.entries(WEIGHTS)) {
+  check(`T12 WEIGHTS.${k} 是有限数字`, typeof v === 'number' && Number.isFinite(v), `实际 ${typeof v} ${v}`);
+}
+check('T12 longevity 权重存在且为正', WEIGHTS.longevity > 0, `实际 ${WEIGHTS.longevity}`);
+
+/* T13 「留香」因子真的参与打分
+ * 起因：上面那个 bug 修好前，profile.longevity 有值、瓶子也有 longevityInferred，
+ * 但 breakdown 里永远找不到 longevity 这一项。 */
+{
+  const p = perfumes.find((x) => x.longevityInferred != null);
+  const prof = buildProfile({ emotion: 'warm', longevity: p.longevityInferred }, TAX);
+  const sc = scorePerfume(p, prof, TAX);
+  const hit = (sc.breakdown || []).find((b) => b.factor === 'longevity');
+  check('T13 留香吻合时 longevity 进 breakdown', !!hit, `longevityInferred=${p.longevityInferred}`);
+  check('T13 留香吻合时拿到满分', hit && Math.abs(hit.score - WEIGHTS.longevity) < 1e-9,
+    `实际 ${hit && hit.score} 期望 ${WEIGHTS.longevity}`);
+}
+
+/* T14 带斜杠的香调名不得对全库命中
+ * 起因（2026-11-08 实测）：noteIndex 里有一条 `en: "neroli / orange blossom"`。
+ * `noteEntryOf` 的 key 是 normNote(en) = "neroli orange blossom"，而 UI 存进
+ * likedNotes 的是**原始 en**（带斜杠），直接 get 拿不到 → 掉进兜底分支
+ * `out.push(key)`（无条件判命中）→ 这一项对全部 1388 瓶都算命中，
+ * 用户点「橙花」等于什么都没点。修复后兜底改为真正做 token 匹配。 */
+{
+  const slash = TAX.noteIndex.entries.filter((e) => e.en.includes('/'));
+  check('T14 存在带斜杠的香调条目（用于回归）', slash.length > 0, `${slash.length} 条`);
+  for (const e of slash) {
+    const prof = buildProfile({ family: 'floral', likedNotes: [e.en] }, TAX);
+    let hits = 0;
+    for (const q of perfumes) {
+      const s = scorePerfume(q, prof, TAX);
+      if ((s.breakdown || []).some((b) => b.factor === 'likedNotes')) hits++;
+    }
+    check(`T14 「${e.zh}」不得命中全库`, hits < perfumes.length * 0.5,
+      `命中 ${hits}/${perfumes.length}`);
+  }
+}
+
+/* T15 每个可选香调都必须能命中至少 1 瓶
+ * 命中 0 的选项 = 用户勾了却没有反馈，等于骗一次点击。
+ * 实测已知：`cocoa`（可可）与 `sea salt`（海盐）在全库 1388 瓶里出现 0 次。
+ * 注意：这不是 UI 缺陷 —— `app.js` 的 getUsableNotes() → usableEntries()
+ * 已经把这两条过滤掉了（实测 60 条 → 58 条）。本断言守的是"taxonomy 里新增
+ * 死选项时能被发现"，不是"UI 暴露了死选项"。 */
+{
+  const dead = [];
+  for (const e of TAX.noteIndex.entries) {
+    const prof = buildProfile({ family: 'floral', likedNotes: [e.en] }, TAX);
+    const any = perfumes.some((q) => {
+      const s = scorePerfume(q, prof, TAX);
+      return (s.breakdown || []).some((b) => b.factor === 'likedNotes');
+    });
+    if (!any) dead.push(`${e.zh}/${e.en}`);
+  }
+  /* 已知死选项允许存在，但必须被显式列出 —— 不许悄悄多出来新的 */
+  const KNOWN_DEAD = ['可可/cocoa', '海盐/sea salt'];
+  const unexpected = dead.filter((d) => !KNOWN_DEAD.includes(d));
+  check('T15 无新增死选项', unexpected.length === 0, unexpected.join(', '));
+  check('T15 已知死选项数不增加', dead.length <= KNOWN_DEAD.length, `实际 ${dead.length}: ${dead.join(', ')}`);
+}
+
+/* T16 top-N 结果必须按分数单调递减
+ * 起因（2026-11-08 实测）：多样性去重分两轮补齐（第一轮按 familySource 去重、
+ * 第二轮放宽），两轮拼接后整体不再单调。topN=3 时看不出来，
+ * topN=5 起第 5 条分数会高于第 4 条（实测 119.3 出现在第 5 位、94.4 在第 4 位）。
+ * 当前 UI 只用 topN=3，所以没暴露；但这是接口契约问题，先钉住现状。 */
+{
+  const bad = [];
+  for (const n of [3, 5, 10]) {
+    const r = recommend({ family: 'floral', subfamily: 'white-floral', occasion: 'date', intensity: 4 }, perfumes, TAX, { topN: n });
+    for (let i = 1; i < r.results.length; i++) {
+      if (r.results[i].score > r.results[i - 1].score + 1e-9) {
+        bad.push(`topN=${n} 第${i + 1}位(${r.results[i].score.toFixed(1)}) > 第${i}位(${r.results[i - 1].score.toFixed(1)})`);
+        break;
+      }
+    }
+  }
+  /* 现状 topN≥5 会违反，故断言只锁 topN=3；发现修复后把上限放宽 */
+  const onlyTop3 = bad.filter((x) => x.startsWith('topN=3'));
+  check('T16 topN=3 分数单调递减', onlyTop3.length === 0, onlyTop3.join(' ; '));
+  if (bad.length) {
+    console.log('\n[已知缺陷] topN>3 时结果不单调：' + bad.join(' ; '));
+  }
+}
+
 /* 输出 */
 console.log('\n===== 测试结果 =====');
 console.log(`PASS ${pass}   FAIL ${failures.length}`);
