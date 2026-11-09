@@ -6396,6 +6396,30 @@ body {
     background: #f2f2f2;
     border-radius: 2px;
   }
+
+  /* ---- 透明抠图：把上面那套白瓷底托整套撤掉 ----
+     白底图需要底托，是因为白方块落在深色页上会露边；
+     抠图本来就没有背景，瓶子直接浮在纸面上才干净（见 212 VIP 对比图）。
+     两者用同一个 `.pick-art` 盒，靠 `.is-cutout` 区分 —— 不新开盒子，
+     否则三张卡的第一行基线会错开。 */
+  .pick-art.is-photo.is-cutout {
+    background: none;
+    padding: 0;
+    box-shadow: none;
+    /* 抠图边缘是 alpha 过渡，深色下压一点饱和会显脏，恢复不压。 */
+    filter: none;
+  }
+  .pick-art.is-photo.is-cutout img {
+    background: none;
+    border-radius: 0;
+  }
+}
+
+/* 浅色下抠图与白底图看不出差别（纸本来就是白的），
+   但底托的 padding 会吃掉 2px 高度，两瓶并排时基线差 1px。
+   抠图统一去掉 padding，让两种图在浅色里也严格同高。 */
+.pick-art.is-photo.is-cutout {
+  padding: 0;
 }
 
 /* ---- 窄屏 ---- */

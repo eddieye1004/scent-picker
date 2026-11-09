@@ -59,6 +59,8 @@ let TAX = null;
 /* 实物图清单（id → 本地路径）。null = 还没试过，false = 试过、没有。
    与 AFF_LINKS 同一套三态语义，避免重复发请求。 */
 let PHOTOS = null;
+/* 已抠图（透明背景）的 id 集合。与 PHOTOS 同批加载，见 ensurePhotos()。 */
+let CUTOUTS = null;
 
 // 香调 chip 表：滤掉在 200 瓶样本里 0 命中的死选项（实测只有 可可/cocoa）。
 // 每次重渲染都会调用，命中数是纯计算，缓存一份避免重复扫 200×40。
@@ -833,15 +835,25 @@ function buildWheel(cfg) {
   // 家族扇区悬停：整体再亮一档，斜率不变
   mkGrad('gFamHot', [['0', '#ffffff'], ['0.5', '#f5f8ff'], ['1', '#e4eaf7']], 40, 30, 440, 450);
   // 中圈弧段：白 → 极浅蓝灰（下沿收暗 = 瓦片厚度）
-  /* 六族本色渐变：每一族在自己的色相内做 97% → 92% 的明暗，
-     而不是六块纯色。纯色 = 绝对均匀的平面，无论色相多准都读成色块；
-     同一色相内 5% 的明暗变化才让它像"一块有厚度的材料"。 */
-  mkGrad('gFamCitrus',   [['0', '#fbfcee'], ['0.58', '#f5f7e2'], ['1', '#eef2d4']], 40, 30, 440, 450);
-  mkGrad('gFamFloral',   [['0', '#fdf8fb'], ['0.58', '#faeef4'], ['1', '#f5e4ee']], 40, 30, 440, 450);
-  mkGrad('gFamWoody',    [['0', '#f9f6f2'], ['0.58', '#f2ece4'], ['1', '#e9e1d6']], 40, 30, 440, 450);
-  mkGrad('gFamAmber',    [['0', '#fdfaf0'], ['0.58', '#f8f0dd'], ['1', '#f2e6cc']], 40, 30, 440, 450);
-  mkGrad('gFamFresh',    [['0', '#f2faf6'], ['0.58', '#e6f3ec'], ['1', '#d8ecdf']], 40, 30, 440, 450);
-  mkGrad('gFamGourmand', [['0', '#fcf7f1'], ['0.58', '#f6ebde'], ['1', '#efdfcc']], 40, 30, 440, 450);
+  /* 六族同色（v37 / A 方向）。
+     ------------------------------------------------------------
+     上一版六族各带自己色相（#fbfcee / #fdf8fb / …），实测彼此只差
+     2–4% 明度：1440 下六块看上去是同一片浅灰，色相区分**不成立**，
+     唯一被看见的是底色那圈灰蓝箍 —— 也就是说六个渐变只贡献了噪点，
+     没贡献信息。所以统一成纸白，分块交给 2.6px 的白缝（_wheel7.css）。
+
+     为什么仍保留六个 id 而不是删掉改成一个：
+       ① 深色层是另一套 id（gFamXxxD），选择器结构必须保持对称，
+          否则 _wheel14.css 那六条 data-fam 规则会失效、深色盘直接白块；
+       ② 悬停/选中三层覆盖都建立在这六条 fill 引用之上；
+       ③ 留出六条 id 才能只改这里回滚到分色版本，不用碰 CSS。
+     同色不等于"平"：仍保留 0% → 100% 的 2% 明暗，瓦片才有厚度。 */
+  mkGrad('gFamCitrus',   [['0', '#ffffff'], ['0.58', '#fdfdff'], ['1', '#f9fafd']], 40, 30, 440, 450);
+  mkGrad('gFamFloral',   [['0', '#ffffff'], ['0.58', '#fdfdff'], ['1', '#f9fafd']], 40, 30, 440, 450);
+  mkGrad('gFamWoody',    [['0', '#ffffff'], ['0.58', '#fdfdff'], ['1', '#f9fafd']], 40, 30, 440, 450);
+  mkGrad('gFamAmber',    [['0', '#ffffff'], ['0.58', '#fdfdff'], ['1', '#f9fafd']], 40, 30, 440, 450);
+  mkGrad('gFamFresh',    [['0', '#ffffff'], ['0.58', '#fdfdff'], ['1', '#f9fafd']], 40, 30, 440, 450);
+  mkGrad('gFamGourmand', [['0', '#ffffff'], ['0.58', '#fdfdff'], ['1', '#f9fafd']], 40, 30, 440, 450);
 
   mkGrad('gArc', [['0', '#ffffff'], ['0.62', '#fdfdff'], ['1', '#f2f5fc']], 40, 30, 440, 450);
   mkGrad('gArcHot', [['0', '#ffffff'], ['1', '#eaf0fd']], 40, 30, 440, 450);
@@ -859,12 +871,15 @@ function buildWheel(cfg) {
      （橄榄 / 藕紫 / 暖灰 / 琥珀金 / 青绿 / 铜棕），
      每族仍保留 8% 左右的同色相明暗，厚度不丢。
      六色对 --ink #f2f2f2 的对比度都在 11 以上。 */
-  mkGrad('gFamCitrusD',   [['0', '#1e2108'], ['0.58', '#24280a'], ['1', '#2a2f0b']], 40, 30, 440, 450);
-  mkGrad('gFamFloralD',   [['0', '#341927'], ['0.58', '#3a1c2b'], ['1', '#3f1e2f']], 40, 30, 440, 450);
-  mkGrad('gFamWoodyD',    [['0', '#2d1f12'], ['0.58', '#332315'], ['1', '#382717']], 40, 30, 440, 450);
-  mkGrad('gFamAmberD',    [['0', '#28200e'], ['0.58', '#2e2510'], ['1', '#342912']], 40, 30, 440, 450);
-  mkGrad('gFamFreshD',    [['0', '#0b2518'], ['0.58', '#0d2b1c'], ['1', '#0e3220']], 40, 30, 440, 450);
-  mkGrad('gFamGourmandD', [['0', '#2e1e13'], ['0.58', '#342216'], ['1', '#3a2618']], 40, 30, 440, 450);
+  /* A 方向要"统一颜色"，深色层必须一起统一，否则明暗两套盘各说一套话。
+     深色版取 8% 的同色明暗（#1f1f1f → #262626），分块交给 _wheel14.css 里
+     的那道 --bg 描边缝 —— 与浅色层是同一个机制。 */
+  mkGrad('gFamCitrusD',   [['0', '#262626'], ['0.58', '#232323'], ['1', '#1f1f1f']], 40, 30, 440, 450);
+  mkGrad('gFamFloralD',   [['0', '#262626'], ['0.58', '#232323'], ['1', '#1f1f1f']], 40, 30, 440, 450);
+  mkGrad('gFamWoodyD',    [['0', '#262626'], ['0.58', '#232323'], ['1', '#1f1f1f']], 40, 30, 440, 450);
+  mkGrad('gFamAmberD',    [['0', '#262626'], ['0.58', '#232323'], ['1', '#1f1f1f']], 40, 30, 440, 450);
+  mkGrad('gFamFreshD',    [['0', '#262626'], ['0.58', '#232323'], ['1', '#1f1f1f']], 40, 30, 440, 450);
+  mkGrad('gFamGourmandD', [['0', '#262626'], ['0.58', '#232323'], ['1', '#1f1f1f']], 40, 30, 440, 450);
 
   // 家族扇区悬停：整族提亮一档（浅色版是"更白"，深色版是"更亮的面"）
   mkGrad('gFamHotD', [['0', '#333333'], ['0.5', '#2d2d2d'], ['1', '#262626']], 40, 30, 440, 450);
@@ -3585,6 +3600,22 @@ function artSourceOf(p, photos) {
   return typeof src === 'string' && src ? src : null;
 }
 
+/* 这一瓶的图是不是"已抠图"（背景全透明）。
+   为什么要区分：淘宝主图都是白底方图，放进深色页面会露一块白方块，
+   所以 _wheel20.css 给白底图套了「白瓷底托」。但抠过图的 PNG/WebP
+   本来就是透明背景，再套底托等于在透明瓶子后面画一个白框 ——
+   对比图里一眼能看出来，透底最干净。
+
+   表结构：`data/photos.json` 顶层可选的 `cutouts: [id, ...]`。
+   缺这一项 = 全部按白底图处理（向后兼容，老表不用改）。 */
+function isCutout(p, cutouts) {
+  const id = p && p.id;
+  if (!id) return false;
+  if (cutouts instanceof Set) return cutouts.has(id);
+  if (Array.isArray(cutouts)) return cutouts.includes(id);
+  return false;
+}
+
 /* 卡片右侧那一格：有实物图就用 <img>，没有就画瓶形。
    两者尺寸由同一个 .pick-art 盒控制（见 _wheel18.css），所以换图不会
    让三张卡的基线错开。照片按 ID 查 data/photos.json —— 查表在
@@ -3601,7 +3632,10 @@ function pickArt(p) {
 
      alt 留空 + role=presentation：卡片里信息全在文字上，图片只做视觉锚点。
      写 alt="香水瓶" 只会让读屏用户多听四个没有信息量的字。 */
-  return el('div', { class: 'pick-art is-photo' },
+  /* is-cutout：透明背景的抠图。它要跟白底图分开 —— 白底图在深色下需要
+     白瓷底托（否则露白方块），抠图需要**去掉**底托（否则白框透出来）。 */
+  const cls = 'pick-art is-photo' + (isCutout(p, CUTOUTS) ? ' is-cutout' : '');
+  return el('div', { class: cls },
     el('img', {
       src,
       alt: '',
@@ -3980,6 +4014,10 @@ function ensurePhotos() {
           }
         }
         PHOTOS = Object.keys(out).length ? out : false;
+        /* 抠图名单：只收 photos 表里真实存在、且值仍是相对路径的 id。
+           表里写了但图没了（或换了白底图）就不该再当抠图处理。 */
+        const cut = Array.isArray(d && d.cutouts) ? d.cutouts : [];
+        CUTOUTS = new Set(cut.filter((id) => typeof id === 'string' && out[id]));
         return PHOTOS;
       })
       .catch(() => { PHOTOS = false; return PHOTOS; });
@@ -4081,8 +4119,11 @@ export const __art = {
      三种"没有"都要走同一条路：undefined / false / {} ——
      ensurePhotos() 在文件缺失时写的是 false，不是 {}。 */
   sourceOf: artSourceOf,
+  /* 这一瓶是不是透明抠图（决定深色下要不要白瓷底托）。 */
+  isCutout,
   /* 让测试能注入清单，不必在磁盘上放真图。 */
   set: (v) => { PHOTOS = v; },
+  setCutouts: (v) => { CUTOUTS = v instanceof Set ? v : new Set(Array.isArray(v) ? v : []); },
 };
 
 /* 步骤表的入口分叉本身要能被测（v36）。

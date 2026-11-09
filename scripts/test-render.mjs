@@ -1567,7 +1567,37 @@ ok('结果页无 NaN/undefined', !/NaN|undefined/.test(resultText), resultText.s
   ok('photos.json 的值全是 .webp', filesOk.every((v) => v.endsWith('.webp')),
     filesOk.filter((v) => !v.endsWith('.webp')).join(' | '));
 
+  /* ⑦ 透明抠图名单（v37，用户报 212 VIP 用了错图之后）。
+     白底图在深色页面需要白瓷底托，抠图需要**去掉**底托 ——
+     两套处理必须分得开，否则抠图后面会多一个白框。
+     钉三件事：名单里的 id 必须真实存在、默认没有名单时代码不崩、
+     CSS 里确实有撤掉底托的那条规则。 */
+  const cjs = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const cut = Array.isArray(pj.cutouts) ? pj.cutouts : [];
+  ok('cutouts 里的 id 都在 photos 表里',
+    cut.every((id) => typeof id === 'string' && !!pj.photos[id]),
+    cut.filter((id) => !pj.photos[id]).join(' | '));
+  ok('cutouts 里的图是透明底（单张 < 40KB 且是 webp）',
+    cut.every((id) => pj.photos[id].endsWith('.webp')
+      && fs.existsSync(path.join(ROOT, pj.photos[id]))
+      && fs.statSync(path.join(ROOT, pj.photos[id])).size < 40 * 1024),
+    cut.map((id) => pj.photos[id]).join(' | '));
+  ok('没有 cutouts 字段时判据不崩（老表向后兼容）',
+    ART.isCutout({ id: 'x' }, null) === false && ART.isCutout({ id: 'x' }, []) === false
+    && ART.isCutout({}, ['x']) === false);
+  ok('抠图判定按 id 精确匹配，不做前缀/包含',
+    ART.isCutout({ id: 'carolina-herrera-212-vip' }, ['carolina-herrera-212-vip']) === true
+    && ART.isCutout({ id: 'carolina-herrera-212-vip-black' }, ['carolina-herrera-212-vip']) === false,
+    '212-vip-black 不能因为前缀相同被当成抠图');
+  ok('深色下抠图撤掉白瓷底托',
+    /\.pick-art\.is-photo\.is-cutout\s*\{[^}]*background:\s*none/.test(cjs)
+    && /\.pick-art\.is-photo\.is-cutout\s*\{[^}]*box-shadow:\s*none/.test(cjs),
+    '缺 .is-cutout 的底托撤销规则，抠图后面会多一个白框');
+  ok('浅色下抠图也去掉 padding（与白底图严格同高）',
+    /\.pick-art\.is-photo\.is-cutout\s*\{\s*padding:\s*0/.test(cjs));
+
   ART.set(null);   // 恢复"还没试过"，别影响后面的断言
+  ART.setCutouts(null);
 }
 
 /* ---------- G6：匹配度的两种显示形态 ----------
