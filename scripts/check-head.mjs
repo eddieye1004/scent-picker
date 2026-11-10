@@ -136,7 +136,7 @@ try {
     console.log('  常见原因：一次改动拆成了两个提交，后一个还没进来。');
     process.exit(1);
   }
-  console.log('✓ HEAD 干净导出四套测试全绿。');
+  console.log(`✓ HEAD 干净导出 ${SUITES.length} 套测试 + 金标准 全绿。`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
