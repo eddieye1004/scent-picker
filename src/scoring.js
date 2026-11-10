@@ -95,6 +95,34 @@ const CHARACTER_FAMILY = {
   rich:     { amber: 0.9, gourmand: 0.9, floral: 0.4 },
 };
 
+/* 稀疏 character 标签（池内 <60 瓶，2026-11-10 实测）：
+     smoky 55 / clean 23 / salty 22 / leathery 13 / rich 4
+   用途只有一处：`opts.characterMode === 'sparse'` 时抬起软回退上限。
+   放在这里而不是算出来，是因为它必须与测试断言一致、不能随数据快照漂移。 */
+const SPARSE_CHAR = new Set(['smoky', 'clean', 'salty', 'leathery', 'rich']);
+
+/* CHARACTER_FAMILY 的修正版（2026-11-10 按当前 1388 瓶实测重算）。
+   两处与旧表的差异，都是实测出来的硬事实：
+
+   ① `leathery` 旧表写 `smoke: 0.3` —— **`smoke` 不是合法家族键**
+      （六族是 citrus/floral/woody/amber/fresh/gourmand），分母算它、
+      分子永远取 0，于是 leathery 的软回退上限被压到 0.850，
+      其余 20 个标签都是 1.000。这是纯粹的笔误，不是设计。
+   ② `clean` 旧表写 `{fresh:1, citrus:.6, floral:.4}`，而实测 23 瓶带 clean
+      标签的家族均值是 **floral .37 / fresh .24 / woody .12 / amber .09**
+      —— 第一族应该是 floral 不是 fresh，旧表把它指向了错的族。
+
+   只改稀疏/错向的条目，不动其余 16 个（它们没有实测反例，动了就是
+   用推断替换经验值）。`opts.characterFamily === 'fixed'` 时启用。 */
+const CHARACTER_FAMILY_FIXED = {
+  ...CHARACTER_FAMILY,
+  leathery: { woody: 0.32, amber: 0.40, floral: 0.17 },   // 去死键 smoke，按实测重排
+  clean:    { floral: 0.37, fresh: 0.24, woody: 0.12 },   // 第一族 floral（旧表写 fresh）
+  salty:    { fresh: 0.33, woody: 0.19, amber: 0.16 },    // 按实测重排
+  smoky:    { amber: 0.31, woody: 0.25, floral: 0.22 },   // 旧表 woody 领先，实测 amber 领先
+  rich:     { woody: 0.35, amber: 0.35, floral: 0.23 },   // 旧表 amber 领先，实测并列
+};
+
 /* ---------- 气味温度：从 character 标签推导 ----------
    数据源没有独立的"温度"字段，只能从标签推。选词依据是调香语境里
    这两个方向的典型原料，不是审美判断：
@@ -202,7 +230,7 @@ function dotLerp(a, b, wa, wb) {
 }
 
 /* ---------- 构建用户画像 ---------- */
-export function buildProfile(answers, taxonomy) {
+export function buildProfile(answers, taxonomy, opts = {}) {
   // 两条入口都支持：
   //   A) answers.family（香型轮盘选家族）+ 可选 answers.subfamily
   //   B) answers.emotion（旧四步的感受词）
@@ -310,7 +338,9 @@ export function buildProfile(answers, taxonomy) {
     character: answers.character || null,
     characterFamily: (() => {
       const first = (Array.isArray(answers.characterTags) ? answers.characterTags : [])[0] || answers.character;
-      return first ? (CHARACTER_FAMILY[first] || null) : null;
+      if (!first) return null;
+      const table = opts.characterFamily === 'fixed' ? CHARACTER_FAMILY_FIXED : CHARACTER_FAMILY;
+      return table[first] || null;
     })(),
     concentration: answers.concentration || null,
     longevity: answers.longevity != null ? Number(answers.longevity) : null,
@@ -368,6 +398,20 @@ export function buildProfile(answers, taxonomy) {
  *
  *   结论见 docs/EXPERIMENT-FAMILY-DECAY.md：p=0.5 让金标准 MAJORITY 2/12→0/12，
  *   全局退化，已弃用。开关保留只为实验可复现。 */
+/* opts.characterMode（第 3 步实验开关）
+ *   character 因子现在的实现是 `wantTags.find(...)` —— 只取**第一个**命中
+ *   就打满 WEIGHTS.character（16 分）。实测（scripts/probe-character-sparse.mjs）：
+ *   硬命中时 73.7% 的瓶子只命中 1 个 wantTag、25.3% 命中 2 个、1.0% 命中 3 个，
+ *   三者拿一样的分。同时 53.0% 的瓶子在这个因子上是 0 分（软回退只占 2.9%）。
+ *
+ *   'multihit'  → 每多命中一个 wantTag 加 25%，上限 1.5 倍
+ *                 （16 / 20 / 24 三档，对齐命中 1/2/3 个）。
+ *   'density'   → 按 wantTags 的覆盖比例缩放：hits / wantTags.length。
+ *                 画像给 3 个 tag 时，只命中 1 个拿 1/3 —— 比 multihit 严。
+ *   'sparse'    → 稀疏标签（池内 <60 瓶）软回退上限从 0.6 抬到 1.0，
+ *                 因为点 clean(23 瓶) / leathery(13 瓶) 时硬命中几乎必然落空，
+ *                 现状等于「选了长尾标签的用户只能拿到 60% 分」。
+ *   默认 ''（历史行为逐位一致，生产路径永远走这条）。 */
 export function scorePerfume(p, profile, taxonomy, opts = {}) {
   const breakdown = [];
   let score = 0;
@@ -631,11 +675,21 @@ export function scorePerfume(p, profile, taxonomy, opts = {}) {
   if (profile.characterTags.length || profile.character) {
     const ch = p.character || [];
     const wantTags = profile.characterTags.length ? profile.characterTags : [profile.character];
-    const hitTag = wantTags.find((t) => ch.includes(t)) || null;
+    const hitTags = wantTags.filter((t) => ch.includes(t));
+    const hitTag = hitTags[0] || null;
+    const chMode = opts.characterMode || '';
     let cScore = 0;
     let how = null;
     if (hitTag) {
-      cScore = WEIGHTS.character;
+      /* 多命中加权（opt-in）：命中的 wantTag 越多越贴合。
+         阈值与倍数在模块头注释里，数据来自 probe-character-sparse.mjs。 */
+      if (chMode === 'multihit') {
+        cScore = WEIGHTS.character * Math.min(1.5, 1 + 0.25 * (hitTags.length - 1));
+      } else if (chMode === 'density') {
+        cScore = WEIGHTS.character * (hitTags.length / wantTags.length);
+      } else {
+        cScore = WEIGHTS.character;
+      }
       how = 'tag';
       profile.character = hitTag;   // 理由句里要说出到底命中了哪个标签
     } else if (profile.characterFamily) {
@@ -646,8 +700,16 @@ export function scorePerfume(p, profile, taxonomy, opts = {}) {
         acc += w * ((p.families || {})[fam] || 0);
       }
       const ratio = tot > 0 ? clamp01(acc / tot) : 0;
-      // 门槛 0.5：低于它就是"沾一点"，不该拿分（与 familyPick 的 0.4 同一思路）
-      if (ratio >= 0.5) { cScore = WEIGHTS.character * 0.6 * ratio; how = 'family'; }
+      /* 门槛 0.5：低于它就是"沾一点"，不该拿分（与 familyPick 的 0.4 同一思路）。
+
+         'sparse' 模式把**稀疏标签**的软回退上限从 0.6 抬到 1.0。
+         理由（probe-character-sparse.mjs 实测）：clean 只有 23 瓶带标签、
+         leathery 13、salty 22、rich 4。用户点这些标签时硬命中几乎必然落空，
+         现状只能拿到 16*0.6=9.6 分（比硬命中少 40%），等于「选长尾标签的
+         用户天生吃亏」。稀疏标签的家族分布本身是可靠的（CHARACTER_FAMILY
+         就是按真实分布算的），抬高上限没有引入新假设。 */
+      const cap = chMode === 'sparse' && SPARSE_CHAR.has(wantTags[0]) ? 1.0 : 0.6;
+      if (ratio >= 0.5) { cScore = WEIGHTS.character * cap * ratio; how = 'family'; }
     }
     /* 禁止标签：命中一个扣 22% 的性格分，最低归零。
        数值来自实测（scripts/probe-character.mjs）：不加这一步，七个原型
@@ -801,7 +863,7 @@ export function scorePerfume(p, profile, taxonomy, opts = {}) {
 /* ---------- 主入口 ---------- */
 export function recommend(answers, perfumes, taxonomy, opts = {}) {
   const topN = opts.topN ?? 3;
-  const profile = buildProfile(answers, taxonomy);
+  const profile = buildProfile(answers, taxonomy, opts);
 
   /* ---------- G6：把 taxonomy 的族内判别规则接进打分 ----------
 

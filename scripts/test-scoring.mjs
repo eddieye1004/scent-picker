@@ -208,6 +208,67 @@ for (const [k, v] of Object.entries(WEIGHTS)) {
   }
 }
 
+/* ---- 第 3 步实验开关（2026-11-10）----
+   character 因子的四档实验全部由 opts 驱动，生产路径不传、行为逐位不变。
+   这几条守的是「开关真的接到了」与「默认路径真的没变」，
+   不是因为某一档更好 —— 实测四档全都没有提升（见
+   docs/EXPERIMENT-CHARACTER-SPARSE.md）。 */
+{
+  /* 造两瓶：A 命中 3 个 wantTag、B 只命中 1 个，家族分布相同。
+     这样命中个数是唯一变量。 */
+  const mk = (id, character) => ({
+    id, brand: 'T', name: id, families: { citrus: 1, floral: 0, woody: 0, amber: 0, fresh: 0, gourmand: 0 },
+    character, seasons: [], timesOfDay: [], notesAll: [], concentration: 'eau-de-parfum', popularityRank: 100,
+  });
+  const A = mk('a', ['citrusy', 'fresh', 'clean']);
+  const B = mk('b', ['citrusy']);
+  const answers = { family: 'citrus', characterTags: ['citrusy', 'fresh', 'clean'] };
+  const prof = buildProfile(answers, TAX);
+  const chOf = (p, opts) => {
+    const r = scorePerfume(p, prof, TAX, opts || {});
+    const b = r.breakdown.find((x) => x.factor === 'character');
+    return b ? b.score : 0;
+  };
+
+  check('C1 默认路径：命中 1 个与命中 3 个都拿满分（历史行为不变）',
+    chOf(A) === 16 && chOf(B) === 16, `A=${chOf(A)} B=${chOf(B)}`);
+
+  check('C2 multihit：命中 3 个 → 24（1.5× 上限），命中 1 个仍 16',
+    chOf(A, { characterMode: 'multihit' }) === 24 && chOf(B, { characterMode: 'multihit' }) === 16,
+    `A=${chOf(A, { characterMode: 'multihit' })} B=${chOf(B, { characterMode: 'multihit' })}`);
+
+  check('C3 density：命中 1/3 → 16×1/3，命中 3/3 → 16',
+    Math.abs(chOf(B, { characterMode: 'density' }) - 16 / 3) < 1e-9
+      && Math.abs(chOf(A, { characterMode: 'density' }) - 16) < 1e-9,
+    `A=${chOf(A, { characterMode: 'density' }).toFixed(2)} B=${chOf(B, { characterMode: 'density' }).toFixed(2)}`);
+
+  /* CHARACTER_FAMILY_FIXED 的两处修正，都是实测硬事实：
+     · leathery 旧表有一个死键 smoke（不是六族之一），分母算它、分子永远 0
+     · clean 旧表第一族写 fresh，实测 23 瓶的家族均值是 floral 最高 */
+  const fixedLeathery = buildProfile({ family: 'woody', characterTags: ['leathery'] }, TAX, { characterFamily: 'fixed' });
+  const oldLeathery = buildProfile({ family: 'woody', characterTags: ['leathery'] }, TAX);
+  const ceil = (map) => {
+    const tot = Object.values(map).reduce((a, b) => a + b, 0);
+    const dead = Object.keys(map).filter((k) => !['citrus', 'floral', 'woody', 'amber', 'fresh', 'gourmand'].includes(k));
+    const deadW = dead.reduce((a, k) => a + map[k], 0);
+    return (tot - deadW) / tot;
+  };
+  check('C4 旧表的 leathery 因死键 smoke 上限只有 0.85，修正版回到 1.00',
+    Math.abs(ceil(oldLeathery.characterFamily) - 0.85) < 1e-9
+      && Math.abs(ceil(fixedLeathery.characterFamily) - 1.0) < 1e-9,
+    `old=${ceil(oldLeathery.characterFamily).toFixed(3)} fixed=${ceil(fixedLeathery.characterFamily).toFixed(3)}`);
+
+  const fixedClean = buildProfile({ family: 'floral', characterTags: ['clean'] }, TAX, { characterFamily: 'fixed' });
+  const topFam = Object.entries(fixedClean.characterFamily).sort((a, b) => b[1] - a[1])[0][0];
+  check('C5 修正版把 clean 的第一族从 fresh 改成 floral（按 23 瓶实测）',
+    topFam === 'floral', `第一族=${topFam}`);
+
+  const topFamilyOf = (p) => Object.entries(p.characterFamily || {}).sort((a, b) => b[1] - a[1])[0]?.[0];
+  check('C6 不传 opts.characterFamily 时仍用旧表（生产路径不受影响）',
+    topFamilyOf(buildProfile({ family: 'floral', characterTags: ['clean'] }, TAX)) === 'fresh',
+    `第一族=${topFamilyOf(buildProfile({ family: 'floral', characterTags: ['clean'] }, TAX))}`);
+}
+
 /* 输出 */
 console.log('\n===== 测试结果 =====');
 console.log(`PASS ${pass}   FAIL ${failures.length}`);
