@@ -46,6 +46,9 @@ const PARTS = [
   '50-results.css',
   '60-motion.css',
   '70-final.css',
+  /* 方向 A「标本极简」视觉层（Eddie 2026-11-10 19:19 决策）。
+     必须最后：它覆盖的是 token 与表面样式，不是布局。 */
+  '80-specimen.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');

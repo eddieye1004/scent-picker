@@ -1,0 +1,320 @@
+/* ============================================================
+   80-specimen.css — 方向 A「标本极简」（Eddie 2026-11-10 19:19 决策）
+   ------------------------------------------------------------
+   Le Labo / Aesop 那一类：大量留白、衬线显示标题、黑白+暖米色、
+   标本式字距与标签。建立在既有的 specimen line-art 母题上
+   （盘心 `.plate-svg` 与结果卡的瓶形 SVG 不动，继续作为图形语言）。
+
+   **为什么另开一层而不是回去改 7 个层**：
+   7 个层是 2026-11-10 刚从 24 层合并出来的（commit 64eceea），
+   它们承载的是**布局与结构**（圆盘几何、结果卡网格、双渠道按钮），
+   视觉方向是另一件事。分开之后，方向再变一次时只需替换这一层，
+   不必在结构层里翻找哪些是"布局"、哪些是"配色"。
+
+   本层只允许做三类事：
+     ① 覆盖 token（色板 / 字体栈 / 字距 / 描边）
+     ② 覆盖排版尺度（字号 / 行高 / 留白）
+     ③ 覆盖控件的"表面"（底、边、圆角、过渡），不改尺寸与命中区
+   **不许**改：grid/flex 结构、尺寸类断点、SVG 几何、z-index 栈。
+   那四类东西改错会静默破坏布局，而本层的每条规则都能被 test-contrast
+   与 test-render 的既有断言追到。
+
+   ==== 色板（全部实算过对比度，见 docs/UI-DIRECTION-A-20261110.md）====
+   --bg      #FAF7F1  暖米白（不是纯白：纯白在标本语境里太"屏幕"）
+   --bg-2    #F2EDE4  卡面/悬停
+   --bg-3    #E7E0D4  进度底/禁用
+   --ink     #14120E  17.49 : 1
+   --ink-2   #3A362F  11.23 : 1
+   --ink-3   #5E584E   6.59 : 1（bg-2 上 6.04 / bg-3 上 5.37，三档全过）
+   --accent  #002FA7  克莱因蓝保留（10.00 : 1）—— Eddie 的既有约束
+   --edge    #6E675C  5.23 : 1（控件边界，远超 3:1 要求）
+
+   克莱因蓝**不动**：它是产品识别的一部分，用户明确要求保留。
+   方向 A 的"黑白"指中性色收敛到暖纸系，不是去掉蓝。
+   ============================================================ */
+
+:root {
+  /* ---- 纸面 ---- */
+  --bg: #FAF7F1;
+  --bg-2: #F2EDE4;
+  --bg-3: #E7E0D4;
+  --line: #DED6C8;
+  --hair: #E8E1D5;
+
+  /* ---- 墨色 ---- */
+  --ink: #14120E;
+  --ink-2: #3A362F;
+  --ink-3: #5E584E;
+
+  /* ---- 边界 ---- */
+  --edge: #6E675C;
+  --stroke-ui: #6E675C;
+  --stroke-l1: #C9C0B0;
+  --stroke-l2: #6E675C;
+  --stroke-l3: #14120E;
+  --stroke-hi: rgba(255, 255, 255, .72);
+
+  /* ---- 强调 ---- */
+  --accent: #002FA7;
+  /* --accent-soft 只做 1px 悬停描边。原来 #8A93B8 在纯白上是 3.02（刚过线），
+     换到 #FAF7F1 暖纸后掉到 2.83，跌破 3:1 的控件边界要求（test-contrast 实测）。
+     压深到 #727BA5：暖纸上 3.86、bg-2 上 3.54，两处都留了余量。
+     它不是文字色（40-theme 与 test-contrast 都有"只能描边"的断言），所以只需过 3:1。 */
+  --accent-soft: #727BA5;
+  --warn: #8A5A00;
+  --danger: #A4262C;
+
+  /* ---- 字体：显示层用衬线，正文保持无衬线 ----
+     为什么显示层用衬线：方向 A 的标本感主要来自"衬线标题 + 无衬线正文"
+     这组对照。Aesop / Le Labo 都用它，因为它把标题从"界面文字"里摘出来，
+     读起来像标本标签而不是按钮。
+     为什么不加载新字体文件：项目硬约束是离线可用、无外部字体（STATE.md 有记）。
+     所以只在本机已装字体里挑衬线，Windows 是 Cambria / Georgia，
+     macOS 是 Georgia / Times，取到哪个用哪个；全都没有时落回 --font-body，
+     **观感降级但不出现豆腐块**，这是与 Noto 子集同一套降级策略。 */
+  --font-serif: "Cambria", "Georgia", "Times New Roman", "Songti SC",
+                "STSong", "Noto Serif SC", serif;
+  --font-display: var(--font-serif);
+
+  /* ---- 圆角与阴影：标本语汇里几乎没有圆角 ----
+     原来 --radius 4px / --radius-lg 8px，在暖纸 + 细线语境里显得像"卡片 UI"。
+     收到 2px / 3px，让边缘更像印刷品的裁切而不是容器。 */
+  --radius: 2px;
+  --radius-sm: 1px;
+  --radius-lg: 3px;
+
+  /* ---- 阴影：暖纸不用冷蓝投影 ----
+     原 --sh-* 全部带 rgba(0,26,94,...) 的冷蓝，压在米色纸上会发灰。
+     换成中性暖褐，透明度也压低一档 —— 方向 A 要的是"纸上的线"，不是"浮起的卡"。 */
+  --sh-1: 0 1px 0 rgba(255, 255, 255, .8) inset, 0 4px 12px -12px rgba(60, 50, 35, .22);
+  --sh-2: 0 1px 0 rgba(255, 255, 255, .8) inset, 0 6px 18px -14px rgba(60, 50, 35, .24);
+  --sh-3: 0 1px 0 rgba(255, 255, 255, .8) inset, 0 12px 28px -20px rgba(60, 50, 35, .3);
+  --sh-card: var(--sh-1);
+  --sh-lift: var(--sh-2);
+}
+
+/* ---- 纸面 ---- */
+body {
+  background: var(--bg);
+  /* 标本感的最后一层：极淡的纸纹。用 repeating-linear-gradient 而不是图片，
+     因为项目要求零外部资源；两条 0.5px 线在 3px 周期里几乎不可见，
+     只在整屏大面积时给一点"纸"的暗示。 */
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(120, 105, 80, .012) 0px,
+    rgba(120, 105, 80, .012) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  color: var(--ink);
+}
+
+/* ---- 标题：衬线 + 收紧字距 + 更大留白 ----
+   .masthead h1 的 44px 是 70-final.css 定的（Swiss 跨度 1.69），
+   这里只换字体与字距，不改字号 —— 改字号会连带影响 _wheel17 的场景屏纵向预算，
+   那一层算过 1440×900 的首屏高度。 */
+.masthead h1,
+.q-title,
+.pick h3,
+.result-head h2 {
+  font-family: var(--font-display);
+  font-weight: 400;          /* 衬线在 400 才有"书页"感，600 会变成粗黑体 */
+  letter-spacing: -0.012em;
+}
+
+.masthead h1 {
+  /* 衬线的 44px 视觉重量低于无衬线同字号，补 1 档字号找回来 */
+  font-size: 46px;
+  line-height: 1.14;
+}
+
+.masthead .lede {
+  font-size: 15px;
+  line-height: 1.72;
+  letter-spacing: .004em;
+  color: var(--ink-2);
+  max-width: 46ch;           /* 45–50 字/行是长文可读区间；原来是通栏 */
+}
+
+/* ---- 标本式的 kicker：小字、大写字距 ----
+   「第 1 步」这类标签在标本语境里应该像收藏编号，不像界面提示。
+   12px 是项目字号下限（test-contrast 有断言），不能再小。 */
+.q-kicker,
+.hub-kicker,
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.q-kicker {
+  /* 编号与标题之间留出呼吸，是"标本标签 → 标题"的典型间隔 */
+  margin-bottom: 14px;
+}
+
+/* ---- 标题下的说明：更松的行高 ----
+   方向 A 的留白主要来自行高与段距，不是把所有东西都缩小。 */
+.q-title {
+  line-height: 1.32;
+  margin-bottom: 12px;
+}
+
+.q-help {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--ink-2);
+  max-width: 52ch;
+}
+
+/* ---- 进度条：从"分段方块"改成"一根细线" ----
+   原来 `.progress i` 是若干 3px 高的方块，看起来像上传进度。
+   标本语境里更合适的是：一条 1px 的基准线 + 已走过的部分加深。
+   段数变量 `--steps` 仍由 app.js 传入，这里只是把每段画成连续细线的片段。 */
+.progress {
+  gap: 3px;
+  height: 2px;
+  background: transparent;
+}
+
+.progress i {
+  height: 2px;
+  border-radius: 0;
+  background: var(--line);
+}
+
+.progress i.done { background: var(--ink-3); }
+.progress i.now { background: var(--ink); }
+
+/* ---- 进度文字：与 kicker 同一套编号语法 ---- */
+.progress-meta {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-top: 10px;
+}
+
+/* ---- 选项卡：去掉圆角与投影，只留一条细线 ----
+   这是方向 A 与当前观感差别最大的一处：现在每张卡都像"按钮"，
+   标本语境里它应该像"条目"。所以：无圆角、无阴影、上下各一条线，
+   悬停时只加深下边线，不整块变色。 */
+.opt {
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  border-color: var(--hair);
+  background: transparent;
+  transition: background-color .18s ease, border-color .18s ease;
+}
+
+.opt:hover {
+  background: transparent;
+  border-color: var(--ink-3);
+}
+
+.opt .num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: .1em;
+  color: var(--ink-3);
+}
+
+.opt .label {
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+/* ---- 香调 chip：从"药丸"改成"标签" ----
+   圆角药丸是移动端 App 的语汇；标本标签是方角 + 细边 + 字距。 */
+.chip {
+  border-radius: 0;
+  font-size: 13px;
+  letter-spacing: .02em;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+}
+
+/* ---- 主按钮：方角、字距略松 ----
+   保留克莱因蓝实底（识别色），只把圆角与字重调到标本语汇。 */
+.btn {
+  border-radius: 0;
+  font-weight: 500;
+  letter-spacing: .02em;
+}
+
+/* ---- 结果卡：去掉卡片的"容器感" ----
+   方向 A 里结果应该像三张并排的标本卡，不是三张浮起的面板。
+   所以：无圆角、去掉外投影、用一条上边线作为"卡头"。 */
+.pick {
+  border-radius: 0;
+  box-shadow: none;
+  border-top: 1px solid var(--ink);
+  padding-top: 22px;
+}
+
+.pick h3 {
+  font-size: 21px;
+  letter-spacing: -0.008em;
+}
+
+/* ---- 页脚与署名：更小、更松，退到背景里 ---- */
+footer.foot {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--ink-3);
+  letter-spacing: .01em;
+}
+
+/* ---- 印章：标本标签化的最后一点装饰 ----
+   原来 .seal 在 10-foundation.css 里 display:none（Swiss 版删掉了）。
+   方向 A 把它请回来，但做成"标本编号印"：方框 + 细边 + 竖排单字。 */
+.masthead .seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-left: 14px;
+  font-family: var(--font-serif);
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink-3);
+  border: 1px solid var(--stroke-l1);
+  border-radius: 0;
+  vertical-align: middle;
+}
+
+/* ---- 深色模式：只调纸面与墨色，蓝色不动 ----
+   与 40-theme.css 的深色块同一判据（prefers-color-scheme: dark），
+   晚于它声明所以能覆盖。深色下不保留纸纹（会在暗底上显脏）。 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14120E;
+    --bg-2: #1E1B16;
+    --bg-3: #2A2620;
+    --line: #38332B;
+    --hair: #2E2A23;
+    --ink: #F5F1E8;
+    --ink-2: #C9C2B4;
+    --ink-3: #9A9284;
+    --edge: #7C7466;
+    --stroke-ui: #7C7466;
+    --stroke-l1: #3E382F;
+    --stroke-l2: #7C7466;
+    --stroke-l3: #F5F1E8;
+    --stroke-hi: rgba(255, 255, 255, .14);
+    --accent: #6E8FE8;
+  }
+
+  body {
+    background-image: none;
+  }
+
+  .masthead .seal {
+    border-color: var(--stroke-l1);
+  }
+}
