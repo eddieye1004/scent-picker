@@ -890,6 +890,42 @@ export function scorePerfume(p, profile, taxonomy, opts = {}) {
 }
 
 /* ---------- 主入口 ---------- */
+/* ---------- 族池准入判据（第 5 步实验，2026-11-10）----------
+   `recommend()` 的 L1 池用 `isDominant` 硬过滤：判据是「该瓶 families 里权重
+   最高的那一族，等不等于用户选的族」。实测（docs/EXPERIMENT-FAMILY-CAP.md §2.4）
+   它把 27/59 个金标准瓶挡在池外 —— 那 27 瓶即使家族项拿满分也进不来。
+
+   本函数把准入判据抽成**单一实现**，供 recommend() 与
+   scripts/probe-dominance.mjs 共用。抽出来的理由：
+   探针要回答「某瓶进没进池、池子多大」，若它自己另写一份判据，
+   两份实现一旦漂移，测出来的就不是引擎的行为 —— 这正是第 5 步第一版
+   踩过的错（探针的 topN 口径与引擎的降级链相互作用，基线被算错）。
+
+   档位（严格按判据，无模糊措辞）：
+     'strict'（默认）—— 主族即入。w_max 的族 == familyId。
+     'relaxed'       —— 主族，或**强次族**：
+                        w >= 0.5  且  w >= 0.5 * w_max
+                        其中 w = 该瓶在 familyId 上的权重，w_max = 该瓶最大族权重。
+                        含义：这一族既不是边角料（绝对量 ≥ 0.5，恰是数据模型里
+                        "次族"档位的上限值 —— 权重取值集为
+                        {0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.7,0.8,0.9,1}），
+                        又不比主导族弱一半以上（相对量 ≥ 50%）。
+     'any'           —— 该族在 families 里出现即可（w > 0）。上界探针，
+                        预期把池子淹掉（实测挂 3 个家族的有 656 瓶）。
+     未知取值一律退回 'strict' —— 拼错参数不能变成"放行一切"。 */
+export function entersFamilyPool(perfume, familyId, mode = 'strict') {
+  const e = Object.entries(perfume.families || {})
+    .filter(([k, w]) => k !== '_' && w > 0)
+    .sort((a, b) => b[1] - a[1]);
+  if (!e.length) return false;
+  const [domFam, domW] = e[0];
+  if (domFam === familyId) return true;
+  const w = (perfume.families || {})[familyId] || 0;
+  if (mode === 'relaxed') return w >= 0.5 && domW > 0 && w >= 0.5 * domW;
+  if (mode === 'any') return w > 0;
+  return false;
+}
+
 export function recommend(answers, perfumes, taxonomy, opts = {}) {
   const topN = opts.topN ?? 3;
   const profile = buildProfile(answers, taxonomy, opts);
@@ -955,15 +991,14 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
   //   L3 全部
   // 实测各家族主导瓶数：柑橘 34 / 花香 156 / 木质 82 / 琥珀 46 / 清新 49 / 美食 33，L1 均够 topN=3。
   const wOf = (s) => ((s.perfume.families || {})[profile.family.id] || 0);
-  const isDominant = (s) => {
-    const e = Object.entries(s.perfume.families || {})
-      .filter(([k]) => k !== '_')
-      .sort((a, b) => b[1] - a[1])[0];
-    return !!e && e[0] === profile.family.id;
-  };
+  /* 准入判据的实现在 entersFamilyPool（见其注释）。这里只做接线：
+     默认 'strict' 时逐位等价于原来的 isDominant（判「主族 == 所选族」）。 */
+  const domMode = opts.dominanceMode || 'strict';
+  const inPool = (s) => entersFamilyPool(s.perfume, profile.family.id, domMode);
+
   let ranked = scored;
   if (profile.family) {
-    const L1 = scored.filter(isDominant);
+    const L1 = scored.filter(inPool);
     const L2 = scored.filter((s) => wOf(s) >= 0.5);
     ranked = L1.length >= topN ? L1 : (L2.length >= topN ? L2 : scored);
   }

@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { recommend, buildProfile, scorePerfume, WEIGHTS } from '../src/scoring.js';
+import { recommend, buildProfile, scorePerfume, WEIGHTS, entersFamilyPool } from '../src/scoring.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -326,6 +326,88 @@ for (const [k, v] of Object.entries(WEIGHTS)) {
   check('D5 默认 likedNotes 权重 14（2 命中即满分）', Math.abs(likeOf() - 14) < 1e-9, `实际 ${likeOf()}`);
   check('D6 opts.likedNotesWeight 覆盖权重（56 → 56）',
     Math.abs(likeOf({ likedNotesWeight: 56 }) - 56) < 1e-9, `实际 ${likeOf({ likedNotesWeight: 56 })}`);
+}
+
+/* ---- 第 5 步实验开关（2026-11-10）：opts.dominanceMode ----
+   放宽 recommend() 的 isDominant 硬过滤。这几条守的是「开关真的接到了」
+   与「默认路径真的没变」，不是因为某一档更好 —— 实测 T1/T2 都让 MAJORITY
+   掉 1，已判定 DISCARDED（见 docs/EXPERIMENT-DOMINANCE.md）。 */
+{
+  /* 造三瓶，家族分布刚好卡在三条判据上（不答场合 → famDenom = 1.0）：
+       ONLY  —— 主族就是 citrus（w=1）            → 三档都入池
+       STRONG—— 主族 woody 0.7 / 次族 citrus 0.5  → 0.5>=0.5 且 0.5>=0.35 → relaxed 入池
+       WEAK  —— 主族 floral 1 / 次族 citrus 0.3   → 0.3 < 0.5 → 只有 any 入池
+       ABSENT—— 完全没有 citrus                    → 三档都不入池 */
+  const mk = (id, families) => ({
+    id, brand: 'T', name: id, families,
+    character: [], seasons: [], timesOfDay: [], notesAll: [], popularityRank: 100,
+  });
+  const ONLY = mk('only', { citrus: 1 });
+  const STRONG = mk('strong', { citrus: 0.5, woody: 0.7 });
+  const WEAK = mk('weak', { citrus: 0.3, floral: 1 });
+  const ABSENT = mk('absent', { floral: 1 });
+  const pool = [ONLY, STRONG, WEAK, ABSENT];
+  const answers = { family: 'citrus' };
+  /* 入池判据的直接单测：entersFamilyPool 是 recommend() 与探针共用的
+     单一实现（抽出来正是为了避免两份判据漂移）。表格驱动，
+     每一行都写明"为什么" —— 这是本实验唯一的判据定义处。 */
+  const ent = (id, mode) => entersFamilyPool(pool.find((x) => x.id === id), 'citrus', mode);
+
+  check('E1 默认 strict：只有主族是 citrus 的入池',
+    ent('only') && !ent('strong') && !ent('weak') && !ent('absent'),
+    `only=${ent('only')} strong=${ent('strong')} weak=${ent('weak')} absent=${ent('absent')}`);
+
+  check('E2 strict 与不传 mode 完全相同（默认值就是 strict）',
+    ent('strong', 'strict') === ent('strong') && ent('weak', 'strict') === ent('weak'),
+    `strong ${ent('strong', 'strict')} / weak ${ent('weak', 'strict')}`);
+
+  check('E3 relaxed：强次族入池（strong 的 citrus=0.5, maxW=0.7 → 0.5>=0.5 且 0.5>=0.35）',
+    ent('only', 'relaxed') && ent('strong', 'relaxed'),
+    `only=${ent('only', 'relaxed')} strong=${ent('strong', 'relaxed')}`);
+
+  check('E4 relaxed：弱次族不入池（weak 的 citrus=0.3 < 0.5）',
+    !ent('weak', 'relaxed'), `weak=${ent('weak', 'relaxed')}`);
+
+  check('E5 any：出现即入池（only/strong/weak 进，不含该族的 absent 不进）',
+    ent('only', 'any') && ent('strong', 'any') && ent('weak', 'any') && !ent('absent', 'any'),
+    `only=${ent('only', 'any')} strong=${ent('strong', 'any')} weak=${ent('weak', 'any')} absent=${ent('absent', 'any')}`);
+
+  check('E6 三档都不让不含该族的瓶入池（放宽≠取消过滤）',
+    !ent('absent') && !ent('absent', 'relaxed') && !ent('absent', 'any'),
+    'absent 在三档下均应为 false');
+
+  /* 未知档位必须退回 strict —— 拼错参数不能变成"放行一切"，
+     否则一次手误就让生产池子被淹掉且不报错。 */
+  check('E7 未知 dominanceMode 退回 strict（拼错不放大池子）',
+    ent('strong', 'relax') === false && ent('weak', 'ANY') === false,
+    `relax=${ent('strong', 'relax')} ANY=${ent('weak', 'ANY')}`);
+
+  /* 接线断言：recommend() 必须真的把 dominanceMode 传进过滤层。
+     为什么不在小池子里测：`recommend()` 有三级降级链
+       `L1.length >= topN ? L1 : (L2.length >= topN ? L2 : scored)`
+     小池子里 L1 往往凑不够 topN，于是降到 L2/L3 把「本不该进池的瓶」也带回来 ——
+     结果集看起来一样，测的其实是降级路径。第 5 步第一版探针正是栽在这上面
+     （topN=120 > citrus 池 117 → 静默降级 → 基线算成 1/12）。
+     所以这里用**真实香水库 + 生产口径 topN=5**，断言"两档给出的 top3 不同" ——
+     这是开关确实接线的直接证据，不依赖降级行为。
+     实测（scripts/probe-dominance.mjs）：relaxed 只在 P11 让 top3 命中 2→1，
+     即 12 画像里有 1 个画像的 top3 会变。 */
+  {
+    const PERFS = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'perfumes.json'), 'utf8')).perfumes;
+    const top3Of = (opts) => recommend({ family: 'citrus', season: 'summer',
+      occasion: 'daily', intensity: 2, temperature: 'cool', sweetness: 0,
+      dislikedFamilies: ['amber'], characterTags: ['citrusy', 'fresh'],
+      characterNeg: ['warm', 'resinous'] }, PERFS, TAX, { topN: 5, ...opts })
+      .results.map((x) => x.perfume.id).slice(0, 3).join(',');
+    const s = top3Of({});
+    const r = top3Of({ dominanceMode: 'relaxed' });
+    check('E8 接线：dominanceMode 真的改变了 recommend() 的 top3（同一答案下两档不同）',
+      s !== r, `strict=${s} relaxed=${r}`);
+    /* 未知档位必须与 strict 逐位相同 —— 否则拼错参数会悄悄改变生产输出。 */
+    check('E9 接线：未知档位与 strict 逐位相同（拼错不影响输出）',
+      top3Of({ dominanceMode: 'relax' }) === s && top3Of({ dominanceMode: 'ANY' }) === s,
+      `relax=${top3Of({ dominanceMode: 'relax' })}`);
+  }
 }
 
 /* 输出 */

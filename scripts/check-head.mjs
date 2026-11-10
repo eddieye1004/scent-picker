@@ -26,7 +26,7 @@ const NODE = process.execPath;
 const SUITES = [
   ['test-render.mjs', 294],
   ['test-contrast.mjs', 42],
-  ['test-scoring.mjs', 144],
+  ['test-scoring.mjs', 153],
   ['test-compliance.mjs', 10],
   ['test-union-api.mjs', 76],
   ['test-category-gate.mjs', 10],
