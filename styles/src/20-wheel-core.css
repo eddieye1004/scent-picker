@@ -1,0 +1,2517 @@
+/* ============================================================
+   香型轮盘 v4：大圆盘 → 缩小 + 一圈方格 → 盘心示意图
+   ------------------------------------------------------------
+   三处结构变动（相对 v3 同心双环）：
+   1. 第一层选中时盘心不再翻墨底，保持与第二层方格同一档浅色；
+      压深只留给「落到具体小项」，代表"定下来了"而不是"点到了"。
+   2. 第二层不再是同心环，改成圆盘四周一圈方格。环的宽度被半径卡死：
+      360px 视口下中圈直径只剩 60px，44px 触控框数学上装不进去，
+      四字标签必然溢出；方格不随圆盘缩放，窄屏也能保住触控与一行四字。
+   3. 落到具体小项时盘心底部长出「香调指纹」环图。
+   ============================================================ */
+
+.wheel {
+  position: relative;
+  width: min(88vw, var(--discw));
+  aspect-ratio: 1 / 1;
+  margin: 26px auto 0;
+}
+
+/* 核心圆盘：初始铺满控件。选定大类后整盘缩到 56%，
+   把外圈让给方格 —— 缩小本身就是「这一层收起来了」的信号。 */
+.wheel .disc-core {
+  position: absolute;
+  inset: 0;
+  transform-origin: center center;
+  transition: transform var(--t-long) var(--ease);
+}
+/* D60：will-change 只在这层真的要做缩放动画时才挂。
+   常驻的话整块盘从首帧起就是独立合成层，滚动与拖拽都跟着贵。
+   .is-lifting/.is-returning 是展开/返回动画窗口（app.js 780ms 后摘掉），
+   .is-open 是缩放后的稳定态，两者都不需要再提示。 */
+.wheel.is-lifting .disc-core,
+.wheel.is-returning .disc-core {
+  will-change: transform;
+}
+.wheel.is-open .disc-core { }
+
+/* 缩放后六个扇区太窄，标签必然溢出：文字交给盘心，
+   扇区只留色块作为「选的是哪一块」的空间锚点。 */
+.wheel .label-layer {
+  /* 与 340ms 圆盘缩放同段：图层显隐挂在缩放末段，慢 40ms 会读成"标签掉队" */
+  transition: opacity var(--t-fade) linear;
+}
+.wheel.is-open .label-layer {
+}
+
+/* 缩小后扇区变成一块小饼，需要一点体积才不像贴纸 */
+.wheel.is-open .sector-shape {
+  stroke-width: 1;
+}
+.wheel.is-open .sector-g.is-on .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--blue);
+}
+
+/* ---- 第二轮：一圈方格 ---- */
+.wheel .sub-ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+.wheel.is-open .sub-ring {
+  opacity: 1;
+}
+/* 手臂：铺满控件、绕中心转过 θ，方格钉在手臂顶端。
+   于是所有方格落在同一半径的圆上，且不依赖任何 JS 三角函数。 */
+.wheel .sub-arm {
+  position: absolute;
+  pointer-events: none;
+}
+.wheel .sub-arm .sub-sq {
+  position: absolute;
+  left: 50%;
+  pointer-events: auto;
+  /* 文字必须保持水平：手臂转过 θ，方格反着转回来。
+     反转角走 --aq 自定义属性而不是内联 transform ——
+     内联 transform 会盖掉 :active 里的缩放，按下就没反馈了。 */
+  --aq: 0deg;
+  transform: translate(-50%, -50%) rotate(var(--aq));
+  transform-origin: center center;
+}
+
+.wheel .disc-sector.lvl2.sub-sq {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 44px;
+  max-width: none;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+  background: var(--bg);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  color: var(--ink-2);
+  box-shadow: var(--sh-1);
+  transition: background-color var(--t-hover) var(--ease-std),
+              border-color var(--t-hover) var(--ease-std),
+              color var(--t-hover) var(--ease-std),
+              box-shadow var(--t-hover) var(--ease-std),
+              transform var(--t-hover) var(--ease-std);
+}
+.wheel .disc-sector.lvl2.sub-sq.is-hot {
+  background: var(--bg-2);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.wheel .disc-sector.lvl2.sub-sq.is-on {
+  border-color: var(--blue);
+}
+.wheel .disc-sector.lvl2.sub-sq:active {
+  transform: translate(-50%, -50%) rotate(var(--aq, 0deg)) scale(.97);
+}
+.wheel .disc-sector.lvl2.sub-sq:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* ---- 盘心 ---- */
+.wheel .disc-hub {
+  width: 42%;
+  height: 42%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  transition: width var(--t-scene) var(--ease),
+              height var(--t-scene) var(--ease),
+              background-color var(--t-fade) var(--ease-std),
+              border-color var(--t-fade) var(--ease-std),
+              color var(--t-fade) var(--ease-std);
+}
+/* 缩小态盘心可以更大：小饼直径 56%，内接正方形 39.6% */
+.wheel.is-open .disc-hub {
+}
+
+/* 第一层选中：与方格同一档浅色，只有边框加深 */
+.wheel .disc-hub.is-hover {
+}
+
+/* 落到具体小项：整块压深，白字。这是全站唯一的「确定」信号 */
+.wheel .disc-hub.is-picked {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+  box-shadow: 0 1px 0 rgba(255,255,255,.1) inset, 0 10px 34px -14px rgba(0,0,0,.45);
+}
+.wheel .disc-hub.is-picked .hub-kicker { color: #a8a8a8; }
+.wheel .disc-hub.is-picked .hub-zh { color: #ffffff; }
+.wheel .disc-hub.is-picked .hub-desc { color: #c9c9c9; }
+.wheel .disc-hub.is-picked .hub-reset { color: #c9c9c9; }
+
+.wheel .disc-hub .hub-zh {
+  color: var(--ink);
+}
+.wheel .disc-hub.is-idle .hub-zh { color: var(--ink-2); }
+.wheel .disc-hub .hub-kicker { font-size: 12px; font-weight: 500; color: var(--ink-3); }
+.wheel .disc-hub .hub-desc {
+  flex: none;
+  font-size: 12px;
+  overflow: hidden;
+  color: var(--ink-3);
+  text-align: center;
+}
+/* 带示意图时说明只留两行，把高度让给环图 */
+.wheel .disc-hub.has-glyph .hub-desc { }
+
+/* ---- 盘心两个按钮 ---- */
+.wheel .hub-go,
+.wheel .hub-reset {
+  appearance: none;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  /* 基础 .disc-hub 是 pointer-events:none（盘心整块不吃事件，
+     免得挡住下面的扇区）；只有这两个按钮要重新接回事件。 */
+  pointer-events: auto;
+}
+.wheel .hub-go {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.wheel .hub-go:hover { border-color: var(--blue); }
+.wheel .hub-go:active { }
+.wheel .hub-go:focus-visible { outline: 2px solid var(--blue); }
+
+.wheel .hub-reset {
+  margin-top: 1px;
+  padding: 4px 6px;
+  min-height: 26px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+  background: transparent;
+  border: 1px solid transparent;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  transition: color var(--t-hover) linear, border-color var(--t-hover) linear;
+}
+.wheel .hub-reset:hover { color: var(--ink); }
+.wheel .hub-reset:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.wheel .disc-hub.is-picked .hub-go {
+  color: var(--ink);
+  background: var(--bg);
+  border-color: var(--bg);
+}
+.wheel .disc-hub.is-picked .hub-go:hover { background: var(--fill-blue-lift); border-color: var(--blue-lift); color: #fff; }
+
+/* ---- 窄屏 ---- */
+@media (max-width: 620px) {
+  .wheel { margin-top: 18px; }
+  .wheel.is-open .disc-core { }
+  .wheel .disc-hub { width: 46%; height: 46%; padding: 9px 10px; gap: 3px; }
+  .wheel.is-open .disc-hub { width: 44%; height: 44%; }
+  .wheel .disc-hub .hub-zh { font-size: 22px; }
+  .wheel .disc-hub .hub-desc { }
+  .wheel .disc-sector.lvl2.sub-sq {
+    min-width: 58px;
+    min-height: 44px;
+    padding: 9px 8px;
+    font-size: 12px;
+    letter-spacing: 0;
+  }
+  .wheel .sub-arm .sub-sq { }
+
+}
+
+@media (max-width: 400px) {
+  .wheel.is-open .disc-core { }
+  .wheel .disc-sector.lvl2.sub-sq { min-width: 54px; padding: 8px 6px; }
+  .wheel .sub-arm .sub-sq { }
+  .wheel .disc-hub .hub-desc { max-height: 16px; }
+}
+
+/* 矮屏：圆盘整体压扁时，方格的半径也要跟着收，否则会顶到边 */
+@media (min-width: 621px) and (max-height: 860px) {
+
+}
+/* ============================================================
+   香型轮盘 v4-rev3
+   ------------------------------------------------------------
+   这一版只解决三件事，都是前两版截图撞出来的：
+   1. 盘心原来是一块带四角角标的白方块，压在缩小后的盘上，
+      读成「盘上贴了张卡」，四角还悬在盘面中间。→ 展开后盘心透明，
+      文字直接落在盘上，角标收掉。
+   2. 「加深」原来做成一枚墨色圆片贴在心口，读成「盘里又套了个圆」。
+      → 改成整块缩小的盘翻深，白字压上。加深发生在盘，不是圆心。
+   3. 说明文字在 39% 宽里挤成一行长条，横向溢出圆边。
+      → 盘心收到 52%（落在缩小的盘内，不与方格相交），说明两行收口，环图放到最下面。
+   ============================================================ */
+
+/* 缩小后是一块有厚度的盘，而不是一张平贴图 */
+.wheel.is-open .disc-core {
+  border-radius: 50%;
+  background: var(--bg-2);
+  box-shadow: 0 1px 0 rgba(255,255,255,.9) inset,
+              0 2px 4px rgba(0,26,94,.06),
+              0 14px 34px -18px rgba(0,26,94,.34);
+}
+/* 盘缩小后扇区变成一圈细片，全部压到背景层；
+   只让选中的那一片留一点水洗色 —— 盘因此仍属于「哪个大类」。 */
+.wheel.is-open .sector-g { }
+.wheel.is-open .sector-g.is-on { }
+.wheel.is-open .sector-g.is-on .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--blue);
+}
+.wheel.is-open .ring-thin { opacity: 0; }
+
+/* ---- 盘心：展开后是透明文字层 ---- */
+.wheel.is-open .disc-hub {
+  width: 46%;
+  height: 46%;
+  justify-content: center;
+}
+/* 展开后盘心不再是方块，四角角标就变成四个悬空的直角 —— 收掉 */
+.wheel.is-open .disc-hub::before { display: none; }
+
+/* 落到具体项：整块盘翻深。加深的是盘，不是圆心。 */
+.wheel.is-open.is-picked .disc-core {
+}
+.wheel.is-open.is-picked .disc-hub {
+  /* 46% 与展开态同宽：52% 换算到 viewBox 是 r=124.8，比中圈弧段内沿
+     SUB_R2I=114 还大 —— 点完一项，盘底反而胀出去压掉刚点过的那圈弧。
+     这条是 v4 时代为「翻黑后要更大才读得清反白字」写的，
+     翻黑在 v5 已去掉，尺寸一直没跟着改。 */
+  width: 46%;
+  height: 46%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.wheel.is-open.is-picked .disc-hub .hub-zh { }
+.wheel.is-open.is-picked .disc-hub .hub-desc { }
+.wheel.is-open.is-picked .disc-hub .hub-reset { }
+.wheel.is-open.is-picked .disc-hub .hub-kicker { }
+
+/* 未展开态：整块轮盘要读成「一块填满中间区域的实心盘」。
+   做法：扇区填 --bg-2 让外环成为实体，盘心由白方块改成白色圆盘压在上面，
+   两者边缘贴合，合起来是一个同心圆盘，而不是「空心线框 + 一张白卡」。 */
+.wheel:not(.is-open) .sector-shape {
+  fill: var(--bg-2);
+  stroke: var(--edge);
+  stroke-width: 1;
+}
+.wheel:not(.is-open) .sector-g.is-hot .sector-shape {
+  fill: var(--bg-3);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.wheel:not(.is-open) .disc-hub {
+  width: 66%;
+  height: 66%;
+  border-radius: 50%;
+  border: 1px solid var(--edge);
+  background: var(--bg);
+  box-shadow: var(--sh-2);
+  padding: 12px 14px;
+}
+.wheel:not(.is-open) .disc-hub::before { display: none; }
+
+/* 落到具体项时「已选定」已由整盘翻深表达，kicker 是重复信息，让位给说明 */
+.wheel .disc-hub.has-glyph .hub-kicker { display: none; }
+.wheel .disc-hub.has-glyph .hub-desc { max-height: 34px; }
+
+/* ---- 一格一格贴住盘边 ---- */
+.wheel .sub-arm .sub-sq { top: 12.4%; }
+
+@media (max-width: 620px) {
+  .wheel.is-open:not(.is-picked) .disc-hub .hub-desc { display: none; }
+  .wheel.is-open .disc-core { }
+  .wheel .sub-arm .sub-sq { top: 9.8%; }
+  .wheel.is-open .disc-hub,
+  .wheel.is-open.is-picked .disc-hub { width: 46%; height: 46%; }
+}
+/* 360 宽：盘只剩 181px，盘心必须让位给方格，
+   否则左右两侧的方格内边会切进盘心文字的包围盒（实测 1.25px）。
+   只收盘心宽度，不缩字号 —— 12px 已是最小可读。 */
+@media (max-width: 400px) {
+  .wheel.is-open .disc-core { }
+  .wheel .sub-arm .sub-sq { top: 10.3%; }
+  .wheel.is-open .disc-hub,
+  .wheel.is-open.is-picked .disc-hub { width: 46%; height: 46%; }
+}
+
+/* ---- 圆弧约束：盘心是圆，元素四角的可用宽度随高度收窄 ----
+   实测（arclimit.mjs，三视口）：展开态 hub-desc 在 1440 超 4.7px、
+   hub-go 在 390 超 5.7px / 360 超 15.8px；选定态 hub-desc 在 360 超 3px。
+   可用半宽 = sqrt(R² − (中心偏移 + 半高)²)，所以宽元素要先收宽度，
+   否则四角会顶出圆弧——矩形贴边看不出来，圆的接缝一眼就看见。 */
+.wheel.is-open .disc-hub .hub-desc { }
+.wheel .disc-hub.is-picked .hub-desc { max-width: 96%; text-wrap: pretty; }
+
+@media (max-width: 620px) {
+  /* 窄屏盘心只有 156–171px，装不下「就选「花香调」，下一步 →」这行字，
+     而且底部那栏已经写着「中圈可选，不选就按大类推荐」+ 下一步，
+     同义出口重复一次只是挤压盘心。只留底部那一处。 */
+  .wheel .hub-go { display: none; }
+  .wheel .disc-hub.is-picked .hub-desc { max-width: 88%; }
+}
+
+/* 360 档单独收一次：盘心只剩 156px，picked 态实测
+   hub-desc 137 > 弧容 129、hub-reset 75 > 弧容 61。
+   说明收窄到 82%，gap 收到 1px 把「换一个大类」整体上移 4px，
+   弧在更高处更宽，75 < 77 才放得下。1440/390 不受影响。 */
+@media (max-width: 380px) {
+  .wheel .disc-hub.is-picked .hub-desc { max-width: 82%; }
+  .wheel .disc-hub.is-picked { gap: 1px; }
+}
+
+/* 展开态（已选大类、未选小类）盘心不能出现实心黑块。
+   需求①的原话是「中间方框不要显示为黑色，应与第二层一致的浅色状态」，
+   盘底已经改成透明了，但 .hub-go 原来是 --ink 实底，230×30 的黑条压在
+   270px 的白盘上，读起来跟「盘心是黑的」没区别。
+   改成描边次要按钮：主操作是底部那条蓝按钮，盘心这个只是快捷出口。 */
+.wheel.is-open:not(.is-picked) .hub-go {
+  color: var(--ink);
+  background: transparent;
+  border-color: var(--ink);
+}
+.wheel.is-open:not(.is-picked) .hub-go:hover {
+  color: var(--bg);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+/* 盘心两个按钮原来没写 flex: none，在 flex-column 容器里被 flex-shrink
+   压过（实测 .hub-reset 内容 34px、盒子只剩 24px，「换一个大类」的下沿
+   被裁掉 10px —— 12px 字加 underline 正好压在线外）。 */
+.wheel .hub-go,
+.wheel .hub-reset { flex: none; }
+.wheel .hub-reset { line-height: 1.2; }
+
+/* ============================================================
+   第三轮 · 窄屏展开态把页面撑宽
+   ------------------------------------------------------------
+   `.sub-arm` 原来是 inset:0 的满尺寸盒子，绕中心转过 θ 之后，
+   盒子的四个角必然扫到圆盘外面 —— 360 视口实测 l:-39 r:399（w:438），
+   文档 scrollWidth 401 > clientWidth 360，整个页面能左右晃。
+   方格本身没出屏（bad: []），撑宽的是那根空手臂。
+   → 手臂不需要面积，只需要一条过圆心的轴：
+     宽 0、高满、横向钉在 50%。旋转一条零宽线不产生任何横向延伸。
+     方格本来就挂在手臂顶端，位置一个像素都不变。
+   ============================================================ */
+.wheel .sub-arm {
+  inset: auto;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  transform-origin: 50% 50%;
+}
+
+/* ============================================================
+   第四轮 · 补齐缺失的反馈态，并把时长收回 3 档
+   ------------------------------------------------------------
+   实测缺口（grep styles.css 得到）：
+   - `.sub-sq` 有 :active 没有 :hover —— 鼠标扫过中圈方格毫无反应，
+     而外圈扇区是有的，两层反馈不一致。
+   - `.hub-reset` 有 :hover 没有 :active —— 盘心「换一个大类」按下去毫无反馈。
+   时长收成六档，每档绑定一类动作，不再按元素各写一个数。
+   这六档是用 `C:/Users/16256/ego/r4c.mjs` 遍历 `body *` 的 computed
+   `transitionDuration` 数出来的实际生效值，不是设计稿上的标称值：
+     80ms  按下（`--t-press`，要「立刻」回应，超 100ms 觉得钝）
+     160ms 颜色/位移（悬停、描边）
+     180ms 盘心换字（`hub-swap`）
+     200ms 图层显隐（label-layer / sub-ring 的 opacity）
+     260ms 盘心尺寸变化（宽高同步，慢一档才不会「先宽后高」）
+     340ms 圆盘缩放（这一下要大，是「盘缩小了」的唯一信号）
+   原先是 160/180/200/220/260/340 —— 220 与 200、260 只差 20–40ms，
+   人眼分不出，只制造「哪里对不上」的错觉，已并入 200。
+   ============================================================ */
+
+/* 中圈方格补悬停：与外圈扇区同一套语言（提亮 + 描边收墨） */
+.wheel .disc-sector.lvl2.sub-sq:hover:not(:disabled) {
+  background: var(--bg-2);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+/* 键盘聚焦时也走同一条视觉，否则 Tab 到方格只有焦点环、没有归属感 */
+.wheel .disc-sector.lvl2.sub-sq:focus-visible {
+  background: var(--bg-2);
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* 盘心整块**不可点** —— 基础规则里 `.disc-hub` 是 pointer-events:none，
+   只有 hub-go / hub-reset 两个按钮接回事件。所以这里不能写 `.disc-hub:active`：
+   实测 elementFromPoint(盘心) 命中的是底层 svg，`:active` 永远是 false，
+   写了就是一条永不生效的死规则。真正缺反馈的是 `.hub-reset`。 */
+.wheel .hub-reset:active {
+  transform: translateY(1px);
+  color: var(--ink);
+}
+
+/* 图层显隐钉在 200ms：它跟 340ms 缩放同段起跑，慢 40ms 会读成「标签掉队」。
+   基础层写的是 220ms，这里覆盖掉。 */
+.wheel .label-layer { transition: opacity var(--t-fade) linear; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* 惯性是 requestAnimationFrame 驱动的，CSS 媒体查询管不到它，
+     所以 JS 侧在初始化时就读了一次 matchMedia（app.js:364）。
+     这里补上 CSS 侧：按下缩放也取消，避免「只有下陷没有过渡」的硬跳。 */
+  .wheel .hub-reset:active,
+  .wheel .hub-go:active,
+  .wheel .disc-sector.lvl2.sub-sq:active {
+    transform: none;
+  }
+}
+/* ============ 盘心示意图：香材剖面标本 ============
+   需求原文：「底部还需配示意图，图片风格需统一、有高级质感，
+   避免廉价感的 AI 生成图或网络扒取的劣质素材」。
+   做法是自绘线稿，不引外部素材 —— 同一视框、同一线宽、同一取色，
+   各张图之间不会出现质感断层，这是"风格统一"唯一可控的实现方式。
+
+   为什么只画一枚：实测 38 个小类的代表香材 32/32 同属一个家族
+   （白花是茉莉+晚香玉，都属 floral），逐味画会出来一排一样的图标。
+   放大一枚，才是"示意图"；一小排图标读起来仍是徽标。 */
+
+.wheel .hub-glyph {
+  display: none;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  margin-top: 6px;
+  flex: none;
+}
+.wheel .disc-hub.has-glyph .hub-glyph { display: block; }
+
+.wheel .hub-plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+}
+
+/* 线稿本体：88px。
+   stroke-width 用 viewBox 单位（0.7 / 24）而不是 px —— 上一版用
+   vector-effect:non-scaling-stroke 把线钉在 1.5px，图形一放大线就显得
+   又细又飘，正是"廉价"的来源。现在线宽跟着尺寸等比放大：
+   88px 时约 2.6px，52px 时约 1.5px，两种尺寸的视觉重量一致。 */
+.wheel .plate-svg {
+  width: 88px;
+  height: 88px;
+  flex: none;
+  fill: none;
+  stroke-width: .7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 细分割线：把图与说明分开，是标本图版惯用的版式，
+   也避免"图标 + 文字"挤成一块读起来像徽标。 */
+.wheel .plate-rule {
+  width: 26px;
+  height: 1px;
+  flex: none;
+}
+
+/* 香材名：12px/500，与全局最小字同档 —— 低于 12px 在手机上读不动，
+   test-contrast 有一条硬门槛守着。 */
+.wheel .plate-cap {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: .02em;
+  text-align: center;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* 窄屏：盘心是**圆**，不是方框 —— 一行内容越靠近上下两端，可用宽度越接近 0。
+   实测 390 视口（盘心 171×171，半径 85.5）时，柱高 165 会让首行的两个角
+   （半宽 32、离圆心 80）落到 hypot=86 > 85.5 的圆外，`scrollHeight 174 > clientHeight`
+   就是这件事情在报错。柱高上限按最宽那行的半宽反推：
+   reset 半宽 37.6 → 柱高 ≤ 2×√(85.5²−37.6²) ≈ 153。
+   下面这组数值是按这条约束配的，不是随手调的。 */
+@media (max-width: 620px) {
+  .wheel .plate-svg { }
+  .wheel .hub-plate { gap: 4px; }
+  .wheel .hub-glyph { margin-top: 4px; }
+  /* 分割线是纯版式装饰，窄屏先让位给内容 */
+  .wheel .plate-rule { display: none; }
+}
+/* 360 视口半径只有 78，同名反推上限降到 136 —— 那一档名字退场，
+   图独自说话；完整清单仍在 aria-label 里。 */
+@media (max-width: 380px) {
+  .wheel .plate-svg { width: 44px; height: 44px; }
+  .wheel .hub-plate { gap: 3px; }
+  .wheel .plate-cap { display: none; }
+}
+/* ============================================================
+   第五轮 · 用户六点需求
+   ============================================================ */
+
+/* ============================================================
+   ② 方格与圆盘视觉呼应：给方格铺一条轨道
+   ------------------------------------------------------------
+   方格原来是浮在白底上的六块小卡片，与圆盘没有任何几何关系 ——
+   读起来像「盘旁边散着一堆按钮」。加一条 1px 虚线圆，正好穿过
+   所有方格的中心，方格就从「散落的卡片」变成「挂在这条轨道上的节点」，
+   和盘同属一个系统。
+
+   半径是算出来的，不是试的：方格中心钉在控件的 top 处
+   （translateY(-50%) 已生效），所以
+       轨道半径 = 50% − top
+   三个断点各自成立：
+       ≥621  top 12.4% → 半径 37.6% → 直径 75.2%
+       ≤620  top 9.8%  → 半径 40.2% → 直径 80.4%
+       ≤400  top 10.3% → 半径 39.7% → 直径 79.4%
+   轨道只在展开态出现：闭合态还没有方格，画出来是一条悬空的圆。 */
+.wheel .sub-ring::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 75.2%;
+  height: 75.2%;
+  transform: translate(-50%, -50%);
+  border: 1px dashed var(--blue-amb);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--t-fade) linear;
+}
+.wheel.is-open .sub-ring::before { opacity: 1; }
+@media (max-width: 620px) {
+  .wheel .sub-ring::before { width: 80.4%; height: 80.4%; }
+}
+@media (max-width: 400px) {
+  .wheel .sub-ring::before { width: 79.4%; height: 79.4%; }
+}
+
+/* ============================================================
+   ⑤ 确认后不整盘翻黑
+   ------------------------------------------------------------
+   原做法：选中具体小项后整个盘翻成墨色、文字全反白。
+   那读起来是「页面切走了」，不是「你选中了这一格」。
+   Apple 与 Oura 的做法一致：选中由被选中的那个小元素自己表达，
+   不给整块底板上色 —— 底板一变色，用户要重新找一遍自己在哪。
+
+   改成三层同时表达，没有一层靠"整块翻色"：
+     1. 盘底仍是白，加一圈 --blue-amb 发丝描边，说明「这个盘现在是激活的」
+     2. 被选中的方格自己填实 --blue、文字反白（面积小、对比强、位置明确）
+     3. 盘心文字回到墨色系，标本线稿从白色改成深色
+   ============================================================ */
+/* 盘底用 --bg-2，与展开态同一个底。
+   最早写的是 --bg（纯白）：展开态是 #f5f5f5，选中后跳成 #ffffff ——
+   8% 的亮度跳变自己就成了一次「整块变色」，只是方向反过来而已。
+   用户的诉求是「选中由被选中的那个小元素自己表达」，那底板就不该动。 */
+.wheel.is-open.is-picked .disc-core {
+  background: var(--bg-2);
+  box-shadow: 0 0 0 1px var(--blue-amb) inset,
+              0 10px 30px -18px rgba(0, 26, 94, .34);
+}
+.wheel.is-open.is-picked .disc-hub { color: var(--ink); }
+.wheel.is-open.is-picked .disc-hub .hub-zh { color: var(--ink); }
+.wheel.is-open.is-picked .disc-hub .hub-desc { color: var(--ink-2); }
+.wheel.is-open.is-picked .disc-hub .hub-reset { color: var(--ink-3); }
+.wheel.is-open.is-picked .disc-hub .hub-reset:hover { color: var(--ink); }
+.wheel.is-open.is-picked .disc-hub .hub-kicker { color: var(--ink-3); }
+
+/* 选中的方格填实：整盘里唯一一块高对比面积，一眼定位 */
+.wheel .disc-sector.lvl2.sub-sq.is-on {
+  background: var(--fill-blue);
+  border-color: var(--blue);
+  color: #ffffff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset,
+              0 8px 20px -12px rgba(0, 47, 167, .5);
+}
+
+/* 标本线稿必须跟着换底色一起换线色。
+   原来写死 rgba(255,255,255,.82) 是给墨底配的；底变白之后
+   白线画在白盘上等于图形消失 —— 「换底不换线」是改配色最容易漏的一处。 */
+.wheel .plate-svg { }
+.wheel .plate-rule { background: var(--line); }
+.wheel .plate-cap { color: var(--ink-3); }
+
+/* ============================================================
+   ① 「内圈可以不选」要让人一眼看见
+   ------------------------------------------------------------
+   原来只有桌面端盘心那颗 .hub-go 在说这件事，
+   而它在 ≤620px 是 display:none —— 手机上最需要这句话的人恰好看不到。
+   补一条 .hub-skip：文案「中圈可不选」，只在 canSkip 时出现。
+   桌面隐藏（.hub-go 说得更具体），窄屏显示。 */
+.wheel .hub-skip {
+  display: none;
+  margin-top: 2px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: .01em;
+  color: var(--ink-3);
+  background: transparent;
+  border: 1px dashed var(--edge);
+  border-radius: 999px;
+  cursor: pointer;
+  flex: none;
+  transition: color var(--t-hover) var(--ease-std),
+              border-color var(--t-hover) var(--ease-std),
+              background-color var(--t-hover) var(--ease-std);
+}
+.wheel .hub-skip:hover {
+  color: var(--bg);
+  background: var(--ink);
+  border-color: var(--ink);
+  border-style: solid;
+}
+.wheel .hub-skip:active { transform: translateY(1px); }
+.wheel .hub-skip:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+/* [hidden] 自带 UA 的 display:none，但它的优先级低于任何作者样式 ——
+   下面这条 media query 里的 display:inline-block 会把 hidden 顶掉，
+   于是闭合态（还没选大类）就冒出一颗「中圈可不选」。
+   实测就是这个症状：closed 态 skip.shown=true。必须显式压回。 */
+.wheel .hub-skip[hidden] { display: none; }
+@media (max-width: 620px) {
+  .wheel .hub-skip { display: inline-block; }
+  .wheel .hub-skip[hidden] { display: none; }
+}
+
+/* ============================================================
+   ⑥ 内圈先给差异大的，细微差别收进「更多」
+   ------------------------------------------------------------
+   数据层已按 tier 重排（taxonomy 每个 sub 带 tier）。
+   UI 只做一件事：默认只渲染 tier===1，末尾多一枚虚线方格 +N，
+   点开后铺全、这枚消失。
+
+   为什么不是一次全给：水生与海洋、古龙水型与芳香柑橘这两对，
+   命名上只差两个字，闻起来差一整类。并排摆在新手面前，
+   等于逼他在两个他分不清的词之间做选择。 */
+
+@media (prefers-reduced-motion: reduce) {
+  .wheel .hub-skip:active { transform: none; }
+}
+
+/* ============================================================
+   ③ 指针在内圈拖动时实时预览
+   ------------------------------------------------------------
+   原来只在 mouseenter 单个按钮时改盘心，指针必须精确落在 44px 的格子上；
+   在 360 视口，格子只占盘周一小段，用户"划过去"是常态。
+   JS 侧补了 subRing 上的 pointermove：按指针相对圆心的角度反查最近一格。
+   这里只给「被角度命中的格子」一个和 :hover 相同的语言，
+   保证两种触发路径视觉上不可区分（否则会出现两种高亮）。 */
+.wheel .disc-sector.lvl2.sub-sq.is-hot,
+.wheel .disc-sector.lvl2.sub-sq:hover:not(:disabled) {
+  background: var(--bg-2);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+/* ============================================================
+   第六轮 · 用户五条（m10062）
+   ------------------------------------------------------------
+   一、文案去句末句号 —— 数据与 JS 里已逐条剥掉，这里不涉及。
+   二、大圈选定后补返回入口 —— 从盘心那颗 12px 下划线挪到盘外左上角。
+   三、中间小圈可直接点选切换大类，并区分当前态与可点态。
+   四、中圈改成沿圆弧旋转浏览：三格窗口 + 左右两枚转动钮。
+   五、图标统一视觉尺寸与线宽，常态与选中态分开。
+   ============================================================ */
+
+/* ============================================================
+   ② 返回入口：盘外左上角
+   ------------------------------------------------------------
+   原来盘心底部有一颗「换一个大类」：12px 字、26px 高、下划线样式。
+   三个问题叠在一起 ——
+     1. 26px 低于 44px 触控下限，拇指点它得瞄准；
+     2. 它和「直接下一步」「中圈可不选」挤在同一列里，
+        主操作与退路上下相邻，正是最容易点错的位置；
+     3. 盘心是圆，越靠下可用宽度越窄，它一直在被弧容卡（D33 那几条 96%/82% 就是为它让路）。
+   圆盘画在方框里是个圆，四个角是空的 —— 按钮落在那里，
+   既不压盘面，也不与底部主按钮抢位置，还顺手解掉了盘心的宽度约束。
+   ============================================================ */
+.wheel .wheel-back {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 12px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .01em;
+  line-height: 1;
+  color: var(--ink-2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color var(--t-hover) var(--ease-std),
+              border-color var(--t-hover) var(--ease-std),
+              background-color var(--t-hover) var(--ease-std),
+              transform var(--t-press) var(--ease-std);
+}
+.wheel .wheel-back:hover {
+  color: var(--ink);
+  border-color: var(--edge);
+  background: var(--bg-2);
+}
+/* 按下要能看见：位移 1px + 描边转墨，两个通道同时给才算"有按下态" */
+.wheel .wheel-back:active {
+  transform: translateY(1px);
+  color: var(--ink);
+  border-color: var(--ink);
+  background: var(--bg-3);
+}
+.wheel .wheel-back:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+/* [hidden] 的 UA display:none 优先级低于任何作者样式，
+   这里显式压回 —— 上一轮的 .hub-skip 就是被 @media 里的 display 顶掉的。 */
+.wheel .wheel-back[hidden] { display: none; }
+@media (max-width: 620px) {
+  .wheel .wheel-back { left: -2px; top: -6px; }
+}
+
+/* ============================================================
+   ③ 缩小后的盘：六个扇区直接点，换大类
+   ------------------------------------------------------------
+   原状态：.sub-ring 在展开态是 inset:0 + pointer-events:auto，
+   整个控件矩形都吃事件 —— 下层的扇区一个都点不到。
+   同时扇区被压到 opacity:.16，看上去是一块淡底纹，不像能点。
+   两件事合起来，用户唯一的换类方式就是盘心那颗小字按钮。
+
+   改成：
+     - .sub-ring 自己不吃事件（只有格子和圆钮吃），扇区重新可点；
+     - 可点态 opacity .30 + cursor:pointer，悬停 .55 + 描边转墨；
+     - 当前态保持 1 + 蓝描边，与可点态拉开明确档位。
+   ============================================================ */
+.wheel.is-open .sub-ring { pointer-events: none; }
+/* v7 的瓦片（.sub-arc / .sub-arc-btn）自己声明 pointer-events，见 _wheel7.css；
+   这里只保留容器不吃事件这一条。 */
+
+.wheel.is-open .sector-g {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.wheel.is-open .sector-g.is-hot:not(.is-on) { opacity: .55; }
+.wheel.is-open .sector-g.is-on { }
+.wheel.is-open .sector-g:not(.is-on) .sector-shape {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.wheel.is-open .sector-g.is-hot:not(.is-on) .sector-shape {
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
+}
+
+/* ============================================================
+   ⑤ 图标：常态与选中态分开
+   ------------------------------------------------------------
+   原来只在"已选定"时才画图，常态没有图可比 —— 于是"选中态与常态要区分"
+   这句话无从落地。现在常态（转到某格但还没确认）也画，只是：
+     常态：线稿 --ink-3（灰）、香材名压到 60%、整体缩到 92%
+     选中：线稿 --blue（与中间格填蓝同一时刻）、香材名全亮、回到 100%
+   线宽已按包围盒归一化（SUB_FIT + PLATE_SW），CSS 这里不再碰 stroke-width。
+   ============================================================ */
+.wheel .plate-svg {
+  stroke: var(--ink-3);
+  transition: stroke var(--t-hover) var(--ease-std),
+              transform var(--t-fade) var(--ease-std),
+              opacity var(--t-hover) var(--ease-std);
+  transform: scale(.92);
+}
+.wheel .disc-hub.is-picked .plate-svg {
+  stroke: var(--blue);
+  transform: scale(1);
+}
+.wheel .plate-cap {
+  color: var(--ink-3);
+  opacity: .6;
+  transition: color var(--t-hover) var(--ease-std),
+              opacity var(--t-hover) var(--ease-std);
+}
+.wheel .disc-hub.is-picked .plate-cap {
+  color: var(--ink-2);
+  opacity: 1;
+}
+
+/* 展开态盘心多了一件东西（标本），kicker 只在"已选定"时让位。
+   基础层写的是 .has-glyph 就藏 —— 那时有图就等于已选定。
+   现在预览态也画图（⑤ 要求常态与选中态能对比），
+   那条规则会把「正在看」一起藏掉，预览态与选中态就只剩线稿颜色一个差别。
+   所以这里把预览态显式打开：既有图、又留着"正在看"两个字。 */
+.wheel .disc-hub.has-glyph:not(.is-picked) .hub-kicker { display: block; }
+.wheel .disc-hub.has-glyph.is-picked .hub-kicker { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wheel .wheel-back:active { transform: none; }
+  .wheel .sub-arc { animation: none; }
+  .wheel .sub-arc-btn { animation: none; }
+}
+/* ============================================================
+   香型轮盘 v7 · 中圈：一整圈等分弧段
+   ------------------------------------------------------------
+   v6 是三格弧窗 + 左右箭头，两个可读性问题：
+   1. 一次只看得见三项，用户不知道一共有几项；
+   2. 箭头转动后位置感丢失 —— 「我现在在环的哪一段」无从判断。
+   v7 把全部细分类等分成弧段铺满一整圈：有几项、停在第几项、
+   左右各还有什么，一眼全在。没有箭头，也没有「转到才算选中」
+   的中间态 —— 点哪段就是哪段。
+
+   为什么用弧段不用方格：方格是贴在这块盘上的，弧段是从盘上切下来的。
+   同一圆心、同一线宽、同一留白，读起来是同一个物件。
+   ============================================================ */
+
+.wheel .sub-ring {
+  pointer-events: none;
+  opacity: 0;
+}
+.wheel.is-open .sub-ring {
+  opacity: 1;
+  /* v6 这里写的是 auto，会让铺满的容器变成一堵看不见的墙；v7 只放开弧段与标签 */
+  pointer-events: none;
+}
+/* v5 的虚线轨道横穿弧带，只在缝里露出几截碎线，读起来像毛刺。v7 取消。 */
+.wheel.is-open .sub-ring::before { }
+
+.wheel .sub-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* ---- 弧段本体 ----
+   白面 + 1px 中性描边 + 1px 落影。白所以立得起来，是因为它垫在一块
+   更深的灰盘上（见文件后半的「盘体」）—— 白落白才是几条线拼的几何图。 */
+.wheel .sub-g {
+  filter: drop-shadow(0 1px 2px rgba(0, 26, 94, .10));
+}
+.wheel .sub-arc {
+  stroke-width: 1;
+  pointer-events: auto;
+  cursor: pointer;
+  /* transform-box: view-box 让 240/240 成为所有段的共同原点，
+     否则每段会绕自己的包围盒中心缩放，读起来像七个各转各的。 */
+  transform-box: view-box;
+  transform-origin: 240px 240px;
+  transition: fill var(--t-hover) var(--ease-std),
+              stroke var(--t-hover) var(--ease-std);
+}
+.wheel.is-open .sub-arc {
+}
+.wheel:not(.is-sub-locked) .sub-g:hover,
+.wheel .sub-g.is-hot {
+  filter: drop-shadow(0 4px 9px rgba(0, 26, 94, .18));
+}
+.wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
+.wheel .sub-g.is-hot .sub-arc {
+  stroke: var(--ink-2);
+}
+.wheel .sub-g:active .sub-arc {
+  fill: #eceef4;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  transition: none;
+}
+.wheel .sub-g.is-on { filter: drop-shadow(0 4px 11px rgba(0, 26, 94, .24)); }
+.wheel .sub-g.is-on .sub-arc {
+  fill: var(--blue);
+  stroke: var(--blue);
+}
+
+/* 每段延迟 55ms 依次滑出：一次全亮读起来是一块饼，
+   依次滑出才读得出「一共有几段」。动画不挡命中，段在 340ms 内已可点。 */
+@keyframes arcIn {
+  from { opacity: 0; transform: scale(.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ---- 弧段上的文字 ---- */
+.wheel .sub-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.wheel .disc-sector.lvl2.sub-arc-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  max-width: none;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-align: center;
+  /* 单行：弧长在窄屏也够放四字标签。允许换行会让「绿叶花香」
+     变成两行两列，既不像一个词，也压到盘心。 */
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: color var(--t-hover) var(--ease-std);
+}
+@keyframes arcLabelIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn:hover,
+.wheel .disc-sector.lvl2.sub-arc-btn.is-hot { color: var(--ink); }
+.wheel .disc-sector.lvl2.sub-arc-btn.is-on { color: #ffffff; }
+.wheel .disc-sector.lvl2.sub-arc-btn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+@media (max-width: 620px) {
+  .wheel .disc-sector.lvl2.sub-arc-btn {
+  }
+}
+@media (max-width: 400px) {
+  .wheel .disc-sector.lvl2.sub-arc-btn {
+    padding: 4px 4px;
+    font-size: 12px;
+    min-height: 38px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wheel.is-open .sub-arc { animation: none; }
+  .wheel .disc-sector.lvl2.sub-arc-btn { animation: none; }
+}
+
+/* ============================================================
+   v8 · 盘体：先有一块盘，再往上放零件
+   ------------------------------------------------------------
+   原来扇区、盘心、页面是同一个白，六块之间只靠 1px 浅描边分开，
+   读起来像「几条线拼出来的几何图」。根因不是线太细，是没有实体：
+   所有零件都贴在页面上，没有谁垫着谁。
+
+   改法：给 .wheel 一块灰盘当底座（比页面深一档），所有零件
+   —— 家族扇区、弧段、盘心 —— 都是放在这块灰盘上的白件。
+   于是每一处边界天然是「白 / 灰缝 / 白」，比把单线加粗到 2px
+   更像实体分件，而且不需要任何渐变或发光。
+   ============================================================ */
+
+.wheel {
+  border-radius: 50%;
+  /* 底座：比页面深一档的灰。扇区外径 228/240 = 95%，
+     于是外围留出 5% 的一圈灰 —— 那不是留白，是这块盘的边。
+     色值取 #e4e4ec：比页面白深约 6 个明度档，够看出「盘」的存在，
+     又不至于让整块圆成为页面上最重的东西。 */
+  background: var(--bg);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 18px 44px -34px rgba(0, 26, 94, .40);
+  transition: background var(--t-move) var(--ease-std),
+              box-shadow var(--t-move) var(--ease-std);
+}
+/* 展开后家族盘缩到 60%，盘体本身不变 —— 盘子还在，
+   只是上面那层的扇区收进去了。底座颜色随状态微调，避免整块白到发空。 */
+.wheel.is-open { }
+
+/* 家族扇区：白件（A 方向：六族同色，分块只靠白缝） */
+.wheel .disc-svg .sector-shape {
+  stroke-width: 2.6;
+  transition: fill var(--t-hover) var(--ease-std),
+              stroke var(--t-hover) var(--ease-std);
+}
+.wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
+.wheel .disc-svg .sector-g.is-hot .sector-shape {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+.wheel .disc-svg .sector-g.is-on .sector-shape {
+  fill: var(--blue);
+  stroke: var(--blue);
+  stroke-width: 1.5;
+}
+
+/* 盘心：白件，落在灰盘正中 */
+.wheel .disc-hub {
+}
+.wheel .disc-hub.is-idle { background: #ffffff; }
+.wheel .disc-hub.is-hover { background: #ffffff; border-color: var(--edge); }
+
+/* 展开态盘心：白圆 + 落影，直径 48%。
+
+   **三层明度阶梯**是「质感」的全部来源，不是靠叠投影：
+     底座 .wheel   #e4e4ec  —— 最深的灰，从扇区缝与外围一圈露出来
+     家族盘        #f6f6fa  —— 中间调，缩小后成为背景层
+     弧段 / 盘心   #ffffff  —— 最亮，是浮起来的那一层
+
+   48% 有上界：家族盘 scale(.6) 后外径 228×.6 = 136.8 单位、占控件 57%。
+   盘心必须小于它，否则圆心那块白整个盖住家族盘，六块家族色只剩外沿
+   一条细灰环 —— 实测 56% 就是这个结果（截图确认）。
+   下界是三行文字（kicker 12px / 主词 22px / 说明 12px×2 行）的圆内接
+   高度：48% 直径 = 230 单位、r = 115，最宽行半宽约 86 时可用高度
+   2×√(115²−86²) = 152，三行合计约 80，够。 */
+.wheel.is-open .disc-hub {
+  width: 46%;
+  height: 46%;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #eceef6;
+  box-shadow: var(--sh-3);
+  padding: 6px 8px;
+  gap: 5px;
+  justify-content: center;
+}
+/* 盘心说明在展开态收窄：盘心是圆，一行内容越靠上下两端可用宽度越接近 0，
+   按矩形量出来的 96% 会在它实际所在的高度上出圆（实测截图里
+   「白花与粉感是两条路」的尾字压在弧段上）。80% 才落在弦长内。 */
+.wheel.is-open .disc-hub .hub-desc { max-width: 88%; }
+
+/* 展开态：家族盘缩成 60%，仍是白件，只是不再抢眼。
+   原来用 16% 透明度让它隐身 —— 那等于告诉用户「盘子没了」，
+   而第③点要的正是「盘还在，还能点」。 */
+.wheel.is-open .sector-g { }
+.wheel.is-open .sector-g .sector-shape {
+  fill: #e7ebf5;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+.wheel.is-open .sector-g.is-on .sector-shape {
+  stroke: var(--blue);
+}
+.wheel.is-open:not(.is-sub-locked) .sector-g:hover .sector-shape {
+  fill: #dde3f2;
+  stroke: var(--ink-2);
+  stroke-width: 1.8;
+}
+
+/* 外圈标签：展开态沿用 _wheel4.css 的 opacity:0 —— 保持隐藏。
+   试过放大后继续显示，代价是家族名漂在弧带与缩盘之间的缝里，
+   而弧段文字更响，层级直接反了（子类比家族更醒目）。
+   缩小盘仍可点这条路径靠悬停高亮 + 盘心「点一下换到 X」成立，不靠标签陈述。 */
+
+/* 盘心主按钮：墨色方框换成克莱因蓝药丸。
+   它是这一屏唯一的主操作，用主色填充比黑描边更明确，
+   也不再和扇区描边抢同一种「线」的视觉重量。 */
+.wheel .hub-go {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill-blue);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  box-shadow: var(--sh-2);
+  transition: background var(--t-hover) var(--ease-std),
+              box-shadow var(--t-hover) var(--ease-std),
+              transform var(--t-micro) var(--ease-std);
+}
+.wheel .hub-go:hover { background: var(--fill-blue-deep); }
+.wheel .hub-go:active {
+  background: var(--fill-blue-deep);
+  box-shadow: var(--sh-1);
+  transform: translateY(1px);
+}
+.wheel .hub-go:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+
+/* ---- 展开态：家族文字标签退场、盘心出口退场 ----
+   两条都是"实测看不见 / 位置冲突"，不是审美取舍：
+   1) lvl1 标签定位半径 117px，展开后盘心半径已到 119.5px —— 标签整块落在
+      盘心白圆底下，1440 截图里一个字都看不到。原来那版"保留外圈标签"
+      写的时候盘心还只有 104px，两轮改尺寸后它就没位置了。
+      家族身份由盘心主词承担（"花香调"/"果香花香"），换大类靠扇区可点 +
+      悬停时盘心改成"点一下换到 X"，语义与闭合态一致。
+   2) hub-go（"就选「花香调」，下一步 →"）宽 173.8px，盘心半径 119.5 的圆
+      在它所在高度只剩 2×√(119.5²−94²) = 145px 可用宽 —— 实测溢出 44.2px。
+      而底部 navBar 已有"下一步 →"主按钮 + 一行 hint，盘心这个是同义重复，
+      留着只会把主词顶偏。 */
+.wheel.is-open .label-layer { }
+.wheel.is-open .hub-go { display: none; }
+
+/* ---- 弧段之间要有缝 ----
+   七段连续的 path 首尾只差 0.7° 的 gap，1px 中灰描边在 520px 的盘上
+   等于没有，整圈读成一块连续的环面 —— 这正是"像几条线拼的"来源。
+   给每段一道 2px 的白描边（等于把缝撑开），段与段之间才数得清几块。 */
+.wheel .sub-arc { stroke-linejoin: round; }
+.wheel.is-open .sub-g + .sub-g .sub-arc { }
+
+/* 选中段：填充蓝，但描边也转蓝，避免白缝在蓝底上显得脏 */
+.wheel .sub-g.is-on .sub-arc { stroke: var(--blue); }
+
+/* ---- 展开态：家族扇区当前项要有标记 ----
+   第③点要求"缩小后的盘仍可直接点扇区换大类"，前提是用户能看出
+   六块的分界与自己在哪一块。原来 fill/stroke 两色差 3%、描边 1px，
+   4 倍缩放下六段读成一条连续灰环（截图确认）。
+   这里描边加深到 #bfc4d8 / 1.2px 拉开分界，当前项另给它一道蓝：
+   用 wash + 蓝描边，与弧段的"实心蓝 = 已选定"区分开——
+   同一个盘上不能有两种"选中"，否则用户分不清选中的是家族还是细分。 */
+.wheel.is-open .sector-g.is-on .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--blue);
+  stroke-width: 1.6;
+}
+.wheel.is-open .sector-g.is-on { }
+
+/* ============================================================
+   v9 三层半径归位
+   ------------------------------------------------------------
+   原来中圈弧段与家族环共用 152–226 这条带，而 .disc-core 展开时
+   缩放 0.56 又把家族环压到 88–128，正好埋在盘心白圆下面 ——
+   家族环看不见，中圈弧段又只是「白底 + 几乎同色的描边」，
+   整块读成一条淡淡的环，这就是「像几条线拼成」的真正来源。
+
+   现在按半径分三层，互不侵占：
+     盘心         r ≤ 110   （46% 直径 220.8 → r 110.4）
+     中圈弧段     116–154   （band 38，7 段并排）
+     家族环       158–228   （不再缩放，标签回到环上）
+   ============================================================ */
+
+/* 1. 展开态不再缩小家族盘：弧段已移到内圈，不需要靠缩小腾位置。
+      缩放会把家族环塞进盘心，等于把它藏起来。 */
+.wheel.is-open .disc-core { transform: none; }
+@media (max-width: 620px) { .wheel.is-open .disc-core { transform: none; } }
+@media (max-width: 400px) { .wheel.is-open .disc-core { transform: none; } }
+
+/* 2. 底座轮廓跟着改回贴着家族环外沿（95%） */
+.wheel.is-open::after { opacity: 1; }
+
+/* 3. 家族文字标签回到家族环上。
+      之前藏起来是因为盘心放大到 46% 时半径 119.5 盖住了 117px 处的标签；
+      家族环不再缩放后，标签落回半径 204 的环面中央，不再被盖。 */
+.wheel.is-open .label-layer { opacity: 1; pointer-events: auto; }
+.wheel.is-open .label-layer .disc-sector.lvl1 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.wheel.is-open .label-layer .disc-sector.lvl1.is-on {
+}
+.wheel.is-open .label-layer .disc-sector.lvl1 .notes { display: none; }
+
+/* 4. 中圈弧段：带 38 单位宽，7 段并排。
+      描边必须比家族环更实，否则「一层浮在另一层上」的层次读不出来。 */
+.wheel .sub-arc { }
+
+/* 5. 弧段标签落在 band 中央（半径 135），字号按断点收 */
+.wheel .disc-sector.lvl2.sub-arc-btn {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* ============================================================
+   v10 · 明度分层（这轮的核心）
+   ------------------------------------------------------------
+   之前四层（底座 / 家族盘 / 中圈 / 盘心）明度全在 5–8% 区间，
+   彼此只差一两个百分点。人眼对 2% 的明度差不敏感，所以四层读成
+   一个平面，只剩描边可见 —— 这是"像几条线拼成的几何图形"的根因，
+   不是线太细，是没有实体。
+
+   现在每层差 6–10%：
+     底座 #c9cede（深，只在缝里与最外圈露出）
+     家族盘 #ffffff（最亮，面积最大）
+     中圈 #ffffff + 落影（同色但靠阴影与缝读成浮起的第二层）
+     盘心 #ffffff + 更强落影（第三次抬高）
+   ============================================================ */
+
+/* 1. 选中家族：深蓝字 + 蓝描边。绝不用白字 ——
+      底色是 --blue-wash(rgba(0,47,167,.07)) 的近白色，
+      白字在它上面 CR≈1.02，实测截图里「花香调」直接消失。 */
+.wheel.is-open .label-layer .disc-sector.lvl1.is-on {
+  color: var(--blue-deep);
+  font-weight: 700;
+}
+/* 未选中的家族标签：常态压到 --ink-2，让蓝色那枚更突出 */
+.wheel.is-open .label-layer .disc-sector.lvl1:not(.is-on) {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+/* 2. 中圈弧段之间必须有真缝。
+      七段 path 首尾只差 gap（≤2.6°），1.2px 描边在中灰底上等于没有，
+      整圈读成一块连续环面。改成 2px 底座色描边 = 把缝撑开成可见的槽，
+      段数才数得清，也才有"一段一段滑出来"的实体感。 */
+.wheel .sub-arc {
+  stroke-linejoin: round;
+}
+/* 悬停：整段抬起（白→近白 + 深描边反而会更糊，这里只加深描边与填充差） */
+.wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
+.wheel .sub-g.is-hot .sub-arc {
+  stroke: var(--ink-2);
+}
+/* 选中：填实蓝，描边同蓝 —— 白缝在蓝底上会显得脏 */
+.wheel .sub-g.is-on .sub-arc {
+  fill: var(--blue);
+  stroke: var(--blue);
+}
+
+/* 3. 中圈整体落影：让它读成浮在家族盘之上的一层。
+      只给容器加 filter 会连带文字一起模糊，所以落到 svg 上。 */
+.wheel .sub-svg {
+}
+
+/* 4. 弧段文字：常态 --ink-2（不是 --ink-3，14px 小字再淡就糊） */
+.wheel .disc-sector.lvl2.sub-arc-btn {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn:hover,
+.wheel .disc-sector.lvl2.sub-arc-btn.is-hot {
+  color: var(--ink);
+}
+.wheel .disc-sector.lvl2.sub-arc-btn.is-on {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* 5. 盘心：40%，第三次抬高 —— 影子比中圈的更实 */
+.wheel .disc-hub {
+}
+
+/* ============================================================
+   v10b · 中圈读成"浮起的瓦片"
+   ------------------------------------------------------------
+   上一轮家族环和弧段都是 #ffffff，两者并成一片白，中圈只剩分隔线。
+   现在关系反过来：
+     家族环  #f1f3fa（盘面，浅灰蓝）
+     弧段    #ffffff（瓦片，纯白）+ 落影
+     盘心    #ffffff（再抬一层，落影更实）
+   白瓦片压在灰盘面上，段与段之间用 1.6px #e2e6f1 的槽分开 ——
+   这才是"一个个圆弧依次滑出、并排排列"该有的实体感。
+   ============================================================ */
+
+/* 弧段：纯白 + 内高光 + 落影，是这盘上最亮的一层 */
+.wheel .sub-arc {
+}
+.wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
+.wheel .sub-g.is-hot .sub-arc {
+  stroke: var(--ink-2);
+}
+.wheel .sub-g.is-on .sub-arc {
+  fill: var(--blue);
+  stroke: var(--blue);
+}
+/* 去掉容器级 drop-shadow（会连带文字一起糊，且与逐段影子重复） */
+.wheel .sub-svg { filter: none; }
+
+/* ============================================================
+   v10c · 明度阶梯定稿（每档 ≥7%）
+   ------------------------------------------------------------
+   前三轮都在 2–4% 的差里微调，人眼读不出来。这一轮把四层一次拉开：
+     底座 #c3c9dc → 家族环 #e7ebf5 → 弧段 #ffffff → 盘心 #ffffff+影
+   家族环外沿那道 1.5px 白描边是关键：它把"盘"从更深的底座上切出来，
+   没有它，盘面和底座之间是一条 4% 的软过渡，仍然像浮着的线。
+   ============================================================ */
+
+/* 弧段：纯白瓦片，落影比家族环重一档 */
+.wheel .sub-arc {
+}
+
+/* 中圈容器：arcs 与家族环之间留出可见的底座缝（band 外沿 150 vs 家族 158，
+   8 单位 = 桌面 8.7px，窄屏 5px）。给 sub-svg 一圈内描边强调这道缝。 */
+.wheel .sub-ring::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64.6%;
+  height: 64.6%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid rgba(0, 26, 94, .08);
+  pointer-events: none;
+  opacity: 0;
+}
+.wheel.is-open .sub-ring::after { opacity: 1; }
+
+/* ============================================================
+   v11 · 渐变与倒角（纯色调明度已经到头了）
+   ------------------------------------------------------------
+   前四轮全是纯色填充。一个由 40 多个纯色扇形拼起来的盘，无论
+   明度排得多准，读起来还是矢量线稿 —— 因为真实物体没有哪个面
+   是绝对均匀的。这一轮把光向统一成"左上打光"，并在层与层之间
+   做出厚度：
+     · 家族扇区 fill: url(#gFam)      左上白 → 右下极浅灰蓝
+     · 中圈弧段 fill: url(#gArc)      下沿收暗 = 瓦片厚度
+     · 盘底面   fill: url(#gBase)     中心亮、外圈暗 = 微微内凹
+     · 每层外沿一道 1px 白高光 + 内沿一道 1px 暗边（倒角）
+   ============================================================ */
+
+/* 1. 家族扇区改用渐变 */
+.wheel .disc-svg .sector-shape { fill: url(#gFam); }
+.wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
+.wheel .disc-svg .sector-g.is-hot .sector-shape { }
+
+/* 2. 倒角：扇区外沿 0.8px 白高光叠在描边内侧。
+      不用 SVG 再画一圈（会多 6 个 path），用 drop-shadow 反向做：
+      上移 0.5px 的白色影子只会在上沿露出来 = 高光。 */
+.wheel .disc-svg .sector-shape {
+  filter: drop-shadow(0 -0.5px 0 rgba(255, 255, 255, .85));
+}
+
+/* 3. 盘底面径向渐变 */
+.wheel {
+}
+/* CSS 不能直接引用 SVG 渐变（同文档也不行，除非是同源引用）——
+      所以这里退回到用多层 radial-gradient 近似同一个效果。 */
+.wheel {
+}
+.wheel.is-open {
+}
+
+/* 4. 中圈弧段渐变 + 下沿厚度 */
+.wheel .sub-arc { fill: url(#gArc); }
+.wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
+.wheel .sub-g.is-hot .sub-arc { }
+.wheel .sub-g.is-on .sub-arc { }
+
+/* 5. 中圈与家族环之间的那圈底座缝：加一道内阴影读成"凹槽" */
+.wheel .sub-ring::after {
+  box-shadow:
+    inset 0 1px 2px rgba(0, 26, 94, .10),
+    0 -1px 0 rgba(255, 255, 255, .55);
+}
+
+/* 6. 盘心：白 + 外沿白高光 + 三级落影 */
+.wheel .disc-hub {
+}
+
+/* ============================================================
+   v11b · 盘的轮廓与落影（把盘变成物体）
+   ------------------------------------------------------------
+   四层明度已经排对，但盘的外沿与页面白底之间仍是一条软过渡：
+   盘没有边界，读起来是一张贴在纸上的矢量图。真实物体有两件事：
+     1. 明确的轮廓（1px 实边，不是 4% 的软渐变）
+     2. 落在台面上的影子（偏移 + 大模糊 + 低透明度，不贴身）
+   ============================================================ */
+
+/* 外轮廓 + 三层落影：贴身细影 / 中距实影 / 远距散影。
+   只写一层会显得"贴纸"，三层才有高度。 */
+.wheel::after {
+}
+.wheel.is-open::after {
+  opacity: 1;
+}
+
+/* 盘面本身：从中心到外沿的极轻内凹（中心亮 2%，外沿收暗 4%） */
+.wheel {
+  background: var(--bg);
+}
+.wheel.is-open {
+  background: var(--bg);
+}
+
+/* 家族扇区外沿：白缝。A 方向把六族统一成纸白之后，
+   分块全靠这道缝 —— 2.6px 是在 64px 缩略下仍能看出的最小值（实测 1px 会糊成一片）。 */
+.wheel .disc-svg .sector-shape {
+  stroke: var(--bg-3);
+  stroke-width: 2.6;
+}
+/* 但当前家族要用蓝描边 —— 优先级必须压在倒角之上 */
+.wheel.is-open .sector-g.is-on .sector-shape,
+.wheel .disc-svg .sector-g.is-hot .sector-shape {
+  stroke: var(--blue);
+  stroke-width: 1.6;
+}
+.wheel .disc-svg .sector-g.is-hot:not(.is-on) .sector-shape {
+  stroke: var(--ink-2);
+  stroke-width: 1.6;
+}
+
+/* 中圈弧段的倒角：上沿白高光，靠 drop-shadow 反向做 */
+.wheel .sub-arc {
+}
+
+/* ============================================================
+   v12 · 外圈六族本色 + 轮缘倒角
+   ------------------------------------------------------------
+   外圈六块现在共用一条灰蓝渐变，读起来是"一个均匀的盘 + 几条线"。
+   但这六个家族本身有语义色：柑橘偏黄绿、花香偏粉、木质偏褐、
+   琥珀偏暖黄、清新偏青、美食偏焦糖。
+   用 3% 饱和度的极浅本色（明度全在 96–98%），
+   既让每块有了身份，又不会与克莱因蓝的"选中"语义打架。
+   选中仍用 --blue-wash + 蓝描边，色彩层级不动。
+   ============================================================ */
+
+/* 六族本色（极浅，饱和 3%，明度 96–98%） */
+.wheel .disc-svg .sector-g[data-fam="citrus"]   .sector-shape { }
+.wheel .disc-svg .sector-g[data-fam="floral"]   .sector-shape { }
+.wheel .disc-svg .sector-g[data-fam="woody"]    .sector-shape { }
+.wheel .disc-svg .sector-g[data-fam="amber"]    .sector-shape { }
+.wheel .disc-svg .sector-g[data-fam="fresh"]    .sector-shape { }
+.wheel .disc-svg .sector-g[data-fam="gourmand"] .sector-shape { }
+
+/* 悬停：在该族本色上再提亮一档（统一乘一层白，不逐个写） */
+.wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
+.wheel .disc-svg .sector-g.is-hot .sector-shape {
+  fill: #ffffff;
+}
+
+/* 选中家族仍然回到蓝 wash，语义不变 */
+.wheel.is-open .sector-g.is-on .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--blue);
+  stroke-width: 1.6;
+}
+
+/* ---- 轮缘倒角 ----
+   盘的外沿要有"厚"：外圈一道 1px 暗线（轮廓），紧里侧一道 1px
+   白线（受光面）。两线之间那 1px 就是材料的厚度。 */
+.wheel .disc-svg .ring-thin {
+  stroke: rgba(0, 26, 94, .13);
+  stroke-width: 1;
+}
+.wheel::after {
+}
+
+/* ---- 盘心：加一道内圈发丝线，读成"表盘内的刻度圈" ---- */
+.wheel .disc-hub {
+  border: 1px solid var(--hair);
+  background: var(--bg);
+}
+
+/* ============================================================
+   v13 · 六族渐变 + 中圈凹槽 + 返回入口归位
+   ============================================================ */
+
+/* 1. 六族改回渐变：fill 从纯色换成各自的 url(#gFamXxx)。
+      v12 上纯色时把 v11 的 gFam 整条盖掉了，身份有了、厚度没了。
+      现在两件事同时成立：色相区分六族，同一色相内的 5% 明暗给厚度。 */
+/* A 方向：六族统一为纸白，分块只靠白缝。
+   仍走 gFamXxx 这条引用（而不是写 fill:#fff），因为：
+     ① 深色层是另一套 id（gFamXxxD），选择器结构不能变；
+     ② 悬停/选中的三层覆盖都建立在这条规则之上，换成纯色会让那三层失效。
+   六个 id 现在指向同一组 stop，改回来只需改 app.js 的 mkGrad。 */
+.wheel .disc-svg .sector-g[data-fam="citrus"]   .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="floral"]   .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="woody"]    .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="amber"]    .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="fresh"]    .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="gourmand"] .sector-shape { fill: #ffffff; }
+
+/* 悬停与选中仍走两套既有语言，不新增第三套：
+   悬停 = 提亮（白），选中 = 克莱因蓝 wash + 蓝描边。 */
+.wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
+.wheel .disc-svg .sector-g.is-hot .sector-shape {
+  fill: #ffffff;
+}
+.wheel.is-open .sector-g.is-on .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--blue);
+  stroke-width: 1.6;
+}
+
+/* 2. 凹槽环：比家族盘深一档，弧段的缝里露出它 */
+.wheel .sub-channel {
+  opacity: 0;
+  transition: opacity var(--t-fade) linear;
+}
+.wheel.is-open .sub-channel { opacity: 1; }
+
+/* 弧段：去掉逐段 drop-shadow（七段各带一层影 = 七块飘着的片），
+   改成 0.8px 白内描边当受光边 + 槽本身的暗做阴影。 */
+.wheel .sub-arc {
+  stroke-width: 1;
+}
+.wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
+.wheel .sub-g.is-hot .sub-arc {
+  fill: #ffffff;
+  stroke: var(--ink-2);
+  stroke-width: 1.4;
+}
+.wheel .sub-g.is-on .sub-arc {
+  fill: var(--blue);
+  stroke: var(--blue);
+  stroke-width: 1.2;
+}
+
+/* 3. 返回入口：收进圆盘包围盒的空角（圆在该角本来就是空的），
+      不再飘在盘外的留白里。 */
+.wheel-back {
+  left: 3.5%;
+  top: 4.5%;
+}
+@media (max-width: 620px) {
+  .wheel-back { left: 2%; top: 3%; }
+}
+
+/* 4. 盘心：内圈加一道发丝环，把"表盘"这层意思做实 */
+.wheel .disc-hub::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 26, 94, .05);
+  pointer-events: none;
+}
+/* ============================================================
+   香型轮盘 v14 · 两层切换的进出场编排
+   ------------------------------------------------------------
+   这一层只做一件事：让「第一层 ↔ 第二层」的切换读成一次
+   有去有回的换层，而不是一瞬间换了一张图。
+
+   三个问题（都是截图比对出来的，不是读代码猜的）：
+
+   1. 进入第二圈时，家族环（大圈）只是被覆盖 —— 它的 opacity 由
+      _wheel7.css 里 `.wheel.is-open .sector-g { opacity: 1 }` 钉在 1，
+      既没有退场动作，也没有退让层级。六个浅色环块和七段白瓦同时
+      满亮度，用户分不清哪个是「现在这一层」。
+   2. 返回时弧段被 `innerHTML = ''` 立刻抹掉，DOM 里没有节点就没有
+      退场动画可播 —— 「消失动效」在实现层面根本不存在。
+   3. 两侧的错峰（弧段 i*60ms 依次滑出）只在入场有，退场是整块一起消失，
+      进出不对称，读起来像两段不相干的动效。
+
+   ## 定稿的编排
+
+   | 时刻 | 元素 | 动作 | 时长 / 缓动 |
+   |---|---|---|---|
+   | 进入·0ms | 大圈六块 | 淡出 + 缩到 .965 + 反向转 -1.4°，按 i*16ms 错峰 | 280ms `cubic-bezier(.4,0,.9,1)` |
+   | 进入·40ms | 大圈文字 | 淡到 .45（文字比色块耐淡，全退等于消失） | 240ms linear |
+   | 进入·60ms | 中圈七段 | 从 scale .88 + rotate -6° 起到 1，按 i*38ms 顺着铺开 | 360ms `cubic-bezier(.22,1,.36,1)` |
+   | 进入·150ms | 段上文字 | 淡入，跟弧段同序 | 260ms linear |
+   | 返回·0ms | 中圈七段 | 淡出 + 缩回 .93，按 (n-1-i)*22ms 反着收 | 200ms `cubic-bezier(.4,0,1,1)` |
+   | 返回·90ms | 大圈六块 | 从幽灵态浮回满亮度，按 i*16ms 展开 | 340ms `cubic-bezier(.22,1,.36,1)` |
+   | 返回·120ms | 大圈文字 | 淡回 1 | 300ms linear |
+
+   两段都只用 transform / opacity —— 这两个属性走合成层，
+   不会触发重排，60fps 下不会掉帧。**不用 filter 做模糊**：
+   七段各带一层 blur 会把 GPU 预算吃满，而且在低端机上直接变卡顿。
+
+   ## 为什么退场用 CSS 动画而不是 transition
+
+   opacity 的 transition 是双向的，但「退到 .30 还是退到 0」由
+   `.is-open` 一个类决定：同一个属性没法既做「进入时淡到幽灵」又做
+   「返回时从幽灵浮回」而中间不打架。用一次性 keyframes + `both`，
+   结束时停在 is-open / 未 is-open 各自的目标值上，两边都不留尾巴。
+   类由 app.js 的 `is-lifting` / `is-returning` 挂 760ms 后摘掉 ——
+   只挂类不写状态机，层级仍然只由 selFamily 这一个值决定
+   （与 D39④ 不用 transitionend 的理由同源：动画只负责好看）。
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   v15 起，本层的「一、二、三、五、八」五节（大圈幽灵态、大圈文字呼吸、
+   弧段进出场、盘心换层淡入、减少动效）已被 _wheel9.css 整体取代：
+   用户要求大圈要有**明确的消失效果**、中圈要**同步放大**，幽灵态不满足。
+   旧规则已删除，不保留"被后层覆盖但仍躺在这里"的死规则 ——
+   那种规则在 3 个月后被读到，会被当成有效约束（D37 的教训）。
+   本层只剩：弧带的可读性（四）、盘心排版（六）、窄屏标签半径（七）。
+   ------------------------------------------------------------ */
+
+/* ---------------- 四、弧段要读得出是「一段一段」 ----------------
+   实测缺陷（1440 / 900 两视口截图一致）：七段弧都是 #ffffff，
+   盘心是 #ffffff，家族环是 #e7ebf5 —— 中圈整条带读成「一个白环 +
+   几道灰辐条」，弧段的"一片一片浮起来"完全没有落地。
+   进场动画再顺，进来的是白环而不是瓦片，第②条要求的"圆弧依次滑出并排"
+   就等于只做了一半。
+
+   三处一起改，缺一条都不成立：
+   ① 槽底压深：#b4bcd2 → #97a3c1。与白瓦片对比 1.9:1 → 3.0:1。
+      2.6° 的缝在 520px 盘上只有 6px 宽，低于 3:1 时人眼把它读成
+      "描边没对齐"而不是"缝"（D39④ 的同一处教训）。
+   ② 缝加宽到 3.4°（step 的 6%–7%）：6px → 8px，足够容下两侧各 1px 白描边
+      之后仍露出 6px 槽底。
+   ③ 每段自己一道向下的落影：瓦片压在槽里，靠影子的方向读出"浮起来"。
+      只给整组加影（v13 的做法）等于七段共用一层影，读成一张贴纸。 */
+.wheel .sub-channel { stroke: var(--stroke-l2); }   /* 原 #97a3c1：既不是 --line 也不是 --edge，属"漏网"的第三档灰 */
+.wheel.is-open .sub-g .sub-arc {
+  filter: drop-shadow(0 1.5px 2px rgba(0, 26, 94, .18));
+}
+/* 选中段把影收掉：蓝色实心块再加影会读成"塑料按钮"，
+   与整页"只靠明度分层、不靠发光"的语言冲突。 */
+.wheel.is-open .sub-g.is-on .sub-arc {
+  filter: drop-shadow(0 .5px 1px rgba(0, 26, 94, .10));
+}
+
+/* ---------------- 六、盘心排版：不加字体，先修字距与节奏 ----------------
+   需求原文是「重塑中间区域文字排版：选用更精致、有设计感的字体与字号、
+   字距、行距层级」。这里刻意**不换字体族**：
+
+   · 换字体要联网（Google Fonts / 思源），而 index.html 承诺离线可用，
+     D05 也定了零构建；本机就算装了 NotoSerifSC，用户机器上没有就回退，
+     回退后的衬线在 12px 上接缝明显 —— 那是"换了个字体"不是"排版变好"。
+   · D22 已定瑞士国际主义：层级靠字号、字重、留白，不靠换族。换族会
+     同时推翻 D22 与 D25 的字阶结论，属于范围外改动。
+
+   所以在三件事上动手，都是能测的：
+
+   ① 层级拉开：kicker 10 字 → 主词 2–4 字，原来 12 / 22 只差 1.8 倍，
+      两个层级读起来是"同一段话的两行"。主词拉到 28px（展开态）＝ 2.3 倍，
+      视线先落到"花香调"再回读上面那行小字。
+   ② 字距按字号反向配：中文大字要收紧（-0.02em 起步），小字要放开
+      （0.14em），两者都放开会读成"字距不匀"。
+   ③ 说明与主词之间加一道 24px 的发丝横线：盘心是圆的，长期只有三行
+      居中文字时，上下留白读成"没排满"。一道短线把"这是什么"与
+      "它怎么样"分成两段，等于给圆盘内部一个基线。 */
+.wheel .disc-hub .hub-kicker {
+  font-size: 12px;
+  letter-spacing: .14em;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+/* 主词：字重 600 而不是 700 —— 700 在 28px 上笔画粘连，
+   黑体的横画会糊成一块；600 保住了"强调"又不失笔画间隙。 */
+.wheel .disc-hub .hub-zh {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+}
+.wheel.is-open .disc-hub .hub-zh { font-size: 28px; }
+/* 说明：行高从 1.4 拉到 1.5，中文 12px 在 1.4 下行间几乎相接；
+   上限仍按 D33 的圆弧约束收在 88%，不新增溢出风险。
+   2 行 × 12 × 1.5 = 36px，max-height 必须跟着放到 37 —— 只拉行高不改
+   max-height 会直接把第二行裁掉半截（第一版就这么错的，截图里
+   「白花与粉感是两条路」只剩上半截）。 */
+.wheel .disc-hub .hub-desc {
+  line-height: 1.5;
+  letter-spacing: .01em;
+  color: var(--ink-3);
+  max-height: 37px;
+}
+/* 发丝分隔线挂在主词下沿，不挂在说明上：挂在说明上要用 padding-top
+   把文字顶下去，而那段 padding 会一起计入 max-height，两行文字立刻被裁。
+   用 zh 的 ::after 则完全不参与说明的高度计算。两端淡出而不是实线 ——
+   实线在圆里读成表格分割线，这里是盘心的刻线。 */
+.wheel .disc-hub .hub-zh::after {
+  content: '';
+  display: block;
+  width: 54%;
+  height: 1px;
+  margin: 9px auto 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(14, 14, 14, .18) 22%,
+    rgba(14, 14, 14, .18) 78%,
+    transparent 100%);
+}
+/* 空态（还没选）不画这道线：空态盘心是"请你去外圈挑"，不需要分隔 */
+.wheel .disc-hub.is-idle .hub-zh::after { display: none; }
+/* 选中（落到具体小项）时主词再重一档：此刻它是屏幕上的答案，不是预览 */
+.wheel .disc-hub.is-picked .hub-zh { font-weight: 700; letter-spacing: -.025em; }
+
+/* 窄屏：28px 在 156px 的盘心里，三字单行约 84px 仍在弧容内，
+   四字到 112px 就出弧（360 视口盘心该高度可用宽约 96px）——
+   而"东方琥珀调"正是四字。窄屏回 24px，四字 96px 恰好压线。 */
+@media (max-width: 620px) {
+  .wheel .disc-hub .hub-zh,
+  .wheel.is-open .disc-hub .hub-zh { font-size: 24px; }
+  .wheel .disc-hub .hub-desc { line-height: 1.45; max-height: 36px; }
+  .wheel .disc-hub .hub-kicker { letter-spacing: .1em; }
+  .wheel .disc-hub .hub-zh::after { margin-top: 7px; }
+  /* 窄屏展开态（未落到小项）说明文字本来就被 D33 藏掉腾弧容，
+     此时发丝线下面什么都没有，一道孤线读成装饰而不是分隔 —— 一起收掉。 */
+  .wheel.is-open:not(.is-picked) .disc-hub .hub-zh::after { display: none; }
+}
+
+/* ---------------- 七、窄屏：中圈文字不能撞大圈文字 ----------------
+   实测（390×844）。六枚家族标签的方框与七枚小类标签的方框在 12 点
+   两侧的斜向位置相交，最早量到 15.9 × 32.3 px²，肉眼就是
+   「果香花香」压着「木质调」；360 视口更糟（19.7 × 33，另加一处 63.5 × 3.3）。
+
+   根因是几何不是字号：小类标签落在半径 96px，家族标签落在 137px，
+   两行中心只差 41px，而两个方框各高 44px —— 半高相加 44 > 41，
+   同一极角附近必然相交。
+
+   改法有两步，第二步是被第一步的实测逼出来的：
+   ① 把两行标签的方框都收到 26px。只收小类那侧时还剩 16.9×28.3 px²，
+      两框都收才降到 8.5×17.3 —— 仍不为零。
+   ② 把两行标签的半径一起往里收：家族 193 → 176、小类 135 → 124。
+      坐标由 app.js 按 480 视框算好写在 --l/--t（桌面）与 --nl/--nt（窄屏）上，
+      CSS 只负责挑哪一套。
+
+   网格搜索用的是 `_probe/tune9.cjs`（六组半径 × 三种视口），
+   四项判据全零的组合只有 176/124 这一档：
+     家族↔小类、家族↔家族、小类↔小类、越出盘外。
+   172/120 也能全零，但小类标签会贴到盘心边缘，视觉上挤，所以取 176/124。 */
+.disc-sector.lvl1,
+.disc-sector.lvl2.sub-arc-btn {
+  left: var(--l, 50%);
+  top: var(--t, 50%);
+}
+@media (max-width: 620px) {
+  .disc-sector.lvl1,
+  .disc-sector.lvl2.sub-arc-btn {
+    left: var(--nl, 50%);
+    top: var(--nt, 50%);
+  }
+  .wheel .disc-sector.lvl2.sub-arc-btn {
+    min-height: 26px;
+    height: 26px;
+    padding: 0 3px;
+    line-height: 26px;
+  }
+  /* 家族标签的宽度也要收：`.disc-sector` 基类有 min-width:56px，
+     三字标签（"木质调"）在 12px 下文字只有 36px，余下 20px 全是空白 ——
+     而正是这 20px 在斜向位置上压到小类标签。收到 0 让盒子贴住文字。 */
+  .wheel.is-open .label-layer .disc-sector.lvl1 {
+    min-width: 0;
+    /* v35b：26px 行盒 + 0 2px 内边距仍差 2px（390 实测 scrollWidth 40
+       vs clientWidth 38）。行盒收到 24px、内边距收到 1px，
+       让标签盒贴住字本身，不再依赖字距去挤。 */
+    min-height: 24px;
+    height: 24px;
+    padding: 0 1px;
+    font-size: 12px;
+    line-height: 24px;
+    /* v35：26px 的行盒把 12px 的字撑进 39.3px 宽的标签框里，实测最宽处
+       42px —— 五个大类标签全部横向溢出 3px，压在扇区描边上。
+       收紧字距抵掉（-0.02em ≈ -0.24px/字，四字 ≈ -0.96px；配合下面
+       内侧留出的 2px，实测 scrollWidth 40 ≤ clientWidth 39.3 需要再减一点，
+       所以按字距 -0.03em）。不缩字号：12px 已是这套界面的下限。 */
+    letter-spacing: -0.03em;
+  }
+}/* ============================================================
+   香型轮盘 v15 · 换层编排重做 + 点击确认 + 确认反馈
+   ------------------------------------------------------------
+   这一层推翻 v14（_wheel8.css）里"大圈退到幽灵态"的做法。用户在
+   实测后明确要求：进入中圈时大圈要有**明确的消失效果**，中圈要
+   **同步放大**顶上来 —— 两件事必须都看得见。
+
+   v14 的幽灵态（opacity .30）实测问题（b5 区间的实测数据）：
+     · 六族填充被压成同一种冷灰，L* 极差从 7.98 掉到 5.14，
+       环向 L* 跳变数从 61 掉到 19 —— 六块已经数不出来了，
+       所谓"还看得见分界"只在描边上成立；
+     · 弧段只从 scale(.88) 起，等于原地放大 12%，没有"顶替大圈"的意思。
+
+   本层改成：
+     · 大圈**退到 0**（真消失），但保留 6 个不可见的命中区与 hover 回归，
+       于是"在中圈里点别的大类直接换"这条路没被封（D40① 的约束没破）；
+     · 中圈整体从 scale(.58) 长到 1，位移量与"从大圈留下的空位里长出来"一致；
+     · 退场反向：中圈缩到 .62 淡出，大圈从 0 浮回。
+
+   ## 编排表
+
+   | 时刻 | 元素 | 动作 | 时长 / 缓动 |
+   |---|---|---|---|
+   | 进入·0ms | 大圈六块 | 淡出到 0 + 缩到 .93 + 反向转 -2.4°，按 i*18ms 错峰 | 300ms `cubic-bezier(.4,0,.95,1)` |
+   | 进入·0ms | 中圈容器 | 从 scale(.58) 长到 1（整条弧带同步放大） | 420ms `cubic-bezier(.2,.9,.25,1)` |
+   | 进入·90ms | 弧段 | 从 scale(.90) rotate(-3°) 落位，按 i*34ms 顺序铺开 | 340ms `cubic-bezier(.22,1,.36,1)` |
+   | 进入·170ms | 段上文字 | 淡入，跟弧段同序 | 240ms linear |
+   | 返回·0ms | 中圈容器 | 缩到 .62 并淡出 | 280ms `cubic-bezier(.4,0,.9,.2)` |
+   | 返回·60ms | 弧段 | 反序收（n-1-i），缩到 .86 | 200ms `cubic-bezier(.4,0,1,1)` |
+   | 返回·120ms | 大圈六块 | 从 0 浮回满亮度，按 i*18ms 展开 | 340ms `cubic-bezier(.22,1,.36,1)` |
+
+   全部只用 transform / opacity（走合成层，不触发布局）。
+   ============================================================ */
+
+/* ---------------- 一、大圈：明确的消失 ---------------- */
+
+/* 展开态：大圈退到 0。pointer-events 仍是 auto —— 命中区还在，
+   鼠标一进来 hover 就把它整块拉回 1（见下一条），
+   所以"看不见"和"点不到"是两件分开的事。 */
+.wheel.is-open .sector-g {
+  opacity: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity var(--t-fade) var(--ease-std);
+}
+/* 悬停 / 键盘聚焦 / 盘心正在讲的那一块：整块浮回满亮度。
+   这是"大圈已消失"之后唯一的回看点，也是换大类的入口提示。
+
+   **必须显式写 animation: none**：`.wheel.is-lifting .sector-g`（2 类 1 元素）
+   挂着 `fanVanish … both`，动画的终帧会把 opacity 钉在 0，普通声明
+   `opacity: 1` 优先级低于 animation —— 实测 hover 后 320ms 只升到 .55
+   （transition 与动画插值打架），根本浮不回来。
+   这里的选择器是 3 类 + 1 元素，高于 is-lifting 那条，于是能真正取消动画。 */
+/* 特异度要压过 _wheel6.css:96 的 `.wheel.is-open .sector-g.is-hot:not(.is-on)
+   { opacity: .55 }`（5 个选择器单位）—— 那条是 v6 的"半亮"档，v15 起大圈
+   常态是 0，半亮读成"没退干净"。所以这里补写同档特异度的 :not() 版本，
+   让 hover 真的回到 1（实测 400ms 后停在 .55 就是这条在压着）。 */
+.wheel.is-open .sector-g.is-hot,
+.wheel.is-open:not(.is-sub-locked) .sector-g:hover,
+.wheel.is-open .sector-g:focus-within,
+.wheel.is-open .sector-g.is-hot:not(.is-on),
+.wheel.is-open:not(.is-sub-locked) .sector-g:hover:not(.is-on) {
+  animation: none;
+  opacity: 1;
+}
+/* 当前大类也一起消失（它此刻由中圈与盘心代表），
+   否则会有一块孤零零的蓝扇留在大圈上，读成"两个选中"。 */
+.wheel.is-open .sector-g.is-on { opacity: 0; }
+.wheel.is-open .sector-g.is-on.is-hot,
+.wheel.is-open .sector-g.is-on:hover { opacity: 1; }
+
+/* 进入：六块按 i*18ms 依次消失。末帧停在 opacity 0 —— 与上面静态值一致，
+   于是类在 780ms 被摘掉时不会跳回。 */
+.wheel.is-lifting .sector-g {
+}
+@keyframes fanVanish {
+  0%   { opacity: 1; transform: scale(1) rotate(0deg); }
+  45%  { opacity: .55; transform: scale(.965) rotate(-1.8deg); }
+  100% { opacity: 0; transform: scale(.93) rotate(-2.4deg); }
+}
+
+/* 返回：从 0 浮回满亮度，中段过冲一次再归位。 */
+.wheel.is-returning .sector-g {
+  animation-delay: calc(120ms + var(--i, 0) * 18ms);
+}
+@keyframes fanReturn {
+  0%   { opacity: 0; transform: scale(.93) rotate(2.4deg); }
+  55%  { opacity: 1; transform: scale(1.02) rotate(-.8deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+/* 两组 keyframes 都以盘心为原点，否则六块会朝各自包围盒中心散开 */
+.wheel .sector-g { transform-box: view-box; transform-origin: 240px 240px; }
+
+/* ---------------- 二、中圈：同步放大 ----------------
+   弧带整体从 .58 长到 1 —— 弧带半径 118–152，58% 时落在 68–88，
+   正好是大圈原先被盘心遮住的那圈；放大到 1 = 从盘心"长"到它该在的位置。
+   容器上做 scale 而不是逐段做：逐段各自动 scale 会各绕自己的包围盒放大，
+   七段会互相穿插成七块错位的瓦。 */
+/* 这是 HTML 容器，不是 SVG 图元：`transform-box: view-box` 在无 SVG 布局框的
+   元素上等价于 border-box，而 border-box 下的 240px/240px 相对的是容器
+   左上角 —— 控件 520px 时真正的圆心在 260px，用 240 会让整条弧带在放大
+   过程中向左上偏 20px（截图可见）。容器一律用百分比原点。 */
+.wheel .sub-ring {
+  transform-origin: 50% 50%;
+  /* 420 与 app.js 的 exitTimer(420) 是同一个数：.is-exit 挂上后
+       JS 420ms 就清空弧段，这里写成别的值会被提前掐断。
+       所以它是一个「与 JS 共用的字面量」，不进时长档表。 */
+  transition: transform 420ms var(--ease-out),
+              opacity var(--t-scene) linear;
+}
+.wheel.is-open .sub-ring { transform: scale(1.43); }
+/* 未展开时缩在盘心里；退场时缩回去（.is-exit 由 app.js 挂 420ms） */
+.wheel:not(.is-open) .sub-ring { transform: scale(.44); }
+.wheel.is-open .sub-ring.is-exit { transform: scale(.44); }
+/* 退场期间容器不能被 :not(.is-open) 的 opacity 0 掐掉，
+   否则子元素的动画在 0 不透明度里播，等于没播 */
+.wheel .sub-ring.is-exit { opacity: 1; pointer-events: none; }
+/* 入场动画链只在"刚展开"那一下挂，避免 hover 引起的高频重绘重播 */
+.wheel.is-lifting .sub-ring { }
+@keyframes ringGrow {
+  0%   { transform: scale(.44); opacity: .2; }
+  60%  { opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.wheel.is-returning .sub-ring { }
+@keyframes ringShrink {
+  0%   { transform: scale(1); opacity: 1; }
+  100% { transform: scale(.44); opacity: 0; }
+}
+
+/* ---------------- 三、弧段与文字 ---------------- */
+.wheel.is-open .sub-arc {
+  animation-delay: calc(90ms + var(--i, 0) * 34ms);
+}
+@keyframes arcRiseIn {
+  from { opacity: 0; transform: scale(.90) rotate(-3deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+.sub-ring.is-exit .sub-arc {
+  animation: arcFallOut var(--t-fade) var(--ease-in) both;
+  animation-delay: calc(60ms + (var(--n, 1) - 1 - var(--i, 0)) * 20ms);
+  pointer-events: none;
+}
+@keyframes arcFallOut {
+  from { opacity: 1; transform: scale(1) rotate(0deg); }
+  to   { opacity: 0; transform: scale(.86) rotate(3deg); }
+}
+.wheel .disc-sector.lvl2.sub-arc-btn {
+  animation: subTextIn var(--t-move) linear both;
+  animation-delay: calc(170ms + var(--i, 0) * 34ms);
+}
+@keyframes subTextIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.sub-ring.is-exit .disc-sector.lvl2.sub-arc-btn {
+  animation: subTextOut var(--t-micro) linear both;
+  animation-delay: calc(60ms + (var(--n, 1) - 1 - var(--i, 0)) * 20ms);
+  pointer-events: none;
+}
+@keyframes subTextOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* ---------------- 四、确认 = 一次点击，不是悬停 ----------------
+   悬停只给"能被点"的提示（描边加深 + 极轻的填充），**不改任何状态**：
+   不换盘心主词、不挂 is-on、不写 selSub。用户的原话是
+   「箱型选择应由左键点击确定，而非鼠标悬停或拖动位置决定」。
+   所以 .is-hot 这层只允许出现在"未选中"的弧段上，且只改视觉。 */
+.wheel .sub-g.is-hot:not(.is-on) .sub-arc {
+  fill: rgba(255, 255, 255, .92);
+  stroke: var(--blue-amb);
+  stroke-width: 1.4;
+}
+.wheel .sub-g.is-hot:not(.is-on) .sub-arc-btn { color: var(--ink); }
+
+/* 已确认：实心蓝 + 内描边高光 + 一次脉冲。
+   脉冲只播一次（animation 800ms，不循环），落在点击那一刻，
+   这样"点下去 → 确认"与"只是指着看"在时间维度上也分得开。 */
+.wheel .sub-g.is-on .sub-arc {
+  fill: var(--blue);
+  stroke: var(--blue);
+  filter: drop-shadow(0 2px 6px rgba(0, 26, 94, .28));
+}
+.wheel .sub-g.is-on .sub-arc-btn { color: #ffffff; font-weight: 600; }
+.wheel .sub-g.is-on .sub-arc {
+  animation: arcConfirm var(--t-celebrate) var(--ease-out) both;
+  animation-delay: 0ms;
+}
+@keyframes arcConfirm {
+  0%   { filter: drop-shadow(0 0 0 rgba(0, 26, 94, 0)); }
+  35%  { filter: drop-shadow(0 0 10px rgba(0, 47, 167, .55)); }
+  100% { filter: drop-shadow(0 2px 6px rgba(0, 26, 94, .28)); }
+}
+
+/* ---------------- 五、确认后的反馈：盘心加档 ----------------
+   确认态与预览态原来只差线稿颜色与字重，实测在 520px 盘上要贴着看才分得出。
+   这里加三样，都只加在 is-picked 上：
+     · kicker 前一枚实心小勾（CSS 画的，不用图标字体，离线可用）；
+     · 主词下那道发丝线换成实心短划并加宽（确认态是"划住"，预览态是"虚着"）；
+     · 盘心整体的上边距收一档，让内容重心往上提，读起来更"落定"。 */
+/* 特异度要写到 4 个类：基础层有 `.wheel.is-open.is-picked .disc-hub .hub-kicker
+   { color: var(--ink-3) }`（3 类 + 1 类），只写 `.wheel .disc-hub.is-picked
+   .hub-kicker`（3 类）会输给它，实测 kicker 仍是灰的 rgb(97,97,97)。 */
+.wheel.is-open .disc-hub.is-picked .hub-kicker,
+.wheel .disc-hub.is-picked .hub-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--blue);
+}
+.wheel.is-open .disc-hub.is-picked .hub-kicker::before,
+.wheel .disc-hub.is-picked .hub-kicker::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--blue);
+  /* 白色对勾用两条渐变色块拼，不依赖字体图标 */
+  background-image:
+    linear-gradient(45deg, transparent 44%, #fff 44%, #fff 56%, transparent 56%),
+    linear-gradient(-45deg, transparent 44%, #fff 44%, #fff 56%, transparent 56%);
+  background-size: 46% 46%, 46% 46%;
+  background-position: 22% 62%, 70% 62%;
+  background-repeat: no-repeat;
+  flex: 0 0 auto;
+}
+.wheel .disc-hub.is-picked .hub-zh::after {
+  width: 68%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--blue) 18%,
+    var(--blue) 82%,
+    transparent 100%);
+}
+.wheel .disc-hub.is-picked { padding-top: 4px; }
+
+/* 预览态（指着某段但还没点）：发丝线淡一档，与确认态拉开距离 */
+.wheel .disc-hub.is-hover .hub-zh::after { opacity: .5; }
+
+/* ---------------- 六、减少动效 ---------------- */
+@media (prefers-reduced-motion: reduce) {
+  .wheel.is-lifting .sector-g,
+  .wheel.is-returning .sector-g,
+  .wheel.is-lifting .sub-ring,
+  .wheel.is-returning .sub-ring,
+  .wheel.is-open .sub-arc,
+  .sub-ring.is-exit .sub-arc,
+  .wheel .disc-sector.lvl2.sub-arc-btn,
+  .sub-ring.is-exit .disc-sector.lvl2.sub-arc-btn,
+  .wheel .sub-g.is-on .sub-arc {
+    animation: none;
+  }
+  .wheel .sub-ring,
+  .wheel.is-open .sector-g { transition-duration: 1ms; }
+  /* 关掉动画后必须把两层的终态写死，否则大圈会停在 opacity 0 且无过渡 */
+  .wheel.is-open .sector-g { opacity: 0; }
+  .wheel.is-open .sub-ring { transform: scale(1.43); }
+  .wheel:not(.is-open) .sub-ring { transform: scale(.44); }
+}
+
+/* ---------------- 七、窄屏：三层放不下时，先让家族标签退场 ----------------
+   实测几何（390×844，盘 342px = 480 单位，1 单位 = 0.7125px）：
+     · 盘心 46% = 157px，半径 78.7px
+     · 中圈标签在半径 130 单位 = 92.6px 的环上，四字 14px 宽 56px
+       → 内沿 92.6 − 28 = 64.6px，比盘心半径还靠里 14px
+     · 家族标签在半径 200 单位 = 142.5px，四字 13px 宽 52px
+       → 内沿 142.5 − 26 = 116.5px
+   三层同时成立需要的横向空间：中圈标签外侧 120.6px 必须 ≤ 家族标签内侧 116.5px
+   —— 差 4px，**342px 的盘算术上放不下两圈四字标签**（不是字号问题，
+   两圈各收一档到 12px 也还差 1px，而且 12px 已是 test-contrast 的下限）。
+
+   三条补偿方案里选第三条：
+     ① 两圈都收字号 → 破 12px 下限；
+     ② 中圈压回弧带上（130 单位）→ 与盘心半径只差 14px，四字必撞；
+     ③ **展开态让家族标签退场，把整条外带让给中圈标签**（本方案）：
+        中圈 130 → 152 单位 = 108.3px，内沿 108.3 − 24 = 84.3px，
+        越过盘心半径 78.7px 5.6px → 实测 0 处相交。
+   家族标签退场不损失信息：v15 起家族环在展开态本就整体 opacity 0，
+   标签悬在空气里没有依托；返回走左上角「← 重选大类」，换大类靠悬停
+   （hover 时该块与它的标签一起浮回）。闭合态家族标签照常显示 ——
+   那时它是盘上唯一的内容。 */
+@media (max-width: 620px) {
+  /* 展开态：家族标签让位（闭合态不受影响） */
+  .wheel.is-open .label-layer { opacity: 0; pointer-events: none; }
+  /* 与之配套：家族扇区的命中区在窄屏展开态一起关掉。
+     留着的话会出现"看不见却能点"的 60px 宽盲区，误触就换了大类 ——
+     这比"少一条快捷路径"糟得多。窄屏换大类走左上角「← 重选大类」，
+     那条路径 44px 高、常驻可见，比隐形扇区可靠。 */
+  .wheel.is-open .sector-g { pointer-events: none; }
+  /* 悬停某块家族时，它的标签跟着那块一起浮回（与 sector-g 的 hover 同步） */
+  .wheel.is-open .label-layer .disc-sector.lvl1.is-on,
+  .wheel.is-open .label-layer .disc-sector.lvl1.is-hot,
+  .wheel.is-open .label-layer .disc-sector.lvl1:hover { opacity: 1; }
+  .wheel.is-open:has(.sector-g.is-hot) .label-layer { opacity: 1; }
+  /* 中圈标签 14px 在窄屏收 12px：四字 48px，内沿 108.3 − 24 = 84.3px */
+  .wheel .disc-sector.lvl2.sub-arc-btn { font-size: 12px; }
+  /* 确认态：说明退场，盘心只留"主词 + 标本" —— 讲解下面那栏有完整一版 */
+  .wheel.is-open.is-picked .disc-hub .hub-desc { display: none; }
+  /* 主词收一档：四字 19px = 76px，落在盘心 78.7px 半径的中线上仍有余量 */
+  .wheel.is-open .disc-hub .hub-zh { font-size: 19px; }
+  .wheel .disc-hub .hub-zh { font-size: 22px; }
+  /* 标本 40px：盒角落在 r=28px，与中圈标签内沿 84.3px 之间留 56px */
+  .wheel .plate-svg { width: 40px; height: 40px; }
+}
+@media (max-width: 400px) {
+  .wheel.is-open .disc-hub .hub-zh { font-size: 18px; }
+  .wheel .plate-svg { width: 36px; height: 36px; }
+}
+/* ============================================================
+   香型轮盘 v16 · 动画链路重做：标签退场 / 逐级拉出 / 可见放大 / 按下态
+   ------------------------------------------------------------
+   v15 已经有进出场，但实测（CDP 逐帧采样）三个环节名不副实：
+
+   ① 大圈「退场」只退了扇形色块，六个家族标签一个没动。
+      探针数据：进入中圈后 0–870ms，`.label-layer` 的 opacity 全程 1.00。
+      根因是覆盖链：`_wheel4.css:37` 写的是 `.wheel.is-open .label-layer
+      { opacity: 0 }`，但 `_wheel7.css:361` 又写回 `opacity: 1`
+      （v7 为了让"缩小的盘还能点"把标签显回来了）。后者后加载、同特异度，
+      于是赢。v15 只在窄屏用媒体查询盖回去，桌面从来没有标签退场。
+
+   ② 中圈「放大」数据上成立、观感上不存在。
+     探针：ringScale `.58 → 1.00` 用了 470ms，但同一 keyframes 里
+     `60% { opacity: 1 }` 让它在 252ms 就全亮 —— 先亮完、再慢慢变大。
+     人眼对亮度的积分远快于对尺寸，于是整段读成「淡入」。
+
+   ③ 确认反馈只有一层 `filter: drop-shadow` 脉冲，520px 盘上不可见。
+     探针：filter 从 `rgba(0,0,0,0)` 变到 `rgba(0,47,167,…)`，
+     但 `arcOp` 恒 1.00、没有任何几何变化 —— 没有位移就没有"按下"。
+
+   另外补上 —— 用户点名的「按下态」在 v15 里根本不存在：
+   `:active` 只在真实指针按住时生效，键盘 Enter、程序化 dispatch、
+   触屏长按都会漏；必须改成由 JS 挂的显式类。
+
+   ## 本层编排总表（全部只用 transform / opacity / filter）
+
+   | 阶段 | 元素 | 动作 | 时长 / 缓动 / 延迟 |
+   |---|---|---|---|
+   | 进·标签 | 6 个家族文字 | 各自缩到 .90 + 反向转 −3° + 淡出 | 240ms `cubic-bezier(.4,0,.9,1)`，`i×26ms` |
+   | 进·标签层 | `.label-layer` | 等 6 个都散净后整层归零 | 160ms linear，370ms 起 |
+   | 进·扇区 | 6 个 `.sector-g` | 缩到 .86 + 转 −2.4° + 淡出 | 300ms `cubic-bezier(.4,0,.95,1)`，`i×18ms` |
+   | 进·中圈 | `.sub-ring` | **`.52 → 1.045 → 1`**，先亮后撑 | 460ms `cubic-bezier(.16,1,.3,1)` |
+   | 进·弧段 | 7 段 `.sub-arc` | 只做淡入 + −2° 回正（不再 scale，避免与容器双重缩放） | 300ms linear，`120+i×30ms` |
+   | 回·中圈 | `.sub-ring` | `1 → .56` 并淡出 | 300ms `cubic-bezier(.4,0,.9,.2)` |
+   | 回·标签层 | `.label-layer` | 先整层亮起 | 140ms linear，60ms 起 |
+   | 回·标签 | 6 个家族文字 | 从 .88 推到 1（沿盘心径向放大）+ 淡入 | 320ms `cubic-bezier(.16,1,.3,1)`，`110+i×26ms` |
+   | 回·扇区 | 6 个 `.sector-g` | 从 .80 过冲 1.03 再归 1 | 340ms `cubic-bezier(.16,1,.3,1)`，`110+i×26ms` |
+   | 确认·按下 | `.sub-g.is-pressing` | `scale(.955)` + 提亮 | 140ms `cubic-bezier(.3,0,.2,1)` |
+   | 确认·强调 | `.sub-g.is-on` | `scale 1 → 1.032 → 1` | 520ms `cubic-bezier(.16,1,.3,1)` |
+
+   六条纪律：
+   1. 只动 transform / opacity（外加确认用的 filter），不碰 width/height/left/top
+      —— 那四项每帧都会触发 layout，在 520px 盘上是明确掉帧来源。
+   2. `will-change` 只写在带动画的那层类上，类在 780ms 后被摘掉，浏览器
+      随之释放合成层；常驻 `will-change` 会把整盘永久提升成独立层，反而更慢。
+   3. 两套 keyframes 一律 `both` 填充，末帧值必须与静态值一致 ——
+      否则 780ms 摘类那一刻会跳一帧（v14 踩过：标签"啪"地正回来 1.4°）。
+   4. 容器的放大与子元素的放大不能同时用 scale，否则倍率相乘、节奏打架。
+      本层把 scale 全部收在容器上，子元素只做 opacity / rotate。
+   5. 所有「退场」都靠挂在容器上的第二段动画把容器压到 0，而不是让静态值
+      立刻是 0 —— 静态 0 会让子元素动画在透明层里播，等于没播。
+   6. `prefers-reduced-motion` 下全部 `animation: none`，并把终态写死；
+      退场态不能只靠动画末帧，否则关掉动画就停在半路。
+   ============================================================ */
+
+/* ---------------- 一、大圈标签：先散文字，再收整层 ---------------- */
+
+/* 展开态：整层不可见。
+   特异度必须压过 `_wheel7.css:361` 的 `.wheel.is-open .label-layer
+   { opacity: 1; pointer-events: auto }` —— 同为 3 个类，靠加载顺序赢，
+   但为防以后有人在 w9 与 w10 之间插一层，这里补到 4 个单位。 */
+.wheel.is-open .label-layer,
+.wheel.is-open.disc .label-layer {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 进：六个文字各自散开 —— 依次缩、依次转、依次淡。
+   旋转方向与扇区相反（文字 +3°、扇区 −2.4°），
+   两者在视觉上形成"内外反向转"的分离感，不会叠成一个整体在动。 */
+/* 时长从 240ms/i×26ms 压到 180ms/i×12ms（最长 60+180=240ms）。
+   原来最长要 370ms，加上扇区 200ms 就是 570ms —— 用户实测看到的是
+   "点完之后大圈环还挂着，过一会儿才没"。错峰保留（顺序还读得出），
+   但整条链必须在中圈长到一半之前收干净。 */
+.wheel.is-lifting .label-layer .disc-sector.lvl1 {
+  animation: labelVanish var(--t-fade) var(--ease-in) both;
+  animation-delay: calc(var(--i, 0) * 12ms);
+  will-change: transform, opacity;
+}
+/* `.disc-sector` 的基类 transform 是
+   `translate(-50%,-50%) rotate(calc(-1 * var(--disc-rot, 0deg)))`
+   —— 居中与反向旋转全靠它。keyframes 里必须把这三段一起写：
+   只写 scale 会把居中覆盖掉，标签每帧被推到右下角再"跳"回原位；
+   只写 translate+scale 又会在圆盘拖拽后丢掉反向旋转，文字跟着歪。
+   所以下面两组 keyframes 末帧都带着 `rotate(calc(-1 * var(--disc-rot,0deg)))`。 */
+@keyframes labelVanish {
+  0%   { opacity: 1;   transform: translate(-50%, -50%) scale(1)   rotate(calc(-1 * var(--disc-rot, 0deg))); }
+  45%  { opacity: .62; transform: translate(-50%, -50%) scale(.965) rotate(calc(-1 * var(--disc-rot, 0deg) + 1.6deg)); }
+  100% { opacity: 0;   transform: translate(-50%, -50%) scale(.90) rotate(calc(-1 * var(--disc-rot, 0deg) + 3deg)); }
+}
+
+/* 六个都散净之后，整层再压到 0。
+   370ms = 5×26（最后一块的延迟）+ 240（它的时长）。
+   提前压会让子元素动画在透明层里播；不压则容器一直占着 opacity 1，
+   虽然看不见但会参与合成。 */
+.wheel.is-lifting .label-layer {
+  animation: layerFadeOut var(--t-press) linear both;
+  animation-delay: 240ms;
+}
+@keyframes layerFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* 回：整层先亮起，六个文字再逐级推出来（由内向外沿径向放大） */
+.wheel.is-returning .label-layer {
+  animation: layerFadeIn var(--t-micro) linear both;
+  animation-delay: 60ms;
+}
+@keyframes layerFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.wheel.is-returning .label-layer .disc-sector.lvl1 {
+  animation: labelReturn var(--t-long) var(--ease-out) both;
+  /* 240ms 而不是 110ms：让文字排在扇区之后。
+     用户要的是"以中圈为原点、由内向外逐级渐显"——
+     现在的层级顺序是 中圈容器(0) → 弧段(100) → 家族扇区(180) → 家族文字(240)。
+     文字压在扇区上，必须后到；反过来会出现"标签浮在空处、底色随后才补上"的一帧。 */
+  animation-delay: calc(240ms + var(--i, 0) * 20ms);
+  will-change: transform, opacity;
+}
+@keyframes labelReturn {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(.88) rotate(calc(-1 * var(--disc-rot, 0deg) - 2deg)); }
+  62%  { opacity: 1; transform: translate(-50%, -50%) scale(1.015) rotate(calc(-1 * var(--disc-rot, 0deg))); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1)     rotate(calc(-1 * var(--disc-rot, 0deg))); }
+}
+
+/* ---------------- 二、大圈扇区：从 .80 推出来，量要看得出来 ----------------
+   v15 的 fanReturn 从 .93 起，只有 7% 的量，在 228px 半径的环上不足 2px，
+   读不出"拉出"。改成从 .80 起（20% 量 ≈ 14px 位移），中段过冲 1.03。 */
+.wheel.is-returning .sector-g {
+  animation: fanPullOut var(--t-long) var(--ease-out) both;
+  /* 180ms：排在弧段之后、家族文字之前。三层延迟 100 / 180 / 240
+     构成一条从盘心到边缘的波，间隔 80 / 60ms —— 越靠外间隔越短，
+     读起来是"扩散"而不是"排队"。 */
+  animation-delay: calc(180ms + var(--i, 0) * 20ms);
+  will-change: transform, opacity;
+}
+@keyframes fanPullOut {
+  0%   { opacity: 0;   transform: scale(.80) rotate(2.6deg); }
+  58%  { opacity: 1;   transform: scale(1.03) rotate(-.6deg); }
+  100% { opacity: 1;   transform: scale(1) rotate(0deg); }
+}
+
+/* ---------------- 二·补、进入：扇区与文字并行退场（扇区更快）----------------
+
+   用户要的是两拍，不是一拍：
+     第一拍 —— 六个文字各自错峰散去（labelVanish，0 → 370ms）；
+     第二拍 —— **全部散净之后**，大圈容器整体做一次 opacity + scale 渐隐。
+
+   v15 / v9 把扇区也做成逐块错峰淡出、与文字并行，读起来是
+   "扇区和字一起往下掉"，不是"字先散、盘再收"。这里把扇区推迟到 370ms 起、
+   并取消逐块错峰 —— 六块作为一个容器整体缩。
+
+   末帧 opacity 0 与 `_wheel9.css:40` 的静态值一致，所以 700ms 摘类时不跳帧
+   （若末帧是 .3 之类的中间值，摘类那一下会"啪"地弹回）。
+   ============================================================ */
+/* **扇区不能等文字散完再收**。v16 第一版把延迟写成 370ms（等 labelVanish
+   全部结束），实测出现用户报的"滞后边框"：0–370ms 整个大圈环全亮地挂在
+   那里，其中还有一块带蓝描边的选中扇区 —— 中圈都已经开始长了，外面那圈
+   还在，读成"没退干净"。查逐帧截图 t0120 能直接看到。
+
+   定稿：扇区从 40ms 就开始淡，与文字并行但更快（200ms vs 240ms），
+   到 240ms 已经归零，比文字的最后一枚（370ms）还早。
+   文字压在扇区上，先退底色反而让文字散得更清楚 ——
+   "两拍"要的是**顺序可读**，不是"前一个完全结束才允许下一个开始"。 */
+/* **延迟必须是 0**。实测：110ms 的 delay 期间 `both` 填充把扇区钉在
+   opacity 1，于是 0–110ms 那圈 158–228 的家族环全亮地挂着，中圈已经在
+   长了 —— 这就是"滞后边框"的最后一段。改成 0 起、且 150ms 就收完，
+   到大盘一半时间（230ms）时外圈已经完全干净。 */
+.wheel.is-lifting .sector-g {
+  animation: fanCollapse var(--t-micro) var(--ease-in) both;
+  animation-delay: 0ms;
+  will-change: transform, opacity;
+}
+@keyframes fanCollapse {
+  0%   { opacity: 1; transform: scale(1) rotate(0deg); }
+  100% { opacity: 0; transform: scale(.96) rotate(-1deg); }
+}
+
+/* ---------------- 三、中圈：把"放大"从淡入里抢回来 ----------------
+   两个改动，缺一个都没有可见放大：
+     ① 起点 .58 → **.52**，且中段过冲到 **1.045** 再回落 —— 有回落的放大
+        才被读成"弹出来"，单调增大只被读成"变清晰"；
+     ② 不透明度不再抢跑：`0% 0 / 18% 1` 之后就不再变，剩下的 380ms
+        时间里唯一在变的是尺寸。
+   缓动换成 `cubic-bezier(.16,1,.3,1)`（近指数衰减）：前 120ms 走完
+   约 60% 的行程，后面慢慢收 —— 这正是"弹出"的手感，
+   而 v15 用的 `(.2,.9,.25,1)` 前段太平，读成匀速。 */
+/* 终点是 **1.43** 不是 1。这个数不是审美取值，是量出来的：
+     弧带原生半径 118–152（中线 135），大圈是 158–228（中线 193）。
+     放大 1 倍时弧带只到 155，占盘直径 68%，大圈退场后外侧空出 32% 的空白 ——
+     看起来是"缩在中间"，不是"占据大圈的位置"（用户就是这么反馈的）。
+     实测各倍率下弧带落点：
+       1.00 → 99–155   （标签 2 处撞盘心）
+       1.20 → 119–186
+       1.35 → 134–209  （标签仍撞盘心）
+       1.43 → 142–222  （中线 192.5 ≈ 大圈中线 193，0 处相交）
+       1.55 → 154–240  （越出家族环内沿 158 与盘外 240）
+     1.43 是"中线正好落在大圈中线"的那个值，也是 0 处相交的最小值。 */
+.wheel.is-lifting .sub-ring {
+  animation: ringGrowStrong var(--t-celebrate) var(--ease-out) both;
+  will-change: transform, opacity;
+}
+@keyframes ringGrowStrong {
+  0%   { transform: scale(.40);  opacity: 0; }
+  18%  { transform: scale(.66);  opacity: 1; }
+  70%  { transform: scale(1.49); opacity: 1; }
+  100% { transform: scale(1.43); opacity: 1; }
+}
+
+.wheel.is-returning .sub-ring {
+  animation: ringShrinkStrong var(--t-long) var(--ease-in) both;
+  will-change: transform, opacity;
+}
+@keyframes ringShrinkStrong {
+  0%   { transform: scale(1.43); opacity: 1; }
+  35%  { transform: scale(1.46); opacity: 1; }   /* 先轻轻顶一下再收，缓冲感 */
+  100% { transform: scale(.44); opacity: 0; }
+}
+
+/* ---------------- 四、弧段：只做淡入，不再自己 scale ----------------
+   容器已经在 .52 → 1 地放大；弧段若再从 .90 起放，两个倍率相乘
+   （.52 × .90 = .47），前 90ms 会小到看不出，然后突然追上 —— 节奏打架。
+   弧段这里只保留 −2° 回正与淡入，让"放大"这件事只有一个来源。 */
+.wheel.is-open .sub-arc {
+  animation: arcFadeRise var(--t-long) linear both;
+  /* 100ms 起：中圈容器 0ms 起放大，弧段等它长到约 70% 再淡入，
+     否则七段一开始就在超大尺寸上全亮，放大过程被完全盖住。 */
+  animation-delay: calc(100ms + var(--i, 0) * 28ms);
+}
+@keyframes arcFadeRise {
+  from { opacity: 0; transform: rotate(-2deg); }
+  to   { opacity: 1; transform: rotate(0deg); }
+}
+
+/* ---------------- 四·补、凹槽必须等弧段盖上来再亮 ----------------
+
+   用户报的"滞后边框"，最后一层原因在这里：`.sub-channel`（凹槽环）
+   在 `_wheel8.css` 里是 `transition: opacity 200ms linear` + `is-open` 时
+   opacity 1 —— 也就是**容器一展开它就立刻开始亮**，var(--t-fade) 全亮。
+   而七段弧片要到 100ms 才开始淡入、最长到 340ms。
+
+   于是 100–300ms 之间会看到一条完整的蓝灰色圆环：弧片还没盖上，
+   槽底先亮出来 —— 那就是截图 t0120 里那圈宽蓝带，读成"大圈边框没退"。
+
+   修法：凹槽比第一段弧片晚起、并且比它更快 ——
+   130ms 起、140ms 淡入，此时第 0 段已经铺上（100ms 起 + 300ms 里已走 10%），
+   槽只在瓦片的缝里露出，不会先亮成一整圈。
+   ============================================================ */
+/* **必须用 animation，不能用 transition。**
+   `.sub-channel`（凹槽环）是 `buildSubRing()` 新建的节点：它被插入 DOM 的
+   那一刻，父级上的 `is-open` 已经在了。于是第一帧就同时算出
+   `opacity: 0`（基础规则）和 `opacity: 1`（is-open 规则），浏览器只认得
+   后者 —— transition 没有"前一个值"可以过渡，槽底从第一帧就是全亮。
+
+   实测：闭合态 DOM 里根本没有 `.sub-channel`（`querySelector` 返回 null），
+   点开之后立刻读 computed opacity 就是 1，transition 声明在但从不触发。
+
+   animation 不依赖前值：插入即播，起点由 keyframes 的 0% 决定。
+   延迟 130ms —— 此时第一段弧片（100ms 起）已经淡入到 10%，
+   槽只在瓦片的缝里露出，不会先亮成一整圈蓝环。 */
+.wheel .sub-channel {
+  opacity: 0;
+}
+.wheel.is-open .sub-channel {
+  animation: channelIn var(--t-micro) linear 130ms both;
+}
+@keyframes channelIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+/* 退场：槽要比弧片晚收（弧片 60ms 起、200ms 走完），
+   否则弧片还在、槽先没了，七段会浮在无底的白上。 */
+.wheel.is-open .sub-ring.is-exit .sub-channel {
+  animation: channelOut var(--t-micro) linear 90ms both;
+}
+@keyframes channelOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* ---------------- 五、按下态：显式类，不依赖 :active ----------------
+   为什么不用 `:active`：它只在"指针真的按住该元素"时成立。
+   键盘 Enter 触发、脚本 dispatch、触屏滑动取消，三种情况全都会漏，
+   而按下态的意义恰恰是"告诉用户这一次点击被接住了"——
+   漏一次就等于没有任何反馈。所以由 app.js 在 pointerdown 挂、
+   pointerup / pointercancel / pointerleave 摘，CSS 只认类。
+
+   缩放用 .955 而不是更小：弧段是 24px 厚的弯条，再小会与相邻段的缝
+   叠在一起（相邻段也在同一环上），读成"整条环在缩"而不是"这一段被按下"。 */
+/* **必须挂在 `.sub-g` 上，不能挂 `.sub-arc`** —— 实测踩到：
+   `.wheel.is-open .sub-arc { animation: arcFadeRise … both }` 的 `both`
+   会把 `transform` 钉在末帧 `rotate(0deg)`，普通声明的 `transform: scale()`
+   优先级低于 animation，按下时 transform 恒为 `matrix(1,0,0,1,0,0)`（实测）。
+   这和 v15 里 fanVanish 把 opacity 钉在 0 是同一个坑。
+   `.sub-g` 只有在 `.is-on` 时才带 arcPop，所以这里同时写 `animation: none`
+   把它也一并取消（按下已经选中的弧段时，脉冲让位给按下态）。 */
+.wheel .sub-g.is-pressing {
+  animation: none;
+  /* .93 而不是 .955：实测 .955 只让弧段包围盒从 62.4px 缩到 59.6px（−4.5%，
+     1x 下 2.8px），肉眼几乎看不出。.93 给出 −7%（4.4px），
+     再叠下面那条描边加重，才是"按下去"该有的量。 */
+  transform: scale(.93);
+  transform-origin: 240px 240px;
+  transform-box: view-box;
+  transition: transform var(--t-micro) var(--ease-press);
+  will-change: transform;
+}
+/* 按下时的提亮**必须挂 `.sub-arc`** —— filter 在弧段上，不在组上。
+   弧段的 arcFadeRise 只动 transform，不碰 filter，所以这条不会被覆盖。 */
+/* 提亮之外再压一道内描边：纯色块的亮度变化在浅底上感知度低，
+   描边从 1px 转深是"边界收紧"，人眼对边界的位移比对照度更敏感。 */
+.wheel .sub-g.is-pressing .sub-arc {
+  filter: brightness(1.08);
+  stroke: var(--blue);
+  stroke-width: 1.6;
+  transition: filter var(--t-micro) var(--ease-press),
+              stroke var(--t-micro) var(--ease-press),
+              stroke-width var(--t-micro) var(--ease-press);
+}
+/* 松开时描边要回到常态，否则按过一次的段会永久带着蓝边 */
+.wheel .sub-g .sub-arc {
+  transition: filter var(--t-press) var(--ease-press),
+              stroke var(--t-micro) var(--ease-press),
+              stroke-width var(--t-micro) var(--ease-press),
+              fill var(--t-hover) var(--ease-std);
+}
+/* 文字按钮的居中位移在基类 `.disc-sector` 的 transform 里，
+   这里若只写 scale 会把 translate(-50%,-50%) 覆盖掉 —— 文字每帧被推到右下再弹回。
+   所以按下态必须把居中一起写上。 */
+.wheel .sub-g.is-pressing .sub-arc-btn {
+  transform: translate(-50%, -50%) scale(.955)
+             rotate(calc(-1 * var(--disc-rot, 0deg)));
+}
+/* 松开后回到常态要稍快（90ms）：按下的回应可以慢，回弹必须脆 */
+.wheel .sub-g {
+  transition: transform var(--t-press) var(--ease-press);
+  transform-origin: 240px 240px;
+  transform-box: view-box;
+}
+
+/* ---------------- 六、确认强调：改成几何脉冲 ----------------
+   v15 用 `filter: drop-shadow` 做脉冲，实测在 520px 盘上不可见 ——
+   drop-shadow 的模糊从 0 到 10px，在 24px 厚的弧段上只是边缘微微发虚。
+   改成绕盘心的整段缩放：量 3.2% ≈ 在 r≈135 处产生 4.3px 径向位移，
+   这个量在 60fps 下可读，又不会把相邻段的缝推乱。
+
+   挂 `.sub-g` 而不是 `.sub-arc`：弧段身上已经常驻 `arcFadeRise`，
+   两者若同挂 `.sub-arc`，确认时会顶掉入场动画、再把旧段摘掉时
+   重播一次入场（"旧的弹一下"）。`.sub-g` 没有别的动画，独占 transform。 */
+.wheel .sub-g.is-on {
+  /* **不能用 `both`**：`both` 会让末帧的 `transform: scale(1)` 永久覆盖声明值，
+     于是"按下已选中的那一段"永远看不到 0.955（实测 transform 恒为 identity）。
+     arcPop 的末帧本来就是 identity，不填充也停在同一个位置。 */
+  animation: arcPop var(--t-celebrate) var(--ease-out);
+  transform-origin: 240px 240px;
+  transform-box: view-box;
+  /* 刻意不写 will-change：`.is-on` 是常驻类（确认后一直挂着），
+     写在这里等于让那一段永久独占合成层，反而拖慢同盘其它动画。
+     一次性的 520ms 脉冲不需要它 —— 浏览器对 animation 本来就会临时提升。 */
+}
+@keyframes arcPop {
+  0%   { transform: scale(1); }
+  28%  { transform: scale(1.032); }
+  100% { transform: scale(1); }
+}
+
+/* ---------------- 七、减少动效：全部关掉并把终态写死 ---------------- */
+@media (prefers-reduced-motion: reduce) {
+  .wheel.is-lifting .label-layer,
+  .wheel.is-returning .label-layer,
+  .wheel.is-lifting .label-layer .disc-sector.lvl1,
+  .wheel.is-returning .label-layer .disc-sector.lvl1,
+  .wheel.is-returning .sector-g,
+  .wheel.is-lifting .sub-ring,
+  .wheel.is-returning .sub-ring,
+  .wheel.is-open .sub-arc,
+  .wheel .sub-g.is-on,
+  .sub-ring.is-exit .sub-arc,
+  .wheel .disc-sector.lvl2.sub-arc-btn,
+  .sub-ring.is-exit .disc-sector.lvl2.sub-arc-btn {
+    animation: none;
+    will-change: auto;
+  }
+  /* 终态必须手写：动画关掉后，标签层仍要靠这条规则退场，
+     否则会停在全亮（v15 就是这么漏的：它的退场只写在窄屏媒体查询里）。 */
+  .wheel.is-open .label-layer { opacity: 0; pointer-events: none; }
+  .wheel:not(.is-open) .label-layer { opacity: 1; }
+  .wheel.is-open .sub-ring { transform: scale(1.43); opacity: 1; }
+  .wheel:not(.is-open) .sub-ring { transform: scale(.44); opacity: 0; }
+  .wheel.is-open .sector-g { opacity: 0; }
+  .wheel:not(.is-open) .sector-g { opacity: 1; }
+  .wheel .sub-g.is-pressing .sub-arc { transform: none; filter: none; }
+}
+
+/* ---------------- 八、窄屏：家族文字退场后不再往回浮 ----------------
+   v15 在窄屏写了一条 `.wheel.is-open:has(.sector-g.is-hot) .label-layer
+   { opacity: 1 }`，本意是"悬停某块家族时它的标签浮回"。但 v15 同时把
+   窄屏家族扇区的 `pointer-events` 关成了 none —— `.is-hot` 永远不会触发，
+   那条规则是死代码。本层删掉它，并保留"当前项"这一条（返回瞬间需要
+   高亮指示"你刚才在哪一类"）。 */
+@media (max-width: 620px) {
+  .wheel.is-open .label-layer .disc-sector.lvl1.is-on {
+    opacity: 1;
+  }
+}

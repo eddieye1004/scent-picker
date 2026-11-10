@@ -397,7 +397,7 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
   ok('弧段依次滑出（有延迟）',
     /@keyframes arcIn/.test(css) && /animation-delay/.test(css));
 
-  /* ⑥ 两层切换的进出场编排（v14，_wheel8.css）
+  /* ⑥ 两层切换的进出场编排（v14，原 _wheel8.css，2026-11-10 并入 20-wheel-core.css）
      这四条守的是"退场真的存在"，不是"有没有写动画"。
      之前 subRing.innerHTML = '' 一行抹掉七段 —— DOM 里没有节点，
      CSS 再怎么写也没有东西可以动。 */
@@ -426,7 +426,7 @@ ok('盘心默认是空态', appRoot.querySelector('.disc-hub.is-idle') !== null)
     'sub-channel 插入时 is-open 已挂上，transition 没有前值可过渡，第一帧就是全亮');
   ok('大圈标签层在展开态真的归零（v15 漏在覆盖链里）',
     /\.wheel\.is-open \.label-layer,[\s\S]{0,120}?opacity:\s*0/.test(css),
-    '_wheel7.css:361 写过 opacity:1，桌面端 v15 从来没退过标签');
+    '_wheel7.css:361 写过 opacity:1（该层已并入 20-wheel-core.css），桌面端 v15 从来没退过标签');
   ok('返回时大圈从 .80 推出（量足够看出来）',
     /@keyframes fanPullOut/.test(css)
     && /\.wheel\.is-returning \.sector-g \{[^}]*?animation:\s*fanPullOut/.test(css)

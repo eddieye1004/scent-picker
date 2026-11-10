@@ -1,24 +1,36 @@
 /**
  * 把样式源层拼成 styles.css。
  *
- * 为什么需要这个脚本：styles.css 不是手写的，它由 base + 11 个 `_wheel*.css`
- * 层按固定顺序拼成。历史上这些源层和脚本放在仓库外（C:/Users/16256/ego/），
- * 只有产物 styles.css 进了 git —— 后果是任何克隆者改源层都会静默分叉，
- * 而四套测试只读产物、仍然全绿，这个失败模式在仓库内部完全看不见。
- * 现在三样东西都在仓内：
+ * 为什么需要这个脚本：styles.css 不是手写的，它由 7 个语义层按固定顺序拼成。
+ * 历史上这些源层和脚本放在仓库外（C:/Users/16256/ego/），只有产物进了 git ——
+ * 后果是任何克隆者改源层都会静默分叉，而测试只读产物、仍然全绿，
+ * 这个失败模式在仓库内部完全看不见。现在两样东西都在仓内：
  *
- *   styles/src/base.css        基础层（原 base.pre-wheel2.css）
- *   styles/src/_wheel4..12.css 逐版叠加的圆盘层
- *   styles/src/_plate.css      盘心标本层
- *   styles.css                 产物（入库，不要手改）
+ *   styles/src/10-foundation.css     设计 token / 排版基线 / 纸面与印章
+ *   styles/src/20-wheel-core.css     圆盘本体（几何 / 扇形 / 盘心 / 标本）
+ *   styles/src/30-wheel-refine.css   圆盘细化（三级描边 / 中圈 / 标签命中垫）
+ *   styles/src/40-theme.css          深色模式 / 视口裁切 / 控件边界 / 场景屏预算
+ *   styles/src/50-results.css        结果卡（瓶形 / 双渠道按钮 / 实物图 / 上色 SVG）
+ *   styles/src/60-motion.css         切屏过渡与控件反馈（v34 D59）
+ *   styles/src/70-final.css          字体落地 + 最终覆盖
+ *   styles.css                       产物（入库，不要手改）
+ *
+ * ==== 2026-11-10：24 层 → 7 层（Eddie 决策的 UI 重设计第 1 步）====
+ * 原先是 base + 22 个 `_wheel<N>.css`，每个数字对应一次追加补丁，最新的是 24。
+ * 顺序即语义，合并时**严格保持原顺序**、不做任何重排：
+ *   base → 4 → 4c → plate → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13
+ *        → 14 → 15 → 16 → 17 → 18 → 19 → 20 → 21 → 22 → 23 → 24
+ * 合并后产物与合并前**逐字节相同**（SHA256 前后一致，226259 字节），
+ * 这正是这次合并的验收标准 —— 层改名不改行为。
+ *
+ * 为什么不再保留 `_wheel<N>` 这个名字：编号不携带语义，只会让下一个人
+ * 接着写 `_wheel25.css`。改成"按职责"之后，新的补丁能落到正确的那一层，
+ * 而不是又叠一层。历史覆盖关系（394 条声明被后续覆盖）原样保留在合并后的
+ * 层内 —— 那是既有观感的一部分，合并任务不负责清理。
  *
  * 用法：
  *   node scripts/build-css.mjs          重建 styles.css
  *   node scripts/build-css.mjs --check  只校验是否同步，不同步则退出码 1
- *
- * 顺序即语义：后面的层覆盖前面的层。`cascade-audit` 实测当前有 394 条声明
- * 被后续规则覆盖、从未生效 —— 那是历史叠加的结果，改顺序会改观感，
- * 不要为了"看起来整齐"去动 PARTS。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,30 +39,13 @@ const ROOT = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\/([
 const SRC = path.join(ROOT, 'styles', 'src');
 
 const PARTS = [
-  'base.css',
-  '_wheel4.css',
-  '_wheel4c.css',
-  '_plate.css',
-  '_wheel5.css',
-  '_wheel6.css',
-  '_wheel7.css',
-  '_wheel8.css',
-  '_wheel9.css',
-  '_wheel10.css',
-  '_wheel11.css',
-  '_wheel12.css',
-  '_wheel13.css', /* 三级描边（D50）：必须最后，要压过前面各层的边框声明 */
-  '_wheel14.css', /* 深色模式（D4）：媒体查询，只在 prefers-color-scheme: dark 下生效 */
-  '_wheel15.css', /* 选中态横向溢出（v27）：在视口层裁掉 .sub-ring 缩放后的空盒 */
-  '_wheel16.css', /* 控件边界统一（D1 扩展）：2 个只有 1px 边的控件提到 --stroke-ui */
-  '_wheel17.css', /* 场景屏纵向预算（U2）：只在该屏收边距，其余 6 屏不动 */
-  '_wheel18.css', /* 结果卡瓶形（v30）：pick-head 横排 + SVG 瓶身尺寸 */
-  '_wheel19.css', /* 双渠道入口按钮（v31）：官方旗舰店 / 全网 两行结构 */
-  '_wheel20.css', /* 结果卡商品实物图（v32）：与 _wheel18 共用 .pick-art 盒，缺图自动降级 */
-  '_wheel21.css', /* 盘心改用上色 SVG（v33）：清掉继承的 stroke 与 fill:none */
-  '_wheel22.css', /* 视觉统一（D59）：线条三档 / 发丝线合 token / 切屏过渡 / 控件抬起-落下 */
-  '_wheel23.css', /* 圆盘统一（v37 · A+F）：首屏六族同色 / 场合盘留白优先 / 盘心改圆 */
-  '_wheel24.css', /* v42：字体真正落地（Inter 可变 + Noto SC 子集）/ 数字等宽 / h1 44px */
+  '10-foundation.css',
+  '20-wheel-core.css',
+  '30-wheel-refine.css',
+  '40-theme.css',
+  '50-results.css',
+  '60-motion.css',
+  '70-final.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');

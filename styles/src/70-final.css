@@ -346,3 +346,124 @@
   }
   /* 展开态：已选家族的标签转蓝（第六节写的是 var(--blue)，深色自动换成 #6e8bff，无需改） */
 }
+/* ===== v42 · 字体真正落地：从"系统兜底"换成"自带可变字体" =====
+   问题（实测，不是感觉）：
+   1. `--font-body` 第一顺位写的是 "Inter"，但全项目 `@font-face` 数量为 **0**、
+      运行时 `document.fonts.size = 0` —— Inter 从来没被加载过。
+      canvas 宽度探针里 `"Inter"` 与 `"Helvetica Neue"` 读数完全相同（225.95），
+      说明两者都没装、都在走后面的 fallback。
+   2. 于是英文落到 Arial、中文落到 Microsoft YaHei。YaHei 只有 Regular / Bold 两个字面，
+      CSS 里写的 500 / 600 被浏览器就近映射到 Bold（700）—— **500 与 600 两档全部塌成 700**。
+      这是"层级只剩常规/粗、密排处发糊"的直接原因。
+   3. 中文小字号在 YaHei 下笔画偏粗、字面偏方，这就是"Windows 感 / 不高级"的来源。
+
+   做法：本地自带两个**可变字体**（wght 100–900 连续轴），不再依赖读者机器上装了什么。
+   - fonts/inter-var-latin{,-ext}.woff2   48 KB + 85 KB，来自 Google Fonts 官方 inter v20，
+     是 wght 100–900 的 variable subset（实测 fvar 轴 min 100 / default 400 / max 900）。
+   - fonts/noto-sans-sc-subset.woff2      362 KB，从本机 NotoSansSC-VF.ttf 子集化：
+     只保留站内实际用到的 1315 个 CJK 字符 + ASCII + 常用中文标点，共 1410 个码位。
+     子集化命令记在 docs/DECISIONS.md 的 D67 里，加字后必须重跑。
+
+   为什么用可变字体而不是 4 个静态字面：静态要 4×(48+85) KB ≈ 532 KB 才拿到 4 档；
+   可变字体一个文件覆盖 100–900，按需插值，600 是真的 600，不再是 Bold。
+
+   为什么中文不整体加载 Noto Sans SC 全量：全量 17.7 MB / 31036 字形，远超首屏预算。
+   子集 362 KB，且 site 内文案是固定的（不接用户输入），子集够用。
+   新增文案若用到子集外的字，会退回 Microsoft YaHei —— 观感变差但**不会出现豆腐块**，
+   这是有意的降级：兜底字体在 --font-body 里排在 Noto 之后。
+
+   字体栈顺序：Inter（拉丁/数字）→ Noto Sans SC（CJK）→ 系统黑体兜底。
+   Inter 的 unicode-range 只声明拉丁段，CJK 会自动落到 Noto，不需要拆两个 font-family。 */
+
+@font-face {
+  font-family: "InterVar";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/inter-var-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+                 U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF,
+                 U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "InterVar";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/inter-var-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+                 U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+                 U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "NotoSC";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/noto-sans-sc-subset.woff2") format("woff2");
+}
+
+:root {
+  /* 覆盖 base.css 的 --font-body。显式列出 InterVar / NotoSC 在最前，
+     后面保留原系统栈作为"子集外汉字"的兜底。 */
+  --font-body: "InterVar", "Inter", "NotoSC", "Noto Sans SC",
+               "Helvetica Neue", Helvetica, -apple-system,
+               "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+               "Source Han Sans SC", Arial, sans-serif;
+  --font-display: var(--font-body);
+}
+
+/* 等宽栈里的数字：结果页的匹配度、持香推断、规格表都在用。
+   系统 monospace 在 Windows 上是 Consolas / Courier New，中英混排时
+   数字与汉字的基线会偏 0.5px。这一条不换字体，只把数字锁成等宽字形，
+   让「匹配度 84%」这类行在换行时不会左右跳。 */
+.pick-rank,
+.score,
+.scale-read,
+.progress-meta {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 字号：把 44px 档从"只在高屏生效"变成"桌面恒生效" ----------
+   改前（`base.css:266` / `:285` / `:300`）：h1 的 44px 与 34px 两档都写在
+   `@media (min-height: ...)` 里，只有视口高 >1000px 才拿到 44px；
+   1440×900 实测 h1 = 34px，与紧邻的 .q-title 26px 只差一档，
+   首屏没有"主标题"该有的重量，视线全被 520px 圆盘抢走。
+   改后：桌面（≥1021px 宽）恒为 44px，中等宽度 34px，窄屏仍 24/26px。
+   44px 与 .q-title 26px 的比值 1.69，是 Swiss 排版的常见跨度（1.5–1.75）。 */
+@media (min-width: 1021px) {
+  .masthead h1 { font-size: 44px; letter-spacing: -0.03em; }
+}
+@media (min-width: 621px) and (max-width: 1020px) {
+  .masthead h1 { font-size: 34px; letter-spacing: -0.026em; }
+}
+
+/* ===== v44 · 场合盘的圆盘也要吃 vh 约束 =====
+   实测（1366×768，`probe_dsc.cjs`）：`.disc` 宽 **520px**、top 295.9、bottom **815.9**，
+   比视口高 768 多出 48px；1280×720 更差。
+
+   根因：`base.css` 的四档 vh 约束（62/56/54/50vh）在 v35 被从 `.disc` 提到 `.disc.wheel`
+   （见 `base.css:254` 的注释），而第 4 步场合屏的根节点是 `buildDisc()` 产出的
+   `class="disc"`（**没有 wheel 类**）。于是首屏轮盘被压住了，场合盘没有。
+
+   处理：这里给"非 wheel 的 disc"补同一套四档。写在 `_wheel24.css`（最后一层）
+   保证不被 `base.css:213` 的 `min(88vw, var(--discw))` 与 `_wheel4.css:15` 顶掉。
+   宽度系数比首屏略收 2vh —— 场合盘没有中圈、没有外圈标签，但它下方有 `.actions`
+   吸底条（高度 85px），留出的余量要更大一点。 */
+
+@media (min-width: 621px) {
+  #app .disc:not(.wheel) { width: min(88vw, var(--discw), 58vh); }
+}
+@media (min-width: 621px) and (max-height: 1000px) {
+  #app .disc:not(.wheel) { width: min(88vw, var(--discw), 52vh); }
+}
+@media (min-width: 621px) and (max-height: 820px) {
+  #app .disc:not(.wheel) { width: min(88vw, var(--discw), 50vh); }
+}
+@media (min-width: 621px) and (max-height: 740px) {
+  #app .disc:not(.wheel) { width: min(88vw, var(--discw), 46vh); }
+}
+
+/* 场合屏盘心：方形改成圆形后（`_wheel23.css` 第三节），在 52vh 档圆盘只有 400px，
+   42.7% 见方的盘心 = 171px，装「当前选择 / 还没选 / 点扇区，或把指针移上去」三行
+   正好够；再窄就换两行文案，收字号会跌破 12px 下限（test-contrast 强制）。 */

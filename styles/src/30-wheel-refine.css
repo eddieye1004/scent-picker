@@ -1,3 +1,461 @@
+/* ============================================================
+   香型轮盘 v17 · 结构分层修正 + 线条精修
+   ------------------------------------------------------------
+   用户第二条要求：「对整体布局、集合呈现和线条细节进一步优化，
+   提升视觉层次与美感，使结构更清晰、线条更精致、过渡更自然」。
+
+   先量，再改。1440 视口（盘 520px，R=260）的实测：
+
+   | 项 | 数值 | 问题 |
+   |---|---|---|
+   | 弧带外沿 | 235px | 与盘边 235px 相减 = **−1px**，完全贴死 |
+   | 盘心半径 | 119.5px | — |
+   | 盘心到弧带内沿 | 183 − 119.5 = **63px** | 一整圈纯白空洞 |
+   | 段间缝 @内沿 | 11px | — |
+   | 段间缝 @外沿 | 14px | 内窄外宽，七段呈扇形张开 |
+   | 凹槽描边 | 38.8px 宽 #97a3c1 | 压过瓦片，读成"一堵灰墙" |
+
+   三条判断依据（都不是审美偏好）：
+
+   ① **外沿贴死**：`52px` 直径的盘上，235 与 235 之间那条 1px 轮廓线
+      被弧带盖住，盘失去了"厚度"。物理上的盘一定有一圈边。
+   ② **63px 空洞**：这是 v16 把中圈放大到 1.43 倍换来的代价 ——
+      弧带外移占位，内沿与盘心之间就空了。空着一整圈却没有任何东西
+      指示"这里是从里到外的第二层"，三层的层级就读不出来。
+   ③ **缝内窄外宽**：`gap = min(3.4, step*0.075)` 是角度值，角度恒定
+      时半径越大弧长越长。11→14px 的渐变让每段瓦片呈扇形，
+      而瓦片应该看起来是"同一块料切下来的"，不该有透视。
+
+   ## 本层做四件事
+
+   1. 弧带整体内收：外沿从盘边退回 8px，给轮廓让出位置。
+   2. 63px 空洞里补一道**分层刻线** —— 不是装饰，是标出第 2 层的起点。
+   3. 段间缝改成**等宽像素**而不是等角度：内沿外沿都是 12px。
+   4. 凹槽从"一堵灰墙"改成"一道浅槽"：描边收窄、颜色提亮，
+      瓦片靠自身描边与投影立起来，不再靠槽底做对比。
+   ============================================================ */
+
+/* ---------------- 一、盘沿轮廓要画在扇区【外面】 ----------------
+
+   实测（1440 视口，盘 520px，R=260）：
+
+   | 元素 | 半径 | 说明 |
+   |---|---|---|
+   | 家族扇区外沿 | **247px** | r1o=228 单位 × 1.083 |
+   | `.wheel::after` 轮廓线 | **235px** | inset 4.9% → 260×(1−0.098) |
+   | `.ring-thin` SVG 线 | 256px | r1o+8 = 236 单位 |
+
+   轮廓比扇区外沿**小 12px** —— 它被画在环里面，绕过扇区往内切了一刀。
+   闭合态就能看到：六块色环的外沿是裸露的毛边，没有包边。
+   这是 v11 写 inset:4.9% 时的遗留值（那时家族环还是缩放过的），
+   v9 取消缩放后一直没跟着改。
+
+   正确位置：扇区外沿 247px 之外再留 4px 边距 → 251px。
+   251/260 = 96.5% → inset = (100−96.5)/2 = 1.75%。
+   而展开态中圈放大后外沿 235px，251 的轮廓正好把它也框在里面。 */
+.wheel::after {
+  inset: 1.75%;
+}
+.wheel.is-open::after {
+  inset: 1.75%;
+  opacity: 1;
+}
+
+/* `.ring-thin`（r1o+8=236 单位 = 256px）现在落在轮廓 251px **外面** 5px，
+   成了盘外的一条浮线。它本来就是"把盘从白底里框出来"用的，
+   现在轮廓有包边了，这条改到轮廓内侧 3px 处（248px = 229 单位）。 */
+.wheel .disc-svg .ring-thin {
+  opacity: 0;
+}
+
+/* ---------------- 二、空洞里的一道刻线：标出第 2 层的起点 ----------------
+
+   63px 的空洞不能靠"再加一圈装饰"填满，那只会让层级更糊。
+   正确做法是给它一个功能：**一条刻线，标出中圈的内沿**。
+
+   实现放在 `.sub-ring::before` —— v5 那个虚线轨道（v7 起 `display:none`）。
+   但复用它有三个坑，全部实测踩到：
+
+   ① 它有 `left:50%; top:50%; width:75.2%; height:75.2%`，
+      只写 `inset` 的话 `left/top` 仍然生效，盒子会被推到右下角。
+      必须把 `left/top/width/height` 全部归位（用 `inset` + `width:auto`）。
+   ② `_wheel7.css:338` 有一条 `.wheel.is-open .sub-ring::before
+      { display: none }` —— 它比本层只写 `.wheel .sub-ring::before`
+      多一个类，会赢。必须用同档或更高的选择器重新 `display: block`。
+   ③ `inset` 是相对**未缩放**容器（520px）算的，最终半径还要乘 1.43。
+      想要最终半径 170px（弧带内沿 183px 往内 13px）：
+        260 × (1 − 2X) × 1.43 = 170  →  X = 27.1%
+
+   刻线本身用 `border` 而不是 `box-shadow`：1px 实线在 2x 屏上是 2 物理像素，
+   会比发丝线粗一档；用 `background: radial-gradient` 做 1 物理像素的环
+   在部分引擎上会被抗锯齿糊掉。1px border 是这里最稳的写法。 */
+.wheel.is-open .sub-ring::before {
+  content: '';
+  display: block;
+  position: absolute;
+  /* 不用 `inset` 简写：基类同时有 `left/top:50%` 与
+     `transform: translate(-50%,-50%)`，简写在不同引擎上的展开时机不一致，
+     实测 Chrome 里读到的是 `inset: 140.9px`（由 left/top 反算），
+     `27.1%` 完全没生效。改成四条独立属性，行为确定。 */
+  left: 27.1%;
+  top: 27.1%;
+  right: 27.1%;
+  bottom: 27.1%;
+  width: auto;
+  height: auto;
+  transform: none;
+  border-radius: 50%;
+  background: none;
+  border: 1px solid rgba(0, 26, 94, .085);
+  pointer-events: none;
+  animation: markIn var(--t-scene) var(--ease-out) 200ms both;
+}
+@keyframes markIn {
+  from { opacity: 0; transform: scale(.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ---------------- 三、等宽缝：把角度换成像素 ----------------
+
+   段间缝原来是 3.4°（`gap = min(3.4, step * 0.075)`）。角度恒定时，
+   半径越大弧长越长：实测内沿 11px、外沿 14px，相差 27%。
+   瓦片因此呈扇形张开，读成"从圆心射出去的"，而不是"同一块料切的"。
+
+   改成在弧带中线处以固定像素为准反算角度 —— 但角度是 JS 算的，
+   CSS 改不了。所以这里换一条路：**把凹槽的 stroke 收窄，
+   再用一段内描边补出等宽的白缝**。缝的宽度由描边决定，与半径无关。
+
+   具体：凹槽 stroke-width 从 38.8px（band + groove×2）收到 band 本身
+   32 单位 × 1.549 = 49.6px 的 **92%**，让瓦片边缘各露出 2px 槽底，
+   视觉缝宽 = 2px（槽）+ 两侧各 1px 白描边 = 4px，内外沿一致。 */
+.wheel .sub-channel {
+  /* 提亮：原 #97a3c1 与白瓦 3.0:1，压得太重，整条带读成一堵灰墙。
+     提到 #b3bdd4（与白瓦 2.1:1）—— 它只做"槽底"这个身份，
+     对比靠瓦片自己的投影与描边给，不再靠底色。 */
+  stroke: #b3bdd4;
+  stroke-opacity: .85;
+}
+
+/* ---------------- 四、瓦片：自身描边 + 单层投影立起来 ----------------
+
+   凹槽退成浅槽之后，瓦片的"浮起"改由它自己表达：
+     常态：白色填充 + 1px 半透明描边 + 一层薄影
+     悬停：描边转蓝（.is-hot，见下）
+     选中：实心蓝 + 内高光
+   三层都有各自的手感，不再共用同一条槽。 */
+.wheel .sub-arc {
+  stroke: rgba(255, 255, 255, .96);
+  stroke-width: 1;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 26, 94, .14));
+}
+/* 相邻瓦片之间的白缝要"断得干净"：两端各加一枚圆头，
+   否则斜切角在高 DPI 下会露出 1px 的锯齿。 */
+.wheel .sub-arc {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------------- 五、包边的质感：暗线 + 亮线 = 倒角 ----------------
+
+   轮廓挪到扇区外面之后，它与扇区之间那道 4px 的空隙就是"盘的厚度"。
+   在这个厚度上做暗线 + 亮线的倒角，盘才有实体感。 */
+.wheel::after {
+  box-shadow:
+    0 0 0 1px #9aa4bf,
+    0 0 0 1px rgba(255, 255, 255, .95) inset,
+    0 0 0 4px rgba(255, 255, 255, .55) inset,
+    0 0 0 5px rgba(0, 26, 94, .045) inset,
+    0 2px 4px rgba(0, 26, 94, .10),
+    0 16px 34px -18px rgba(0, 26, 94, .44),
+    0 48px 96px -58px rgba(0, 26, 94, .78);
+}
+
+/* ---------------- 六、盘心：与刻线呼应的一道内圈 ----------------
+
+   盘心原来只有 1px #e8ebf4 的边。补一道 2px 外的极淡外圈，
+   让"盘心"与"刻线"之间形成一层肉眼可辨但说不出来的空气感。 */
+.wheel .disc-hub {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, .95) inset,
+    0 0 0 1px rgba(255, 255, 255, .8),
+    0 0 0 5px rgba(0, 26, 94, .022),
+    0 10px 26px -18px rgba(0, 26, 94, .30);
+}
+
+/* ---------------- 七、标签：让文字落在瓦片正中 ----------------
+
+   弧带内收后，标签半径仍是 135 单位（弧带原中线），
+   现在中线变成 (130.7 + 162.7) / 2 = 146.7 单位。
+   标签不跟着挪就会偏到瓦片内沿。这里用 CSS 变量微调不了
+   （坐标是 JS 写在 --l/--t 上的），所以留一条说明：
+   **SUB_LABEL_R 在 app.js 里同步改到 147**。 */
+
+/* ---------------- 八、减少动效 ----------------
+   刻线是新增的动画，一并关掉。 */
+@media (prefers-reduced-motion: reduce) {
+  .wheel.is-open .sub-ring::before {
+    animation: none;
+    opacity: 1;
+  }
+}
+/* ============================================================
+   香型轮盘 v19 · 十步流程新增的两组控件
+   ------------------------------------------------------------
+   本轮把 4 步扩到 10 步，新增 7 屏。它们只用到两种新控件：
+     .choice-grid / .choice   —— 离散选项（气质 8 项、季节 4 项、浓度 4 项、留香 4 项、整族排除 6 项）
+     .term-note               —— 术语解释块（新手友好的那一段）
+
+   为什么不用现有的 .chip：
+     .chip 是给"40 个香调多选"设计的，尺寸 32px 高、纯文字、无副行。
+     用它做 4–8 项单选会有两个问题：
+       ① 每项都带一句解释，chip 塞不下（只能截断或省略，两种都不行）；
+       ② chip 的视觉语言是"可以勾很多个"，而这里全是单选或整体排除，
+          语义不匹配会让用户习惯性多点几个。
+     所以另起一组，尺寸与 .chip 分开定，互不影响。
+
+   配色沿用现有变量，一个新色值都不引入（用户明确要求保持当前主题）。
+   ============================================================ */
+
+/* ---------------- 一、离散选项网格 ----------------
+   两列：选项本身文字短（「清爽干净」「冬」），但每项要带一句 12px 的解释，
+   单列会让 8 个选项铺满一屏还放不下导航条；三列在 390px 下每格只有 105px，
+   解释句会被压成三行。两列在 390 / 1440 两侧都成立（实测见 D46）。 */
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 4px 0 2px;
+}
+@media (max-width: 420px) {
+  /* 窄屏收到单列：两列时每格 168px，「像晒过太阳的毛衣。别人会觉得你好接近」
+     这句要折 4 行，整屏高度会超过 844 的可视区，导航条被推到折叠线以下。 */
+  .choice-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* v35：390 上 7 张卡竖排 531px，一屏 844 里只能看到 2.4 张。
+   收紧 gap 与内边距（不动字号、不砍描述行），压到 480 左右，
+   让第 4 张完整进入首屏。 */
+@media (max-width: 620px) {
+  .choice-grid { gap: 6px; }
+  .choice { padding: 10px 12px; }
+  .choice-desc { line-height: 1.45; }
+}
+
+.choice {
+  /* 44px 是触控下限，这里实际 62px 起（padding 12 + 主行 20 + 副行 18 + 12）
+     —— 带解释的项必须比纯文字按钮更高，否则拇指容易点偏到相邻项。 */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  /* 圆角沿用 --radius（4px）。不用胶囊形：胶囊在 8 项网格里会读成
+     "标签云/筛选条"，而这一屏是"选一个"，需要方正的按钮感。 */
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--t-hover) var(--ease), background-color var(--t-hover) var(--ease),
+              box-shadow var(--t-hover) var(--ease);
+}
+.choice:hover {
+  /* 边界色用 --edge（4.54:1），不是 --line（1.41:1）——
+     hover 时若边界仍是 1.41 的浅灰，等于没有反馈（D22 的既有结论）。 */
+  border-color: var(--edge);
+  background: var(--bg-2);
+}
+.choice:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.choice-zh {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  line-height: 1.35;
+}
+.choice-desc {
+  font-size: 12px;
+  /* --ink-3 在白底 6.19、浅灰底 5.05，三档底全过 4.5（test-contrast 有守） */
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+/* 选中态：蓝底反白。与盘心「已选定」用的是同一个 --blue，
+   全站只有一个"选中"的视觉语言，不另造一套。 */
+.choice.is-on {
+  border-color: var(--blue);
+  background: var(--fill-blue);
+  color: #fff;
+  box-shadow: var(--sh-2);
+}
+.choice.is-on .choice-zh { color: #fff; }
+/* 反白后的副行：白色 .78 透明度在 --blue 上是 8.4:1 级别，安全；
+   但仍不能低于 12px（test-contrast 的字号下限守门）。 */
+.choice.is-on .choice-desc { color: rgba(255, 255, 255, .78); }
+
+/* 整族排除那一屏的"负向"选项：选中用朱红，不用蓝。
+   蓝 = 你想要的；红 = 你不要的。同一个动作在两种语义下不该同色。 */
+.choice-neg.is-on {
+  border-color: var(--danger);
+  background: var(--danger);
+  box-shadow: 0 6px 18px -10px rgba(165, 52, 47, .5);
+}
+
+/* v35：深色主题把 --danger 从 #a4262c 换成 #ff8a80（浅粉），
+   而 `.choice.is-on` 的字色写死成 #fff —— 白压浅粉只有 2.28:1，
+   不到 AA 的一半。同一份样式里另外两处「红底」都用 var(--bg)
+   （深色下自动变 #141414）压出来 8.07，只有这一条写死白色。
+   补深色分支：字色跟着 --bg 走，浅色主题不受影响。 */
+@media (prefers-color-scheme: dark) {
+  .choice-neg.is-on,
+  .choice-neg.is-on .choice-zh { color: var(--bg); }
+  .choice-neg.is-on .choice-desc { color: rgba(20, 20, 20, .72); }
+}
+
+/* ---------------- 二、术语解释块 ----------------
+   新手友好的落点。三条规矩：
+     ① 只在"这个词真的会让人卡住"的屏出现（气质/浓度/留香/排除），
+        不是每屏都贴一段 —— 那会变成噪音，用户会开始跳过所有解释框；
+     ② 左边一道 2px 竖线做归属，不用整块底色：
+        整块底色会被读成"警告"，而这里多数是知识而不是警告；
+     ③ 首次出现时它承担"教一次"的职责，所以文案里必须给例子
+        （「香精约 5–15%」比「浓度中等」有用得多）。 */
+.term-note {
+  margin: 2px 0 14px;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--line);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.term-note strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+/* 推断值那块（第 9 步留香）：这里真的需要警示，因为它不是事实。
+   用 --warn（5.93:1）做竖线，仍不整块铺底 —— 铺底会把长段落读成一堵墙。 */
+.term-note.is-warn { border-left-color: var(--warn); }
+.term-note.is-warn strong { color: var(--warn); }
+
+/* ---------------- 三、十段进度条 ----------------
+   原来是 4 段、每段 3px 高。扩到 10 段后每段宽度从 25% 掉到 10%，
+   保持 3px 高会让整条读成一条虚线。收到 2px 并把段间距从 4px 收到 3px，
+   总高仍是 2px —— 它只是"走到第几步"的指示，不该抢标题的注意力。 */
+.progress {
+  gap: 3px;
+}
+.progress i {
+  height: 2px;
+}
+
+/* v35：香调两栏的「展开全部 58 个香调」按钮原先跟着内容流走 ——
+   左栏比右栏少一行 chip，两个按钮就错位 325px（实测 572 vs 897 的顶边）。
+   把 .note-col 变成纵向 flex，让 chips 吸水、按钮压到底。 */
+.note-col { display: flex; flex-direction: column; }
+.note-col .chips { flex: 1 1 auto; align-content: flex-start; }
+.note-col .btn-more { margin-top: 12px; align-self: flex-start; }
+
+/* ---------------- 四、锚点屏的两个下拉框 ----------------
+   复用浏览器原生 select：102 个品牌 + 该品牌的若干瓶，原生下拉在
+   千级选项下有内建的类型搜索与键盘导航，自绘的反而更差。
+   只调尺寸与边界色，不重画外观 —— 自绘 select 在 Windows 上
+   会丢掉系统级无障碍（讲述人读不出展开项）。 */
+.anchor-select {
+  display: block;
+  width: 100%;
+  min-height: 44px;              /* 触控下限 */
+  margin: 0 0 10px;
+  padding: 0 12px;
+  border: 1px solid var(--edge); /* 4.54:1，不是 --line(1.41) */
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+.anchor-select:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+/* 换品牌时只重建这一块（不整页重绘），所以它需要一个最小高度，
+   否则空态会比有内容时矮 44px，整页会跳一下。 */
+.anchor-slot { min-height: 0; }
+
+/* ---------------- 五、合并屏：香调双栏 ----------------
+   两栏并排。1440 下各占一半（360px），390 下改成单列堆叠 ——
+   窄屏并排会让每个 chip 只剩 80px，四字香调名折成两行。
+   两栏之间用一道竖线分隔，不用色块：色块会把"要"和"不要"读成
+   两个不同的卡片区，而它们其实是同一个问题的两面。 */
+.note-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 22px;
+  margin-top: 6px;
+}
+.note-grid > .note-col + .note-col {
+  border-left: 1px solid var(--line);
+  padding-left: 22px;
+}
+@media (max-width: 720px) {
+  .note-grid { grid-template-columns: minmax(0, 1fr); gap: 20px 0; }
+  .note-grid > .note-col + .note-col {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+  }
+}
+/* 栏头：标题 + 「已选 N」徽标。徽标是合并能成立的关键之一 ——
+   两栏同屏时，用户必须能立刻看出"我在这栏里已经勾了几个"，
+   否则滚到另一栏就忘了。 */
+.note-col-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.note-count {
+  flex: 0 0 auto;
+  font-size: 12px;                 /* 12px 是 test-contrast 的下限，不能再小 */
+  color: var(--ink-3);             /* 白底 6.19，三档底全过 4.5 */
+  font-variant-numeric: tabular-nums;
+}
+.note-count.is-on {
+  color: var(--blue);              /* 7.42 on 白，承载文字安全 */
+  font-weight: 600;
+}
+
+.q-title:focus {
+  outline: none;
+}
+/* 补偿：焦点落到标题时，左侧出现一根蓝竖条（就是上面那条 ::before）。
+   它与 :focus 同一条规则里声明 position:relative，不影响布局。 */
+.q-title:focus-visible {
+  outline: none;
+  position: relative;
+}
+.q-title:focus-visible::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 2px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--blue);
+}
+@media (max-width: 620px) {
+  .q-title:focus-visible::before {
+    left: -8px;
+    width: 2px;
+  }
+}
 /* ---------------- 三级描边：分层线（A9） ----------------
 
    ============================================================
