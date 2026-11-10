@@ -6287,33 +6287,11 @@ body {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .45);
 }
 
-/* ---- 广告角标（Eddie 2026-11-10 决策，v44）----
-   法律要求的是「可识别」，不是「把佣金机制写一遍」。贴在按钮文字右侧，
-   与点击点同处一个视觉单元 —— 页脚备注那种放法用户在滚动时读不到。
-
-   为什么不是 11px：test-contrast 有「全部文字 >= 12px」的断言，而且
-   11px 在 1x 屏上中文两字会糊。12px 是这里能用的最小档。
-
-   为什么用描边不用实底：按钮本身已经是 var(--fill-blue) 实底，
-   再叠一个实底块会变成两个竞争的重心。描边 + 透明底只是"标注"，
-   不抢按钮的动作语义。 */
-.pick-foot .buy-link .buy-ad {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 0 4px;
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.35;
-  letter-spacing: .02em;
-  /* 白字按钮上的一枚白描边：与 .buy-scope 的 opacity 分层同一套做法，
-     不引入新色值（--fill-blue 系已算过对比度预算）。 */
-  color: inherit;
-  border: 1px solid currentColor;
-  border-radius: 2px;
-  opacity: .82;
-  vertical-align: 1px;
-  white-space: nowrap;
-}
+/* ---- 广告角标已移除（Eddie 2026-11-10 19:19 决策：去角标、只留页脚声明）----
+   曾短暂存在 `.pick-foot .buy-link .buy-ad`（commit 583534a → 本次撤销）。
+   没有留下 `display:none` 之类的残留规则：类名已从 DOM 移除，
+   留空规则只会在下一次审计里被当成死代码。
+   广告披露现在由 app.js 的 renderFooter() 渲染成页脚一行 `.aff-note`。 */
 
 /* ---- 组内三个按钮的排布 ----
    一张卡最多三个入口：京东（搜索兜底）+ 淘宝官方 + 淘宝全网。

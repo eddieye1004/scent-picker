@@ -1334,13 +1334,17 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
     buy.every((a) => /noopener/.test(String(a.attrs.rel || '')) && /noreferrer/.test(String(a.attrs.rel || ''))),
     buy.map((a) => a.attrs.rel).join(' | '));
 
-  /* ---- 披露：2026-11-10 起改为按钮上的「广告」角标 ----
-     沿革：2026-11-02 挂整段「购买链接为推广链接」→ 2026-11-08 用户要求
-     删掉 → 2026-11-10 Eddie 拍板加最小角标。所以这条断言此前是
-     「必须没有 aff-note」，现在反转成「有佣金关系的按钮必须有、没有的必须没有」。
-
-     角标类名是 `.buy-ad.aff-note`：`.aff-note` 是广告披露的专用类，
-     `.buy-ad` 只负责样式。这样 DOM 层能单独问「这页有没有广告披露」。
+  /* ---- 披露：2026-11-10 19:19 起改为**页脚一行**，按钮上不再挂角标 ----
+     沿革（四段，每次都是 Eddie 拍板，别把名字记混）：
+       2026-11-02 页脚挂整段「购买链接为推广链接」
+       2026-11-08 用户要求整段删掉，页面只剩 rel=sponsored
+       2026-11-10 15:46 加按钮角标（commit 583534a）
+       2026-11-10 19:19 去角标、改回页脚一行（本次，决策原文「还是去掉角标，
+                        只留页脚声明」）
+     所以断言从「有佣金关系的按钮必须有角标」反转成：
+       · 按钮内**不许**再有任何 .aff-note 角标
+       · 页脚必须有且只有一条 .aff-note 披露，且写明佣金与不影响支付价格
+       · rel=sponsored 不变（机器可读信号保留）
 
      同时钉住保留的两条说明（它们不是广告披露，是事实说明）：
        · 双渠道说明：讲两个按钮差在哪、价格没排序
@@ -1349,38 +1353,33 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
   const cards = [...appRoot.querySelectorAll('.pick')];
   const directBuy = buy.filter((a) => a.attrs['data-kind'] === 'direct');
   const nonDirectBuy = buy.filter((a) => a.attrs['data-kind'] !== 'direct');
-  ok('有佣金关系的按钮各挂一枚「广告」角标',
-    directBuy.length > 0
-      && directBuy.every((a) => a.querySelectorAll('.aff-note').length === 1),
-    `direct 按钮 ${directBuy.length} 个，其中带角标 ${directBuy.filter((a) => a.querySelectorAll('.aff-note').length === 1).length} 个`);
-  ok('无佣金关系的按钮不挂广告角标',
-    nonDirectBuy.every((a) => a.querySelectorAll('.aff-note').length === 0),
-    `非 direct 按钮 ${nonDirectBuy.length} 个，误挂 ${nonDirectBuy.filter((a) => a.querySelectorAll('.aff-note').length > 0).length} 个`);
-  ok('角标文案就是「广告」两个字',
-    notes.length > 0 && notes.every((n) => n.textContent.trim() === '广告'),
-    notes.map((n) => JSON.stringify(n.textContent)).slice(0, 4).join(' | '));
-  /* 角标必须在 .buy-label 里：.buy-link 带 scope 时是 column 布局
-     （_wheel19.css:49），并列的 span 会掉成第三行、把按钮撑高。 */
-  ok('角标嵌在按钮文字里，不是并列的第三个块',
-    directBuy.every((a) => {
-      const labels = a.querySelectorAll('.buy-label');
-      return labels.length === 1 && labels[0].querySelectorAll('.aff-note').length === 1;
-    }),
-    directBuy.map((a) => `${a.querySelectorAll('.buy-label').length}/${a.querySelectorAll('.aff-note').length}`).join(','));
-  /* 角标是「可识别」的补充，不是 sponsored 的替代品 —— rel 必须照旧。 */
-  ok('有角标的按钮仍带 rel=sponsored',
-    directBuy.every((a) => String(a.attrs.rel || '').includes('sponsored')),
+  /* 按钮内的角标单独数：notes 是**全页** .aff-note（现在含页脚那一条），
+     直接拿 notes.length 判按钮会误伤。 */
+  const badgeInBuy = buy.reduce((n, a) => n + a.querySelectorAll('.aff-note').length, 0);
+  ok('按钮上不再挂「广告」角标（Eddie 2026-11-10 19:19 决策）',
+    badgeInBuy === 0,
+    `仍有 ${badgeInBuy} 枚 .aff-note 挂在按钮内`);
+  /* 页脚披露：类名 .aff-note，且在 .foot 里 —— 这是唯一允许出现广告披露的位置。 */
+  const footDisclosure = appRoot.querySelectorAll('footer.foot .aff-note');
+  ok('结果页页脚有且只有一行广告披露',
+    footDisclosure.length === 1,
+    `实际 ${footDisclosure.length} 行`);
+  ok('页脚披露写明「佣金」与「不影响支付价格」', (() => {
+    const t = (footDisclosure[0] || {}).textContent || '';
+    return /佣金/.test(t) && /不影响/.test(t);
+  })(), ((footDisclosure[0] || {}).textContent || '').slice(0, 40));
+  /* 披露只在结果页渲染（问卷屏没有任何购买链接）。DOM 桩支持有限，
+     这里钉住可判定的两点：披露带机器可读标记，且全页 .aff-note 只此一处。 */
+  ok('页脚披露带机器可读标记',
+    footDisclosure.length === 1 && footDisclosure[0].attrs['data-disclosure'] === 'affiliate-footer',
+    String((footDisclosure[0] || {}).attrs && footDisclosure[0].attrs['data-disclosure']));
+  ok('全页 .aff-note 只有页脚那一条（按钮内已清零）',
+    badgeInBuy === 0 && appRoot.querySelectorAll('.aff-note').length === 1,
+    `按钮内 ${badgeInBuy} 枚，全页 ${appRoot.querySelectorAll('.aff-note').length} 条`);
+  /* sponsored 是机器可读信号，与页面文案无关，必须照旧。 */
+  ok('有佣金关系的按钮仍带 rel=sponsored（机器可读信号不变）',
+    directBuy.length > 0 && directBuy.every((a) => String(a.attrs.rel || '').includes('sponsored')),
     directBuy.map((a) => a.attrs.rel).join(' | '));
-  ok('全页广告披露只在按钮内出现，不另挂段落',
-    notes.every((n) => {
-      let p = n.parentNode;
-      while (p && !(p.classList && p.classList.contains('pick'))) {
-        if (p.classList && p.classList.contains('link-note')) return false;
-        p = p.parentNode;
-      }
-      return true;
-    }),
-    `${notes.length} 枚角标`);
   /* 双渠道说明必须说清"价格没排序"——这是实测结论，不能省。
      只对有搜索渠道的卡要求；纯直达链的卡不许挂（它只有一个入口，写了就是编）。 */
   /* 测试桩的 querySelector 不支持属性选择器（已知限制，见文件头注释），
@@ -1426,10 +1425,18 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
   /* 链接必须带三个 rel 与 target=_blank，少一个都是安全问题 */
   const href = appMod.__aff.href(P, full);
   ok('拼出的链接里 pid 已编码', !!href && href.includes('P1'), String(href).slice(0, 60));
-  /* K4：披露文案的合规底线 —— 中国《互联网广告管理办法》第九条要求标明"广告"，
-     FTC 要求 clear and conspicuous。两条都落到"首句必须出现广告二字"。 */
+  /* K4：披露文案的合规底线。**口径已随 2026-11-10 19:19 决策改变**：
+     原文案要求以「广告」二字开头（《互联网广告管理办法》第九条的字面读法）。
+     Eddie 拍板改为页脚声明后，文案不再以「广告」开头 —— 这是**明知放宽**的
+     选择，所以断言改成守新文案必须成立的三件事：
+       · 说明这是「推广/联盟」关系（用户能识别商业性质）
+       · 说明本站可能获得「佣金」
+       · 说明不影响支付价格
+     不再断言「以广告开头」：那条已经与拍板后的实现相反，留着等于逼下一个人
+     在"测试绿"和"按决定执行"之间二选一。 */
   const disc = appMod.__aff.config().disclosure;
-  ok('披露文案以「广告」开头（国内法规要求）', disc.startsWith('广告'), disc.slice(0, 20));
+  ok('披露文案说明这是推广/联盟关系', /联盟推广链接|推广链接/.test(disc), disc.slice(0, 30));
+  ok('披露文案写明可能获得佣金', disc.includes('佣金'), disc.slice(0, 40));
   ok('披露说明不影响支付价格', disc.includes('不影响'), disc.slice(0, 40));
   /* ?pid= 只能覆盖 pid，不能覆盖 target —— 否则任何访客都能把链接指向别处 */
   /* ?pid= 只覆盖 pid，绝不覆盖 target —— 否则任何访客都能把链接指向别处 */
