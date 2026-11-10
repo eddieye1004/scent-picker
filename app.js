@@ -90,80 +90,115 @@ const el = (tag, attrs = {}, ...kids) => {
   return n;
 };
 
-/* ---------- 步骤定义 ---------- */
+/* ---------- 步骤定义 ----------
+   ==== 2026-11-10：一屏一问（Eddie 决策：方向 B 机制 + 方向 A 骨架）====
+   改动前是"一屏合并多问"：第 2 步同屏两栏香调、第 4 步同屏场合圆盘+季节、
+   第 5 步同屏滑块+浓度+留香。合并是当时为了"少翻页"做的，代价是
+   **一屏里塞了 2–3 个问题，用户不知道自己在答第几题**，进度条也只有 6–7 段，
+   与实际要做的决定数不符。
+
+   现在拆成一屏一问，每屏只做**一个决定**：
+     1 family            香型（轮盘，外圈+中圈）
+     2 likedNotes        想要的味道
+     3 dislikedNotes     受不了的味道
+     4 mood              气质
+     5 occasion          场合
+     6 season            季节
+     7 intensity         浓淡
+     8 concentration     浓度
+     9 dislikedFamilies  整族排除（仅情绪入口）
+    10 anchor            已知款
+
+   为什么把「想要的」与「受不了的」拆开而不是留在同屏：
+   同屏两栏的互斥逻辑（勾了左边要从右边移除）是这一屏唯一需要跨栏同步的状态，
+   拆开后两栏永不同时存在，那段同步代码整块消失 —— 少一处能出错的地方。
+   代价是多翻一页，但每页只有一个决定，翻开时不需先判断"这屏有几问"。
+
+   为什么「整族排除」仍是按入口动态出现：
+   实测（scripts/probe-step6-options.mjs，2026-11-09）家族入口 30 种组合里
+   **0 种**改变 top-3 —— 候选池被 isDominant 过滤成 100% 本族，
+   而扣分要求「该族 = 这瓶的主族」，排除任何别的族都打不中。
+   点了没反应比不给这个入口更糟，所以只在情绪入口显示。
+   */
 const STEPS = [
   {
     id: 'family',
     short: '香型',
-    kicker: '第 1 步',
     title: '你闻着舒服的，是哪一类味道？',
     help: '不用记名字。外圈挑大方向，中圈再收窄一层；不确定就只选外圈',
     render: renderFamily,
   },
   {
-    id: 'notes',
-    short: '香调',
-    kicker: '第 2 步',
-    title: '点名具体想闻到的、和完全受不了的味道',
-    /* v42：原来是「左边是要的，右边是不要的」。
-       两栏在 @media (max-width: 720px) 会叠成单列（_wheel12.css），
-       手机上"左右"根本不成立。改成按栏标题说，位置无关。 */
-    help: '「想要的」和「受不了的」分开点。排除比加分更有效——讨厌的东西没有替代品，喜欢的往往有',
-    render: renderNotesCombined,
+    id: 'likedNotes',
+    short: '想要',
+    title: '有没有特别想闻到的味道？',
+    help: '点名具体香材比挑大方向更准。一个都想不起来就跳过——后面还有别的维度',
+    render: renderLikedNotes,
+  },
+  {
+    id: 'dislikedNotes',
+    short: '受不了',
+    title: '有没有完全受不了的味道？',
+    help: '这一题比上一题更有效：讨厌的东西没有替代品，喜欢的往往有。想不起来就跳过',
+    render: renderDislikedNotes,
   },
   {
     id: 'mood',
     short: '气质',
-    kicker: '第 3 步',
     title: '你希望它给人什么感觉？',
-    /* v42：原句是「三组都是"感觉"，不是味道本身。可以只答一组，也可以全答」。
-       v37 把冷暖与甜度合并进气质原型之后，这一屏只剩一组选项 ——
-       「三组」「只答一组」「也可以全答」全都对不上，用户会以为漏渲染了两组。 */
-    help: '这一组讲的是它给人的感觉，不是具体味道。七个里挑一个最像的就行',
+    help: '这一组讲的是它给人的感觉，不是具体味道。挑一个最像的就行',
     render: renderMood,
   },
   {
-    id: 'context',
-    short: '场景',
-    kicker: '第 4 步',
-    title: '什么时候用它？',
-    help: '主战场决定浓度下限；季节决定它会不会在夏天闷、冬天散太快',
-    render: renderContext,
+    id: 'occasion',
+    short: '场合',
+    title: '主要什么时候用？',
+    help: '主战场决定浓度下限。选一个最像的，拿不准就选日常',
+    render: renderOccasion,
   },
   {
-    id: 'strength',
+    id: 'season',
+    short: '季节',
+    title: '主要在哪个季节用？',
+    help: '季节决定它会不会在夏天闷、冬天散太快。不确定就跳过，不答不扣分',
+    render: renderSeason,
+  },
+  {
+    id: 'intensity',
     short: '浓淡',
-    kicker: '第 5 步',
-    /* v42：原 help 是「浓度越高留得越久。留香那一档是按浓度推断的，不是实测值」，
-       但 v42 之后留香已不参与打分、也不再是可改的输入，只是旁注。
-       help 里承诺"留多久"会让用户以为那一档会被算进推荐。 */
     title: '想要多浓？',
-    help: '浓淡是你想要的体感，浓度是香精占比。两者不完全同步，差得远时会提醒你',
-    render: renderStrength,
+    help: '浓淡是你想要的体感，不是香精占比 —— 那是下一题',
+    render: renderIntensity,
+  },
+  {
+    id: 'concentration',
+    short: '浓度',
+    title: '偏好哪种浓度？',
+    help: '浓度是香精占比，决定大概能留多久。不确定就选日常最常见的淡香精',
+    render: renderConcentration,
   },
   {
     id: 'dislikedFamilies',
     short: '排除',
-    kicker: '第 6 步',
     title: '有没有哪一类你完全不想要？',
     help: '整族划掉。比逐个香调排除更粗，但更快——不想再看到木质就整族关掉',
     render: renderDislikedFamilies,
-    /* 只在**情绪入口**下出现。
-       实测（scripts/probe-step6-options.mjs，2026-11-09）：
-       · 家族入口：30 种「选一族 + 排除另一族」组合里 **0 种**改变 top-3。
-         原因是候选池被 isDominant 过滤成 100% 本族（六个族实测全 10/10），
-         而扣分条件要求「该族 = 这瓶的主族」—— 排除任何别的族都打不中。
-         这一屏对家族入口用户等于白问，点了没反应比不给这个入口更糟。
-       · 情绪入口：36 种组合里 15 种改变 top-3、6 种改变第 1 名。真有用，不能删。
-       所以按入口动态出现，而不是整屏删掉或放宽扣分条件（后者会连带污染情绪侧）。 */
+    /* 只在**情绪入口**下出现，理由见本节顶部注释。 */
     when: (a) => !a.family,
   },
   {
     id: 'anchor',
     short: '已知款',
-    kicker: '第 7 步',
     title: '有没有已经试过、并且喜欢的香水？',
-    help: '可跳过。这一屏比前面所有问题都准——直接拿它的香调表去找相似的气味',
+    /* 一屏一问版的重写：原来的 help 是「可跳过。这一题比前面所有问题都准——
+       直接拿它的香调表去找相似的气味」。第二句对"零基础"的人是**反向激励**：
+       一个不懂香水的人点进来，先看到"这一题最准"，再看到"记得是哪一瓶"的
+       品牌搜索框，会以为必须答、且必须记得名字，于是卡在这里或随手乱填。
+       零基础人群不知道名字是常态，所以 help 第一句就要卸掉这个压力，
+       并且把"跳过"放在最前面（原句放在"可跳过"之后紧接"最准"，读起来像
+       "可跳过但跳了就亏"）。 */
+    help: '不记得名字就跳过 —— 这是唯一一题需要你认得瓶子的，答不出很正常。'
+      + '如果记得品牌，选一下会明显更准',
     render: renderAnchor,
   },
 ];
@@ -1546,6 +1581,19 @@ function renderFamily() {
      现在先给主按钮，再给退路。叙事上也更顺：先走主路，走不通再换。 */
   wrap.appendChild(navBar('family'));
 
+  /* 第 6 屏「整族排除」在家族入口下**不出现**（实测 0/30 组合改变 top-3，
+     见 STEPS 里 dislikedFamilies 的 when）。但这里必须告诉用户它去哪了 ——
+     否则从情绪入口来的用户会发现自己少了一屏，以为出了 bug；
+     而家族入口的用户则完全不知道"整族划掉"这个能力存在。
+     说清两件事：① 你选的大类已经天然排除了别的族；② 真想排除就去点香调。 */
+  if (state.answers.family) {
+    wrap.appendChild(el('div', { class: 'term-note' },
+      el('strong', {}, '选了香型就等于排除了别的族：'),
+      ' 候选只从你选的这一族里出，所以没有"排除整族"那一题。',
+      ' 想再收窄，下一屏可以点名具体受不了的香调（比如"不要香草"）。'
+    ));
+  }
+
   wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:24px' },
     '不想按大类选？也可以按感觉挑一个（二选一，和上面互斥）'));
   const EMO_OPTS = (TAX.emotionMap || []).map((e) => ({ id: e.id, zh: e.zh, desc: e.desc }));
@@ -2230,10 +2278,14 @@ function renderAnchor() {
     el('p', { class: 'q-help' }, head.help)
   ));
 
+  /* 说明从"为什么这一屏最有用"改成"为什么答不出很正常"。
+     原句「这一屏最有用」对零基础用户是压力：他恰恰是最不知道该答什么的那批人。
+     真正该讲的信息是**为什么不知道名字是常态**（大家用完就扔瓶子），
+     以及"记得牌子就够了"。 */
   wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '为什么这一屏最有用：'),
-    ' 前面问的都是"你觉得你喜欢什么"，这一屏问的是"你实际喜欢过什么"。',
-    ' 两者经常不一致 —— 很多人以为自己喜欢木质，实际一直在买花香。'
+    el('strong', {}, '不记得名字很正常：'),
+    ' 大部分人用完就把瓶子扔了，能想起牌子已经很不容易。',
+    ' 记得牌子就选牌子——哪怕记不清是哪一瓶，随便挑一支风格接近的也比空着强。'
   ));
 
   /* --- 输入 ①：品牌 → 香水 --- */
@@ -2336,9 +2388,24 @@ function renderAnchor() {
    ============================================================ */
 const NOTE_PEEK = 16;
 
-function renderNotesCombined() {
+/* ============================================================
+   一屏一问（2026-11-10）：香调拆成「想要」与「受不了」两屏
+   ------------------------------------------------------------
+   原来两栏同屏，唯一的复杂度是**跨栏互斥**：勾了左边要把右边同名项移除，
+   而右边那栏的 DOM 不会自动知道，必须显式重画。
+   拆开之后两栏永不同时存在，那段同步代码整块删掉 —— 少一处能出错的耦合。
+
+   两屏共用一个渲染器：差别只有 key / 标题 / 语气 / 候选顺序。
+   不写两个几乎相同的函数，否则下一次改 chip 行为要改两遍、且必然漏一处。
+   ============================================================ */
+function renderNotePicker(kind) {
+  const neg = kind === 'disliked';
+  const key = neg ? 'dislikedNotes' : 'likedNotes';
+  const zhKey = neg ? 'dislikedZh' : 'likedZh';
+  const stepId = neg ? 'dislikedNotes' : 'likedNotes';
+
   const wrap = el('div', { class: 'fade-in' });
-  const head = stepHead('notes');
+  const head = stepHead(stepId);
   wrap.appendChild(el('div', { class: 'stage-lead' },
     el('div', { class: 'q-kicker' }, head.kicker),
     el('h2', { class: 'q-title' }, head.title),
@@ -2347,170 +2414,140 @@ function renderNotesCombined() {
 
   if (!DATA?.perfumes?.length) {
     ensurePerfumes()
-      .then(() => { if (curSteps()[state.step]?.id === 'notes') render(); })
+      .then(() => { if (curSteps()[state.step]?.id === stepId) render(); })
       .catch((err) => { wrap.appendChild(el('p', { class: 'q-help' }, `香调表加载失败：${err.message}`)); });
     wrap.appendChild(el('div', { class: 'skeleton' },
       el('div', { class: 'skeleton-ring' }),
       el('p', { class: 'skeleton-note' }, '正在读取香水库……')
     ));
-    wrap.appendChild(navBar('notes'));
+    wrap.appendChild(navBar(stepId));
     return wrap;
   }
 
   const usable = getUsableNotes();
+  /* 候选顺序：`getUsableNotes()` 按家族轮转排，前 16 个只覆盖 3 个家族。
+     讨厌那一屏取**尾部** 16 个 —— 否则两屏首屏内容几乎一样，
+     而「讨厌」这一屏最常被点的是 gourmand / amber 里的甜腻项。 */
+  const source = neg ? [...usable].reverse() : usable;
 
-  /* 两栏各自建一个"渲染函数"，勾选后只重画这一栏的 chip 顺序，
-     不整页 render() —— 整页重绘会让另一栏滚回顶部，用户正在看的东西会跳走。 */
-  const buildColumn = (key, neg, title) => {
-    const zhKey = neg ? 'dislikedZh' : 'likedZh';
-    const col = el('div', { class: 'note-col' });
-    const headRow = el('div', { class: 'note-col-head' });
-    const badge = el('span', { class: 'note-count' });
-    headRow.append(el('span', { class: 'chips-label', style: 'margin:0' }, title), badge);
-    col.appendChild(headRow);
+  const col = el('div', { class: 'note-col' });
+  const headRow = el('div', { class: 'note-col-head' });
+  const badge = el('span', { class: 'note-count' });
+  headRow.append(
+    el('span', { class: 'chips-label', style: 'margin:0' },
+      neg ? '我受不了这些味道' : '我喜欢这些味道'),
+    badge
+  );
+  col.appendChild(headRow);
 
-    const box = el('div', { class: 'chips' });
-    const moreBox = el('div', { class: 'chips', style: 'margin-top:8px;display:none' });
-    let expanded = false;
+  const box = el('div', { class: 'chips' });
+  const moreBox = el('div', { class: 'chips', style: 'margin-top:8px;display:none' });
+  let expanded = false;
 
-    /* 两栏的"常用 16"必须互补，否则同一屏里两栏内容几乎一样。
-       左栏（喜欢）取轮转后的前 16，右栏（讨厌）取尾部 16 ——
-       实测这样两栏合并后覆盖全部 6 个家族；都取前 16 时只覆盖 3 个
-       （citrus / floral / woody），右栏一打开就是左栏的镜像。 */
-    const source = neg ? [...usable].reverse() : usable;
-
-    const chipOf = (n) => {
-      const on = state.answers[key].includes(n.en);
-      /* onclick 是箭头函数，没有自己的 this —— 不能写 this.setAttribute。
-         这里用闭包变量 chipEl 持有节点本身，在 el() 返回后赋值。 */
-      let chipEl = null;
-      const node = el('button', {
-        class: 'chip' + (neg && on ? ' neg' : ''),
-        type: 'button',
-        'data-col': neg ? 'disliked' : 'liked',
-        'data-en': n.en,
-        'aria-pressed': String(on),
-        onclick: () => {
-          const arr = state.answers[key];
-          const otherKey = neg ? 'likedNotes' : 'dislikedNotes';
-          const otherZhKey = neg ? 'likedZh' : 'dislikedZh';
-          const other = state.answers[otherKey];
-          const idx = arr.indexOf(n.en);
-          if (idx >= 0) {
-            arr.splice(idx, 1);
-            delete state.answers[zhKey][n.en];
-          } else {
-            arr.push(n.en);
-            state.answers[zhKey][n.en] = n.zh;
-            // 同一香调不能既喜欢又讨厌（D41 的既有约束，合并后仍然成立）
-            const oi = other.indexOf(n.en);
-            if (oi >= 0) { other.splice(oi, 1); delete state.answers[otherZhKey][n.en]; }
-          }
-          /* **就地更新，不重建整栏**。
-             第一版在点击后调 redraw() 重建 box.innerHTML —— 后果有两个：
-               ① 被点的那个 chip 节点被丢弃，焦点与 :focus-visible 全丢，
-                  键盘用户点一次就得重新 Tab 一遍；
-               ② 测试里 dispatch 之后拿到的旧节点读 aria-pressed 永远是 false，
-                  看起来像"点击无效"。
-             现在只改这一枚 chip 自己的状态与位置。 */
-          const now = idx < 0;
-          if (chipEl) {
-            chipEl.setAttribute('aria-pressed', String(now));
-            chipEl.classList.toggle('neg', neg && now);
-            if (now) box.insertBefore(chipEl, box.firstChild);   // 已选置顶
-          }
-          const cnt = state.answers[key].length;
-          badge.textContent = cnt ? `已选 ${cnt}` : '未选';
-          badge.classList.toggle('is-on', cnt > 0);
-        },
-      }, n.zh);
-      chipEl = node;
-      return node;
-    };
-
-    const redraw = () => {
-      const sel = state.answers[key];
-      /* ③ 已选置顶：把已勾的按"勾选顺序"排在前面，未勾的按 families 轮转顺序。
-         保持相对顺序是为了页面不抖 —— 每次点击后全部重排会让刚点的那个 chip
-         跳到别处，用户会点第二次。 */
-      const ordered = [
-        ...sel.map((en) => usable.find((u) => u.en === en)).filter(Boolean),
-        ...source.filter((u) => !sel.includes(u.en)),
-      ];
-      const peek = expanded ? ordered : ordered.slice(0, NOTE_PEEK);
-      const rest = expanded ? [] : ordered.slice(NOTE_PEEK);
-
-      box.innerHTML = '';
-      peek.forEach((n) => box.appendChild(chipOf(n)));
-      moreBox.innerHTML = '';
-      rest.forEach((n) => moreBox.appendChild(chipOf(n)));
-
-      // ② 计数徽标
-      badge.textContent = sel.length ? `已选 ${sel.length}` : '未选';
-      badge.classList.toggle('is-on', sel.length > 0);
-    };
-
-    const moreBtn = el('button', {
+  const chipOf = (n) => {
+    const on = state.answers[key].includes(n.en);
+    /* onclick 是箭头函数，没有自己的 this —— 用闭包变量持有节点本身。 */
+    let chipEl = null;
+    const node = el('button', {
+      class: 'chip' + (neg && on ? ' neg' : ''),
       type: 'button',
-      class: 'btn ghost btn-more',
+      'data-col': neg ? 'disliked' : 'liked',
+      'data-en': n.en,
+      'aria-pressed': String(on),
       onclick: () => {
-        expanded = !expanded;
-        moreBox.style.display = expanded ? 'flex' : 'none';
-        moreBtn.textContent = expanded ? '收起' : `展开全部 ${usable.length} 个香调`;
-        redraw();
+        const arr = state.answers[key];
+        const otherKey = neg ? 'likedNotes' : 'dislikedNotes';
+        const otherZhKey = neg ? 'likedZh' : 'dislikedZh';
+        const idx = arr.indexOf(n.en);
+        if (idx >= 0) {
+          arr.splice(idx, 1);
+          delete state.answers[zhKey][n.en];
+        } else {
+          arr.push(n.en);
+          state.answers[zhKey][n.en] = n.zh;
+          /* 同一香调不能既喜欢又讨厌（D41）。两屏分开后这条约束仍要守 ——
+             用户可能在第 2 屏点了「香草」，再在第 3 屏把它点进「受不了」。
+             现在只从另一栏移除，不再需要重画另一栏的 DOM（它不在这一屏上）。 */
+          const oi = state.answers[otherKey].indexOf(n.en);
+          if (oi >= 0) { state.answers[otherKey].splice(oi, 1); delete state.answers[otherZhKey][n.en]; }
+        }
+        /* 就地更新，不重建整栏：重建会丢掉被点节点的焦点，键盘用户点一次就得重 Tab。 */
+        const now = idx < 0;
+        if (chipEl) {
+          chipEl.setAttribute('aria-pressed', String(now));
+          chipEl.classList.toggle('neg', neg && now);
+          if (now) box.insertBefore(chipEl, box.firstChild);
+        }
+        const cnt = state.answers[key].length;
+        badge.textContent = cnt ? `已选 ${cnt}` : '未选';
+        badge.classList.toggle('is-on', cnt > 0);
       },
-    }, `展开全部 ${usable.length} 个香调`);
-
-    col.append(box, moreBox, moreBtn);
-    redraw();
-    col._redraw = redraw;
-    return col;
+    }, n.zh);
+    chipEl = node;
+    return node;
   };
 
-  const likedCol = buildColumn('likedNotes', false, '我喜欢这些味道');
-  const dislikedCol = buildColumn('dislikedNotes', true, '我受不了这些味道（更有效）');
+  const redraw = () => {
+    const sel = state.answers[key];
+    /* 已选置顶，未选保持 source 顺序 —— 每次全部重排会让刚点的那个跳走。 */
+    const ordered = [
+      ...sel.map((en) => usable.find((u) => u.en === en)).filter(Boolean),
+      ...source.filter((u) => !sel.includes(u.en)),
+    ];
+    const peek = expanded ? ordered : ordered.slice(0, NOTE_PEEK);
+    const rest = expanded ? [] : ordered.slice(NOTE_PEEK);
+    box.innerHTML = '';
+    peek.forEach((n) => box.appendChild(chipOf(n)));
+    moreBox.innerHTML = '';
+    rest.forEach((n) => moreBox.appendChild(chipOf(n)));
+    badge.textContent = sel.length ? `已选 ${sel.length}` : '未选';
+    badge.classList.toggle('is-on', sel.length > 0);
+  };
 
-  /* 两栏的互斥要双向生效：勾左边会改右边的状态数组，
-     但右边那一栏的 DOM 不会自动知道 —— 必须显式重画它。
-     这就是"两栏同屏"比"拆两屏"多出来的唯一复杂度，代价是可控的。 */
-  const grid = el('div', { class: 'note-grid' }, likedCol, dislikedCol);
-  wrap.appendChild(grid);
+  const moreBtn = el('button', {
+    type: 'button',
+    class: 'btn ghost btn-more',
+    onclick: () => {
+      expanded = !expanded;
+      moreBox.style.display = expanded ? 'flex' : 'none';
+      moreBtn.textContent = expanded ? '收起' : `展开全部 ${usable.length} 个香调`;
+      redraw();
+    },
+  }, `展开全部 ${usable.length} 个香调`);
 
-  // 每次点击后同步重画另一栏。挂在容器上统一处理，避免每个 chip 各绑一遍。
-  grid.addEventListener('click', (ev) => {
-    const t = ev.target.closest('.chip');
-    if (!t) return;
-    const mineDis = t.getAttribute('data-col') === 'disliked';
-    (mineDis ? likedCol : dislikedCol)._redraw();
-  });
+  col.append(box, moreBox, moreBtn);
+  redraw();
+  wrap.appendChild(col);
 
-  /* v42：这里的数字必须跟着入口走。
-     D61 把「整族排除」做成只在情绪入口出现以后，这一屏之后还剩几屏就分叉了：
-       家族入口 notes → mood, context, strength, anchor        = 4 屏
-       情绪入口 notes → mood, context, strength, dislikedFamilies, anchor = 5 屏
-     写死「5 屏」会让走家族入口的人数到第 4 屏就出结果，以为自己漏了一屏。
-     用 curSteps() 现算，不给文案留死数字。 */
+  /* 说明随屏变化。两句都不是装饰 —— 实测里"跳过"与"必须答"两种误解都出现过。 */
   {
     const all = curSteps();
-    const idx = all.findIndex((st) => st.id === 'notes');
+    const idx = all.findIndex((st) => st.id === stepId);
     const rest = idx >= 0 ? all.length - idx - 1 : 0;
     wrap.appendChild(el('div', { class: 'term-note' },
-      el('strong', {}, '都答不出来也没关系：'),
-      ` 跳过这一屏，后面还有 ${rest} 屏在问别的维度。`,
-      ' 但如果你能想起一个明确受不了的东西（比如"我闻不了香草"），命中率会明显提高。'
+      neg
+        ? el('strong', {}, '这一题比上一题更有效：')
+        : el('strong', {}, '想不起来也没关系：'),
+      neg
+        ? ' 讨厌的东西没有替代品，喜欢的东西往往能找到几个相似的 —— 排除一项，比多喜欢一项更能收窄范围。'
+        : ` 跳过这一屏，后面还有 ${rest} 屏在问别的维度。`,
+      neg
+        ? ''
+        : ' 但如果你能想起一个明确想闻到的（比如"我想要柠檬"），命中率会明显提高。'
     ));
   }
 
-  wrap.appendChild(navBar('notes'));
+  wrap.appendChild(navBar(stepId));
   return wrap;
 }
 
+function renderLikedNotes() { return renderNotePicker('liked'); }
+function renderDislikedNotes() { return renderNotePicker('disliked'); }
+
 /* ============================================================
-   合并屏 2：气质（第 3 步）
+   第 4 屏：气质（原第 3 步）
    ------------------------------------------------------------
-   气质 + 气味温度 + 甜度，三问都在说"给人的感觉"。
-   合并的代价是这一屏更长，所以三组之间用分隔线与小标题明确分区，
-   并且**都不强制**——只答一组也能继续。
+   七个原型是"气味给人的感觉"，不是香调名。
    ============================================================ */
 function renderMood() {
   const wrap = el('div', { class: 'fade-in' });
@@ -2632,129 +2669,110 @@ function renderMood() {
    场合 + 季节，两问都在说"什么时候用"。
    季节的"冬季只有 146/400"那句数据说明保留 —— 它是用户会困惑的地方。
    ============================================================ */
-function renderContext() {
+/* ============================================================
+   第 5 屏：场合（原「场景」屏拆出的前半）
+   ------------------------------------------------------------
+   原来场合圆盘与季节分段控件同屏。实测 1440×900 时季节那一问的标签落在
+   top=849、视口 900 —— 第二问被圆盘挤到折叠线以下，用户滚下去才知道还有一题。
+   拆成两屏之后，圆盘独占一屏，不再挤任何东西。
+   ============================================================ */
+function renderOccasion() {
   const wrap = el('div', { class: 'fade-in' });
-  const head = stepHead('context');
+  const head = stepHead('occasion');
   wrap.appendChild(el('div', { class: 'stage-lead' },
     el('div', { class: 'q-kicker' }, head.kicker),
     el('h2', { class: 'q-title' }, head.title),
     el('p', { class: 'q-help' }, head.help)
   ));
 
-  wrap.appendChild(el('div', { class: 'chips-label' }, '① 主战场（选一个）'));
   wrap.appendChild(buildDisc(TAX.occasionMap, {
     label: '主要使用场合',
     selectedId: state.answers.occasion,
     onPick: (o) => { state.answers.occasion = o.id; },
   }));
 
-  /* ② 主季节 —— 从 2×2 卡片网格改成单行分段控件。
-     原因不是"更好看"，是**它被圆盘挤出了首屏**：
-     实测 1440×900 时「② 主季节」的标签落在 top=849、网格 top=875、
-     视口 900 —— 用户滚下去才能看见第二问，而这一屏的标题是
-     「什么时候用它？」。1366×768 更糟（标签 727、网格 753）。
-
-     为什么不缩圆盘：场合圆盘是本屏的主交互，缩它会把它降级成次要件；
-     而且 base.css 那四档高度断点（62/56/54/50vh）已经把它压到接近下限。
-
-     为什么换成 segControl 而不是别的：
-       1. 季节是 4 个**有序且等长**的短词（春/夏/秋/冬），
-          这正是分段控件（刻度语法）的定义场景；卡片网格是无序语法。
-       2. 第 3 步的冷暖、甜度已经是同一形态，本屏复用它 = 全站一种语法。
-       3. 高度从 145px 压到 46px，配合 `_wheel17.css` 的边距收缩，
-          季节这一问整体进首屏（1440 实测 seg 841..887，视口 900）。
-
-     代价：每季那句解释（「花开、微湿…」）从卡片里消失了。
-       用 segHint 补回来 —— 选中后下方一句说明当前季，与第 3 步同构。 */
-  const seasonOpts = SEASONS;
-  let seasonHint = null;
-  wrap.appendChild(el('div', { class: 'chips-label' }, '② 主季节'));
-  wrap.appendChild(segControl(seasonOpts, state.answers.season, (id) => {
-    state.answers.season = id;
-  }, '主季节', (id) => updateSegHint(seasonHint, seasonOpts, id)));
-  /* 未选时不能用 segHint 的默认行为：它会把第一项（春）那句解释当成
-     "当前值"显示出来，配上 is-idle 的降级透明度，读起来像
-     「你选了春，只是没高亮」—— 这是错误信息。
-     实际影响比第 3 步更明显：冷暖/甜度那一屏下方紧跟着 term-note，
-     用户能读出"这是在讲怎么判断"；本屏下方直接是覆盖率那段数字，
-     一句「花开、微湿」孤零零挂着，只能读成"已选春"。
-     所以这里在未选时说一句真正的指引，选中后才换成该季解释。 */
-  seasonHint = segHint(seasonOpts, state.answers.season);
-  if (state.answers.season == null) {
-    seasonHint.textContent = '按你打算主要在哪个季节用选一个；不确定就跳过，不答不扣分。';
-  }
-  wrap.appendChild(seasonHint);
-
-  /* 次选季节已在 v37 删除（2026-11-09）。
-     实测依据（scripts/probe-q-drop.mjs 200 组随机画像）：
-     删掉它之后 top-1 只换 7.6%、top-3 换 16.2%、top-10 平均重叠 9.30/10 ——
-     全库 13 个维度里最弱的那个，其余维度最弱的也有 8.16/10。
-     它当初是为了"春秋两季都能穿"这类过渡香，但 scoring 里 season 与 seasonSecond
-     是两条独立加分，用户答了次选只是让第二季也拿满分，
-     而主季节命中时已经盖住了大部分场景 —— 收益落在噪声里。
-
-     这不是"少问一题"的取舍：那一屏同时还在讲季节覆盖率的数字，
-     留着两个季节控件会让「冬天候选少」这句话读起来像在说次选也算数。 */
-
-  /* 这段数字是**用户可见**的，必须跟数据同步。
-     实测踩过：上游从 1320 长到 1479 后，这里的「春 382 · 夏 254 · 秋 389 · 冬 146」
-     与「1228 瓶」全是旧快照的值 —— 页面上写的证据与库里的实际分布对不上，
-     而这类文字恰恰是靠"说得具体"来建立可信度的，写错等于自拆台。
-
-     当前值（1388 瓶，2026-11-01 实测重算，脚本见 docs 里的 D56）：
-       春 1331 / 夏 840 / 秋 1357 / 冬 548（平均每瓶标 2.94 个季节，无空标注）
-     冬天仍是最少的 —— 结论没变，只是数字换了。 */
   wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '关于候选多少：'),
-    ' 库里按季节标注为「春 1331 · 夏 840 · 秋 1357 · 冬 548」（1388 瓶中的标注覆盖数，每瓶平均标 2.9 个季节）。',
-    ' 冬天能选的最少，这是数据分布，不是推荐变差了。'
+    el('strong', {}, '为什么先问场合：'),
+    ' 场合决定浓度下限与时段。同一瓶香水在通勤和约会里的宽容度差得很远，'
+    + ' 这一项比"你觉得自己喜欢什么"更稳定。'
   ));
 
-  wrap.appendChild(navBar('context'));
+  wrap.appendChild(navBar('occasion'));
   return wrap;
 }
 
 /* ============================================================
-   合并屏 4：浓淡持久（第 5 步）
+   第 6 屏：季节（原「场景」屏拆出的后半）
    ------------------------------------------------------------
-   浓郁度滑块 + 浓度档 + 留香时长，三问都在说"多浓、留多久"。
-   **这一屏有一个联动必须做**：留香是由浓度推断的（taxonomy 的
-   concentrationLongevity.map），所以选浓度时应该同步把留香那一档
-   跟着填上 —— 否则用户要手填一个"系统已经能从上一问算出来"的值，
-   而两者不一致时引擎会同时收到两个矛盾的约束。
+   季节用分段控件而不是卡片网格：4 个有序等长短词正是分段控件的语义场景。
+   卡片网格（无序语法）在这里会误导成"4 个并列选择"。
    ============================================================ */
-function renderStrength() {
+function renderSeason() {
   const wrap = el('div', { class: 'fade-in' });
-  const head = stepHead('strength');
+  const head = stepHead('season');
   wrap.appendChild(el('div', { class: 'stage-lead' },
     el('div', { class: 'q-kicker' }, head.kicker),
     el('h2', { class: 'q-title' }, head.title),
     el('p', { class: 'q-help' }, head.help)
   ));
 
-  // ① 浓郁度滑块（沿用原实现）
+  const seasonOpts = SEASONS;
+  let seasonHint = null;
+  wrap.appendChild(segControl(seasonOpts, state.answers.season, (id) => {
+    state.answers.season = id;
+  }, '主季节', (id) => updateSegHint(seasonHint, seasonOpts, id)));
+
+  /* 未选时不能用 segHint 的默认行为：它会把第一项（春）那句解释当成"当前值"
+     显示出来，配上 is-idle 的降级透明度，读起来像「你选了春，只是没高亮」。
+     未选时说一句真正的指引，选中后才换成该季解释。 */
+  seasonHint = segHint(seasonOpts, state.answers.season);
+  if (state.answers.season == null) {
+    seasonHint.textContent = '按你打算主要在哪个季节用选一个；不确定就跳过，不答不扣分。';
+  }
+  wrap.appendChild(seasonHint);
+
+  /* 这段数字是**用户可见**的，必须跟数据同步（1388 瓶实测，D56）。
+     写错等于自拆台 —— 这类文字恰恰靠"说得具体"建立可信度。 */
+  wrap.appendChild(el('div', { class: 'term-note' },
+    el('strong', {}, '关于候选多少：'),
+    ' 库里按季节标注为「春 1331 · 夏 840 · 秋 1357 · 冬 548」（1388 瓶中的标注覆盖数，每瓶平均标 2.9 个季节）。',
+    ' 冬天能选的最少，这是数据分布，不是推荐变差了。'
+  ));
+
+  wrap.appendChild(navBar('season'));
+  return wrap;
+}
+
+/* ============================================================
+   第 7 屏：浓淡（原「浓淡持久」屏拆出的前半）
+   ------------------------------------------------------------
+   只有滑块一问了。原来同屏还有浓度与留香，三问都在说"多浓"，
+   但前两问测的是两件不同的事（体感 vs 香精占比），拆开才说得清。
+   ============================================================ */
+function renderIntensity() {
+  const wrap = el('div', { class: 'fade-in' });
+  const head = stepHead('intensity');
+  wrap.appendChild(el('div', { class: 'stage-lead' },
+    el('div', { class: 'q-kicker' }, head.kicker),
+    el('h2', { class: 'q-title' }, head.title),
+    el('p', { class: 'q-help' }, head.help)
+  ));
+
   const read = el('div', { class: 'scale-read' });
   const updateRead = () => {
     const v = Number(state.answers.intensity);
     const [a, b] = INTENSITY_LABEL[v];
     read.innerHTML = `<b>${v} / 5 · ${a}</b><br><span>${b}</span>`;
   };
-  wrap.appendChild(el('div', { class: 'chips-label' }, '① 你想要多浓'));
   const input = el('input', {
     type: 'range', min: '1', max: '5', step: '1',
     value: String(state.answers.intensity),
     'aria-label': '浓郁度',
     oninput: (ev) => { state.answers.intensity = Number(ev.target.value); updateRead(); },
   });
-  /* 5 个档位要有落点标记。
-     原来只有一个滑块 + 两端文字，中间 5 档没有任何刻度 —— 用户拖到某个位置
-     说不出自己停在第几档，只能读下方那行文字才知道。刻度把"离散 5 档"
-     这件事直接画出来，也让"档"与"档"之间不再像连续量。
-
-     位置算法必须与浏览器画滑块的算法一致，否则刻度会和手柄错开：
-     手柄宽 20px，轨道可用宽度 = 100% − 20px，手柄中心从 10px 起。
-     所以第 i 档（i=0..4）的 left = 10px + i/4 × (100% − 20px)。
-     用 calc 表达，不写死像素值 —— 390 视口轨道 342px、1440 是 656px。 */
+  /* 5 个档位要有落点标记，否则用户拖到某个位置说不出自己停在第几档。
+     位置算法必须与浏览器画滑块的算法一致：手柄宽 20px，可用轨道 = 100% − 20px，
+     手柄中心从 10px 起，所以第 i 档 left = 10px + i/4 × (100% − 20px)。 */
   const ticks = el('div', { class: 'scale-ticks', 'aria-hidden': 'true' },
     ...[0, 1, 2, 3, 4].map((i) => el('span', {
       class: 'scale-tick' + (Number(state.answers.intensity) === i + 1 ? ' is-on' : ''),
@@ -2776,30 +2794,43 @@ function renderStrength() {
   updateRead();
   wrap.appendChild(read);
 
-  // ② 浓度档
-  wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:16px' }, '② 浓度（决定留香，选一个）'));
-  /* v42：原来这里还有一段「浓度 = 香精占比：比例越高留得越久，也越容易在密闭空间里让人不舒服。日常最常见的是 EDT 与 EDP。」
-     它与下面 ③ 旁那段讲的是同一件事（都讲浓度↔留香），一段就够。
-     保留的那部分挪到 ③ 那一行旁边，因为它紧挨着推断值，读者更容易把两件事连起来。 */
+  wrap.appendChild(el('div', { class: 'term-note' },
+    el('strong', {}, '浓淡与浓度的区别：'),
+    ' 这一题问的是你想让别人闻到多重的分量（体感），下一题问的是香精占比（配方）。'
+    + ' 两者不完全同步 —— 有清淡的香精，也有呛人的淡香水，所以分成两题问。'
+  ));
+
+  wrap.appendChild(navBar('intensity'));
+  return wrap;
+}
+
+/* ============================================================
+   第 8 屏：浓度（原「浓淡持久」屏拆出的后半）
+   ------------------------------------------------------------
+   浓度档 + 由浓度推断的留香（纯展示）。留香**不参与打分**
+   （见 src/scoring.js 8c 段：同浓度下全库等加，对排序零贡献），
+   所以这里不用可改控件 —— 能改但不影响结果比不给更糟。
+   浓度与浓淡打架时只提醒、不替用户改：它们测的确实是两件事。
+   ============================================================ */
+function renderConcentration() {
+  const wrap = el('div', { class: 'fade-in' });
+  const head = stepHead('concentration');
+  wrap.appendChild(el('div', { class: 'stage-lead' },
+    el('div', { class: 'q-kicker' }, head.kicker),
+    el('h2', { class: 'q-title' }, head.title),
+    el('p', { class: 'q-help' }, head.help)
+  ));
+
   wrap.appendChild(choiceGrid(CONCENTRATIONS, state.answers.concentration, (id) => {
     state.answers.concentration = id;
-    /* 联动：选完浓度就把留香填成推断值。
-       下方 ③ 那一行的选中态要跟着变，所以直接 render() 重画整屏 ——
-       这一屏没有滚动长列表，重绘不会让用户丢失位置。 */
+    /* 联动：选完浓度就把留香填成推断值，下面那一行的展示要跟着变，
+       所以重画整屏 —— 这一屏没有滚动长列表，重绘不会让用户丢失位置。 */
     const inferred = CONC_TO_LONGEVITY[id];
     if (inferred != null) state.answers.longevity = inferred;
     render();
   }));
 
-  /* ②' 浓度与浓郁度打架时说一句 —— 只提醒，不替用户改。
-     两问在同一屏：①问"多浓"（1–5 的体感），②问"哪种浓度"（EDC…Parfum）。
-     常识上它们强相关（古龙水基本不可能是 5/5 那种压人的浓），但数据里
-     1388 瓶的 concentration 与「厚重感」相关系数并不高 —— 有清淡的 Parfum，
-     也有呛人的 EDT。所以这里**只在高反差时提醒**，不预选、不联动：
-     替用户改浓度等于把两问合并成一问，而它们测的确实是两件事。
-
-     阈值取 2 档（例如要 5/5 却选了古龙水，或只要 1/5 却选了香精）：
-     差 1 档是常态，说了等于每屏都挂一句废话。 */
+  /* 浓度与浓淡打架时提醒一句。阈值取 2 档：差 1 档是常态，说了等于每屏都挂废话。 */
   {
     const INTENSITY_BAND = {
       'eau-de-cologne': [1, 2],
@@ -2817,33 +2848,20 @@ function renderStrength() {
       if (gap >= 2) {
         const concZh = (CONCENTRATIONS.find((c) => c.id === conc) || {}).zh || conc;
         wrap.appendChild(el('div', { class: 'term-note is-warn' },
-          el('strong', {}, '这两项差得有点远：'),
+          el('strong', {}, '和上一题的浓淡差得有点远：'),
           ` 你要的是 ${want}/5（${INTENSITY_LABEL[want][0]}），但选了${concZh}。`,
           ' 浓淡是体感、浓度是香精占比，两者不完全同步 —— 真想要那个体感，',
-          ' 回头把 ① 调回中间档更稳妥；不改也能出结果，只是候选会少一些。'
+          ' 回头把浓淡调回中间档更稳妥；不改也能出结果，只是候选会少一些。'
         ));
       }
     }
   }
 
-  /* ③ 留香：由 ② 浓度推算，**不再是一组可点的单选**。
-     原来它是 4 张可点的卡，看起来和 ② 一样是"一个待回答的问题"。
-     但它不是独立问题 —— 它由浓度决定（古龙水约 2、EDT 约 3、EDP 约 4、香精约 5）。
-
-     v42 又收紧一层：这一项**已不参与打分**（见 src/scoring.js 的 8c 段）。
-     理由是全库每个浓度只有唯一一个 longevityInferred，同浓度下等加、不影响排序。
-     所以「改」按钮撤掉了 —— 留一个能改但不影响结果的控件，比不给更糟：
-     用户改完发现推荐没变，会以为系统不听话。
-     现在它是纯展示：选完浓度，这里告诉你那一档大概能留多久。 */
+  /* 留香：由浓度推算，纯展示。老存档里可能带着手动值，一并显示。 */
   const curLong = state.answers.longevity;
-  const inferred = state.answers.concentration
-    ? CONC_TO_LONGEVITY[state.answers.concentration]
-    : null;
-  /* 兼容老存档里的手动标记：值仍在，但不再当作"用户可改"的入口。 */
   const shownLong = curLong == null ? null : String(curLong);
-
   wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:16px' },
-    '③ 大概能留多久' + (shownLong == null ? '（选浓度后自动给出）' : '（由浓度推断）')));
+    '大概能留多久' + (shownLong == null ? '（选浓度后自动给出）' : '（由浓度推断）')));
 
   const longBox = el('div', { class: 'long-read' + (shownLong == null ? ' is-empty' : '') });
   if (shownLong == null) {
@@ -2859,12 +2877,18 @@ function renderStrength() {
   wrap.appendChild(el('div', { class: 'term-note' },
     el('strong', {}, '关于浓度与留香：'),
     ' 浓度是香精占比，比例越高留得越久，也越容易在密闭空间里让人不舒服（日常最常见的是 EDT 与 EDP）。',
-    ' 下面这一档是按浓度推算的，不是实测 —— 同一瓶在干皮和油皮、冬天和夏天差别可以很大，',
-    '所以它不参与打分。想要留得久，把 ② 选高一点的浓度就是同一个动作。',
+    ' 上面那一档是按浓度推算的，不是实测 —— 同一瓶在干皮和油皮、冬天和夏天差别可以很大，',
+    '所以它不参与打分。想要留得久，选高一点的浓度就是同一个动作。'
   ));
 
-  wrap.appendChild(navBar('strength'));
+  wrap.appendChild(navBar('concentration'));
   return wrap;
+}
+
+function renderStrength() {
+  /* 兼容层：旧 id `strength` 已拆成 intensity / concentration。
+     SCENE 表里还有引用，正常渲染路径不会再走到它。 */
+  return renderIntensity();
 }
 
 /* 浓度 → 推断留香的映射，与 data/taxonomy.json 的 concentrationLongevity.map 同一套。
@@ -2916,8 +2940,15 @@ function navBar(stepId) {
     return bar;
   }
 
-  if (stepId === 'notes') {
-    bar.appendChild(el('span', { class: 'hint' }, '两栏都不选也能继续'));
+  /* 香调两屏：都可一个不选。措辞按屏分开 ——
+     「想要」是可选加分，「受不了」是更有效的排除，两句不能说反。 */
+  if (stepId === 'likedNotes') {
+    bar.appendChild(el('span', { class: 'hint' }, '一个都不选也能继续'));
+    bar.appendChild(el('button', { class: 'btn', type: 'button', onclick: next }, '下一步 →'));
+    return bar;
+  }
+  if (stepId === 'dislikedNotes') {
+    bar.appendChild(el('span', { class: 'hint' }, '这一题最值得花时间，但也可以跳过'));
     bar.appendChild(el('button', { class: 'btn', type: 'button', onclick: next }, '下一步 →'));
     return bar;
   }
@@ -2927,12 +2958,14 @@ function navBar(stepId) {
      但仍画一个显式的「下一步」——原因：自动前进是 480ms 后触发的，
      用户点了之后若想反悔，需要一个不依赖"等它自己跳"的出口；
      而且键盘用户 Tab 到这里时，自动前进已经错过了，
-     没有按钮他们就卡住了（与第 3 步滑块同一个问题）。 */
-  /* 合并后的三步（气质 / 场景 / 浓淡）都是"多项、可只答一部分"，
-     所以按钮永远可点 —— 合并屏不该再要求"必须答完才能走"，
-     那样合并反而变成了更长的门槛。 */
-  if (stepId === 'mood' || stepId === 'context' || stepId === 'strength') {
-    bar.appendChild(el('span', { class: 'hint' }, '答几项都行，不答也能继续'));
+     没有按钮他们就卡住了（与第 3 步滑块同一个问题）。
+
+     一屏一问之后，这一组里的每一屏都只有**一个**决定，且都可跳过
+     （气质可以不选、季节可以不选、浓度可以不选），所以按钮永远可点 ——
+     要求"必须答完才能走"会把可跳过的问题变成门槛。 */
+  if (stepId === 'mood' || stepId === 'season' || stepId === 'occasion'
+      || stepId === 'intensity' || stepId === 'concentration') {
+    bar.appendChild(el('span', { class: 'hint' }, '不选也能继续'));
     bar.appendChild(el('button', { class: 'btn', type: 'button', onclick: next }, '下一步 →'));
     return bar;
   }
@@ -3865,6 +3898,60 @@ function renderResult() {
     wrap.appendChild(art);
   });
 
+  /* ---------- 可分享的结果摘要（方向 B：截图友好的结果卡）----------
+     为什么单独做一张摘要卡，而不是让用户截三张大卡：
+     三张大卡纵向排开近 2000px，一次截图截不全，拼图也读不出"这是一组答案"。
+     这张卡把所有关键信息压进一个屏幕内可截的框：三瓶名 + 一句话理由 + 用户
+     自己的答案摘要，外加一行站名 —— 截图发出去时，接收方能看到"这是什么工具
+     给出的、基于什么回答"，而不是三瓶孤零零的名字。
+
+     内容取的都是**已经存在**的字段（profile / results / reasons），
+     不新算任何东西：结果卡里的数字必须与上面三张卡完全一致，否则
+     截图和页面对不上，是最难解释的那种不一致。 */
+  {
+    const card = el('section', {
+      class: 'share-card',
+      'aria-label': '可分享的结果摘要',
+      'data-share': 'result-summary',
+    });
+    card.appendChild(el('div', { class: 'share-kicker' }, 'SCENT PROFILE'));
+    card.appendChild(el('h3', { class: 'share-title' }, '我的三瓶候选'));
+    /* 答案摘要：只列用户真的答过的项，空值滤掉（与 result-head 同一套过滤）。
+       季节没有 profile.seasonZh（scoring 只给了 season 的 id），
+       所以这里自己查 taxonomy —— 直接写 profile.seasonZh 会是 undefined，
+       被 .filter(Boolean) 静默吃掉，摘要里就少一项，而界面上看不出来。 */
+    const seasonLabel = profile.season
+      ? ((SEASONS.find((s) => s.id === profile.season) || {}).zh || profile.season)
+      : null;
+    const answerBits = [
+      profile.emotionZh,
+      profile.occasionZh,
+      seasonLabel ? `${seasonLabel}季` : null,
+      `浓郁度 ${profile.intensity}/5`,
+    ].filter(Boolean);
+    card.appendChild(el('p', { class: 'share-answers' }, answerBits.join(' · ')));
+
+    const ol = el('ol', { class: 'share-list' });
+    results.forEach((r, i) => {
+      const p = r.perfume;
+      /* 理由取第一条**可反推**的（buildReasons 已按因子权重排过），
+         不做摘要改写 —— 改写会把"反推到某个答案"这条产品硬约束改丢。 */
+      const reason = (r.reasons && r.reasons[0]) || '';
+      ol.appendChild(el('li', { class: 'share-item' },
+        el('span', { class: 'share-rank' }, String(i + 1)),
+        el('span', { class: 'share-name' },
+          el('strong', {}, p.name),
+          el('span', { class: 'share-brand' }, p.brand || '')),
+        reason ? el('span', { class: 'share-reason' }, reason) : null
+      ));
+    });
+    card.appendChild(ol);
+    card.appendChild(el('p', { class: 'share-foot' },
+      '从 1388 瓶里按规则打分选出，选品不调用大模型'
+    ));
+    wrap.appendChild(card);
+  }
+
   wrap.appendChild(el('div', { class: 'actions', style: 'margin-top:36px' },
     el('button', { class: 'btn', type: 'button', onclick: restart }, '重新来一次'),
     el('div', { class: 'spacer' }),
@@ -3945,12 +4032,20 @@ function render() {
        cut    零位移淡入      —— 作答中的屏（用户在选择，位移会打断线性感）
        settle 下沉 8px 淡入   —— 转换阶段的屏（首屏 / 心情 / 排除）
        rise   上浮 14px 淡入  —— 结果页（全流程唯一"给答案"的一屏） */
+  /* 切屏语言按屏分配（D59）。
+       cut    零位移淡入      —— 作答中的屏（用户在选择，位移会打断线性感）
+       settle 下沉 8px 淡入   —— 转换阶段的屏（首屏 / 气质 / 排除 / 结果）
+       一屏一问之后，块的划分跟着新的步骤表走：
+       香调两屏与场景两屏都是连续作答，给 cut；入口式与收束式的屏给 settle。 */
   const SCENE = {
     family: 'settle',
-    notes: 'cut',
+    likedNotes: 'cut',
+    dislikedNotes: 'cut',
     mood: 'settle',
-    context: 'cut',
-    strength: 'cut',
+    occasion: 'cut',
+    season: 'cut',
+    intensity: 'cut',
+    concentration: 'cut',
     dislikedFamilies: 'settle',
     anchor: 'cut',
   };
