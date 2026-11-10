@@ -33,6 +33,13 @@ const SUITES = [
   ['test-jd-web.mjs', 17],
 ];
 
+/* 金标准套件走另一套判据：它报的是命中率，不是断言条数。
+ *   GOLD MAJORITY a/12 STRICT b/12
+ * 最低接受值 = CONTROL.md 基线（2/12 与 4/12）；低于它说明这次改动把引擎改差了。
+ * 与 SUITES 分开，是因为 "PASS 2 FAIL 10" 会被读成「十个画像是错的」，
+ * 而实际含义是「十二个画像里过了两个」—— 同一串数字，两种含义，不能混。 */
+const GOLD = { file: 'test-gold.mjs', minMajority: 2, minStrict: 4, total: 12 };
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'head-check-'));
 const exported = path.join(tmp, 'head');
 
@@ -91,6 +98,36 @@ try {
     if (!okCount) bad += 1;
     console.log(`  ${okCount ? '✓' : '✗'} ${file.padEnd(22)} PASS ${String(pass).padStart(3)}  FAIL ${fail}`
       + (pass < expectMin ? `  （断言数少于基线 ${expectMin}）` : ''));
+  }
+
+  /* 金标准：命中率不许低于 CONTROL.md 记录的基线 */
+  {
+    const p = path.join(exported, 'scripts', GOLD.file);
+    if (!fs.existsSync(p)) {
+      console.log(`  ✗ ${GOLD.file.padEnd(22)} 文件不存在`);
+      bad += 1;
+    } else {
+      let out = '';
+      let crashed = null;
+      try {
+        out = execFileSync(NODE, [p], { cwd: exported, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      } catch (err) {
+        crashed = `${err.message.split('\n')[0]}`.trim();
+        out = err.stdout || '';
+      }
+      const m = out.match(/GOLD MAJORITY (\d+)\/(\d+) STRICT (\d+)\/(\d+)/);
+      if (!m) {
+        console.log(`  ✗ ${GOLD.file.padEnd(22)} 没跑出结果${crashed ? ' — ' + crashed : ''}`);
+        bad += 1;
+      } else {
+        const maj = Number(m[1]);
+        const str = Number(m[3]);
+        const okGold = maj >= GOLD.minMajority && str >= GOLD.minStrict;
+        if (!okGold) bad += 1;
+        console.log(`  ${okGold ? '✓' : '✗'} ${GOLD.file.padEnd(22)} GOLD MAJ ${maj}/${GOLD.total}  STRICT ${str}/${GOLD.total}`
+          + (okGold ? '' : `  （低于基线 ${GOLD.minMajority}/${GOLD.total} 与 ${GOLD.minStrict}/${GOLD.total}）`));
+      }
+    }
   }
 
   console.log('');
