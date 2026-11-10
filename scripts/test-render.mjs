@@ -1334,20 +1334,53 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
     buy.every((a) => /noopener/.test(String(a.attrs.rel || '')) && /noreferrer/.test(String(a.attrs.rel || ''))),
     buy.map((a) => a.attrs.rel).join(' | '));
 
-  /* ---- 披露：2026-11-08 起页面上不再出现任何广告披露文案 ----
-     用户明确要求删掉「点进去会有推广链接」那句备注。这条断言的作用
-     从「必须有」反转成「必须没有」——两边都得钉住，否则哪天有人
-     顺手加回来，测试不会响。
+  /* ---- 披露：2026-11-10 起改为按钮上的「广告」角标 ----
+     沿革：2026-11-02 挂整段「购买链接为推广链接」→ 2026-11-08 用户要求
+     删掉 → 2026-11-10 Eddie 拍板加最小角标。所以这条断言此前是
+     「必须没有 aff-note」，现在反转成「有佣金关系的按钮必须有、没有的必须没有」。
+
+     角标类名是 `.buy-ad.aff-note`：`.aff-note` 是广告披露的专用类，
+     `.buy-ad` 只负责样式。这样 DOM 层能单独问「这页有没有广告披露」。
 
      同时钉住保留的两条说明（它们不是广告披露，是事实说明）：
        · 双渠道说明：讲两个按钮差在哪、价格没排序
        · 搜索兜底说明：讲点进去是搜索结果不是商品页
-     两者都用 .link-note；.aff-note 这个类**不再出现在结果页**，
-     留作将来恢复披露时的钩子。 */
+     两者都用 .link-note。 */
   const cards = [...appRoot.querySelectorAll('.pick')];
-  ok('结果页不挂任何广告披露文案',
-    notes.length === 0 && cards.every((c) => c.querySelectorAll('.aff-note').length === 0),
-    `全页 ${notes.length} 条 aff-note`);
+  const directBuy = buy.filter((a) => a.attrs['data-kind'] === 'direct');
+  const nonDirectBuy = buy.filter((a) => a.attrs['data-kind'] !== 'direct');
+  ok('有佣金关系的按钮各挂一枚「广告」角标',
+    directBuy.length > 0
+      && directBuy.every((a) => a.querySelectorAll('.aff-note').length === 1),
+    `direct 按钮 ${directBuy.length} 个，其中带角标 ${directBuy.filter((a) => a.querySelectorAll('.aff-note').length === 1).length} 个`);
+  ok('无佣金关系的按钮不挂广告角标',
+    nonDirectBuy.every((a) => a.querySelectorAll('.aff-note').length === 0),
+    `非 direct 按钮 ${nonDirectBuy.length} 个，误挂 ${nonDirectBuy.filter((a) => a.querySelectorAll('.aff-note').length > 0).length} 个`);
+  ok('角标文案就是「广告」两个字',
+    notes.length > 0 && notes.every((n) => n.textContent.trim() === '广告'),
+    notes.map((n) => JSON.stringify(n.textContent)).slice(0, 4).join(' | '));
+  /* 角标必须在 .buy-label 里：.buy-link 带 scope 时是 column 布局
+     （_wheel19.css:49），并列的 span 会掉成第三行、把按钮撑高。 */
+  ok('角标嵌在按钮文字里，不是并列的第三个块',
+    directBuy.every((a) => {
+      const labels = a.querySelectorAll('.buy-label');
+      return labels.length === 1 && labels[0].querySelectorAll('.aff-note').length === 1;
+    }),
+    directBuy.map((a) => `${a.querySelectorAll('.buy-label').length}/${a.querySelectorAll('.aff-note').length}`).join(','));
+  /* 角标是「可识别」的补充，不是 sponsored 的替代品 —— rel 必须照旧。 */
+  ok('有角标的按钮仍带 rel=sponsored',
+    directBuy.every((a) => String(a.attrs.rel || '').includes('sponsored')),
+    directBuy.map((a) => a.attrs.rel).join(' | '));
+  ok('全页广告披露只在按钮内出现，不另挂段落',
+    notes.every((n) => {
+      let p = n.parentNode;
+      while (p && !(p.classList && p.classList.contains('pick'))) {
+        if (p.classList && p.classList.contains('link-note')) return false;
+        p = p.parentNode;
+      }
+      return true;
+    }),
+    `${notes.length} 枚角标`);
   /* 双渠道说明必须说清"价格没排序"——这是实测结论，不能省。
      只对有搜索渠道的卡要求；纯直达链的卡不许挂（它只有一个入口，写了就是编）。 */
   /* 测试桩的 querySelector 不支持属性选择器（已知限制，见文件头注释），

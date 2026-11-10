@@ -3785,8 +3785,24 @@ function renderResult() {
        淘宝有 pid 时会出两条（official / market），它们的 link.scope
        分别是「官方旗舰店」与「全网（含第三方店铺）」—— 这个短语必须
        渲染出来，否则用户看不出两个按钮差在哪，只会以为我们重复了。 */
+    /* 广告角标（Eddie 2026-11-10 决策）。
+       法律依据与删掉的整段文案不同：这里只标"这是广告"，不复述佣金机制。
+       《互联网广告管理办法》第九条要的是"可识别"，FTC 16 CFR 255 要的是
+       clear and conspicuous —— 角标贴在按钮上，比原来那句页脚备注更贴近
+       点击点，也符合 2026-11-08 注释里写的"最小改动是挂角标"。
+
+       只标 kind==='direct'：搜索兜底（kind==='search'，京东那条）没有
+       任何商业关系，标了就是对用户和搜索引擎双重撒谎。 */
+    const adBadge = () => el('span', {
+      class: 'buy-ad aff-note',
+      title: '广告 · 成交后本站可能获得佣金，不影响你的支付价格',
+    }, '广告');
     const buyEls = [];
     for (const l of buyLinks) {
+      const isDirect = l.kind === 'direct';
+      /* 角标塞进 .buy-label 内部而不是并列 —— .buy-link 在带 scope 时是
+         column 布局（_wheel19.css:49），并列的 span 会变成第三行。 */
+      const labelEl = el('span', { class: 'buy-label' }, l.label, isDirect ? adBadge() : null);
       buyEls.push(el('a', {
         class: 'buy-link'
           + (l.kind === 'direct' ? '' : ' is-search')
@@ -3807,8 +3823,8 @@ function renderResult() {
       }, l.scope
         /* 带 scope 的（淘宝两条）把范围写在按钮上方一小行，
            不塞进按钮文字 —— 按钮文字保持动作（"搜"），范围是名词。 */
-        ? [el('span', { class: 'buy-scope' }, l.scope), el('span', { class: 'buy-label' }, l.label)]
-        : l.label));
+        ? [el('span', { class: 'buy-scope' }, l.scope), labelEl]
+        : [labelEl]));
     }
 
     /* 按钮组要包一层再右推。
@@ -3824,19 +3840,18 @@ function renderResult() {
       footTail
     );
     art.appendChild(foot);
-    /* 结果页不再挂「购买链接为推广链接」这条备注（2026-11-08 用户明确要求删掉）。
-       链接上仍保留 rel="sponsored"，搜索引擎与浏览器读得到，页面上不显示。
-
-       **这不是合规上更安全的选择**：《互联网广告管理办法》第九条要求
-       广告"可识别"，FTC 16 CFR 255 要求 disclosure clear and conspicuous。
-       删掉之后页面上不再有任何"这是推广链接"的标识 —— 如果以后要补回来，
-       最小改动是在购买按钮上挂一个「广告」角标，而不是恢复整段文字。
+    /* 结果页的广告披露 = 按钮上那一枚「广告」角标（Eddie 2026-11-10 决策）。
+       2026-11-08 曾按用户要求删掉「点进去会有推广链接」那段页脚备注，
+       当时注释里留了一句「如果以后要补回来，最小改动是在购买按钮上挂
+       一个「广告」角标，而不是恢复整段文字」—— 现在就是按那句话补的。
+       角标只挂在 kind==='direct' 的按钮上，搜索兜底那条没有商业关系、
+       不标（标了是虚假标注）。
 
        下面两条保留，它们不是广告披露：
          · 双渠道说明 —— 讲"两个按钮差在哪、价格没排序"，删了用户会以为能比价；
          · 搜索兜底说明 —— 讲"点进去是搜索结果不是商品页"，删了才是骗人。
        两者的类名都是 link-note，不用 aff-note（aff-note 是广告披露的专用类，
-       混用会让"有没有披露"在 DOM 层就分不出来，上一版踩过）。 */
+       角标用它，混用会让"有没有披露"在 DOM 层就分不出来，上一版踩过）。 */
     const anyDirect = buyLinks.some((l) => l.kind === 'direct');
     const anySearch = buyLinks.some((l) => l.kind === 'search');
     const scoped = buyLinks.filter((l) => l.scope);
