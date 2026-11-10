@@ -352,17 +352,39 @@ export function buildProfile(answers, taxonomy) {
 }
 
 /* ---------- 单瓶打分 ---------- */
-export function scorePerfume(p, profile, taxonomy) {
+/* opts.familyDecay（第 2 步实验开关）
+ *   家族命中按所挂家族数 n 衰减：contribution = pref * w * n^(−p)。
+ *   p = 0 → 不衰减，与历史行为逐位一致（默认值，生产路径永远走这条）。
+ *   p = 0.5 → 1/√n，CONTROL.md §3 第 2 步的候选方案。
+ *
+ *   放进 opts 而不是写死，是为了让 scripts/probe-family-decay.mjs 在**不改源码**的
+ *   前提下复跑整个实验（改前改后两组数字必须出自同一份代码，否则不可比）。
+ *
+ *   实测试过两种数 n 的口径：按瓶子所挂家族总数、按「用户偏好非零的家族数」。
+ *   两者结果逐位相同 —— 因为 buildProfile 产出的 profile.families 是**六族全非零的
+ *   软向量**（P01 = woody .98 / fresh .22 / citrus .20 / floral .12 / amber .07 /
+ *   gourmand .07），不存在"用户只点过一族"的情形，第二种口径退化成第一种。
+ *   所以只保留 count 一种实现。
+ *
+ *   结论见 docs/EXPERIMENT-FAMILY-DECAY.md：p=0.5 让金标准 MAJORITY 2/12→0/12，
+ *   全局退化，已弃用。开关保留只为实验可复现。 */
+export function scorePerfume(p, profile, taxonomy, opts = {}) {
   const breakdown = [];
   let score = 0;
 
   // 1) 家族吻合
+  const famPow = Number(opts.familyDecay) || 0;
   let famHit = 0;
   let famBest = null;
   let famBestW = 0;
-  for (const [fam, w] of Object.entries(p.families)) {
+  const famEntries = Object.entries(p.families).filter(([k, w]) => k !== '_' && w > 0);
+  /* n<=1 或 p=0 时衰减系数恒为 1，走乘法也不改结果（n=1 的 188 瓶本来就是满分） */
+  const famDecay = famPow > 0 && famEntries.length > 1
+    ? 1 / Math.pow(famEntries.length, famPow)
+    : 1;
+  for (const [fam, w] of famEntries) {
     const pref = profile.families[fam] || 0;
-    const contribution = pref * w;
+    const contribution = pref * w * famDecay;
     famHit += contribution;
     if (contribution > famBestW) { famBestW = contribution; famBest = fam; }
   }
@@ -827,7 +849,7 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
   };
 
   const scored = perfumes.map((p) => {
-    const r = scorePerfume(p, profile, taxonomy);
+    const r = scorePerfume(p, profile, taxonomy, opts);
     /* opts.boundary === false 时关闭惩罚，仅供 scripts/probe-boundary.mjs 做 A/B。 */
     const mul = opts.boundary === false ? 1 : boundaryPenalty(p);
     return { perfume: p, ...r, score: r.score * mul, boundaryMul: mul };
