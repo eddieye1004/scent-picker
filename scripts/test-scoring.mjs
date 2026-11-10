@@ -269,6 +269,65 @@ for (const [k, v] of Object.entries(WEIGHTS)) {
     `第一族=${topFamilyOf(buildProfile({ family: 'floral', characterTags: ['clean'] }, TAX))}`);
 }
 
+/* ---- 第 4 步实验开关（2026-11-10）----
+   家族总分封顶（opts.familyCap / familyCapMode）与 notes 层权重覆盖
+   （opts.likedNotesWeight）。这几条守的是「开关真的接到了」与
+   「默认路径真的没变」，不是因为某一档更好 —— 实测 A/B 两方向都没有
+   提升 MAJORITY（见 docs/EXPERIMENT-FAMILY-CAP.md）。 */
+{
+  const famOf = (p, profile, opts) => {
+    const r = scorePerfume(p, profile, TAX, opts || {});
+    const b = r.breakdown.find((x) => x.factor === 'family');
+    return b ? b.score : 0;
+  };
+  /* 造一瓶在自己选的族里权重 1.0 的饱和瓶 + 一瓶只有 0.5 的中段瓶。
+     不答场合 → famDenom = 1.0，两者 base 分别是 1.0 与 0.5。 */
+  const mkFam = (id, w) => ({
+    id, brand: 'T', name: id,
+    families: { citrus: w, floral: 0, woody: 0, amber: 0, fresh: 0, gourmand: 0 },
+    character: [], seasons: [], timesOfDay: [], notesAll: [], popularityRank: 100,
+  });
+  const SAT = mkFam('sat', 1.0);
+  const MID = mkFam('mid', 0.5);
+  const prof = buildProfile({ family: 'citrus' }, TAX);
+
+  check('D1 默认路径：家族项满分仍是 86，中段瓶 43（历史行为不变）',
+    Math.abs(famOf(SAT, prof) - 86) < 1e-9 && Math.abs(famOf(MID, prof) - 43) < 1e-9,
+    `sat=${famOf(SAT, prof)} mid=${famOf(MID, prof)}`);
+
+  check('D2 scale：满分瓶压到 cap，中段瓶同比例压（50 → 50 / 25）',
+    Math.abs(famOf(SAT, prof, { familyCap: 50 }) - 50) < 1e-9
+      && Math.abs(famOf(MID, prof, { familyCap: 50 }) - 25) < 1e-9,
+    `sat=${famOf(SAT, prof, { familyCap: 50 })} mid=${famOf(MID, prof, { familyCap: 50 })}`);
+
+  check('D3 hard：只削顶部，中段瓶保持原值（cap=50 → 50 / 43）',
+    Math.abs(famOf(SAT, prof, { familyCap: 50, familyCapMode: 'hard' }) - 50) < 1e-9
+      && Math.abs(famOf(MID, prof, { familyCap: 50, familyCapMode: 'hard' }) - 43) < 1e-9,
+    `sat=${famOf(SAT, prof, { familyCap: 50, familyCapMode: 'hard' })} mid=${famOf(MID, prof, { familyCap: 50, familyCapMode: 'hard' })}`);
+
+  /* cap >= 86 时不该生效 —— 否则「把 cap 调回 86」就不再等于历史行为 */
+  check('D4 cap >= 86 时回落历史公式（逐位一致）',
+    Math.abs(famOf(SAT, prof, { familyCap: 86 }) - 86) < 1e-9
+      && Math.abs(famOf(MID, prof, { familyCap: 100 }) - 43) < 1e-9,
+    `cap86=${famOf(SAT, prof, { familyCap: 86 })} cap100mid=${famOf(MID, prof, { familyCap: 100 })}`);
+
+  /* likedNotes：命中 2 个即满分，权重可被 opts 覆盖 */
+  const likePerf = {
+    id: 'like', brand: 'T', name: 'like',
+    families: { citrus: 1, floral: 0, woody: 0, amber: 0, fresh: 0, gourmand: 0 },
+    character: [], seasons: [], timesOfDay: [], notesAll: ['lemon', 'bergamot'], popularityRank: 100,
+  };
+  const likeProf = buildProfile({ family: 'citrus', likedNotes: ['lemon', 'bergamot'] }, TAX);
+  const likeOf = (opts) => {
+    const r = scorePerfume(likePerf, likeProf, TAX, opts || {});
+    const b = r.breakdown.find((x) => x.factor === 'likedNotes');
+    return b ? b.score : 0;
+  };
+  check('D5 默认 likedNotes 权重 14（2 命中即满分）', Math.abs(likeOf() - 14) < 1e-9, `实际 ${likeOf()}`);
+  check('D6 opts.likedNotesWeight 覆盖权重（56 → 56）',
+    Math.abs(likeOf({ likedNotesWeight: 56 }) - 56) < 1e-9, `实际 ${likeOf({ likedNotesWeight: 56 })}`);
+}
+
 /* 输出 */
 console.log('\n===== 测试结果 =====');
 console.log(`PASS ${pass}   FAIL ${failures.length}`);

@@ -398,6 +398,24 @@ export function buildProfile(answers, taxonomy, opts = {}) {
  *
  *   结论见 docs/EXPERIMENT-FAMILY-DECAY.md：p=0.5 让金标准 MAJORITY 2/12→0/12，
  *   全局退化，已弃用。开关保留只为实验可复现。 */
+/* opts.familyCap / opts.familyCapMode（第 4 步实验开关，2026-11-10）
+ *   家族三项（familyPick 34 + emotionFamily 30 + occasionFamily 22 = 86 分）在整族
+ *   候选池里是**常数**（诊断实测柑橘 117/117 瓶全满分），于是同族内排序实际只由
+ *   剩下约 49 分决定 —— 家族分越多，越像给整个池子同时加同一个数。
+ *
+ *   本开关把这一项的**满分**从 86 压到 familyCap 指定的值（40–50 区间），两种压法：
+ *     'scale'（默认）→ famScore = base * cap，等比缩小；低分瓶一起被压小。
+ *     'hard'         → famScore = min(base * 86, cap)，只削顶部；中段保持原值，
+ *                      因此「一瓶拿 0.3 的 base」在 hard 下比 scale 下更值钱。
+ *   两者在 base=1（饱和瓶）处相等，差别全在中段 —— 实测见 docs/EXPERIMENT-FAMILY-CAP.md。
+ *
+ *   familyCap 不传（或等于 86）时走历史公式，逐位一致 —— 生产路径永远走这条。
+ *   为什么放进 opts 而不是直接改 WEIGHTS：改前改后两组数字必须出自同一份代码，
+ *   否则 commit 间的无关改动会混进结论（与第 2、3 步同一理由）。
+ *
+ * opts.likedNotesWeight（第 4 步实验开关）
+ *   覆盖 WEIGHTS.likedNotes（默认 14），用来测「notes 层加权能否带来区分」。
+ *   不传时读 WEIGHTS，生产路径不变。 */
 /* opts.characterMode（第 3 步实验开关）
  *   character 因子现在的实现是 `wantTags.find(...)` —— 只取**第一个**命中
  *   就打满 WEIGHTS.character（16 分）。实测（scripts/probe-character-sparse.mjs）：
@@ -473,8 +491,17 @@ export function scorePerfume(p, profile, taxonomy, opts = {}) {
      （已验证「不答场合 / 答场合 date / 答场合 formal」三种口径、floral 与 woody 两族，
      top-10 全部 10/10）。理由侧也少一条复读 —— buildReasons 原本就要
      「有 familyPick 时丢掉 family」，现在只剩一条，那段特殊情况可以删。 */
-  const famScore = clamp01(famHit / famDenom)
-    * (WEIGHTS.emotionFamily + WEIGHTS.occasionFamily + WEIGHTS.familyPick);
+  const FAMILY_BASE = WEIGHTS.emotionFamily + WEIGHTS.occasionFamily + WEIGHTS.familyPick;
+  /* 第 4 步实验：封顶只改「这一项的满分」，不动 famDenom 与任何其它因子。
+     cap >= FAMILY_BASE 或不传 → 走原公式（逐位一致）。 */
+  const famCapRaw = opts.familyCap == null ? FAMILY_BASE : Number(opts.familyCap);
+  const famCapOn = Number.isFinite(famCapRaw) && famCapRaw > 0 && famCapRaw < FAMILY_BASE;
+  const famBase = clamp01(famHit / famDenom);
+  const famScore = !famCapOn
+    ? famBase * FAMILY_BASE
+    : (opts.familyCapMode === 'hard'
+      ? Math.min(famBase * FAMILY_BASE, famCapRaw)
+      : famBase * famCapRaw);
   score += famScore;
   /* 直选家族下的「这瓶有多纯」——用来给理由分档。
      合并 familyPick 之前，这段信息由 familyPick 那条 breakdown 携带，
@@ -643,7 +670,9 @@ export function scorePerfume(p, profile, taxonomy, opts = {}) {
   // 5) 喜欢的香调命中
   const likedHits = hitsOf(profile.likedNotes);
   if (likedHits.length) {
-    const nScore = clamp01(likedHits.length / 2) * WEIGHTS.likedNotes;
+    /* 第 4 步实验：opts.likedNotesWeight 覆盖权重；不传时读 WEIGHTS（生产路径不变）。 */
+    const likedW = opts.likedNotesWeight == null ? WEIGHTS.likedNotes : Number(opts.likedNotesWeight);
+    const nScore = clamp01(likedHits.length / 2) * likedW;
     score += nScore;
     // 理由里回显用户看到的写法（佛手柑 而非 bergamot）
     const hitsDisplay = likedHits.map((n) => profile.likedDisplay?.get(n) || n);
