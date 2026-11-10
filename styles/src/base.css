@@ -49,7 +49,8 @@
   --font-display: var(--font-body);
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
 
-  --radius: 0px;
+  /* 圆角只有一个真源，见下方 :root 覆盖块（4px 基准 / 2px 小件 / 8px 大件）。
+     这里不再重复定义：同一个 token 写两遍时，读代码的人必须先找到谁赢才敢改。 */
   --maxw: 720px;
   --discw: 520px;
 }
@@ -437,9 +438,9 @@ body {
      视觉上立刻分出主次，但不引入任何拟物质感。
      曾经用 border+outline 做双层框（offset:-5px），截图看是"错位的第二个框"，
      不是层次——两层线离太近时人眼读成印刷套印不准。 */
-  border: 1px solid var(--edge);
+  border: 1px solid var(--hair);
   border-top: 2px solid var(--ink);
-  background: var(--bg-2);
+  background: var(--bg);
   box-shadow: none;
   display: flex;
   flex-direction: column;
@@ -1440,10 +1441,11 @@ footer.foot a:hover { color: var(--accent); }
   --accent:      #002FA7;
   --accent-soft: #8A93B8;
 
-  /* ---- 圆角：用户已定 4px 基准，8px 节奏 ---- */
+  /* ---- 圆角：4px 基准 / 2px 小件。只有这两档 ----
+     8px 档（--radius-lg）定义过两次、引用 0 次，已删；
+     全站 5 处字面量 2px 与 1 处 4px 已改回 token，见 _wheel24.css。 */
   --radius: 4px;
   --radius-sm: 2px;
-  --radius-lg: 8px;
 
   /* ---- 动效：四条缓动、七档时长。位移永不超过 8px ----
      D60 把散在 10 个源层里的 11 种曲线、16 种时长收成这两张表。
@@ -1475,9 +1477,18 @@ footer.foot a:hover { color: var(--accent); }
   --t-celebrate: 460ms; /* 确认与回弹（arcPop / arcConfirm / ringGrowStrong） */
 
   /* ---- 阴影：同色相不用黑，全站左上受光右下投影 ---- */
-  --sh-lift: 0 1px 0 rgba(255,255,255,.14) inset, 0 10px 30px -10px rgba(0,26,94,.42);
-  --sh-press: 0 1px 2px rgba(0,26,94,.28) inset, 0 1px 0 rgba(26,26,26,.16);
-  --sh-card: 0 1px 0 rgba(255,255,255,.9) inset, 0 10px 34px -14px rgba(0,26,94,.22);
+  /* ---- 阴影四档。全站只允许这四档 + inset 描边。 ----
+     原来 87 条 box-shadow 里有 16 条是字面量、有 9 条各自调了一套藏青投影的
+     模糊/扩散/透明度（-10px/-12px/-14px/-16px/-20px 五种扩散，.18/.22/.28/.42/.50/.55 六种浓度）。
+     视觉上读不出这 5% 的差别，但改一次主题要翻 6 个文件。
+     阶梯按"离纸面的高度"分：1 静置 / 2 悬停 / 3 抬起 / 4 压入。 */
+  --sh-1: 0 1px 0 rgba(255,255,255,.9) inset, 0 6px 18px -12px rgba(0,26,94,.28);
+  --sh-2: 0 1px 0 rgba(255,255,255,.9) inset, 0 8px 26px -14px rgba(0,26,94,.32);
+  --sh-3: 0 1px 0 rgba(255,255,255,.9) inset, 0 16px 34px -20px rgba(0,26,94,.44);
+  --sh-4: 0 1px 2px rgba(0,26,94,.28) inset, 0 1px 0 rgba(26,26,26,.16);
+  --sh-lift: var(--sh-3);
+  --sh-press: var(--sh-4);
+  --sh-card: var(--sh-2);
 }
 
 /* ---------------------------------------------------------------
@@ -1628,7 +1639,7 @@ footer.foot a:hover { text-decoration-thickness: 2px; }
 .wheel .disc-hub.is-wide:not(.is-picked) {
   background: radial-gradient(120% 110% at 24% 16%, #ffffff 0%, #fdfdfd 58%, var(--bg-2) 100%);
   border-color: var(--edge);
-  box-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 6px 22px -16px rgba(0,26,94,.18);
+  box-shadow: var(--sh-1);
 }
 /* 选定态说明是家族的 style 句子，20–26 字，在 154px 的盘心里要折成三行。
    基础样式的 max-height:34px 只够两行半，实测在字符中间切一刀（「…那种干」）。
@@ -1748,7 +1759,8 @@ body { position: relative; }
 
 /* 窄屏：圆角与热区不变，只收字号；蓝的用量不因屏幕小而增加 */
 @media (max-width: 620px) {
-  :root { --radius: 4px; --radius-lg: 6px; }
+  /* 窄屏不改圆角：圆角是物件属性，不随屏幕缩。原来这里重写 --radius: 4px
+     与 --radius-lg: 6px，前者与桌面同值（空操作）、后者无人引用。两条都删。 */
   .wheel .disc-hub { border-radius: var(--radius); }
 }
 

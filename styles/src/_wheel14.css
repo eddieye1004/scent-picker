@@ -125,9 +125,13 @@
     --stroke-hi: rgba(255, 255, 255, .10);   /* 内高光降到 .10，否则读成发光边 */
 
     /* —— 阴影：换成纯黑、更高不透明度 —— */
-    --sh-lift: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 10px 30px -10px rgba(0, 0, 0, .72);
-    --sh-press: 0 1px 2px rgba(0, 0, 0, .55) inset, 0 1px 0 rgba(0, 0, 0, .4);
-    --sh-card: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 10px 34px -14px rgba(0, 0, 0, .68);
+    --sh-1: 0 1px 0 rgba(255,255,255,.06) inset, 0 6px 18px -12px rgba(0,0,0,.62);
+    --sh-2: 0 1px 0 rgba(255,255,255,.06) inset, 0 8px 26px -14px rgba(0,0,0,.66);
+    --sh-3: 0 1px 0 rgba(255,255,255,.06) inset, 0 16px 34px -20px rgba(0,0,0,.72);
+    --sh-4: 0 1px 2px rgba(0,0,0,.55) inset, 0 1px 0 rgba(0,0,0,.4);
+    --sh-lift: var(--sh-3);
+    --sh-press: var(--sh-4);
+    --sh-card: var(--sh-2);
   }
 
   /* ---- 7 处写死 background:#fff 的盘心，改成跟随变量 ----
@@ -231,12 +235,15 @@
 
      深色版把它压到比背景**暗**一档：盘应该"陷进"深底，而不是浮在深底上。
      外沿那道写死的 1px `#b8bed3` 一并换成 --line。 */
+  /* A 方向（v37）：底盘与浅色层同构 —— 一块纯色面 + 一道细勾边，
+     不再用"径向内凹渐变"。浅色层已是 var(--bg) + var(--hair) 勾边，
+     深色层若还留着径向高光，两套盘的构造就分叉了。 */
   .wheel {
-    background: #0e0e0e;
+    background: #171717;
     box-shadow:
-      0 0 0 1px var(--line),
-      0 26px 60px -42px rgba(0, 0, 0, .80),
-      0 2px 6px -4px rgba(0, 0, 0, .50);
+      0 0 0 1px #303030,
+      0 0 0 3px #171717 inset,
+      0 26px 60px -46px rgba(0, 0, 0, .85);
   }
 
   /* ---- 盘面本体：两处写死的浅色径向渐变 ----
@@ -251,22 +258,14 @@
      注意展开态要比闭合态**再暗一点**：中圈弧片是 #1e1e1e，
      盘底若与它同亮就读不出层级。 */
   .wheel {
-    background: radial-gradient(circle at 47% 43%,
-      #1d1d1d 0%,   /* L*10.8 */
-      #1a1a1a 52%,  /* L*9.3  —— 层序基准 */
-      #171717 88%,  /* L*7.7  */
-      #151515 100%);/* L*7.0  */
+    background: #171717;
     box-shadow:
-      0 0 0 1px #333333,
-      0 26px 60px -42px rgba(0, 0, 0, .9),
-      0 2px 6px -4px rgba(0, 0, 0, .6);
+      0 0 0 1px #303030,
+      0 0 0 3px #171717 inset,
+      0 26px 60px -46px rgba(0, 0, 0, .9);
   }
   .wheel.is-open {
-    background: radial-gradient(circle at 47% 43%,
-      #222222 0%,   /* L*13.0 */
-      #1e1e1e 52%,  /* L*11.3 */
-      #1a1a1a 88%,  /* L*9.3  */
-      #181818 100%);/* L*8.5  */
+    background: #1a1a1a;
   }
 
   /* ---- 盘的实体边：`_wheel11.css:162` 那圈 box-shadow 用的是"白瓷"倒角
@@ -320,9 +319,12 @@
   .wheel .disc-svg .sector-shape {
     filter: none;
   }
-  /* 相邻两族的界线：用底色画，而不是 --line（--line 是给浅底的分隔线，太深）。 */
+  /* 相邻两族的界线：用底色画，而不是 --line（--line 是给浅底的分隔线，太深）。
+     A 方向把六族统一成同色之后，这道缝就是**唯一**的分块依据，
+     宽度必须与浅色层同为 2.6（浅色在 _wheel7.css），否则两套盘的分块读起来不一样粗。 */
   .wheel .disc-svg .sector-g .sector-shape {
     stroke: var(--bg);
+    stroke-width: 2.6;
   }
 
   /* ---- 中圈弧片：换成比家族环亮一档的面（gArcD），

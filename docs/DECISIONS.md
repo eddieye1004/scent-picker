@@ -3141,3 +3141,153 @@ test-category-gate 10 / 0
 `scripts/test-render.mjs:950` 的 `[5, '想要多浓、留多久', 'strength']` 跟着改成 `[5, '想要多浓', 'strength']`。
 
 **教训**：动态排序的列表 + 按位置写文案 = 定时炸弹。这类文案要么点名具体项，要么按栏标题说，不能按"左边/右边/第几个"。
+
+## D68 · v43：字体真正落地 + h1 拉开一档 + 阴影与圆角收口（2026-11-10）
+
+用户指令原话：「我主要觉得页面不精美 不高级」。这不是主观品味问题，四条都能量，且都是实测出来的。
+
+### 一、改前四项实测（都是硬指标，不是感觉）
+
+| # | 问题 | 实测证据 |
+|---|---|---|
+| 1 | `Inter` 从来没加载过 | 全项目 `@font-face` **0 条**；运行时 `document.fonts.size = 0`；canvas 宽度探针中 `"Inter"` 与 `"Helvetica Neue"` 读数完全相同（**225.9471893310547**）——两者都没装、都在走 fallback |
+| 2 | 字重实际只有两档 | CSS 写了 400/500/600/700，但 Microsoft YaHei 只有 Regular + Bold，**500 与 600 全部塔成 700** |
+| 3 | h1 只有 34px | 44px 与 34px 两档都写在 `@media (min-height: ...)` 里，只有视口高 >1000px 才拿到 44px；1440×900 实测 **34px**，与紧邻的 `.q-title` 26px 只差一档 |
+| 4 | 阴影与圆角各自为政 | `styles/src/*.css` 里 **87 条 box-shadow**，其中 16 条是字面量、**9 条各自调了一套藏青投影**（`-10/-12/-14/-16/-20px` 五种扩散，`.18/.22/.28/.42/.50/.55` 六种浓度）；`--radius` 在 `base.css` 定义两次（`:52` 0px → `:1444` 4px），`--radius-lg` 定义两次、**引用 0 次** |
+
+### 二、落地
+
+**1. 字体：本地自带可变字体，不再依赖读者机器装了什么**
+
+`fonts/` 新增三个文件，共 **496 KB**：
+
+| 文件 | 大小 | 来源 | 轴 |
+|---|---|---|---|
+| `inter-var-latin.woff2` | 48 KB | Google Fonts `inter@v20` variable subset | wght 100–900 |
+| `inter-var-latin-ext.woff2` | 85 KB | 同上 | wght 100–900 |
+| `noto-sans-sc-subset.woff2` | 362 KB | 本机 `NotoSansSC-VF.ttf` 子集化 | wght 100–900 |
+
+字数：从 `app.js` + `index.html` + `data/taxonomy.json` + `data/photos.json`（不读 1.7 MB 的 `perfumes.json`，它的香名已含在 taxonomy 与 photos 里）取实际用到的 **1315 个 CJK 字符**，加 ASCII 与常用中文标点共 **1410 个码位**。
+
+子集化命令（加字后必须重跑）：
+
+```
+python -m fontTools.subset C:/Windows/Fonts/NotoSansSC-VF.ttf \
+  --unicodes-file=_uni.txt --flavor=woff2 \
+  --output-file=fonts/noto-sans-sc-subset.woff2 --drop-tables+=DSIG --no-hinting
+```
+
+为什么不用 4 个静态字面：静态要 4×(48+85) ≈ 532 KB 才拿到 4 档；可变字体一个文件覆盖 100–900，**600 是真的 600**，不再是 Bold。也是第 2 项缺陷的根治。
+
+为什么中文不整体加载 Noto Sans SC：全量 17.7 MB / 31036 字形，超首屏预算一两个数量级。
+
+为什么保留六个 `gFam*` 渐变 id（D63）：深色层是另一套 id，选择器结构必须对称——同理，`--font-body` 也不拆成两个 `font-family`，而是打包在一个栈里，靠 Inter 的 `unicode-range` 自动分派 CJK 给 Noto。
+
+降级路径：子集外的生字会退回 `Microsoft YaHei`（在 `--font-body` 里排在 Noto 之后）——观感变差但**不会出豆腐块**。
+
+另：`server.js` 的 `MIME` 补 `'.woff2': 'font/woff2'` 与 `'.woff': 'font/woff'`，否则走 `application/octet-stream`。
+
+**2. h1：44px 从「只在高屏生效」变成「桌面恒生效」**
+
+```css
+@media (min-width: 1021px) { .masthead h1 { font-size: 44px; letter-spacing: -0.03em; } }
+@media (min-width: 621px) and (max-width: 1020px) { .masthead h1 { font-size: 34px; letter-spacing: -0.026em; } }
+```
+
+44 ÷ 26 = **1.69**，是 Swiss 排版常见的标题/副标题跳幅（1.5–1.75）。改后 1440×900 实测 h1 **44px / 700 / -1.32px**，`.q-title` 26px 不变。
+
+**3. 数字等宽：只加字形，不换字体**
+
+`.pick-rank` / `.score` / `.scale-read` / `.progress-meta` 加 `font-variant-numeric: tabular-nums`。结果页“匹配度 84%”、第 5 步滑杆读数这类行在数字变化时不会左右跳。
+
+**4. 阴影四档**
+
+`base.css` 新增 `--sh-1` / `--sh-2` / `--sh-3` / `--sh-4`，阶梯按“离纸面的高度”分：1 静置 / 2 悬停 / 3 抬起 / 4 压入。`--sh-lift`/`--sh-press`/`--sh-card` 保留作别名（指向 3/4/2）以免动 30 余处引用。深色（`_wheel14.css`）配套四档。
+
+9 条藏青字面量归到 token，剩下三条**有理由不归**：
+
+| 位置 | 值 | 理由 |
+|---|---|---|
+| `_wheel12.css` 负向选项 `is-on` | `0 6px 18px -10px rgba(165,52,47,.5)` | 朱红投影，表达“不推荐”，归入藏青档会变意 |
+| `_wheel13.css:754` 结果卡首卡高亮 | `0 2px 10px -6px rgba(0,47,167,.18)` | 克莱因蓝投影，与 `--sh-*` 的藏青不同色相 |
+| `_wheel19/20` 的 `inset 0 0 0 1px` | 白/黑 inset 描边 | 它们不是投影，是“1px 高光边”，归档会丢失 `inset` 语义 |
+
+**5. 圆角一个真源**
+
+`base.css:52` 的 `--radius: 0px` 删（它下面 1400 行就被改成 4px，写两遍只会让人先找谁赢）；`--radius-lg`（8px，定义两次、引用 0 次）删；窄屏 `@media` 里的 `--radius: 4px`（与桌面同值，空操作）与 `--radius-lg: 6px`（无人引用）删。剩 **2px / 4px 两档**；6 处字面量归 token。
+
+实测结果：`var(--radius)` 16 处 + `var(--radius-sm)` 5+5 处、`50%` 14 处（圆形元素）、`999px` 3 处（药丸）、`0` 9 处——字面量归零。
+
+### 三、验证
+
+`styles.css` **224831 B / 7434 行 / 24 个源层**（新增 `_wheel24.css` 并注册进 `scripts/build-css.mjs` 的 `PARTS`），`--check` 一致。
+
+| 门禁 | 结果 |
+|---|---|
+| `test-render.mjs` | PASS **269** / FAIL 0 |
+| `test-contrast.mjs` | PASS **42** / FAIL 0 |
+| `test-scoring.mjs` | PASS **132** / FAIL 0（citrus 266 / floral 650 / woody 411 / amber 254 / fresh 244 / gourmand 312） |
+| `test-compliance.mjs` | PASS **10** / FAIL 0 |
+| `node --check app.js` | 0 |
+
+运行时实测（`probe_font.cjs`）：`document.fonts.size = ` **3**（之前是 0）；`body` 的 `font-family` 已以 `InterVar` 开头；`.masthead h1` = 44px / 700 / -1.32px；`.btn` = 16px / **600**（之前塔成 700）；`.hub-zh` = 26px / 600。
+
+布局回归（`probe_allsteps.cjs`）：1440×900 与 390×844 下 **8 屏全部 `of=0`**（CTA 底边均在视口内）；h1 变大后 family 屏 `act=[811,896]`，仍在 900 内。
+
+### 四、三条踩坑
+
+1. **`Invoke-WebRequest` 拿 Google Fonts CSS 会 404**，必须带 Chrome UA 头（`Mozilla/5.0 ... Chrome/130.0 Safari/537.36`）——默认 UA 返 404，带了 UA 返 200 / 9884 字节。这一条也是 AGENTS.md §3 「判定站点不可达前先用真实浏览器客户端复测」的又一个实例。
+2. **三份不同 wght 的同一个 subset URL 字节完全相同**（`Get-FileHash` 三组 sha256 两两相等）—— Google 给的是**可变字体**，四个 `font-weight:` 块指向同一个文件。下载 4 遍只得到 1 份。直接用 `@font-face { font-weight: 100 900 }` 一条覆盖。
+3. **`Read` 读到的 base.css 行号与 Python 读到的不同**（`Read` 报 1617 行，Python 报 1762 行）—— `Get-Content` / `Read` 对多字节 UTF-8 的行切分正确，但 `Select-String` 的行号跟 `Read` 的 `offset` 不同源。**改文件前必用一致的读取方式定位**，否则 assert 定位串不上。
+
+## D69 · v44：场合盘也要吃 vh 约束（2026-11-10）
+
+### 问题（实测，1366×768）
+
+`probe_dsc.cjs`：第 4 步场合盘 `.disc` 宽 **520px**、top 295.9、bottom **815.9**——比视口高 768 多出 **48px**。
+
+### 根因
+
+v35（D61）把 `base.css` 的四档 vh 约束（62/56/54/50vh）从 `.disc` 提到了 `.disc.wheel`（`base.css:254` 的注释就是这件事）——为的是拿回被 `_wheel4.css:15` 同特异性覆盖掉的宽度。
+
+但第 4 步场合盘是 `buildDisc()`（`app.js:250`）产出的根节点 `class="disc"`，**没有 `wheel` 类**。于是首屏轮盘被压住了，场合盘没有，只剩 `.disc { width: min(88vw, var(--discw)) }`。
+
+这与 D63 里「前三轮圆盘优化全写在 `.wheel …` 下、从未覆盖场合盘」是**同一个原因的两个面**。
+
+### 修法（`_wheel24.css` 末尾新增一节）
+
+```css
+@media (min-width: 621px) {
+  #app .disc:not(.wheel) { width: min(88vw, var(--discw), 58vh); }
+}
+@media (min-width: 621px) and (max-height: 1000px) {
+  #app .disc:not(.wheel) { width: min(88vw, var(--discw), 52vh); }
+}
+@media (min-width: 621px) and (max-height: 820px) {
+  #app .disc:not(.wheel) { width: min(88vw, var(--discw), 50vh); }
+}
+@media (min-width: 621px) and (max-height: 740px) {
+  #app .disc:not(.wheel) { width: min(88vw, var(--discw), 46vh); }
+}
+```
+
+三个取舍：
+
+1. **系数比首屏再收 4vh**（58/52/50/46 vs 首屏 62/56/54/50）。场合盘没有中圈与外圈标签，但下方有 85px 的吸底 `.actions`，留的余量要更大。
+2. **选择器写 `#app .disc:not(.wheel)` 而不是 `body .disc`**：特异性 1,1,0，在 `_wheel24.css`（最后一层）里能稳定压过 `base.css:213` 与 `_wheel4.css:15`。用 `:not()` 而不是直接加类，是为了不碰 `buildDisc()` 的 DOM（改 DOM 会让 `test-render.mjs` 40 余处按类名计数的断言变脆）。
+3. **不给手机加这套**：手机已有 `base.css:566` 的 `min(92vw, 380px)` 与 `:582` 的 `min(86vw, 320px)`，且 `max-width: 620px` 与 `min-width: 621px` 不交。
+
+### 验证
+
+| 视口 | 场合盘宽 | 盘 bottom | `.actions` | CTA | 出屏 |
+|---|---|---|---|---|---|
+| 1440×900 | 468（52vh） | 786 | [815,900] | 830..884 | **0** |
+| 1366×768 | 384（50vh） | 679.9 | [683,768] | 698..752 | **0** |
+| 1280×720 | 324（46vh） | 613 | [635,720] | 650..704 | **0** |
+| 390×844（未改） | 358.8 | — | — | — | **0** |
+
+门禁全绿：`styles.css` **226009 B / 7464 行 / 24 层**，`--check` 一致；render **269**、contrast **42**、scoring **132**、compliance **10**、`node --check app.js` = 0。
+
+### 经验
+
+**把一条规则的选择器提高特异性时，要同时查「有几个兄弟元素共用这条规则」。** `.disc` 在项目里有两个产生源（`buildWheel` → `disc wheel`、`buildDisc` → `disc`），`D59/D61/D62/D63` 四轮圆盘工作均只覆盖了前者。以后改 `.disc` 必须同时验证两个屏。

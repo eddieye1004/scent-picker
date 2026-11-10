@@ -91,7 +91,7 @@
   border-color: var(--blue);
   background: var(--fill-blue);
   color: #fff;
-  box-shadow: 0 6px 18px -10px rgba(0, 26, 94, .55);
+  box-shadow: var(--sh-2);
 }
 .choice.is-on .choice-zh { color: #fff; }
 /* 反白后的副行：白色 .78 透明度在 --blue 上是 8.4:1 级别，安全；
@@ -247,7 +247,7 @@
   top: 2px;
   bottom: 6px;
   width: 3px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--blue);
 }
 @media (max-width: 620px) {

@@ -78,7 +78,7 @@
   border-radius: 50%;
   border: 1px solid var(--edge);
   background: var(--bg);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 8px 26px -14px rgba(0, 26, 94, .28);
+  box-shadow: var(--sh-2);
   padding: 12px 14px;
 }
 .wheel:not(.is-open) .disc-hub::before { display: none; }

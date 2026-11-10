@@ -1,0 +1,348 @@
+/* ============================================================
+   _wheel23.css · 圆盘统一（v37 · A + F）
+   ------------------------------------------------------------
+   用户 m09714：
+     「1 选A 统一颜色 但我希望保留区块的设计 和动态的效果  2选f」
+
+   本层只做**第 4 步「场合」圆盘**（`buildDisc()`，app.js:250）。
+   首屏轮盘的改动在 _wheel7 / _wheel14 / base 与 app.js 的 mkGrad 里，
+   因为它自带 `.wheel` 类，走的是一整套既有层级。
+
+   ------------------------------------------------------------
+   为什么这一屏必须单独开层
+   ------------------------------------------------------------
+   `buildDisc()` 产出的根节点是 `class="disc"`，**没有 `wheel` 类**。
+   D59/D61/D62 三轮圆盘优化全部写在 `.wheel …` 选择器下，
+   于是这一屏一直没有被覆盖到 —— 它用的还是 base.css 里最早那套：
+     · 扇区 `fill: var(--bg)` + `stroke: var(--edge)` 1px 实线
+     · 盘心是**方块**（`border-radius:0`）+ 四角 L 形角标
+     · 没有 `.wheel` 的底座、倒角、三层落影
+   这就是用户说的「后面一步有一个圆盘没有进行优化，还是最旧的设计」。
+
+   给 `buildDisc()` 的根节点加 `wheel` 类是不行的：`.wheel.is-open` 一族
+   会连带把这一屏当成"展开态族盘"处理（中圈弧片、标签层、sub-ring 全都要）。
+   所以做法是**在 CSS 里用 `#app[data-step="context"]` 认屏**，
+   而 data-step 是 D61 已经写进 render() 的（app.js 的 `app.dataset.step`），
+   不需要再动 DOM。
+
+   ------------------------------------------------------------
+   F 方向是什么
+   ------------------------------------------------------------
+   「留白优先」：不画分格线，只靠 4px 白缝 + `#fafbfe` 的淡瓦片把 n 段分开。
+   代价是扇区边界几乎看不见 —— 但这一屏的扇区本来就没有颜色语义
+   （5 个场合不是 5 种色），画一条 1px 的 `--edge` 实线只会让 5 个灰框
+   抢在标题前面。场合靠"位置 + 提示文字"识别，不靠框。
+
+   保留的：is-on 选中翻成克莱因蓝实心（与首屏轮盘同一套选中语言）。
+   ============================================================ */
+
+/* ---- 一、盘体：白底 + 一道极淡外圈，去掉灰蓝底座 ---- */
+#app[data-step="context"] .disc {
+  background: var(--bg);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1px var(--hair),
+    0 12px 34px -30px rgba(0, 26, 94, .35);
+}
+
+/* 这一屏的 .disc 没有 ::after，base 层也没给它落影盒；
+   显式关掉以免以后有人给 .disc 加 ::after 时在这一屏意外出现。 */
+#app[data-step="context"] .disc::after {
+  content: none;
+}
+
+/* ---- 二、瓦片：淡色面 + 4px 白缝，不画分格线 ----
+   4px 是 480 单位画布上的值，落在 520px 盘上是 4.3px；
+   再细（2px）在 390 视口的 320px 盘上只剩 1.3px，缝就消失了。 */
+#app[data-step="context"] .disc-svg .sector-g .sector-shape {
+  fill: #fafbfe;
+  stroke: var(--bg);
+  stroke-width: 4;
+  transition: fill var(--t-hover) var(--ease-std);
+}
+
+/* 悬停：只是把瓦片提到纯白 —— 不换描边、不加粗。
+   这一屏的分块靠底色差（#fafbfe vs #ffffff），描边一粗就回到"画框"的老样子。 */
+#app[data-step="context"] .disc-svg .sector-g:hover .sector-shape,
+#app[data-step="context"] .disc-svg .sector-g.is-hot .sector-shape {
+  fill: var(--bg);
+  stroke: var(--bg);
+  stroke-width: 4;
+}
+
+/* 按下：瞬时，不给过渡（与 base 层同策略） */
+#app[data-step="context"] .disc-svg .sector-g:active .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--bg);
+  transition: none;
+}
+
+/* 选中：**浅蓝底 + 蓝字**，不是蓝实心。
+   第一版照抄首屏的"选中翻蓝"，实测 1440 下右侧那圈 84px 宽的蓝带
+   与 222px 的蓝盘心挤在一起，两块等重的蓝挨着 → 视线不知道该落在哪。
+   这一屏的"当前选中"应当由盘心承担（它写着场合名），扇区只做位置标记，
+   所以扇区降一档到 blue-wash，全屏只剩盘心一块蓝。 */
+#app[data-step="context"] .disc-svg .sector-g.is-on .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--bg);
+  stroke-width: 4;
+}
+
+/* 标签跟着翻蓝 —— base 层 `.disc-sector[aria-checked="true"]{color:var(--bg)}`
+   是给"蓝实心"配的白字，这里底色变浅，白字会看不见。 */
+#app[data-step="context"] .disc-sector[aria-checked="true"] {
+  color: var(--blue);
+}
+#app[data-step="context"] .disc-sector[aria-checked="true"] .en {
+  color: var(--blue);
+  opacity: .72;
+}
+
+/* ---- 三、盘心：方块改圆 ----
+   方块盘心在首屏是成立的（它与内圆弧四角咬合），但这一屏的盘是
+   **没有外框的淡瓦片**，一个带 L 角标的方框贴上去读成"另一张卡片"。
+   改成圆之后，盘心与扇区共用同一个圆心，读起来是"盘里的盘心"。 */
+#app[data-step="context"] .disc-hub {
+  border-radius: 50%;
+  border: 0;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--hair);
+  transition: background-color var(--t-fade) var(--ease-std),
+              box-shadow var(--t-fade) var(--ease-std),
+              color var(--t-fade) var(--ease-std);
+  /* 方改圆之后，base 层那句 padding:14px 16px 就不成立了：
+     方框的四个角是"空的但可用"，圆形的角是真没有。同一段说明文字
+     摆在离底边 14px 处，实测右端伸出圆周 23px（222px 盘心 / 153.7px 宽 /
+     距底 14px 时，那道弦只剩约 107px 可用）。
+     底边留白改用百分比：padding 的百分比按**宽度**解析，
+     盘心在 222px（1440）与 146px（390）之间缩放时留白同比缩放。 */
+  padding: 0 16px;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* 圆内可用宽度随高度递减 —— 文字块要收在"最窄那道弦"以内。
+   70% 是量出来的上限：222px 盘心 → 155px（圆周允许 158px）；
+   146px 盘心 → 102px（圆周允许 105px）。再宽就顶出圆边。 */
+#app[data-step="context"] .disc-hub .hub-desc {
+  max-width: 70%;
+  margin: 0 auto;
+}
+
+/* 角标（四段 L 形渐变）在这一屏不适用，关掉 */
+#app[data-step="context"] .disc-hub::before {
+  content: none;
+}
+
+/* 选中态：盘心**不填色**，只加一道蓝环 + 主词转蓝。
+   试过两版都太重：
+     ① 蓝底白字（照抄首屏）—— 222px 的蓝圆压在 520px 盘中央，
+        全屏最重的东西变成一个"已选定"标签，比标题还抢；
+     ② 扇区也翻蓝 —— 蓝圆 + 蓝带两块等重的蓝挨着，视线无处落。
+   F 方向的前提是"留白优先"，所以选中只用一个位置标记：
+   一道 1.5px 蓝环勾出盘心轮廓，主词转蓝，其余不动。
+   不能删 base 的 `.disc-hub.is-picked{background:var(--ink)}`（那条也管首屏），
+   只能在本屏覆盖。 */
+#app[data-step="context"] .disc-hub.is-picked {
+  background: var(--bg);
+  box-shadow: 0 0 0 1.5px var(--blue);
+}
+#app[data-step="context"] .disc-hub.is-picked .hub-kicker { color: var(--ink-3); }
+#app[data-step="context"] .disc-hub.is-picked .hub-zh { color: var(--blue); }
+#app[data-step="context"] .disc-hub.is-picked .hub-desc { color: var(--ink-2); }
+
+/* ---- 四、触屏：hover 不收尾（与 _wheel22 同一策略）---- */
+@media (hover: none) {
+  #app[data-step="context"] .disc-svg .sector-g:hover .sector-shape {
+    fill: #fafbfe;
+    stroke: var(--bg);
+  }
+  #app[data-step="context"] .disc-svg .sector-g.is-on .sector-shape {
+    fill: var(--blue);
+  }
+}
+
+/* ============================================================
+   五、首屏轮盘的"分块"（A 方向真正落地的地方）
+   ------------------------------------------------------------
+   六族统一成纸白之后，分块只剩一条通道：**缝**。
+   第一次把缝写成 `--bg`（白）时实测完全看不见 —— 白瓦片 + 白缝 = 一整片白，
+   用户要保留的"区块设计"就没了。
+
+   为什么这段必须放在 _wheel23：
+     `_wheel13.css:142` 有一条
+       `.wheel .disc-svg .sector-shape { stroke: var(--stroke-hi); stroke-width: 1 }`
+     特异性 0,3,0，且它在 PARTS 里排在本层之前。我在 _wheel7 里把 stroke
+     改成 --bg-3 / 2.6px 之后，实测 computed 仍是 `rgba(255,255,255,.92)` / 1px
+     —— 就是被那条吃掉了。本层是最后一层，同特异性下才能赢。
+
+   特异性 0,3,0 是刻意压低的：必须低于
+     · hover/hot 的 `.wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape`（0,6,0）
+     · is-on 的 `.wheel .disc-svg .sector-g.is-on .sector-shape`（0,5,0）
+   否则选中与悬停都会被这条基础规则盖掉。
+   ============================================================ */
+.wheel .disc-svg .sector-shape {
+  fill: #ffffff;
+  stroke: var(--bg-3);
+  stroke-width: 2.6;
+  /* _wheel7.css:506 给扇区挂了 `drop-shadow(0 -0.5px 0 rgba(255,255,255,.85))`
+     当倒角高光。缝改成灰之后，这道白影正好压在缝的一侧，
+     把 2.6px 的缝削成 1.6px 且一侧发虚 —— 关掉。 */
+  filter: none;
+}
+
+/* 扇区文字：白瓦片上不能是纯白字（base 层 `.disc-sector` 默认 --ink，本来就深色，
+   这条只是把"已选中"的白色字改回来 —— 选中态在 _wheel7 是 blue-wash 底 + 蓝描边，
+   底色仍浅，白字依旧不可读）。 */
+.wheel .disc-sector[aria-checked="true"] {
+  color: var(--blue);
+}
+.wheel .disc-sector[aria-checked="true"] .en {
+  color: var(--blue);
+  opacity: .72;
+}
+
+/* ============================================================
+   六、展开态：中圈弧片与"已选家族"
+   ------------------------------------------------------------
+   首屏展开后是两层：外圈 6 个家族 + 中圈 n 个香调。
+   两层各自的 fill 都是白（gFam/gArc 现在都是纸白），stroke 也是白，
+   于是**中圈整片隐形** —— 展开后只看到一圈标签浮在白盘上。
+
+   同一套解法：缝用 --bg-3。中圈弧片的缝比外圈细一档（2.2 而非 2.6），
+   因为中圈的弧长更短、同样的缝在 60% 缩放后占比更大。
+   ============================================================ */
+.wheel .sub-arc {
+  fill: #ffffff;
+  stroke: var(--bg-3);
+  stroke-width: 2.2;
+}
+
+/* 中圈悬停：提亮到纯白 + 缝不变粗（base 层是 fill:#fff，本来就同色，
+   这里靠 stroke 变深来给反馈 —— 白底上换浅色 fill 是看不见的）。 */
+.wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
+.wheel .sub-g.is-hot .sub-arc {
+  fill: #ffffff;
+  stroke: var(--ink-3);
+  stroke-width: 2.2;
+}
+
+/* 已选的香调：blue-wash 底 + 蓝缝（沿用 _wheel7:619 的语义，只把缝换掉） */
+.wheel.is-open .sub-g.is-on .sub-arc {
+  fill: var(--blue-wash);
+  stroke: var(--blue);
+  stroke-width: 2.2;
+}
+
+/* 已选家族：展开后外圈那块要读得出来。
+   `_wheel7.css:619` 是 blue-wash + 蓝 1.6px 描边 —— 在纸白瓦片上
+   blue-wash（≈#eef2ff）与白只差 4%，实测几乎看不出。
+   改成"蓝缝 + 蓝字"，与场合屏同一个做法，全盘仍只有中圈一块蓝色。 */
+.wheel.is-open .sector-g.is-on .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--blue);
+  stroke-width: 2.6;
+}
+
+/* 家族标签：未选是 --ink，已选时与扇区同色（蓝），让"选中"这条信息
+   在文字层也成立，而不是只靠一块很淡的底。 */
+.wheel.is-open .label-layer .disc-sector.lvl1.is-on .zh,
+.wheel.is-open .label-layer .disc-sector.lvl1[aria-checked="true"] .zh {
+  color: var(--blue);
+}
+
+/* 已选香调的白字必须改蓝。
+   `_wheel7.css:120` 与 `:420` 把 `.sub-arc-btn.is-on` 写成 `color:#ffffff`，
+   那是为"选中弧片 = 克莱因蓝实心"配的。AF 改造后弧片变成 --blue-wash
+   （实测瓦片底色 rgb(210,213,227)），白字压上去只有约 1.5:1 —— 截图里
+   「玫瑰」两个字几乎读不出来。改成与缝同色的蓝，与上面家族标签同一套。
+   特异性 0,4,0 与原规则持平，靠层序（_wheel23 最后）生效。 */
+.wheel .disc-sector.lvl2.sub-arc-btn.is-on,
+.wheel .disc-sector.lvl2.sub-arc-btn.is-on .zh {
+  color: var(--blue);
+}
+
+/* ============================================================
+   七、深色：场合盘（F 方向）的瓦片
+   ------------------------------------------------------------
+   第二节把瓦片写成 `#fafbfe`（浅色纸白）+ `var(--bg)` 缝。
+   深色下 `--bg` 是 `#141414`，但 `#fafbfe` 是**硬编码的纸白**，
+   于是 5 个扇区在近黑盘上变成 5 块白瓦 —— 全屏最亮的东西从文字
+   变成了扇区底（实测截图）。
+   深色要反过来：**瓦片比盘底亮一档，缝比瓦片再亮一档**，
+   与浅色"瓦片比盘底暗一档、缝=盘底"同一套相对关系。
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  #app[data-step="context"] .disc-svg .sector-g .sector-shape {
+    fill: var(--bg-2);          /* #2a2a2a，对盘底 #141414 亮一档 */
+    stroke: #3a3a3a;            /* 缝再亮一档，沿用 --line 的取值 */
+  }
+  #app[data-step="context"] .disc-svg .sector-g:hover .sector-shape,
+  #app[data-step="context"] .disc-svg .sector-g.is-hot .sector-shape {
+    fill: var(--bg-3);          /* #323232 */
+    stroke: #3a3a3a;
+  }
+  #app[data-step="context"] .disc-svg .sector-g.is-on .sector-shape {
+    fill: var(--blue-wash);     /* rgba(110,139,255,.14) 压在 #141414 上 */
+    stroke: #3a3a3a;
+  }
+  /* 选中扇区的文字：第二节把它设成 --blue（深色是 #6e8bff），保持不动。 */
+  #app[data-step="context"] .disc-hub {
+    background: var(--bg-2);
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  #app[data-step="context"] .disc-hub.is-picked {
+    background: var(--bg-2);
+    box-shadow: 0 0 0 1.5px var(--blue);
+  }
+}
+
+/* ============================================================
+   八、深色：首屏轮盘的瓦片（第五、六节的深色对照）
+   ------------------------------------------------------------
+   第五节把首屏瓦片写成 `fill: #ffffff`（A 方向的纸白），第六节给
+   展开态的外圈与中圈也是 `#ffffff`。这三条都是**硬编码白**，深色下
+   直接变成黑底上的白环 —— 实测展开态最刺眼，整圈 6 个家族瓦片全白，
+   比盘心标题亮两个档，视线被拉去边缘。
+
+   深色沿用场合盘同一套相对关系：瓦片比盘底亮一档、缝再亮一档。
+   源顺序在本层内最靠后，同特异性即可覆盖第五、六节。
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  .wheel .disc-svg .sector-shape {
+    fill: var(--bg-2);
+    stroke: #3a3a3a;
+    stroke-width: 2.6;
+  }
+  .wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
+  .wheel .disc-svg .sector-g.is-hot .sector-shape {
+    fill: var(--bg-3);
+    stroke: #4a4a4a;
+  }
+  /* 展开态：外圈缩成的家族环 */
+  .wheel.is-open .sector-g .sector-shape {
+    fill: var(--bg-2);
+    stroke: #3a3a3a;
+  }
+  .wheel.is-open .sector-g.is-on .sector-shape {
+    fill: var(--blue-wash);
+    stroke: var(--blue);
+    stroke-width: 2.6;
+  }
+  /* 展开态：中圈弧片 */
+  .wheel .sub-arc {
+    fill: var(--bg-2);
+    stroke: #3a3a3a;
+  }
+  .wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
+  .wheel .sub-g.is-hot .sub-arc {
+    fill: var(--bg-3);
+    stroke: var(--ink-3);
+    stroke-width: 2.2;
+  }
+  .wheel.is-open .sub-g.is-on .sub-arc {
+    fill: var(--blue-wash);
+    stroke: var(--blue);
+  }
+  /* 展开态：已选家族的标签转蓝（第六节写的是 var(--blue)，深色自动换成 #6e8bff，无需改） */
+}

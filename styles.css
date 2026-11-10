@@ -49,7 +49,8 @@
   --font-display: var(--font-body);
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
 
-  --radius: 0px;
+  /* 圆角只有一个真源，见下方 :root 覆盖块（4px 基准 / 2px 小件 / 8px 大件）。
+     这里不再重复定义：同一个 token 写两遍时，读代码的人必须先找到谁赢才敢改。 */
   --maxw: 720px;
   --discw: 520px;
 }
@@ -437,9 +438,9 @@ body {
      视觉上立刻分出主次，但不引入任何拟物质感。
      曾经用 border+outline 做双层框（offset:-5px），截图看是"错位的第二个框"，
      不是层次——两层线离太近时人眼读成印刷套印不准。 */
-  border: 1px solid var(--edge);
+  border: 1px solid var(--hair);
   border-top: 2px solid var(--ink);
-  background: var(--bg-2);
+  background: var(--bg);
   box-shadow: none;
   display: flex;
   flex-direction: column;
@@ -1440,10 +1441,11 @@ footer.foot a:hover { color: var(--accent); }
   --accent:      #002FA7;
   --accent-soft: #8A93B8;
 
-  /* ---- 圆角：用户已定 4px 基准，8px 节奏 ---- */
+  /* ---- 圆角：4px 基准 / 2px 小件。只有这两档 ----
+     8px 档（--radius-lg）定义过两次、引用 0 次，已删；
+     全站 5 处字面量 2px 与 1 处 4px 已改回 token，见 _wheel24.css。 */
   --radius: 4px;
   --radius-sm: 2px;
-  --radius-lg: 8px;
 
   /* ---- 动效：四条缓动、七档时长。位移永不超过 8px ----
      D60 把散在 10 个源层里的 11 种曲线、16 种时长收成这两张表。
@@ -1475,9 +1477,18 @@ footer.foot a:hover { color: var(--accent); }
   --t-celebrate: 460ms; /* 确认与回弹（arcPop / arcConfirm / ringGrowStrong） */
 
   /* ---- 阴影：同色相不用黑，全站左上受光右下投影 ---- */
-  --sh-lift: 0 1px 0 rgba(255,255,255,.14) inset, 0 10px 30px -10px rgba(0,26,94,.42);
-  --sh-press: 0 1px 2px rgba(0,26,94,.28) inset, 0 1px 0 rgba(26,26,26,.16);
-  --sh-card: 0 1px 0 rgba(255,255,255,.9) inset, 0 10px 34px -14px rgba(0,26,94,.22);
+  /* ---- 阴影四档。全站只允许这四档 + inset 描边。 ----
+     原来 87 条 box-shadow 里有 16 条是字面量、有 9 条各自调了一套藏青投影的
+     模糊/扩散/透明度（-10px/-12px/-14px/-16px/-20px 五种扩散，.18/.22/.28/.42/.50/.55 六种浓度）。
+     视觉上读不出这 5% 的差别，但改一次主题要翻 6 个文件。
+     阶梯按"离纸面的高度"分：1 静置 / 2 悬停 / 3 抬起 / 4 压入。 */
+  --sh-1: 0 1px 0 rgba(255,255,255,.9) inset, 0 6px 18px -12px rgba(0,26,94,.28);
+  --sh-2: 0 1px 0 rgba(255,255,255,.9) inset, 0 8px 26px -14px rgba(0,26,94,.32);
+  --sh-3: 0 1px 0 rgba(255,255,255,.9) inset, 0 16px 34px -20px rgba(0,26,94,.44);
+  --sh-4: 0 1px 2px rgba(0,26,94,.28) inset, 0 1px 0 rgba(26,26,26,.16);
+  --sh-lift: var(--sh-3);
+  --sh-press: var(--sh-4);
+  --sh-card: var(--sh-2);
 }
 
 /* ---------------------------------------------------------------
@@ -1628,7 +1639,7 @@ footer.foot a:hover { text-decoration-thickness: 2px; }
 .wheel .disc-hub.is-wide:not(.is-picked) {
   background: radial-gradient(120% 110% at 24% 16%, #ffffff 0%, #fdfdfd 58%, var(--bg-2) 100%);
   border-color: var(--edge);
-  box-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 6px 22px -16px rgba(0,26,94,.18);
+  box-shadow: var(--sh-1);
 }
 /* 选定态说明是家族的 style 句子，20–26 字，在 154px 的盘心里要折成三行。
    基础样式的 max-height:34px 只够两行半，实测在字符中间切一刀（「…那种干」）。
@@ -1748,7 +1759,8 @@ body { position: relative; }
 
 /* 窄屏：圆角与热区不变，只收字号；蓝的用量不因屏幕小而增加 */
 @media (max-width: 620px) {
-  :root { --radius: 4px; --radius-lg: 6px; }
+  /* 窄屏不改圆角：圆角是物件属性，不随屏幕缩。原来这里重写 --radius: 4px
+     与 --radius-lg: 6px，前者与桌面同值（空操作）、后者无人引用。两条都删。 */
   .wheel .disc-hub { border-radius: var(--radius); }
 }
 
@@ -1860,7 +1872,7 @@ body { position: relative; }
   border: 1px solid var(--edge);
   border-radius: var(--radius);
   color: var(--ink-2);
-  box-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 6px 18px -12px rgba(0,26,94,.28);
+  box-shadow: var(--sh-1);
   transition: background-color var(--t-hover) var(--ease-std),
               border-color var(--t-hover) var(--ease-std),
               color var(--t-hover) var(--ease-std),
@@ -2089,7 +2101,7 @@ body { position: relative; }
   border-radius: 50%;
   border: 1px solid var(--edge);
   background: var(--bg);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 8px 26px -14px rgba(0, 26, 94, .28);
+  box-shadow: var(--sh-2);
   padding: 12px 14px;
 }
 .wheel:not(.is-open) .disc-hub::before { display: none; }
@@ -2756,7 +2768,7 @@ body { position: relative; }
 .wheel .disc-sector.lvl2.sub-arc-btn:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius);
 }
 
 @media (max-width: 620px) {
@@ -2795,20 +2807,20 @@ body { position: relative; }
      于是外围留出 5% 的一圈灰 —— 那不是留白，是这块盘的边。
      色值取 #e4e4ec：比页面白深约 6 个明度档，够看出「盘」的存在，
      又不至于让整块圆成为页面上最重的东西。 */
-  background: #c3c9dc;
+  background: var(--bg);
   box-shadow:
-    0 0 0 1px #b8bed3,
-    0 26px 60px -42px rgba(0, 26, 94, .55),
-    0 2px 6px -4px rgba(0, 26, 94, .18);
-  transition: background var(--t-move) var(--ease-std);
+    0 0 0 1px var(--line),
+    0 18px 44px -34px rgba(0, 26, 94, .40);
+  transition: background var(--t-move) var(--ease-std),
+              box-shadow var(--t-move) var(--ease-std);
 }
 /* 展开后家族盘缩到 60%，盘体本身不变 —— 盘子还在，
    只是上面那层的扇区收进去了。底座颜色随状态微调，避免整块白到发空。 */
 .wheel.is-open { }
 
-/* 家族扇区：白件 */
+/* 家族扇区：白件（A 方向：六族同色，分块只靠白缝） */
 .wheel .disc-svg .sector-shape {
-  stroke-width: 1;
+  stroke-width: 2.6;
   transition: fill var(--t-hover) var(--ease-std),
               stroke var(--t-hover) var(--ease-std);
 }
@@ -2848,7 +2860,7 @@ body { position: relative; }
   border-radius: 50%;
   background: #ffffff;
   border: 1px solid #eceef6;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .95) inset, 0 16px 34px -20px rgba(0, 26, 94, .50);
+  box-shadow: var(--sh-3);
   padding: 6px 8px;
   gap: 5px;
   justify-content: center;
@@ -2894,7 +2906,7 @@ body { position: relative; }
   font-size: 12px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  box-shadow: 0 6px 16px -10px rgba(0, 26, 94, .55);
+  box-shadow: var(--sh-2);
   transition: background var(--t-hover) var(--ease-std),
               box-shadow var(--t-hover) var(--ease-std),
               transform var(--t-micro) var(--ease-std);
@@ -2902,7 +2914,7 @@ body { position: relative; }
 .wheel .hub-go:hover { background: var(--fill-blue-deep); }
 .wheel .hub-go:active {
   background: var(--fill-blue-deep);
-  box-shadow: 0 2px 6px -6px rgba(0, 26, 94, .55);
+  box-shadow: var(--sh-1);
   transform: translateY(1px);
 }
 .wheel .hub-go:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
@@ -3188,27 +3200,17 @@ body { position: relative; }
 
 /* 盘面本身：从中心到外沿的极轻内凹（中心亮 2%，外沿收暗 4%） */
 .wheel {
-  background:
-    radial-gradient(circle at 47% 43%,
-      #d2d8e6 0%,
-      #c8cede 52%,
-      #bcc3d8 88%,
-      #b3bbd2 100%);
+  background: var(--bg);
 }
 .wheel.is-open {
-  background:
-    radial-gradient(circle at 47% 43%,
-      #d5dbe9 0%,
-      #cbd1e1 52%,
-      #bfc6da 88%,
-      #b6bed5 100%);
+  background: var(--bg);
 }
 
-/* 家族扇区外沿：一道 1px 白内描边 = 倒角高光。
-   它让六块扇区的交界从"相接"变成"拼接"，这是做工感的来源。 */
+/* 家族扇区外沿：白缝。A 方向把六族统一成纸白之后，
+   分块全靠这道缝 —— 2.6px 是在 64px 缩略下仍能看出的最小值（实测 1px 会糊成一片）。 */
 .wheel .disc-svg .sector-shape {
-  stroke: rgba(255, 255, 255, .9);
-  stroke-width: 1;
+  stroke: var(--bg-3);
+  stroke-width: 2.6;
 }
 /* 但当前家族要用蓝描边 —— 优先级必须压在倒角之上 */
 .wheel.is-open .sector-g.is-on .sector-shape,
@@ -3269,9 +3271,8 @@ body { position: relative; }
 
 /* ---- 盘心：加一道内圈发丝线，读成"表盘内的刻度圈" ---- */
 .wheel .disc-hub {
-  border: 1px solid #e8ebf4;
-  background:
-    radial-gradient(circle at 50% 34%, #ffffff 0%, #fdfdff 58%, #f4f6fc 100%);
+  border: 1px solid var(--hair);
+  background: var(--bg);
 }
 
 /* ============================================================
@@ -3281,12 +3282,17 @@ body { position: relative; }
 /* 1. 六族改回渐变：fill 从纯色换成各自的 url(#gFamXxx)。
       v12 上纯色时把 v11 的 gFam 整条盖掉了，身份有了、厚度没了。
       现在两件事同时成立：色相区分六族，同一色相内的 5% 明暗给厚度。 */
-.wheel .disc-svg .sector-g[data-fam="citrus"]   .sector-shape { fill: url(#gFamCitrus); }
-.wheel .disc-svg .sector-g[data-fam="floral"]   .sector-shape { fill: url(#gFamFloral); }
-.wheel .disc-svg .sector-g[data-fam="woody"]    .sector-shape { fill: url(#gFamWoody); }
-.wheel .disc-svg .sector-g[data-fam="amber"]    .sector-shape { fill: url(#gFamAmber); }
-.wheel .disc-svg .sector-g[data-fam="fresh"]    .sector-shape { fill: url(#gFamFresh); }
-.wheel .disc-svg .sector-g[data-fam="gourmand"] .sector-shape { fill: url(#gFamGourmand); }
+/* A 方向：六族统一为纸白，分块只靠白缝。
+   仍走 gFamXxx 这条引用（而不是写 fill:#fff），因为：
+     ① 深色层是另一套 id（gFamXxxD），选择器结构不能变；
+     ② 悬停/选中的三层覆盖都建立在这条规则之上，换成纯色会让那三层失效。
+   六个 id 现在指向同一组 stop，改回来只需改 app.js 的 mkGrad。 */
+.wheel .disc-svg .sector-g[data-fam="citrus"]   .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="floral"]   .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="woody"]    .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="amber"]    .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="fresh"]    .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="gourmand"] .sector-shape { fill: #ffffff; }
 
 /* 悬停与选中仍走两套既有语言，不新增第三套：
    悬停 = 提亮（白），选中 = 克莱因蓝 wash + 蓝描边。 */
@@ -4575,7 +4581,7 @@ body { position: relative; }
   border-color: var(--blue);
   background: var(--fill-blue);
   color: #fff;
-  box-shadow: 0 6px 18px -10px rgba(0, 26, 94, .55);
+  box-shadow: var(--sh-2);
 }
 .choice.is-on .choice-zh { color: #fff; }
 /* 反白后的副行：白色 .78 透明度在 --blue 上是 8.4:1 级别，安全；
@@ -4731,7 +4737,7 @@ body { position: relative; }
   top: 2px;
   bottom: 6px;
   width: 3px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--blue);
 }
 @media (max-width: 620px) {
@@ -5095,7 +5101,7 @@ body { position: relative; }
      不是装饰。原来写 11px 被断言拦下，这是对的。 */
   font-size: 12px;
   line-height: 17px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--blue-wash);
   color: var(--blue);                        /* 7.42 on 白 */
 }
@@ -5179,7 +5185,7 @@ body { position: relative; }
   background: var(--bg);
   border: 1px solid var(--edge);
   border-radius: var(--radius);
-  box-shadow: 0 10px 30px -12px rgba(0, 26, 94, .28);
+  box-shadow: var(--sh-2);
 }
 .combo-item {
   padding: 8px 12px;
@@ -5263,7 +5269,13 @@ body { position: relative; }
 .pick-buy-group {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  /* v41：原来是 center。三个入口的高度本来就不同 ——
+     无范围标签的（「在京东搜这一瓶」）min-height 44px，
+     带范围标签的两行按钮（「官方旗舰店／搜官方店」）min-height 48px。
+     center 会让 44px 那个在 48px 的行里上下各留 2px，
+     实测三个按钮顶边 795 / 797 / 797、底边也不齐，
+     读起来像"第一颗按钮没对准"。改 stretch 后同一行按最高者等高。 */
+  align-items: stretch;
   gap: 8px;
   justify-content: flex-end;   /* 卡 3 有 3 个入口，不靠右会从左侧起排、与卡 1/2 错位 */
   margin-left: auto;      /* 整组推到页脚右侧，与数据来源链接分开 */
@@ -5501,7 +5513,7 @@ body { position: relative; }
   color: var(--blue);             /* 7.42 on 白 */
   background: var(--blue-wash);
   border: 1px solid var(--blue-amb);   /* 3.02 : 1 */
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   line-height: 17px;
 }
 /* 窄屏：竖条收窄，内缩量也跟着减，否则正文宽度只剩 300px */
@@ -5528,7 +5540,7 @@ body { position: relative; }
   color: var(--ink-3);            /* 6.19 on 白 */
   background: var(--bg-2);
   border: 1px solid var(--line);
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   line-height: 17px;
 }
 /* ============================================================
@@ -5658,9 +5670,13 @@ body { position: relative; }
     --stroke-hi: rgba(255, 255, 255, .10);   /* 内高光降到 .10，否则读成发光边 */
 
     /* —— 阴影：换成纯黑、更高不透明度 —— */
-    --sh-lift: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 10px 30px -10px rgba(0, 0, 0, .72);
-    --sh-press: 0 1px 2px rgba(0, 0, 0, .55) inset, 0 1px 0 rgba(0, 0, 0, .4);
-    --sh-card: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 10px 34px -14px rgba(0, 0, 0, .68);
+    --sh-1: 0 1px 0 rgba(255,255,255,.06) inset, 0 6px 18px -12px rgba(0,0,0,.62);
+    --sh-2: 0 1px 0 rgba(255,255,255,.06) inset, 0 8px 26px -14px rgba(0,0,0,.66);
+    --sh-3: 0 1px 0 rgba(255,255,255,.06) inset, 0 16px 34px -20px rgba(0,0,0,.72);
+    --sh-4: 0 1px 2px rgba(0,0,0,.55) inset, 0 1px 0 rgba(0,0,0,.4);
+    --sh-lift: var(--sh-3);
+    --sh-press: var(--sh-4);
+    --sh-card: var(--sh-2);
   }
 
   /* ---- 7 处写死 background:#fff 的盘心，改成跟随变量 ----
@@ -5764,12 +5780,15 @@ body { position: relative; }
 
      深色版把它压到比背景**暗**一档：盘应该"陷进"深底，而不是浮在深底上。
      外沿那道写死的 1px `#b8bed3` 一并换成 --line。 */
+  /* A 方向（v37）：底盘与浅色层同构 —— 一块纯色面 + 一道细勾边，
+     不再用"径向内凹渐变"。浅色层已是 var(--bg) + var(--hair) 勾边，
+     深色层若还留着径向高光，两套盘的构造就分叉了。 */
   .wheel {
-    background: #0e0e0e;
+    background: #171717;
     box-shadow:
-      0 0 0 1px var(--line),
-      0 26px 60px -42px rgba(0, 0, 0, .80),
-      0 2px 6px -4px rgba(0, 0, 0, .50);
+      0 0 0 1px #303030,
+      0 0 0 3px #171717 inset,
+      0 26px 60px -46px rgba(0, 0, 0, .85);
   }
 
   /* ---- 盘面本体：两处写死的浅色径向渐变 ----
@@ -5784,22 +5803,14 @@ body { position: relative; }
      注意展开态要比闭合态**再暗一点**：中圈弧片是 #1e1e1e，
      盘底若与它同亮就读不出层级。 */
   .wheel {
-    background: radial-gradient(circle at 47% 43%,
-      #1d1d1d 0%,   /* L*10.8 */
-      #1a1a1a 52%,  /* L*9.3  —— 层序基准 */
-      #171717 88%,  /* L*7.7  */
-      #151515 100%);/* L*7.0  */
+    background: #171717;
     box-shadow:
-      0 0 0 1px #333333,
-      0 26px 60px -42px rgba(0, 0, 0, .9),
-      0 2px 6px -4px rgba(0, 0, 0, .6);
+      0 0 0 1px #303030,
+      0 0 0 3px #171717 inset,
+      0 26px 60px -46px rgba(0, 0, 0, .9);
   }
   .wheel.is-open {
-    background: radial-gradient(circle at 47% 43%,
-      #222222 0%,   /* L*13.0 */
-      #1e1e1e 52%,  /* L*11.3 */
-      #1a1a1a 88%,  /* L*9.3  */
-      #181818 100%);/* L*8.5  */
+    background: #1a1a1a;
   }
 
   /* ---- 盘的实体边：`_wheel11.css:162` 那圈 box-shadow 用的是"白瓷"倒角
@@ -5853,9 +5864,12 @@ body { position: relative; }
   .wheel .disc-svg .sector-shape {
     filter: none;
   }
-  /* 相邻两族的界线：用底色画，而不是 --line（--line 是给浅底的分隔线，太深）。 */
+  /* 相邻两族的界线：用底色画，而不是 --line（--line 是给浅底的分隔线，太深）。
+     A 方向把六族统一成同色之后，这道缝就是**唯一**的分块依据，
+     宽度必须与浅色层同为 2.6（浅色在 _wheel7.css），否则两套盘的分块读起来不一样粗。 */
   .wheel .disc-svg .sector-g .sector-shape {
     stroke: var(--bg);
+    stroke-width: 2.6;
   }
 
   /* ---- 中圈弧片：换成比家族环亮一档的面（gArcD），
@@ -6394,7 +6408,7 @@ body {
      0.94 的白而非纯白 —— 纯白在深色里太抢，会盖过卡片标题。 */
   .pick-art.is-photo img {
     background: #f2f2f2;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
 
   /* ---- 透明抠图：把上面那套白瓷底托整套撤掉 ----
@@ -6978,3 +6992,472 @@ body {
     padding: 10px 0 calc(12px + env(safe-area-inset-bottom, 0px));
   }
 }
+/* ============================================================
+   _wheel23.css · 圆盘统一（v37 · A + F）
+   ------------------------------------------------------------
+   用户 m09714：
+     「1 选A 统一颜色 但我希望保留区块的设计 和动态的效果  2选f」
+
+   本层只做**第 4 步「场合」圆盘**（`buildDisc()`，app.js:250）。
+   首屏轮盘的改动在 _wheel7 / _wheel14 / base 与 app.js 的 mkGrad 里，
+   因为它自带 `.wheel` 类，走的是一整套既有层级。
+
+   ------------------------------------------------------------
+   为什么这一屏必须单独开层
+   ------------------------------------------------------------
+   `buildDisc()` 产出的根节点是 `class="disc"`，**没有 `wheel` 类**。
+   D59/D61/D62 三轮圆盘优化全部写在 `.wheel …` 选择器下，
+   于是这一屏一直没有被覆盖到 —— 它用的还是 base.css 里最早那套：
+     · 扇区 `fill: var(--bg)` + `stroke: var(--edge)` 1px 实线
+     · 盘心是**方块**（`border-radius:0`）+ 四角 L 形角标
+     · 没有 `.wheel` 的底座、倒角、三层落影
+   这就是用户说的「后面一步有一个圆盘没有进行优化，还是最旧的设计」。
+
+   给 `buildDisc()` 的根节点加 `wheel` 类是不行的：`.wheel.is-open` 一族
+   会连带把这一屏当成"展开态族盘"处理（中圈弧片、标签层、sub-ring 全都要）。
+   所以做法是**在 CSS 里用 `#app[data-step="context"]` 认屏**，
+   而 data-step 是 D61 已经写进 render() 的（app.js 的 `app.dataset.step`），
+   不需要再动 DOM。
+
+   ------------------------------------------------------------
+   F 方向是什么
+   ------------------------------------------------------------
+   「留白优先」：不画分格线，只靠 4px 白缝 + `#fafbfe` 的淡瓦片把 n 段分开。
+   代价是扇区边界几乎看不见 —— 但这一屏的扇区本来就没有颜色语义
+   （5 个场合不是 5 种色），画一条 1px 的 `--edge` 实线只会让 5 个灰框
+   抢在标题前面。场合靠"位置 + 提示文字"识别，不靠框。
+
+   保留的：is-on 选中翻成克莱因蓝实心（与首屏轮盘同一套选中语言）。
+   ============================================================ */
+
+/* ---- 一、盘体：白底 + 一道极淡外圈，去掉灰蓝底座 ---- */
+#app[data-step="context"] .disc {
+  background: var(--bg);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1px var(--hair),
+    0 12px 34px -30px rgba(0, 26, 94, .35);
+}
+
+/* 这一屏的 .disc 没有 ::after，base 层也没给它落影盒；
+   显式关掉以免以后有人给 .disc 加 ::after 时在这一屏意外出现。 */
+#app[data-step="context"] .disc::after {
+  content: none;
+}
+
+/* ---- 二、瓦片：淡色面 + 4px 白缝，不画分格线 ----
+   4px 是 480 单位画布上的值，落在 520px 盘上是 4.3px；
+   再细（2px）在 390 视口的 320px 盘上只剩 1.3px，缝就消失了。 */
+#app[data-step="context"] .disc-svg .sector-g .sector-shape {
+  fill: #fafbfe;
+  stroke: var(--bg);
+  stroke-width: 4;
+  transition: fill var(--t-hover) var(--ease-std);
+}
+
+/* 悬停：只是把瓦片提到纯白 —— 不换描边、不加粗。
+   这一屏的分块靠底色差（#fafbfe vs #ffffff），描边一粗就回到"画框"的老样子。 */
+#app[data-step="context"] .disc-svg .sector-g:hover .sector-shape,
+#app[data-step="context"] .disc-svg .sector-g.is-hot .sector-shape {
+  fill: var(--bg);
+  stroke: var(--bg);
+  stroke-width: 4;
+}
+
+/* 按下：瞬时，不给过渡（与 base 层同策略） */
+#app[data-step="context"] .disc-svg .sector-g:active .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--bg);
+  transition: none;
+}
+
+/* 选中：**浅蓝底 + 蓝字**，不是蓝实心。
+   第一版照抄首屏的"选中翻蓝"，实测 1440 下右侧那圈 84px 宽的蓝带
+   与 222px 的蓝盘心挤在一起，两块等重的蓝挨着 → 视线不知道该落在哪。
+   这一屏的"当前选中"应当由盘心承担（它写着场合名），扇区只做位置标记，
+   所以扇区降一档到 blue-wash，全屏只剩盘心一块蓝。 */
+#app[data-step="context"] .disc-svg .sector-g.is-on .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--bg);
+  stroke-width: 4;
+}
+
+/* 标签跟着翻蓝 —— base 层 `.disc-sector[aria-checked="true"]{color:var(--bg)}`
+   是给"蓝实心"配的白字，这里底色变浅，白字会看不见。 */
+#app[data-step="context"] .disc-sector[aria-checked="true"] {
+  color: var(--blue);
+}
+#app[data-step="context"] .disc-sector[aria-checked="true"] .en {
+  color: var(--blue);
+  opacity: .72;
+}
+
+/* ---- 三、盘心：方块改圆 ----
+   方块盘心在首屏是成立的（它与内圆弧四角咬合），但这一屏的盘是
+   **没有外框的淡瓦片**，一个带 L 角标的方框贴上去读成"另一张卡片"。
+   改成圆之后，盘心与扇区共用同一个圆心，读起来是"盘里的盘心"。 */
+#app[data-step="context"] .disc-hub {
+  border-radius: 50%;
+  border: 0;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--hair);
+  transition: background-color var(--t-fade) var(--ease-std),
+              box-shadow var(--t-fade) var(--ease-std),
+              color var(--t-fade) var(--ease-std);
+  /* 方改圆之后，base 层那句 padding:14px 16px 就不成立了：
+     方框的四个角是"空的但可用"，圆形的角是真没有。同一段说明文字
+     摆在离底边 14px 处，实测右端伸出圆周 23px（222px 盘心 / 153.7px 宽 /
+     距底 14px 时，那道弦只剩约 107px 可用）。
+     底边留白改用百分比：padding 的百分比按**宽度**解析，
+     盘心在 222px（1440）与 146px（390）之间缩放时留白同比缩放。 */
+  padding: 0 16px;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* 圆内可用宽度随高度递减 —— 文字块要收在"最窄那道弦"以内。
+   70% 是量出来的上限：222px 盘心 → 155px（圆周允许 158px）；
+   146px 盘心 → 102px（圆周允许 105px）。再宽就顶出圆边。 */
+#app[data-step="context"] .disc-hub .hub-desc {
+  max-width: 70%;
+  margin: 0 auto;
+}
+
+/* 角标（四段 L 形渐变）在这一屏不适用，关掉 */
+#app[data-step="context"] .disc-hub::before {
+  content: none;
+}
+
+/* 选中态：盘心**不填色**，只加一道蓝环 + 主词转蓝。
+   试过两版都太重：
+     ① 蓝底白字（照抄首屏）—— 222px 的蓝圆压在 520px 盘中央，
+        全屏最重的东西变成一个"已选定"标签，比标题还抢；
+     ② 扇区也翻蓝 —— 蓝圆 + 蓝带两块等重的蓝挨着，视线无处落。
+   F 方向的前提是"留白优先"，所以选中只用一个位置标记：
+   一道 1.5px 蓝环勾出盘心轮廓，主词转蓝，其余不动。
+   不能删 base 的 `.disc-hub.is-picked{background:var(--ink)}`（那条也管首屏），
+   只能在本屏覆盖。 */
+#app[data-step="context"] .disc-hub.is-picked {
+  background: var(--bg);
+  box-shadow: 0 0 0 1.5px var(--blue);
+}
+#app[data-step="context"] .disc-hub.is-picked .hub-kicker { color: var(--ink-3); }
+#app[data-step="context"] .disc-hub.is-picked .hub-zh { color: var(--blue); }
+#app[data-step="context"] .disc-hub.is-picked .hub-desc { color: var(--ink-2); }
+
+/* ---- 四、触屏：hover 不收尾（与 _wheel22 同一策略）---- */
+@media (hover: none) {
+  #app[data-step="context"] .disc-svg .sector-g:hover .sector-shape {
+    fill: #fafbfe;
+    stroke: var(--bg);
+  }
+  #app[data-step="context"] .disc-svg .sector-g.is-on .sector-shape {
+    fill: var(--blue);
+  }
+}
+
+/* ============================================================
+   五、首屏轮盘的"分块"（A 方向真正落地的地方）
+   ------------------------------------------------------------
+   六族统一成纸白之后，分块只剩一条通道：**缝**。
+   第一次把缝写成 `--bg`（白）时实测完全看不见 —— 白瓦片 + 白缝 = 一整片白，
+   用户要保留的"区块设计"就没了。
+
+   为什么这段必须放在 _wheel23：
+     `_wheel13.css:142` 有一条
+       `.wheel .disc-svg .sector-shape { stroke: var(--stroke-hi); stroke-width: 1 }`
+     特异性 0,3,0，且它在 PARTS 里排在本层之前。我在 _wheel7 里把 stroke
+     改成 --bg-3 / 2.6px 之后，实测 computed 仍是 `rgba(255,255,255,.92)` / 1px
+     —— 就是被那条吃掉了。本层是最后一层，同特异性下才能赢。
+
+   特异性 0,3,0 是刻意压低的：必须低于
+     · hover/hot 的 `.wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape`（0,6,0）
+     · is-on 的 `.wheel .disc-svg .sector-g.is-on .sector-shape`（0,5,0）
+   否则选中与悬停都会被这条基础规则盖掉。
+   ============================================================ */
+.wheel .disc-svg .sector-shape {
+  fill: #ffffff;
+  stroke: var(--bg-3);
+  stroke-width: 2.6;
+  /* _wheel7.css:506 给扇区挂了 `drop-shadow(0 -0.5px 0 rgba(255,255,255,.85))`
+     当倒角高光。缝改成灰之后，这道白影正好压在缝的一侧，
+     把 2.6px 的缝削成 1.6px 且一侧发虚 —— 关掉。 */
+  filter: none;
+}
+
+/* 扇区文字：白瓦片上不能是纯白字（base 层 `.disc-sector` 默认 --ink，本来就深色，
+   这条只是把"已选中"的白色字改回来 —— 选中态在 _wheel7 是 blue-wash 底 + 蓝描边，
+   底色仍浅，白字依旧不可读）。 */
+.wheel .disc-sector[aria-checked="true"] {
+  color: var(--blue);
+}
+.wheel .disc-sector[aria-checked="true"] .en {
+  color: var(--blue);
+  opacity: .72;
+}
+
+/* ============================================================
+   六、展开态：中圈弧片与"已选家族"
+   ------------------------------------------------------------
+   首屏展开后是两层：外圈 6 个家族 + 中圈 n 个香调。
+   两层各自的 fill 都是白（gFam/gArc 现在都是纸白），stroke 也是白，
+   于是**中圈整片隐形** —— 展开后只看到一圈标签浮在白盘上。
+
+   同一套解法：缝用 --bg-3。中圈弧片的缝比外圈细一档（2.2 而非 2.6），
+   因为中圈的弧长更短、同样的缝在 60% 缩放后占比更大。
+   ============================================================ */
+.wheel .sub-arc {
+  fill: #ffffff;
+  stroke: var(--bg-3);
+  stroke-width: 2.2;
+}
+
+/* 中圈悬停：提亮到纯白 + 缝不变粗（base 层是 fill:#fff，本来就同色，
+   这里靠 stroke 变深来给反馈 —— 白底上换浅色 fill 是看不见的）。 */
+.wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
+.wheel .sub-g.is-hot .sub-arc {
+  fill: #ffffff;
+  stroke: var(--ink-3);
+  stroke-width: 2.2;
+}
+
+/* 已选的香调：blue-wash 底 + 蓝缝（沿用 _wheel7:619 的语义，只把缝换掉） */
+.wheel.is-open .sub-g.is-on .sub-arc {
+  fill: var(--blue-wash);
+  stroke: var(--blue);
+  stroke-width: 2.2;
+}
+
+/* 已选家族：展开后外圈那块要读得出来。
+   `_wheel7.css:619` 是 blue-wash + 蓝 1.6px 描边 —— 在纸白瓦片上
+   blue-wash（≈#eef2ff）与白只差 4%，实测几乎看不出。
+   改成"蓝缝 + 蓝字"，与场合屏同一个做法，全盘仍只有中圈一块蓝色。 */
+.wheel.is-open .sector-g.is-on .sector-shape {
+  fill: var(--blue-wash);
+  stroke: var(--blue);
+  stroke-width: 2.6;
+}
+
+/* 家族标签：未选是 --ink，已选时与扇区同色（蓝），让"选中"这条信息
+   在文字层也成立，而不是只靠一块很淡的底。 */
+.wheel.is-open .label-layer .disc-sector.lvl1.is-on .zh,
+.wheel.is-open .label-layer .disc-sector.lvl1[aria-checked="true"] .zh {
+  color: var(--blue);
+}
+
+/* 已选香调的白字必须改蓝。
+   `_wheel7.css:120` 与 `:420` 把 `.sub-arc-btn.is-on` 写成 `color:#ffffff`，
+   那是为"选中弧片 = 克莱因蓝实心"配的。AF 改造后弧片变成 --blue-wash
+   （实测瓦片底色 rgb(210,213,227)），白字压上去只有约 1.5:1 —— 截图里
+   「玫瑰」两个字几乎读不出来。改成与缝同色的蓝，与上面家族标签同一套。
+   特异性 0,4,0 与原规则持平，靠层序（_wheel23 最后）生效。 */
+.wheel .disc-sector.lvl2.sub-arc-btn.is-on,
+.wheel .disc-sector.lvl2.sub-arc-btn.is-on .zh {
+  color: var(--blue);
+}
+
+/* ============================================================
+   七、深色：场合盘（F 方向）的瓦片
+   ------------------------------------------------------------
+   第二节把瓦片写成 `#fafbfe`（浅色纸白）+ `var(--bg)` 缝。
+   深色下 `--bg` 是 `#141414`，但 `#fafbfe` 是**硬编码的纸白**，
+   于是 5 个扇区在近黑盘上变成 5 块白瓦 —— 全屏最亮的东西从文字
+   变成了扇区底（实测截图）。
+   深色要反过来：**瓦片比盘底亮一档，缝比瓦片再亮一档**，
+   与浅色"瓦片比盘底暗一档、缝=盘底"同一套相对关系。
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  #app[data-step="context"] .disc-svg .sector-g .sector-shape {
+    fill: var(--bg-2);          /* #2a2a2a，对盘底 #141414 亮一档 */
+    stroke: #3a3a3a;            /* 缝再亮一档，沿用 --line 的取值 */
+  }
+  #app[data-step="context"] .disc-svg .sector-g:hover .sector-shape,
+  #app[data-step="context"] .disc-svg .sector-g.is-hot .sector-shape {
+    fill: var(--bg-3);          /* #323232 */
+    stroke: #3a3a3a;
+  }
+  #app[data-step="context"] .disc-svg .sector-g.is-on .sector-shape {
+    fill: var(--blue-wash);     /* rgba(110,139,255,.14) 压在 #141414 上 */
+    stroke: #3a3a3a;
+  }
+  /* 选中扇区的文字：第二节把它设成 --blue（深色是 #6e8bff），保持不动。 */
+  #app[data-step="context"] .disc-hub {
+    background: var(--bg-2);
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  #app[data-step="context"] .disc-hub.is-picked {
+    background: var(--bg-2);
+    box-shadow: 0 0 0 1.5px var(--blue);
+  }
+}
+
+/* ============================================================
+   八、深色：首屏轮盘的瓦片（第五、六节的深色对照）
+   ------------------------------------------------------------
+   第五节把首屏瓦片写成 `fill: #ffffff`（A 方向的纸白），第六节给
+   展开态的外圈与中圈也是 `#ffffff`。这三条都是**硬编码白**，深色下
+   直接变成黑底上的白环 —— 实测展开态最刺眼，整圈 6 个家族瓦片全白，
+   比盘心标题亮两个档，视线被拉去边缘。
+
+   深色沿用场合盘同一套相对关系：瓦片比盘底亮一档、缝再亮一档。
+   源顺序在本层内最靠后，同特异性即可覆盖第五、六节。
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  .wheel .disc-svg .sector-shape {
+    fill: var(--bg-2);
+    stroke: #3a3a3a;
+    stroke-width: 2.6;
+  }
+  .wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
+  .wheel .disc-svg .sector-g.is-hot .sector-shape {
+    fill: var(--bg-3);
+    stroke: #4a4a4a;
+  }
+  /* 展开态：外圈缩成的家族环 */
+  .wheel.is-open .sector-g .sector-shape {
+    fill: var(--bg-2);
+    stroke: #3a3a3a;
+  }
+  .wheel.is-open .sector-g.is-on .sector-shape {
+    fill: var(--blue-wash);
+    stroke: var(--blue);
+    stroke-width: 2.6;
+  }
+  /* 展开态：中圈弧片 */
+  .wheel .sub-arc {
+    fill: var(--bg-2);
+    stroke: #3a3a3a;
+  }
+  .wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
+  .wheel .sub-g.is-hot .sub-arc {
+    fill: var(--bg-3);
+    stroke: var(--ink-3);
+    stroke-width: 2.2;
+  }
+  .wheel.is-open .sub-g.is-on .sub-arc {
+    fill: var(--blue-wash);
+    stroke: var(--blue);
+  }
+  /* 展开态：已选家族的标签转蓝（第六节写的是 var(--blue)，深色自动换成 #6e8bff，无需改） */
+}
+/* ===== v42 · 字体真正落地：从"系统兜底"换成"自带可变字体" =====
+   问题（实测，不是感觉）：
+   1. `--font-body` 第一顺位写的是 "Inter"，但全项目 `@font-face` 数量为 **0**、
+      运行时 `document.fonts.size = 0` —— Inter 从来没被加载过。
+      canvas 宽度探针里 `"Inter"` 与 `"Helvetica Neue"` 读数完全相同（225.95），
+      说明两者都没装、都在走后面的 fallback。
+   2. 于是英文落到 Arial、中文落到 Microsoft YaHei。YaHei 只有 Regular / Bold 两个字面，
+      CSS 里写的 500 / 600 被浏览器就近映射到 Bold（700）—— **500 与 600 两档全部塌成 700**。
+      这是"层级只剩常规/粗、密排处发糊"的直接原因。
+   3. 中文小字号在 YaHei 下笔画偏粗、字面偏方，这就是"Windows 感 / 不高级"的来源。
+
+   做法：本地自带两个**可变字体**（wght 100–900 连续轴），不再依赖读者机器上装了什么。
+   - fonts/inter-var-latin{,-ext}.woff2   48 KB + 85 KB，来自 Google Fonts 官方 inter v20，
+     是 wght 100–900 的 variable subset（实测 fvar 轴 min 100 / default 400 / max 900）。
+   - fonts/noto-sans-sc-subset.woff2      362 KB，从本机 NotoSansSC-VF.ttf 子集化：
+     只保留站内实际用到的 1315 个 CJK 字符 + ASCII + 常用中文标点，共 1410 个码位。
+     子集化命令记在 docs/DECISIONS.md 的 D67 里，加字后必须重跑。
+
+   为什么用可变字体而不是 4 个静态字面：静态要 4×(48+85) KB ≈ 532 KB 才拿到 4 档；
+   可变字体一个文件覆盖 100–900，按需插值，600 是真的 600，不再是 Bold。
+
+   为什么中文不整体加载 Noto Sans SC 全量：全量 17.7 MB / 31036 字形，远超首屏预算。
+   子集 362 KB，且 site 内文案是固定的（不接用户输入），子集够用。
+   新增文案若用到子集外的字，会退回 Microsoft YaHei —— 观感变差但**不会出现豆腐块**，
+   这是有意的降级：兜底字体在 --font-body 里排在 Noto 之后。
+
+   字体栈顺序：Inter（拉丁/数字）→ Noto Sans SC（CJK）→ 系统黑体兜底。
+   Inter 的 unicode-range 只声明拉丁段，CJK 会自动落到 Noto，不需要拆两个 font-family。 */
+
+@font-face {
+  font-family: "InterVar";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/inter-var-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+                 U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF,
+                 U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "InterVar";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/inter-var-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+                 U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+                 U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "NotoSC";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/noto-sans-sc-subset.woff2") format("woff2");
+}
+
+:root {
+  /* 覆盖 base.css 的 --font-body。显式列出 InterVar / NotoSC 在最前，
+     后面保留原系统栈作为"子集外汉字"的兜底。 */
+  --font-body: "InterVar", "Inter", "NotoSC", "Noto Sans SC",
+               "Helvetica Neue", Helvetica, -apple-system,
+               "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+               "Source Han Sans SC", Arial, sans-serif;
+  --font-display: var(--font-body);
+}
+
+/* 等宽栈里的数字：结果页的匹配度、持香推断、规格表都在用。
+   系统 monospace 在 Windows 上是 Consolas / Courier New，中英混排时
+   数字与汉字的基线会偏 0.5px。这一条不换字体，只把数字锁成等宽字形，
+   让「匹配度 84%」这类行在换行时不会左右跳。 */
+.pick-rank,
+.score,
+.scale-read,
+.progress-meta {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 字号：把 44px 档从"只在高屏生效"变成"桌面恒生效" ----------
+   改前（`base.css:266` / `:285` / `:300`）：h1 的 44px 与 34px 两档都写在
+   `@media (min-height: ...)` 里，只有视口高 >1000px 才拿到 44px；
+   1440×900 实测 h1 = 34px，与紧邻的 .q-title 26px 只差一档，
+   首屏没有"主标题"该有的重量，视线全被 520px 圆盘抢走。
+   改后：桌面（≥1021px 宽）恒为 44px，中等宽度 34px，窄屏仍 24/26px。
+   44px 与 .q-title 26px 的比值 1.69，是 Swiss 排版的常见跨度（1.5–1.75）。 */
+@media (min-width: 1021px) {
+  .masthead h1 { font-size: 44px; letter-spacing: -0.03em; }
+}
+@media (min-width: 621px) and (max-width: 1020px) {
+  .masthead h1 { font-size: 34px; letter-spacing: -0.026em; }
+}
+
+/* ===== v44 · 场合盘的圆盘也要吃 vh 约束 =====
+   实测（1366×768，`probe_dsc.cjs`）：`.disc` 宽 **520px**、top 295.9、bottom **815.9**，
+   比视口高 768 多出 48px；1280×720 更差。
+
+   根因：`base.css` 的四档 vh 约束（62/56/54/50vh）在 v35 被从 `.disc` 提到 `.disc.wheel`
+   （见 `base.css:254` 的注释），而第 4 步场合屏的根节点是 `buildDisc()` 产出的
+   `class="disc"`（**没有 wheel 类**）。于是首屏轮盘被压住了，场合盘没有。
+
+   处理：这里给"非 wheel 的 disc"补同一套四档。写在 `_wheel24.css`（最后一层）
+   保证不被 `base.css:213` 的 `min(88vw, var(--discw))` 与 `_wheel4.css:15` 顶掉。
+   宽度系数比首屏略收 2vh —— 场合盘没有中圈、没有外圈标签，但它下方有 `.actions`
+   吸底条（高度 85px），留出的余量要更大一点。 */
+
+@media (min-width: 621px) {
+  #app .disc:not(.wheel) { width: min(88vw, var(--discw), 58vh); }
+}
+@media (min-width: 621px) and (max-height: 1000px) {
+  #app .disc:not(.wheel) { width: min(88vw, var(--discw), 52vh); }
+}
+@media (min-width: 621px) and (max-height: 820px) {
+  #app .disc:not(.wheel) { width: min(88vw, var(--discw), 50vh); }
+}
+@media (min-width: 621px) and (max-height: 740px) {
+  #app .disc:not(.wheel) { width: min(88vw, var(--discw), 46vh); }
+}
+
+/* 场合屏盘心：方形改成圆形后（`_wheel23.css` 第三节），在 52vh 档圆盘只有 400px，
+   42.7% 见方的盘心 = 171px，装「当前选择 / 还没选 / 点扇区，或把指针移上去」三行
+   正好够；再窄就换两行文案，收字号会跌破 12px 下限（test-contrast 强制）。 */

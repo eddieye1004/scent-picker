@@ -121,7 +121,7 @@
 .wheel .disc-sector.lvl2.sub-arc-btn:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius);
 }
 
 @media (max-width: 620px) {
@@ -160,20 +160,20 @@
      于是外围留出 5% 的一圈灰 —— 那不是留白，是这块盘的边。
      色值取 #e4e4ec：比页面白深约 6 个明度档，够看出「盘」的存在，
      又不至于让整块圆成为页面上最重的东西。 */
-  background: #c3c9dc;
+  background: var(--bg);
   box-shadow:
-    0 0 0 1px #b8bed3,
-    0 26px 60px -42px rgba(0, 26, 94, .55),
-    0 2px 6px -4px rgba(0, 26, 94, .18);
-  transition: background var(--t-move) var(--ease-std);
+    0 0 0 1px var(--line),
+    0 18px 44px -34px rgba(0, 26, 94, .40);
+  transition: background var(--t-move) var(--ease-std),
+              box-shadow var(--t-move) var(--ease-std);
 }
 /* 展开后家族盘缩到 60%，盘体本身不变 —— 盘子还在，
    只是上面那层的扇区收进去了。底座颜色随状态微调，避免整块白到发空。 */
 .wheel.is-open { }
 
-/* 家族扇区：白件 */
+/* 家族扇区：白件（A 方向：六族同色，分块只靠白缝） */
 .wheel .disc-svg .sector-shape {
-  stroke-width: 1;
+  stroke-width: 2.6;
   transition: fill var(--t-hover) var(--ease-std),
               stroke var(--t-hover) var(--ease-std);
 }
@@ -213,7 +213,7 @@
   border-radius: 50%;
   background: #ffffff;
   border: 1px solid #eceef6;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .95) inset, 0 16px 34px -20px rgba(0, 26, 94, .50);
+  box-shadow: var(--sh-3);
   padding: 6px 8px;
   gap: 5px;
   justify-content: center;
@@ -259,7 +259,7 @@
   font-size: 12px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  box-shadow: 0 6px 16px -10px rgba(0, 26, 94, .55);
+  box-shadow: var(--sh-2);
   transition: background var(--t-hover) var(--ease-std),
               box-shadow var(--t-hover) var(--ease-std),
               transform var(--t-micro) var(--ease-std);
@@ -267,7 +267,7 @@
 .wheel .hub-go:hover { background: var(--fill-blue-deep); }
 .wheel .hub-go:active {
   background: var(--fill-blue-deep);
-  box-shadow: 0 2px 6px -6px rgba(0, 26, 94, .55);
+  box-shadow: var(--sh-1);
   transform: translateY(1px);
 }
 .wheel .hub-go:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
@@ -553,27 +553,17 @@
 
 /* 盘面本身：从中心到外沿的极轻内凹（中心亮 2%，外沿收暗 4%） */
 .wheel {
-  background:
-    radial-gradient(circle at 47% 43%,
-      #d2d8e6 0%,
-      #c8cede 52%,
-      #bcc3d8 88%,
-      #b3bbd2 100%);
+  background: var(--bg);
 }
 .wheel.is-open {
-  background:
-    radial-gradient(circle at 47% 43%,
-      #d5dbe9 0%,
-      #cbd1e1 52%,
-      #bfc6da 88%,
-      #b6bed5 100%);
+  background: var(--bg);
 }
 
-/* 家族扇区外沿：一道 1px 白内描边 = 倒角高光。
-   它让六块扇区的交界从"相接"变成"拼接"，这是做工感的来源。 */
+/* 家族扇区外沿：白缝。A 方向把六族统一成纸白之后，
+   分块全靠这道缝 —— 2.6px 是在 64px 缩略下仍能看出的最小值（实测 1px 会糊成一片）。 */
 .wheel .disc-svg .sector-shape {
-  stroke: rgba(255, 255, 255, .9);
-  stroke-width: 1;
+  stroke: var(--bg-3);
+  stroke-width: 2.6;
 }
 /* 但当前家族要用蓝描边 —— 优先级必须压在倒角之上 */
 .wheel.is-open .sector-g.is-on .sector-shape,
@@ -634,9 +624,8 @@
 
 /* ---- 盘心：加一道内圈发丝线，读成"表盘内的刻度圈" ---- */
 .wheel .disc-hub {
-  border: 1px solid #e8ebf4;
-  background:
-    radial-gradient(circle at 50% 34%, #ffffff 0%, #fdfdff 58%, #f4f6fc 100%);
+  border: 1px solid var(--hair);
+  background: var(--bg);
 }
 
 /* ============================================================
@@ -646,12 +635,17 @@
 /* 1. 六族改回渐变：fill 从纯色换成各自的 url(#gFamXxx)。
       v12 上纯色时把 v11 的 gFam 整条盖掉了，身份有了、厚度没了。
       现在两件事同时成立：色相区分六族，同一色相内的 5% 明暗给厚度。 */
-.wheel .disc-svg .sector-g[data-fam="citrus"]   .sector-shape { fill: url(#gFamCitrus); }
-.wheel .disc-svg .sector-g[data-fam="floral"]   .sector-shape { fill: url(#gFamFloral); }
-.wheel .disc-svg .sector-g[data-fam="woody"]    .sector-shape { fill: url(#gFamWoody); }
-.wheel .disc-svg .sector-g[data-fam="amber"]    .sector-shape { fill: url(#gFamAmber); }
-.wheel .disc-svg .sector-g[data-fam="fresh"]    .sector-shape { fill: url(#gFamFresh); }
-.wheel .disc-svg .sector-g[data-fam="gourmand"] .sector-shape { fill: url(#gFamGourmand); }
+/* A 方向：六族统一为纸白，分块只靠白缝。
+   仍走 gFamXxx 这条引用（而不是写 fill:#fff），因为：
+     ① 深色层是另一套 id（gFamXxxD），选择器结构不能变；
+     ② 悬停/选中的三层覆盖都建立在这条规则之上，换成纯色会让那三层失效。
+   六个 id 现在指向同一组 stop，改回来只需改 app.js 的 mkGrad。 */
+.wheel .disc-svg .sector-g[data-fam="citrus"]   .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="floral"]   .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="woody"]    .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="amber"]    .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="fresh"]    .sector-shape { fill: #ffffff; }
+.wheel .disc-svg .sector-g[data-fam="gourmand"] .sector-shape { fill: #ffffff; }
 
 /* 悬停与选中仍走两套既有语言，不新增第三套：
    悬停 = 提亮（白），选中 = 克莱因蓝 wash + 蓝描边。 */

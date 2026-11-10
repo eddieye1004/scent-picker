@@ -353,7 +353,7 @@
      不是装饰。原来写 11px 被断言拦下，这是对的。 */
   font-size: 12px;
   line-height: 17px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--blue-wash);
   color: var(--blue);                        /* 7.42 on 白 */
 }
@@ -437,7 +437,7 @@
   background: var(--bg);
   border: 1px solid var(--edge);
   border-radius: var(--radius);
-  box-shadow: 0 10px 30px -12px rgba(0, 26, 94, .28);
+  box-shadow: var(--sh-2);
 }
 .combo-item {
   padding: 8px 12px;
@@ -521,7 +521,13 @@
 .pick-buy-group {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  /* v41：原来是 center。三个入口的高度本来就不同 ——
+     无范围标签的（「在京东搜这一瓶」）min-height 44px，
+     带范围标签的两行按钮（「官方旗舰店／搜官方店」）min-height 48px。
+     center 会让 44px 那个在 48px 的行里上下各留 2px，
+     实测三个按钮顶边 795 / 797 / 797、底边也不齐，
+     读起来像"第一颗按钮没对准"。改 stretch 后同一行按最高者等高。 */
+  align-items: stretch;
   gap: 8px;
   justify-content: flex-end;   /* 卡 3 有 3 个入口，不靠右会从左侧起排、与卡 1/2 错位 */
   margin-left: auto;      /* 整组推到页脚右侧，与数据来源链接分开 */
@@ -759,7 +765,7 @@
   color: var(--blue);             /* 7.42 on 白 */
   background: var(--blue-wash);
   border: 1px solid var(--blue-amb);   /* 3.02 : 1 */
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   line-height: 17px;
 }
 /* 窄屏：竖条收窄，内缩量也跟着减，否则正文宽度只剩 300px */
@@ -786,6 +792,6 @@
   color: var(--ink-3);            /* 6.19 on 白 */
   background: var(--bg-2);
   border: 1px solid var(--line);
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   line-height: 17px;
 }

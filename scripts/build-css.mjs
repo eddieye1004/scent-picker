@@ -49,6 +49,8 @@ const PARTS = [
   '_wheel20.css', /* 结果卡商品实物图（v32）：与 _wheel18 共用 .pick-art 盒，缺图自动降级 */
   '_wheel21.css', /* 盘心改用上色 SVG（v33）：清掉继承的 stroke 与 fill:none */
   '_wheel22.css', /* 视觉统一（D59）：线条三档 / 发丝线合 token / 切屏过渡 / 控件抬起-落下 */
+  '_wheel23.css', /* 圆盘统一（v37 · A+F）：首屏六族同色 / 场合盘留白优先 / 盘心改圆 */
+  '_wheel24.css', /* v42：字体真正落地（Inter 可变 + Noto SC 子集）/ 数字等宽 / h1 44px */
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');

@@ -81,7 +81,7 @@
      0.94 的白而非纯白 —— 纯白在深色里太抢，会盖过卡片标题。 */
   .pick-art.is-photo img {
     background: #f2f2f2;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
 
   /* ---- 透明抠图：把上面那套白瓷底托整套撤掉 ----
