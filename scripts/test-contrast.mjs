@@ -360,6 +360,41 @@ for (const [sel, need, name] of TOUCH_TARGETS) {
 if (touchBad.length === 0) pass++;
 else fails.push(`触控目标偏小: ${touchBad.join(' / ')}`);
 
+/* ---------- 打印必须走白纸（D6，2026-11-12）----------
+   背景：`@media print { :root { --bg:#fff … } }` 原先被误嵌在
+   `@media (prefers-color-scheme: dark)` 内部，浅色模式打印仍是米色底
+   （probe-print.mjs 实测 body 背景 rgb(250,247,241)）。
+
+   断言两条：
+     ① 存在一个**顶层** @media print 里的 :root --bg 为纯白；
+     ② 该 print 块的位置在样式表靠后，足以压过 80-specimen 的 :root
+        （用「最后一个 --bg 定义出现在 print 块内」来钉）。
+   只看字面量，不跑浏览器 —— 浏览器侧的观感由 probe-print.mjs 负责。 */
+{
+  const noComment = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+  /* 从后往前找 @media print 块，取第一个含 --bg 的 */
+  let printOk = false;
+  let idx = noComment.length;
+  while (idx > 0) {
+    const at = noComment.lastIndexOf('@media print', idx - 1);
+    if (at < 0) break;
+    /* 找到该块的配对大括号 */
+    const open = noComment.indexOf('{', at);
+    let depth = 1;
+    let i = open + 1;
+    while (i < noComment.length && depth > 0) {
+      if (noComment[i] === '{') depth += 1;
+      else if (noComment[i] === '}') depth -= 1;
+      i += 1;
+    }
+    const body = noComment.slice(open + 1, i - 1);
+    if (/--bg\s*:\s*#fff(?:fff)?\s*[;}]/i.test(body)) { printOk = true; break; }
+    idx = at;
+  }
+  if (printOk) pass++;
+  else fails.push('打印未切白纸：找不到顶层 @media print 里的 `--bg: #fff`（D6 回归）');
+}
+
 /* ---------- 输出 ---------- */
 console.log('===== 无障碍测试（对比度 / 字号 / 焦点 / 触控）=====');
 for (const [label, fgk, bgk] of PAIRS) {

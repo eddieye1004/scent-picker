@@ -431,3 +431,35 @@ footer.foot {
     border-color: var(--stroke-l1);
   }
 }
+
+/* ============================================================
+   打印：永远走浅色（D6，2026-11-12）
+   ------------------------------------------------------------
+   这条原先被误嵌在 @media (prefers-color-scheme: dark) 内部
+   （见 40-theme.css 的注释），等于「只有系统开了深色模式，打印才是白纸」——
+   浅色模式用户打印仍是米色底。D6 一直标着"逻辑写了没跑过"，
+   scripts/probe-print.mjs 跑一次就露了：--bg 仍是 #FAF7F1。
+
+   放在本层（构建顺序的最后）是刻意的：它必须压过 80-specimen.css 里的
+   :root { --bg: #FAF7F1; … }。第一版把它加进 40-theme 末尾，
+   仍被 80 层覆盖（实测 --blue 变了、--bg 没变），所以移到这里。
+   ============================================================ */
+@media print {
+  :root {
+    --bg: #ffffff;
+    --bg-2: #f5f5f5;
+    --bg-3: #e8e8e8;
+    --line: #d9d9d9;
+    --hair: #e8e8e8;
+    --ink: #0e0e0e;
+    --ink-2: #3d3d3d;
+    --ink-3: #616161;
+    --edge: #767676;
+    --stroke-ui: #767676;
+    --stroke-l1: #bfbfbf;
+    --stroke-l2: #767676;
+    --stroke-l3: #0e0e0e;
+    --blue: #002fa7;
+  }
+  body { background: #ffffff; }
+}
