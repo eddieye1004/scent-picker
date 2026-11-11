@@ -1887,6 +1887,34 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
   }
 }
 
+/* ---------- 认屏 id 契约（2026-11-11 任务 2）----------
+   CSS 用 `#app[data-step="<步骤 id>"]` 认屏。这是一条**跨文件契约**：
+   app.js 的 STEPS 提供 id，styles/src/*.css 消费它。任何一侧单独改名都
+   **不会报错**，只会让那一整段样式静默失效 —— `be23110` 把 `context` 改成
+   `occasion` 时 CSS 没跟着改，场合屏的新圆盘因此整整三天没生效，
+   而八套测试全绿（没有任何一套读 data-step）。
+
+   这条断言把契约变成可执行的：styles.css 里出现过的每个 data-step 值，
+   必须都是 app.js 里真实存在的步骤 id（或 'result'）。
+   反向不查 —— 不是每一屏都需要专属样式，那不算错。 */
+{
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  /* 先剥注释再扫：注释里会**故意**提到旧 id（用来记录这次的教训），
+     不剥离会把"解释为什么改名"的文字当成悬空选择器。 */
+  const cssNoComment = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const used = new Set([...cssNoComment.matchAll(/data-step="([a-zA-Z]+)"/g)].map((m) => m[1]));
+  const known = new Set([...appMod.__steps.all.map((x) => x.id), 'result']);
+  const dangling = [...used].filter((v) => !known.has(v));
+  ok('认屏 id：CSS 里出现的 data-step 值都是真实步骤 id（防改名后样式静默失效）',
+    dangling.length === 0,
+    dangling.length ? `悬空：${dangling.join(',')}（app.js 现有 ${[...known].join(',')}）` : `用到 ${[...used].join(',')}`);
+  /* 场合屏那段是这次修复的对象，单独钉住它真的被认到 ——
+     上面那条只保证"id 存在"，不保证"那套规则还在"。 */
+  ok('认屏 id：场合屏那套圆盘样式仍挂在 occasion 上',
+    used.has('occasion'),
+    `现有 ${[...used].join(',')}`);
+}
+
 fs.unlinkSync(tmpApp);
 
 console.log(`\n===== 渲染测试 =====`);

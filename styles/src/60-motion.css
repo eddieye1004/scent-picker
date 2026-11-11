@@ -450,13 +450,13 @@
    于是这块实心方块成了整屏最重的东西 —— 而它承载的信息只是「还没选」。
 
    改法：空态（.is-idle）把底子放空、顶边降到 --line，选中后再恢复重量。
-   只在第 4 步生效（`#app[data-step="context"]`），不动其余屏的盘心。 */
+   只在第 4 步生效（`#app[data-step="occasion"]`），不动其余屏的盘心。 */
 
-#app[data-step="context"] .disc-hub.is-idle {
+#app[data-step="occasion"] .disc-hub.is-idle {
   background: transparent;
   border-top-color: var(--line);
 }
-#app[data-step="context"] .disc-hub.is-idle::before { opacity: .34; }
+#app[data-step="occasion"] .disc-hub.is-idle::before { opacity: .34; }
 
 /* ---------------- 八、纵向预算：吸底动作条 ----------------
 

@@ -524,17 +524,17 @@ body {
    同时有 .seg」。但转盘屏（第 1 步）后来加了「说不清香型？按感觉选」那段
    情绪段选，它同样是 `.disc` + `.seg` —— 于是这组规则命中了**两屏**，
    转盘屏的 masthead 下边距被从 28px 压到 6px，换屏时整页跳 22px。
-   现在改用 `#app[data-step="context"]`（app.js 的 render() 写出步骤 id），
+   现在改用 `#app[data-step="occasion"]`（app.js 的 render() 写出步骤 id），
    认屏不再依赖"这个屏碰巧有什么元素"。 */
-#app[data-step="context"] .chips-label {
+#app[data-step="occasion"] .chips-label {
   margin-top: 6px;
 }
-#app[data-step="context"] .masthead {
+#app[data-step="occasion"] .masthead {
   margin-bottom: 6px;
 }
 /* 季节段选下方那句说明：8px → 4px。
    它是"控件 → 解释"的关系，比"分组 → 控件"更近，收窄反而更对。 */
-#app[data-step="context"] .seg-hint {
+#app[data-step="occasion"] .seg-hint {
   margin-top: 4px;
 }
 

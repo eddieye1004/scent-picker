@@ -4,16 +4,34 @@
    用户 m09714：
      「1 选A 统一颜色 但我希望保留区块的设计 和动态的效果  2选f」
 
-   本层只做**第 4 步「场合」圆盘**（`buildDisc()`，app.js:250）。
-   首屏轮盘的改动在 _wheel7 / _wheel14 / base 与 app.js 的 mkGrad 里，
+   本层只做**第 4 步「场合」圆盘**（`buildDisc()`）。
+   首屏轮盘的改动在 20-wheel-core / 30-wheel-refine / 40-theme 与 app.js 的 mkGrad 里，
    因为它自带 `.wheel` 类，走的是一整套既有层级。
+
+   ------------------------------------------------------------
+   ⚠ 2026-11-11：这一段曾经整体失效（任务 2 修复的就是它）
+   ------------------------------------------------------------
+   认屏用的是 `#app[data-step="context"]`，而 `be23110`（一屏一问那次提交）
+   把这一步的 id 从 `context` 改成了 `occasion` —— **CSS 没有跟着改**。
+   于是下面 25 条规则自 2026-11-10 19:45 起全部 no-op，场合屏退回 base 层最老那套：
+   盘心是方块、扇区是 1px 实线描边、没有底座与落影。
+
+   为什么没被发现：选择器不匹配**不报错、也没有测试读它**，
+   表现只是"这一屏看起来还是旧的"。实测证据（`scripts/probe-disc.mjs`，
+   Edge headless 读 getComputedStyle）修复前是
+   `border-radius: 0px` / `.disc` 无底色无投影 / `sector stroke 1px`，
+   修复后是 `50%` / 有 1px 外圈 + 落影 / `stroke 4px`。
+
+   教训：**认屏用的 id 是 app.js 与 CSS 之间的契约，改 id 必须同时 grep CSS。**
+   `scripts/test-render.mjs` 现在有一条断言钉住它（搜「认屏 id」）：
+   styles.css 里出现过的 data-step 值，必须都是 app.js 里真实存在的步骤 id。
 
    ------------------------------------------------------------
    为什么这一屏必须单独开层
    ------------------------------------------------------------
    `buildDisc()` 产出的根节点是 `class="disc"`，**没有 `wheel` 类**。
    D59/D61/D62 三轮圆盘优化全部写在 `.wheel …` 选择器下，
-   于是这一屏一直没有被覆盖到 —— 它用的还是 base.css 里最早那套：
+   于是这一屏一直没有被覆盖到 —— 它用的还是 10-foundation 里最早那套：
      · 扇区 `fill: var(--bg)` + `stroke: var(--edge)` 1px 实线
      · 盘心是**方块**（`border-radius:0`）+ 四角 L 形角标
      · 没有 `.wheel` 的底座、倒角、三层落影
@@ -21,7 +39,7 @@
 
    给 `buildDisc()` 的根节点加 `wheel` 类是不行的：`.wheel.is-open` 一族
    会连带把这一屏当成"展开态族盘"处理（中圈弧片、标签层、sub-ring 全都要）。
-   所以做法是**在 CSS 里用 `#app[data-step="context"]` 认屏**，
+   所以做法是**在 CSS 里用 `#app[data-step="occasion"]` 认屏**，
    而 data-step 是 D61 已经写进 render() 的（app.js 的 `app.dataset.step`），
    不需要再动 DOM。
 
@@ -37,7 +55,7 @@
    ============================================================ */
 
 /* ---- 一、盘体：白底 + 一道极淡外圈，去掉灰蓝底座 ---- */
-#app[data-step="context"] .disc {
+#app[data-step="occasion"] .disc {
   background: var(--bg);
   border-radius: 50%;
   box-shadow:
@@ -47,14 +65,14 @@
 
 /* 这一屏的 .disc 没有 ::after，base 层也没给它落影盒；
    显式关掉以免以后有人给 .disc 加 ::after 时在这一屏意外出现。 */
-#app[data-step="context"] .disc::after {
+#app[data-step="occasion"] .disc::after {
   content: none;
 }
 
 /* ---- 二、瓦片：淡色面 + 4px 白缝，不画分格线 ----
    4px 是 480 单位画布上的值，落在 520px 盘上是 4.3px；
    再细（2px）在 390 视口的 320px 盘上只剩 1.3px，缝就消失了。 */
-#app[data-step="context"] .disc-svg .sector-g .sector-shape {
+#app[data-step="occasion"] .disc-svg .sector-g .sector-shape {
   fill: #fafbfe;
   stroke: var(--bg);
   stroke-width: 4;
@@ -63,15 +81,15 @@
 
 /* 悬停：只是把瓦片提到纯白 —— 不换描边、不加粗。
    这一屏的分块靠底色差（#fafbfe vs #ffffff），描边一粗就回到"画框"的老样子。 */
-#app[data-step="context"] .disc-svg .sector-g:hover .sector-shape,
-#app[data-step="context"] .disc-svg .sector-g.is-hot .sector-shape {
+#app[data-step="occasion"] .disc-svg .sector-g:hover .sector-shape,
+#app[data-step="occasion"] .disc-svg .sector-g.is-hot .sector-shape {
   fill: var(--bg);
   stroke: var(--bg);
   stroke-width: 4;
 }
 
 /* 按下：瞬时，不给过渡（与 base 层同策略） */
-#app[data-step="context"] .disc-svg .sector-g:active .sector-shape {
+#app[data-step="occasion"] .disc-svg .sector-g:active .sector-shape {
   fill: var(--blue-wash);
   stroke: var(--bg);
   transition: none;
@@ -82,7 +100,7 @@
    与 222px 的蓝盘心挤在一起，两块等重的蓝挨着 → 视线不知道该落在哪。
    这一屏的"当前选中"应当由盘心承担（它写着场合名），扇区只做位置标记，
    所以扇区降一档到 blue-wash，全屏只剩盘心一块蓝。 */
-#app[data-step="context"] .disc-svg .sector-g.is-on .sector-shape {
+#app[data-step="occasion"] .disc-svg .sector-g.is-on .sector-shape {
   fill: var(--blue-wash);
   stroke: var(--bg);
   stroke-width: 4;
@@ -90,10 +108,10 @@
 
 /* 标签跟着翻蓝 —— base 层 `.disc-sector[aria-checked="true"]{color:var(--bg)}`
    是给"蓝实心"配的白字，这里底色变浅，白字会看不见。 */
-#app[data-step="context"] .disc-sector[aria-checked="true"] {
+#app[data-step="occasion"] .disc-sector[aria-checked="true"] {
   color: var(--blue);
 }
-#app[data-step="context"] .disc-sector[aria-checked="true"] .en {
+#app[data-step="occasion"] .disc-sector[aria-checked="true"] .en {
   color: var(--blue);
   opacity: .72;
 }
@@ -102,7 +120,7 @@
    方块盘心在首屏是成立的（它与内圆弧四角咬合），但这一屏的盘是
    **没有外框的淡瓦片**，一个带 L 角标的方框贴上去读成"另一张卡片"。
    改成圆之后，盘心与扇区共用同一个圆心，读起来是"盘里的盘心"。 */
-#app[data-step="context"] .disc-hub {
+#app[data-step="occasion"] .disc-hub {
   border-radius: 50%;
   border: 0;
   background: var(--bg);
@@ -124,13 +142,13 @@
 /* 圆内可用宽度随高度递减 —— 文字块要收在"最窄那道弦"以内。
    70% 是量出来的上限：222px 盘心 → 155px（圆周允许 158px）；
    146px 盘心 → 102px（圆周允许 105px）。再宽就顶出圆边。 */
-#app[data-step="context"] .disc-hub .hub-desc {
+#app[data-step="occasion"] .disc-hub .hub-desc {
   max-width: 70%;
   margin: 0 auto;
 }
 
 /* 角标（四段 L 形渐变）在这一屏不适用，关掉 */
-#app[data-step="context"] .disc-hub::before {
+#app[data-step="occasion"] .disc-hub::before {
   content: none;
 }
 
@@ -143,21 +161,21 @@
    一道 1.5px 蓝环勾出盘心轮廓，主词转蓝，其余不动。
    不能删 base 的 `.disc-hub.is-picked{background:var(--ink)}`（那条也管首屏），
    只能在本屏覆盖。 */
-#app[data-step="context"] .disc-hub.is-picked {
+#app[data-step="occasion"] .disc-hub.is-picked {
   background: var(--bg);
   box-shadow: 0 0 0 1.5px var(--blue);
 }
-#app[data-step="context"] .disc-hub.is-picked .hub-kicker { color: var(--ink-3); }
-#app[data-step="context"] .disc-hub.is-picked .hub-zh { color: var(--blue); }
-#app[data-step="context"] .disc-hub.is-picked .hub-desc { color: var(--ink-2); }
+#app[data-step="occasion"] .disc-hub.is-picked .hub-kicker { color: var(--ink-3); }
+#app[data-step="occasion"] .disc-hub.is-picked .hub-zh { color: var(--blue); }
+#app[data-step="occasion"] .disc-hub.is-picked .hub-desc { color: var(--ink-2); }
 
 /* ---- 四、触屏：hover 不收尾（与 _wheel22 同一策略）---- */
 @media (hover: none) {
-  #app[data-step="context"] .disc-svg .sector-g:hover .sector-shape {
+  #app[data-step="occasion"] .disc-svg .sector-g:hover .sector-shape {
     fill: #fafbfe;
     stroke: var(--bg);
   }
-  #app[data-step="context"] .disc-svg .sector-g.is-on .sector-shape {
+  #app[data-step="occasion"] .disc-svg .sector-g.is-on .sector-shape {
     fill: var(--blue);
   }
 }
@@ -273,25 +291,25 @@
    与浅色"瓦片比盘底暗一档、缝=盘底"同一套相对关系。
    ============================================================ */
 @media (prefers-color-scheme: dark) {
-  #app[data-step="context"] .disc-svg .sector-g .sector-shape {
+  #app[data-step="occasion"] .disc-svg .sector-g .sector-shape {
     fill: var(--bg-2);          /* #2a2a2a，对盘底 #141414 亮一档 */
     stroke: #3a3a3a;            /* 缝再亮一档，沿用 --line 的取值 */
   }
-  #app[data-step="context"] .disc-svg .sector-g:hover .sector-shape,
-  #app[data-step="context"] .disc-svg .sector-g.is-hot .sector-shape {
+  #app[data-step="occasion"] .disc-svg .sector-g:hover .sector-shape,
+  #app[data-step="occasion"] .disc-svg .sector-g.is-hot .sector-shape {
     fill: var(--bg-3);          /* #323232 */
     stroke: #3a3a3a;
   }
-  #app[data-step="context"] .disc-svg .sector-g.is-on .sector-shape {
+  #app[data-step="occasion"] .disc-svg .sector-g.is-on .sector-shape {
     fill: var(--blue-wash);     /* rgba(110,139,255,.14) 压在 #141414 上 */
     stroke: #3a3a3a;
   }
   /* 选中扇区的文字：第二节把它设成 --blue（深色是 #6e8bff），保持不动。 */
-  #app[data-step="context"] .disc-hub {
+  #app[data-step="occasion"] .disc-hub {
     background: var(--bg-2);
     box-shadow: 0 0 0 1px var(--line);
   }
-  #app[data-step="context"] .disc-hub.is-picked {
+  #app[data-step="occasion"] .disc-hub.is-picked {
     background: var(--bg-2);
     box-shadow: 0 0 0 1.5px var(--blue);
   }
