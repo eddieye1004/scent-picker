@@ -43,3 +43,31 @@
 - 每完成一步，在共享大脑（Shared-brain-）STATE.md 的 scent-picker 节 append
   一行带日期与署名的结论（INBOX 已有此令）。
 - 拿不准方向时停下来问 Eddie，不要用并行多开会话猜。
+
+## 5. 收口：12 画像金标准的量程（2026-11-11，Eddie 拍板）
+
+**结论：现有 12 画像金标准的量程 = 家族 / 气质维度。notes 维度不在其量程内。**
+
+第 7–9 步（补维 → 归因 → 重新落盘判）已把这件事量到尽头：
+
+- 第 7 步给 12 画像补 `likedNotes`/`subfamily`，MAJ/STR 从 2/12·4/12 归零到 0/12·0/12；
+- 第 8 步归因（`docs/reviews/GOLD-ATTRIBUTION-20261111.md`）证明归零是 `likedNotes` 单独造成
+  （2×2 拆解 2/4 → 0/1），且 oracle chips（从 gold 反推、等于作弊）天花板只有 1/12·1/12；
+- 第 9 步按 B2 补定义 + 修 (a) 三处编码缺陷后重落盘，格4 = **0/12·1/12**，判定不成立
+  （`docs/EXPERIMENT-GOLD-REDIMENSIONS-20261111.md` §4.4）。
+
+根因不是 chips 不准，是**判定轴不对齐**：12 画像的 gold 瓶是「这瓶合这个人设吗」的逐瓶整体判断，
+notes 因子是「含不含这 3 个离散香调」；两者不可能高重合（gold 命中 ≤1 个 chip 的占 78%）。
+
+**因此：**
+
+1. **补维线（第 7–9 步）正式关闭。** 不再在 12 画像上补 notes 维度、不再调 notes 权重/计数法来
+   追这 12 个画像的命中率。详见 `docs/reviews/GOLD-ATTRIBUTION-20261111.md` 与
+   `docs/EXPERIMENT-GOLD-REDIMENSIONS-20261111.md`。
+2. **`check-head` 的地板保持 `2/4` 不动**（`scripts/test-gold.mjs` 的 `FLOOR_MAJORITY`/`FLOOR_STRICT`）。
+   它守的是「家族/气质维度不许退化」，这是它现在的唯一职责，也是它唯一能胜任的职责。
+3. **notes 维度另立专用小金标准**（notes-first 画像 + 按香调选瓶），不混进这 12 个画像。
+   草案见 `docs/reviews/GOLD-NOTES-DRAFT-20261111.md`，需 Eddie 抽查名单后才定稿。
+   在新集定稿并接入之前，**不许用 notes 相关改动去动这 12 画像的数**。
+4. 第 2/3 步（家族衰减、稀疏标签）的结论不受影响：那两步守的正是家族/气质量程内的东西。
+
