@@ -3520,6 +3520,85 @@ function affiliateLink(perfume, cfg) {
   return all.length ? all[0] : null;
 }
 
+/* ============================================================
+   手机端：唤起淘宝 App（任务 7，Eddie 2026-11-11 23:47）
+   ------------------------------------------------------------
+   **问题。** 原来的淘宝入口一律是 `s.click.taobao.com/t?e=…`（联盟转链）
+   或 `uland.taobao.com/sem/tbsearch`（带 pid 的搜索推广页）。
+   真浏览器实测（scripts/probe-aff-landing.mjs，2026-11-12）：
+     · 桌面 UA → `login.taobao.com/havanaone/...` 桌面登录页
+     · iPhone Safari UA → `login.m.taobao.com/havanaone/...` 移动登录页
+     · **淘宝 App 内置浏览器 UA（AliApp(TB/…)）→ 直接进商品详情页**
+       （`h5.m.taobao.com/awp/core/detail.htm?id=…&ali_trackid=2:mm_…`，
+        pid 原样带在 ali_trackid 里）
+   也就是说：链接本身带得出商品，**问题全在"从外部浏览器进"这一步被登录墙挡住**。
+   用户在手机上点的正确动作是"把这瓶交给 App"，不是"在网页里登录"。
+
+   **做法。** 手机端把淘宝按钮改成 `tbopen://` 唤起，不唤起（未装 App /
+   被系统拦）再落到 H5。三段式：
+
+     ① tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=<encoded>
+        —— 官方 App 唤起协议。h5Url 用**原来那条链接原样传**，所以
+           佣金归属（pid / ali_trackid / e 参数）一个字节都不变，
+           不重新签发、不改 pid。App 打开后自己按 UA 走上面那条实测路径。
+     ② 唤起失败兜底：`uland.taobao.com/sem/tbsearch?...&pid=…`
+        —— 移动版式、带 pid 的搜索结果页（实测移动 UA 下 vw=390、
+            有 45 个价格节点、不用登录就能看结果），不是桌面版。
+     ③ 桌面端（含鼠标 + 宽屏）：**不唤起**，保持原来的网页链接 ——
+        桌面点 tbopen:// 只会弹一个"选择应用"对话框，是打扰。
+
+   **为什么不用 taobao://。** `taobao://` 只在已登录 App 的深链上有意义，
+   淘宝自己在 H5 → App 的跳转里用的是 `tbopen://…action=ali.open.nav`，
+   带 action 的那条才保证由 App 接管并把 h5Url 当落地页。
+
+   **为什么不改成 m.tb.cn 短链。** 那是联盟后台"立即推广"签发的一次性短链，
+   前端拼不出来，而且这一轮的约束是"不许改 pid"——换短链等于换签发源。
+   实测也证明 pid 已经在现链接里带得出来（ali_trackid），不需要换。
+
+   **一个必须说清的边界。** 本轮验证的是"链接格式 + 唤起协议 + 兜底页版式"，
+   在 headless Chromium 里完成；**没有真机**。真机上的 App 唤起依赖系统
+   注册的 scheme 与用户是否装了 App，这两件本地无法测 —— 所以代码里
+   加了兜底，而不是假定唤起一定成功。 */
+const TB_OPEN = 'tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=';
+/* 移动端判据用**两种**信号，命中任一即算手机：
+     · `(pointer: coarse)` —— 触屏
+     · 视口 ≤ 620px —— 与 CSS 的手机断点同一根线（styles/src 里到处用 620）
+   两个都判而不是只判 UA：平板/Chrome DevTools 的 UA 未必带 iPhone，
+   而"窄屏 + 触屏"是这件事真正的判据（唤起 App 只在有 App 的设备上有意义）。
+   桌面端即使窗口拖窄，`pointer: coarse` 为 false，走网页链接，不会被唤起打断。 */
+function isMobileContext() {
+  if (typeof window === 'undefined') return false;
+  try {
+    const coarse = window.matchMedia?.('(pointer: coarse)').matches;
+    const narrow = window.matchMedia?.('(max-width: 620px)').matches;
+    return !!coarse || !!narrow;
+  } catch { return false; }
+}
+
+/* 把一个 http(s) 链接包成 App 唤起链接。非 http(s) 一律返回 null ——
+   不让 `javascript:` 之类的字符串借道 h5Url 混进 href。 */
+function tbopenHref(webUrl) {
+  const safe = safeHttpUrl(webUrl);
+  if (!safe) return null;
+  return TB_OPEN + encodeURIComponent(safe);
+}
+
+/* 唤起失败后的**移动版**兜底。为什么不用 `s.taobao.com/search`：
+   实测那条在 iPhone UA 下仍是桌面版搜索结果页（带"亲，请登录"顶栏，
+   价格节点 0 个）；`uland/sem/tbsearch` 在移动 UA 下是真·移动版式
+   （vw=390、有 45 个价格节点、不登录可看），且带 pid，佣金归属与主链一致。
+   兜底必须**保留关键词**指向同一瓶，否则"唤起失败"就变成"跳到淘宝首页"。 */
+function taobaoMobileFallback(perfume, cfg) {
+  const pid = cfg && cfg.taobao && cfg.taobao.pid;
+  if (!perfume || !perfume.name || !pid) return null;
+  const q = [perfume.brand, perfume.name].filter(Boolean).join(' ');
+  const base = SEARCH_PLATFORMS.taobao.paidUrl
+    .replace('{q}', encodeURIComponent(q))
+    .replace('{pid}', encodeURIComponent(pid));
+  return safeHttpUrl(base);
+}
+
+
 /* 第 1 名徽标的措辞。抽成纯函数是为了让测试能直接钉住这两句话，
    不必依赖主流程恰好跑到不并列的状态（实测主流程跑出来就是并列，
    徽标为 0，那条断言从未触发过）。 */
@@ -3820,14 +3899,29 @@ function renderResult() {
        这里只标"有佣金关系"与"不影响你的支付价格"，不复述整段机制。
        位置在页脚而不是按钮上，是 Eddie 拍板的取舍 —— 见 renderFooter() 的注释。 */
     const buyEls = [];
+    /* 手机端：淘宝按钮改走 tbopen:// 唤起 App（任务 7）。
+       `mobile` 在这里算一次就够 —— 同一屏所有卡片用同一个判断，
+       不会出现"这瓶唤起、那瓶不唤起"。 */
+    const mobile = isMobileContext();
     for (const l of buyLinks) {
       const labelEl = el('span', { class: 'buy-label' }, l.label);
+      /* 只有淘宝的**商品级**链接才包唤起：
+         · 京东没有等价协议，也不在本轮范围（pid 为空，本来就只有搜索兜底）；
+         · 淘宝的两条 channel（official / market）也包，因为它们的
+           落地是"搜这一瓶"的推广页，交给 App 比留在网页更接近用户目标；
+           但它们的**兜底**保持原链接本身，不需要另拼。 */
+      const wrap = mobile && l.platform === 'taobao' ? tbopenHref(l.href) : null;
+      const fallback = wrap ? (taobaoMobileFallback(p, aff) || l.href) : null;
       buyEls.push(el('a', {
         class: 'buy-link'
           + (l.kind === 'direct' ? '' : ' is-search')
-          + (l.channel === 'official' ? ' is-official' : ''),
-        href: l.href,
-        target: '_blank',
+          + (l.channel === 'official' ? ' is-official' : '')
+          + (wrap ? ' is-app' : ''),
+        href: wrap || l.href,
+        /* 唤起链接用 _self：`tbopen://` 交给系统处理，新开标签只会留下一个
+           空白页（App 关掉后回来用户看到的是一片白）。网页链接仍走 _blank，
+           保持"不在本站丢上下文"的原有行为。 */
+        target: wrap ? '_self' : '_blank',
         /* sponsored 只标在真有佣金关系的链接上。把 sponsored 挂在一个
            不带佣金的搜索页上是虚假标注：搜索引擎按作弊处理，
            用户也会误解成"这瓶有人在付钱推"。
@@ -3839,6 +3933,26 @@ function renderResult() {
         'data-kind': l.kind,
         'data-platform': l.platform,
         'data-channel': l.channel || 'product',
+        /* 唤起失败兜底：data-web 记原始网页链接，data-fallback 记移动兜底。
+           两者都写进 DOM 是为了让测试与排障能直接读到"这条按钮本来该去哪"，
+           不必去猜 tbopen 里那串 encode 的内容。 */
+        'data-web': wrap ? l.href : null,
+        'data-fallback': fallback,
+        /* 点击时先按 App 唤起走；超时没离开页面就落到兜底页。
+           为什么用定时器而不是只靠 href：tbopen:// 在没有 App 的设备上
+           是静默失败（不报错、不跳转），页面停在原地，用户以为按钮坏了。 */
+        onclick: wrap ? (ev) => {
+          const timer = setTimeout(() => {
+            try { window.location.href = fallback; } catch { /* 兜底也失败就留在原地 */ }
+          }, 1400);
+          /* 页面失焦/隐藏说明 App 接手了，撤销兜底跳转。
+             用 setTimeout 清定时器而不是靠 beforeunload：后者在 iOS Safari
+             上不可靠，切到 App 时不保证触发。 */
+          const cancel = () => { clearTimeout(timer); };
+          window.addEventListener('pagehide', cancel, { once: true });
+          window.addEventListener('blur', cancel, { once: true });
+          void ev;
+        } : null,
       }, l.scope
         /* 带 scope 的（淘宝两条）把范围写在按钮上方一小行，
            不塞进按钮文字 —— 按钮文字保持动作（"搜"），范围是名词。 */
@@ -4241,6 +4355,14 @@ export const __aff = {
   /* 测试里可以把直达链接表塞进来，不必真去 fetch。
      传 false 表示"没有这张表"，传对象表示"有"。 */
   setLinks: (v) => { AFF_LINKS = v; },
+  /* 手机端唤起（任务 7）。三个都是纯函数，测试直接调比渲染整页快：
+       tbopenHref   —— 包装规则（只放行 http(s)，pid/参数原样保留）
+       mobileFallback —— 唤起失败后落到的移动版兜底
+       isMobile     —— 什么算"手机"（触屏或窄屏），决定包不包唤起 */
+  tbopenHref,
+  mobileFallback: taobaoMobileFallback,
+  isMobile: isMobileContext,
+  tbopenPrefix: TB_OPEN,
 };
 
 /* 实物图的降级判据。同样是纯函数，同样只为可测而暴露。 */

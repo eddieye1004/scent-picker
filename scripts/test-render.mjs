@@ -1410,6 +1410,72 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
     buy.every((a) => /noopener/.test(String(a.attrs.rel || '')) && /noreferrer/.test(String(a.attrs.rel || ''))),
     buy.map((a) => a.attrs.rel).join(' | '));
 
+  /* ---- 手机端唤起淘宝 App（任务 7，Eddie 2026-11-11 23:47）----
+     验收口径是"手机上点结果页的购买链接，必须唤起淘宝 App 直达商品页，
+     不许落到需要网页登录的桌面版"。这里分三层钉：
+
+       ① 包装规则：tbopenHref 只放行 http(s)，且把原链接**原样**放进 h5Url
+          （pid / e 参数一个字节都不能丢，否则佣金归属就变了）
+       ② 兜底：唤起失败落到移动版 uland（带 pid、带关键词），不是桌面 s.taobao
+       ③ 渲染：手机上淘宝按钮 href 是 tbopen://，桌面上仍是原网页链接
+
+     这三条都是纯函数 + DOM 属性，能在这里测；真机唤起本地测不了，
+     已写进 docs/reviews/BUY-MOBILE-20261111.md 的"未核实"一节。 */
+  {
+    const A = appMod.__aff;
+    ok('tbopen 包装把原链接完整放进 h5Url',
+      (() => {
+        const src = 'https://s.click.taobao.com/t?e=abc%2Bdef&pid=mm_1_2_3';
+        const wrapped = A.tbopenHref(src);
+        if (!wrapped) return false;
+        const inner = decodeURIComponent(wrapped.split('h5Url=')[1]);
+        return inner === src;
+      })(),
+      String(A.tbopenHref('https://s.click.taobao.com/t?e=abc')).slice(0, 80));
+
+    ok('tbopen 包装带 action=ali.open.nav（App 接管的必要参数）',
+      /action=ali\.open\.nav/.test(String(A.tbopenHref('https://s.click.taobao.com/t?e=x'))),
+      String(A.tbopenHref('https://s.click.taobao.com/t?e=x')).slice(0, 90));
+
+    /* 非 http(s) 不许借道 —— 否则 javascript: 能混进 href */
+    ok('tbopen 拒绝非 http(s) 输入',
+      A.tbopenHref('javascript:alert(1)') === null
+      && A.tbopenHref('taobao://x') === null
+      && A.tbopenHref('') === null,
+      String(A.tbopenHref('javascript:alert(1)')));
+
+    /* 兜底必须是**移动版**：uland 的 sem/tbsearch 在 iPhone UA 下实测
+       vw=390、有价格节点；而 s.taobao.com/search 在同一 UA 下仍是桌面版式。
+       所以这条断言钉的是"兜底落在 uland"，不是随便一条淘宝链接。 */
+    const fb = A.mobileFallback({ brand: 'Creed', name: 'Aventus' }, A.config());
+    ok('唤起失败的兜底是移动版 uland 且带 pid',
+      !!fb && fb.includes('uland.taobao.com/sem/tbsearch') && fb.includes('pid=mm_'),
+      String(fb).slice(0, 90));
+    ok('兜底保留商品关键词（不是跳到淘宝首页）',
+      !!fb && decodeURIComponent(fb).includes('Creed') && decodeURIComponent(fb).includes('Aventus'),
+      decodeURIComponent(String(fb)).slice(0, 80));
+    ok('兜底不是桌面搜索结果页 s.taobao.com/search',
+      !!fb && !/s\.taobao\.com\/search/.test(fb),
+      String(fb).slice(0, 60));
+
+    /* 渲染侧：测试桩没有 matchMedia，isMobileContext() 返回 false，
+       所以这里走的是**桌面路径** —— 正好用来钉"桌面不唤起"。 */
+    ok('桌面渲染不包 tbopen（按钮仍是原网页链接）',
+      buy.every((a) => !String(a.attrs.href).startsWith('tbopen://')),
+      buy.map((a) => String(a.attrs.href).slice(0, 26)).join(' | '));
+
+    /* 手机路径用纯函数直接验：把同一条链接包起来，看 href 形态。
+       这一段不依赖渲染，所以不受测试桩缺 matchMedia 的影响。 */
+    const tbLink = A.links({ brand: 'Creed', name: 'Aventus' }, A.config())
+      .filter((l) => l.platform === 'taobao');
+    ok('淘宝入口都能被包成 tbopen:// 且内容不变',
+      tbLink.length > 0 && tbLink.every((l) => {
+        const w = A.tbopenHref(l.href);
+        return !!w && w.startsWith('tbopen://') && decodeURIComponent(w.split('h5Url=')[1]) === l.href;
+      }),
+      tbLink.map((l) => String(l.href).slice(0, 40)).join(' | '));
+  }
+
   /* ---- 披露：2026-11-10 19:19 起改为**页脚一行**，按钮上不再挂角标 ----
      沿革（四段，每次都是 Eddie 拍板，别把名字记混）：
        2026-11-02 页脚挂整段「购买链接为推广链接」
