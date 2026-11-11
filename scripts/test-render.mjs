@@ -846,13 +846,14 @@ ok('第 1 步有下一步按钮', !!goBtn);
 goBtn.dispatch('click');
 await new Promise((r) => setTimeout(r, 800));
 
-/* 一屏一问（2026-11-10）：家族入口 9 屏 ——
+/* 一屏一问（2026-11-10 拆屏；2026-11-11 浓淡+浓度合回一屏 → 9 屏）：家族入口 8 屏 ——
    1 香型 / 2 想要的味道 / 3 受不了的味道 / 4 气质 / 5 场合
-   6 季节 / 7 浓淡 / 8 浓度 / 9 已知款
-   家族入口没有「整族排除」，所以 9 屏；情绪入口 10 屏（末尾另有一段）。 */
+   6 季节 / 7 浓淡+浓度 / 8 已知款
+   家族入口没有「整族排除」，所以 8 屏；情绪入口 9 屏（末尾另有一段）。
+   最大流程长度 9 是 Eddie 2026-11-11 的硬要求，也是本节所有数字的来源。 */
 
 ok('进入第 2 步（想要的味道）', getStepText().includes('特别想闻到'), getStepText().slice(0, 120));
-ok('一屏一问：进度显示共 9 步（家族入口）', /共 9 步/.test(appRoot.textContent),
+ok('一屏一问：进度显示共 8 步（家族入口）', /共 8 步/.test(appRoot.textContent),
   appRoot.textContent.slice(0, 40));
 
 const chips = appRoot.querySelectorAll('.chip');
@@ -957,18 +958,17 @@ const likedPickZh = chips[0].textContent.trim();
   }
 }
 
-/* 一屏一问：家族入口 9 屏全集（第 3 屏之后还剩 6 屏）。顺序见 app.js 的 STEPS ——
-   4 气质 / 5 场合 / 6 季节 / 7 浓淡 / 8 浓度 / 9 已知款
-   家族入口没有「整族排除」（when: !a.family），所以 9 屏；
-   情绪入口 10 屏，另有一段断言（搜「入口分叉」，在文件末尾）。 */
+/* 一屏一问：家族入口 8 屏全集（第 3 屏之后还剩 5 屏）。顺序见 app.js 的 STEPS ——
+   4 气质 / 5 场合 / 6 季节 / 7 浓淡+浓度 / 8 已知款
+   家族入口没有「整族排除」（when: !a.family），所以 8 屏；
+   情绪入口 9 屏，另有一段断言（搜「入口分叉」，在文件末尾）。 */
 
 const stepNames = [
   [4, '给人什么感觉', 'mood'],
   [5, '主要什么时候用', 'occasion'],
   [6, '主要在哪个季节用', 'season'],
-  [7, '想要多浓', 'intensity'],
-  [8, '偏好哪种浓度', 'concentration'],
-  [9, '试过、并且喜欢', 'anchor'],
+  [7, '想要多浓', 'concentration'],
+  [8, '试过、并且喜欢', 'anchor'],
 ];
 for (const [n, phrase] of stepNames) {
   /* 顺序很重要：先点前进、再断言落在第 n 步。
@@ -983,8 +983,8 @@ for (const [n, phrase] of stepNames) {
 
   /* E6：品牌从原生 select 换成可搜索组合框。
      133 项原生下拉只能滚，是全场唯一无法用输入法到达的地方。
-     一屏一问之后 anchor 是第 9 步（家族入口）。 */
-  if (n === 9) {
+     一屏一问之后 anchor 是第 8 步（家族入口，浓淡+浓度合屏后）。 */
+  if (n === 8) {
     const combos = appRoot.querySelectorAll('.combo-input');
     ok('末步品牌是可搜索组合框', combos.length === 1, `实际 ${combos.length}`);
     ok('组合框是 combobox 语义',
@@ -1016,6 +1016,26 @@ for (const [n, phrase] of stepNames) {
     const shown = m ? Number(m[1]) : null;
     ok('刻度亮起项与滑块读数一致', shown !== null && onTick === shown,
       `亮第 ${onTick} 个，界面读数是 ${shown}`);
+
+    /* 2026-11-11 合屏：浓淡与浓度必须是**同一屏**，且 ③ 留香仍在。
+       这三条钉的是"合回去了"，而不是"顺序碰巧对"：
+         · 滑块（①）与浓度卡（②）同时存在于本屏；
+         · 三项编号 ①②③ 都出现 —— 一屏三个物件必须有编号，否则用户说不清在答第几个；
+         · ③ 在未选浓度时是空态（不能凭空显示一个推断值）。 */
+    const grid = appRoot.querySelector('.choice-grid');
+    const concIds = grid ? grid.querySelectorAll('[role="radio"]').map((x) => x.attrs['data-id']) : [];
+    ok('合屏后 ① 滑块与 ② 浓度卡同屏',
+      ticks.length === 5 && concIds.length >= 4, `滑块 ${ticks.length} 个刻度 / 浓度卡 ${concIds.length} 张`);
+    ok('浓度卡是 EDC…Extrait 这一组档位',
+      concIds.includes('eau-de-parfum') && concIds.includes('eau-de-toilette'),
+      concIds.join(','));
+    const stepTxt = getStepText();
+    ok('合屏后三个物件都带编号（① ② ③）',
+      /①/.test(stepTxt) && /②/.test(stepTxt) && /③/.test(stepTxt),
+      stepTxt.slice(0, 120));
+    ok('未选浓度时 ③ 留香是空态（不凭空给推断值）',
+      appRoot.querySelectorAll('.long-read.is-empty').length === 1,
+      `空态 ${appRoot.querySelectorAll('.long-read.is-empty').length} 个`);
   }
   /* 「整族排除」那三条 aria 断言已从这里移走 ——
      家族入口下这一屏不再出现（app.js 的 STEPS[].when）。它们现在挂在
@@ -1771,59 +1791,63 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
    两套数字一旦分叉，用户会看到「共 10 步」但翻到第 9 屏就出结果。 */
 {
   const S = appMod.__steps;
-  ok('一屏一问后步骤全集是 10 步', S.all.length === 10, `实际 ${S.all.length}`);
+  ok('一屏一问后步骤全集是 9 步', S.all.length === 9, `实际 ${S.all.length}`);
   ok('全集里有「整族排除」', S.all.some((x) => x.id === 'dislikedFamilies'));
   /* 拆屏时最容易犯的错是复制粘贴后忘改 id：两个步骤互相覆盖、
      进度条段数却对得上，从界面上完全看不出来。 */
   const ids = S.all.map((x) => x.id);
-  ok('10 个步骤的 id 两两不同', new Set(ids).size === ids.length, ids.join(','));
+  ok('9 个步骤的 id 两两不同', new Set(ids).size === ids.length, ids.join(','));
 
-  /* 纯函数层：家族入口 9 步、情绪入口 10 步 */
+  /* 纯函数层：家族入口 8 步、情绪入口 9 步 */
   const byFam = S.cur({ family: 'floral' });
   const byEmo = S.cur({ emotion: 'cold' });
   const empty = S.cur({});
-  ok('家族入口 9 步', byFam.length === 9, `实际 ${byFam.length}`);
-  ok('情绪入口 10 步', byEmo.length === 10, `实际 ${byEmo.length}`);
+  ok('家族入口 8 步', byFam.length === 8, `实际 ${byFam.length}`);
+  ok('情绪入口 9 步', byEmo.length === 9, `实际 ${byEmo.length}`);
   ok('家族入口不含「整族排除」', !byFam.some((x) => x.id === 'dislikedFamilies'),
     byFam.map((x) => x.id).join(','));
   ok('情绪入口含「整族排除」', byEmo.some((x) => x.id === 'dislikedFamilies'),
     byEmo.map((x) => x.id).join(','));
-  ok('未答任何入口时有 10 步（保留全集，不隐藏）', empty.length === 10, `实际 ${empty.length}`);
+  ok('未答任何入口时有 9 步（保留全集，不隐藏）', empty.length === 9, `实际 ${empty.length}`);
 
-  /* 一屏一问的核心契约：三处合并屏各自被拆成两屏。
-     这四条钉的是"拆开了"，不是"顺序碰巧对" —— 顺序再变它们仍该绿。 */
+  /* 一屏一问的核心契约：香调 / 场景 各自拆成两屏，浓淡+浓度 合回一屏。
+     这五条钉的是"集合里到底有哪几屏"，不是"顺序碰巧对" —— 顺序再变它们仍该绿。 */
   const has = (arr, id) => arr.some((x) => x.id === id);
   ok('香调拆成「想要」「受不了」两屏',
     has(byFam, 'likedNotes') && has(byFam, 'dislikedNotes'), byFam.map((x) => x.id).join(','));
   ok('场景拆成「场合」「季节」两屏',
     has(byFam, 'occasion') && has(byFam, 'season'), byFam.map((x) => x.id).join(','));
-  ok('浓淡拆成「浓淡」「浓度」两屏',
-    has(byFam, 'intensity') && has(byFam, 'concentration'), byFam.map((x) => x.id).join(','));
-  ok('拆分后不再有旧的合并屏 id（notes / context / strength）',
-    !has(byFam, 'notes') && !has(byFam, 'context') && !has(byFam, 'strength'),
+  /* 2026-11-11：Eddie 要求总流程 9 屏，浓淡/浓度按当初预留的最小回滚点合回一屏。
+     所以这里从「必须拆开」翻成「必须合并」，并同时钉住 intensity 不再作为独立步骤 ——
+     否则下次有人补回一屏，总数会静默超到 10 而这条断言仍然绿。 */
+  ok('浓淡与浓度合成一屏（只剩 concentration）',
+    has(byFam, 'concentration') && !has(byFam, 'intensity'), byFam.map((x) => x.id).join(','));
+  ok('旧 id（notes / context / strength / intensity）都不得复活',
+    !has(byFam, 'notes') && !has(byFam, 'context') && !has(byFam, 'strength')
+    && !has(byFam, 'intensity'),
     byFam.map((x) => x.id).join(','));
 
   /* 「第 N 步 / 共 M 步」必须跟着入口走 —— 这是用户唯一能看见的数字。
      注意 head() 必须显式传 answers，否则两次都读 state.answers，测出来永远相等。 */
   const headFam = S.head('anchor', { family: 'floral' });
   const headEmo = S.head('anchor', { emotion: 'cold' });
-  ok('家族入口「试过并且喜欢」是第 9 步 / 共 9 步',
-    headFam.kicker === '第 9 步 / 共 9 步', headFam.kicker);
-  ok('情绪入口「试过并且喜欢」是第 10 步 / 共 10 步',
-    headEmo.kicker === '第 10 步 / 共 10 步', headEmo.kicker);
+  ok('家族入口「试过并且喜欢」是第 8 步 / 共 8 步',
+    headFam.kicker === '第 8 步 / 共 8 步', headFam.kicker);
+  ok('情绪入口「试过并且喜欢」是第 9 步 / 共 9 步',
+    headEmo.kicker === '第 9 步 / 共 9 步', headEmo.kicker);
   /* 同一屏在两条入口下序号必须不同 —— 防「两个头部都硬编码成同一个数字」。 */
   ok('同一屏在两条入口下序号不同', headFam.kicker !== headEmo.kicker,
     `${headFam.kicker} vs ${headEmo.kicker}`);
 
-  /* 越界保护：切换入口会让步骤表从 10 缩短到 9，
-     而 state.step 可能还停在 10（结果页）或 9（旧的第 9 屏）。 */
-  ok('越界夹取：step=10 在 9 步表里夹到 9', S.clamp(10, 9) === 9, String(S.clamp(10, 9)));
-  ok('越界夹取：step=9 在 9 步表里保持 9（=结果页）', S.clamp(9, 9) === 9, String(S.clamp(9, 9)));
-  ok('越界夹取：step=3 不动', S.clamp(3, 9) === 3, String(S.clamp(3, 9)));
-  ok('越界夹取：负数是 0', S.clamp(-1, 9) === 0, String(S.clamp(-1, 9)));
-  ok('越界夹取：NaN 是 0', S.clamp(NaN, 9) === 0, String(S.clamp(NaN, 9)));
+  /* 越界保护：切换入口会让步骤表从 9 缩短到 8，
+     而 state.step 可能还停在 9（结果页）或 8（旧的第 8 屏）。 */
+  ok('越界夹取：step=9 在 8 步表里夹到 8', S.clamp(9, 8) === 8, String(S.clamp(9, 8)));
+  ok('越界夹取：step=8 在 8 步表里保持 8（=结果页）', S.clamp(8, 8) === 8, String(S.clamp(8, 8)));
+  ok('越界夹取：step=3 不动', S.clamp(3, 8) === 3, String(S.clamp(3, 8)));
+  ok('越界夹取：负数是 0', S.clamp(-1, 8) === 0, String(S.clamp(-1, 8)));
+  ok('越界夹取：NaN 是 0', S.clamp(NaN, 8) === 0, String(S.clamp(NaN, 8)));
   const allReachable = byFam.every((x) => typeof x.render === 'function');
-  ok('家族入口 9 个步骤全部有可渲染函数', allReachable, byFam.map((x) => x.id).join(','));
+  ok('家族入口 8 个步骤全部有可渲染函数', allReachable, byFam.map((x) => x.id).join(','));
 
   /* 情绪入口下真的走到那一屏：重开一局，用「按感觉选」进第 1 步。
      不能只验纯函数 —— 那样 navBar / render / 进度条任何一处漏改都测不到。 */
@@ -1840,8 +1864,8 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
     if (emoItem) {
       emoItem.dispatch('click');
       await new Promise((r) => setTimeout(r, 300));
-      ok('情绪入口显示「共 10 步」', /共 10 步/.test(appRoot.textContent), appRoot.textContent.slice(0, 50));
-      /* 一路点到「整族排除」那一屏（情绪入口下它是第 9 屏） */
+      ok('情绪入口显示「共 9 步」', /共 9 步/.test(appRoot.textContent), appRoot.textContent.slice(0, 50));
+      /* 一路点到「整族排除」那一屏（情绪入口下它是第 8 屏） */
       let guard = 0;
       while (guard++ < 12) {
         const b = appRoot.querySelectorAll('.btn').find((x) => x.textContent.includes('下一步'));

@@ -104,10 +104,23 @@ const el = (tag, attrs = {}, ...kids) => {
      4 mood              气质
      5 occasion          场合
      6 season            季节
-     7 intensity         浓淡
-     8 concentration     浓度
-     9 dislikedFamilies  整族排除（仅情绪入口）
-    10 anchor            已知款
+     7 concentration     浓淡 + 浓度（2026-11-11 合回一屏，见下方）
+     8 dislikedFamilies  整族排除（仅情绪入口）
+     9 anchor            已知款
+
+    ==== 2026-11-11：浓淡 / 浓度两屏合回一屏（10 屏 → 9 屏）====
+   Eddie 要求结果流程从 10 屏收到 9 屏，且点名「浓淡/浓度」是当初预留的最小回滚点，
+   所以按原样合回去，其余 8 屏的拆法一律不动（香调两屏、场合/季节两屏都保留）。
+   合并后：全集 9 屏 / 家族入口 8 屏 / 情绪入口 9 屏，用户可见的最大流程长度 = 9。
+
+    为什么这两屏可以合：它们测的是同一件事的两个面（体感 vs 香精占比），
+   是同一根轴上的 2 个数，同屏看反而更好比较 —— 拆开时用户在下一屏看不见
+   上一屏拖到几档，更容易答出互相矛盾的组合（旧屏为此专门挂了跨屏提醒，
+   合并后提醒就在同一屏里，指代从「上一题」改回「①」）。所以这一屏恢复 ①②③ 编号：
+    ① 想要多浓（滑块，体感）
+    ② 偏好哪种浓度（单选卡，香精占比）
+    ③ 大概能留多久（由 ② 推断，纯展示，不参与打分）
+   编号不是退步：一屏里出现三个物件时，必须能一眼说出「这是第几个决定」。
 
    为什么把「想要的」与「受不了的」拆开而不是留在同屏：
    同屏两栏的互斥逻辑（勾了左边要从右边移除）是这一屏唯一需要跨栏同步的状态，
@@ -164,17 +177,22 @@ const STEPS = [
     render: renderSeason,
   },
   {
-    id: 'intensity',
+    /* 2026-11-11：原 intensity / concentration 两屏合回这一屏。
+       id 沿用 'concentration' 而不是新造一个 'strength'：
+       ① 旧 id 'strength' 已被测试明确断言"不得复活"（test-render 的入口分叉段），
+          复活它会让那条断言变成假阳性，也分不清"回滚"和"复制粘贴忘改 id"；
+       ② 'concentration' 是这一屏的真正落点（③ 留香由它推断），
+          而 'intensity' 变成屏内 ① 的锚点，不再是独立步骤。
+       副作用：CSS 里 32 条 `#app[data-step="context"]` 认的是旧 id，本来就
+       已失效（见 styles/src/70-final.css 顶部注释），本屏合并不改变这一点，
+       留给任务 2 一并修。 */
+    id: 'concentration',
     short: '浓淡',
     title: '想要多浓？',
-    help: '浓淡是你想要的体感，不是香精占比 —— 那是下一题',
-    render: renderIntensity,
-  },
-  {
-    id: 'concentration',
-    short: '浓度',
-    title: '偏好哪种浓度？',
-    help: '浓度是香精占比，决定大概能留多久。不确定就选日常最常见的淡香精',
+    /* help 一句说清这一屏的两个数不是一回事，并把可跳过讲在前面 ——
+       原来两屏各写一句 help，合回一屏后不能只留一句，
+       否则用户会以为下面那组浓度卡是"同一题的另一种问法"。 */
+    help: '先说体感（想让人闻到多重的分量），再说香精占比（决定留多久）。两项都不选也能出结果',
     render: renderConcentration,
   },
   {
@@ -2744,20 +2762,34 @@ function renderSeason() {
 }
 
 /* ============================================================
-   第 7 屏：浓淡（原「浓淡持久」屏拆出的前半）
+   第 7 屏：浓淡 + 浓度（2026-11-11 由两屏合回一屏）
    ------------------------------------------------------------
-   只有滑块一问了。原来同屏还有浓度与留香，三问都在说"多浓"，
-   但前两问测的是两件不同的事（体感 vs 香精占比），拆开才说得清。
+   这一屏做两个决定，且刻意保持两个决定的分界可见：
+     ① 想要多浓  —— 滑块，问的是**体感**（想让人闻到多重的分量）
+     ② 偏好哪种浓度 —— 单选卡，问的是**香精占比**（决定留多久）
+     ③ 大概能留多久 —— 由 ② 推断，纯展示，不参与打分
+   （见 src/scoring.js 8c 段：同浓度下全库等加，对排序零贡献；
+    能改但不影响结果的控件比不给更糟，所以 ③ 不可点。）
+
+   为什么 ①② 必须同屏而不是拆两屏：它们是对同一根轴的两个数，
+   拆开后用户看不见自己 ① 拖到几档，容易答出互相矛盾的组合。
+   旧的两屏版为此专门挂了一句跨屏提醒；现在提醒就在同一屏里，
+   指代从「上一题」改回「①」，不需要用户记上一屏。
+
+   为什么留香仍然按浓度联动重绘整屏：这一屏没有滚动长列表，
+   重绘不会让用户丢失位置，而 ③ 那一行的选中态必须跟着 ② 变。
    ============================================================ */
-function renderIntensity() {
+function renderConcentration() {
   const wrap = el('div', { class: 'fade-in' });
-  const head = stepHead('intensity');
+  const head = stepHead('concentration');
   wrap.appendChild(el('div', { class: 'stage-lead' },
     el('div', { class: 'q-kicker' }, head.kicker),
     el('h2', { class: 'q-title' }, head.title),
     el('p', { class: 'q-help' }, head.help)
   ));
 
+  /* ---- ① 浓郁度滑块 ---- */
+  wrap.appendChild(el('div', { class: 'chips-label' }, '① 你想要多浓'));
   const read = el('div', { class: 'scale-read' });
   const updateRead = () => {
     const v = Number(state.answers.intensity);
@@ -2794,43 +2826,19 @@ function renderIntensity() {
   updateRead();
   wrap.appendChild(read);
 
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '浓淡与浓度的区别：'),
-    ' 这一题问的是你想让别人闻到多重的分量（体感），下一题问的是香精占比（配方）。'
-    + ' 两者不完全同步 —— 有清淡的香精，也有呛人的淡香水，所以分成两题问。'
-  ));
-
-  wrap.appendChild(navBar('intensity'));
-  return wrap;
-}
-
-/* ============================================================
-   第 8 屏：浓度（原「浓淡持久」屏拆出的后半）
-   ------------------------------------------------------------
-   浓度档 + 由浓度推断的留香（纯展示）。留香**不参与打分**
-   （见 src/scoring.js 8c 段：同浓度下全库等加，对排序零贡献），
-   所以这里不用可改控件 —— 能改但不影响结果比不给更糟。
-   浓度与浓淡打架时只提醒、不替用户改：它们测的确实是两件事。
-   ============================================================ */
-function renderConcentration() {
-  const wrap = el('div', { class: 'fade-in' });
-  const head = stepHead('concentration');
-  wrap.appendChild(el('div', { class: 'stage-lead' },
-    el('div', { class: 'q-kicker' }, head.kicker),
-    el('h2', { class: 'q-title' }, head.title),
-    el('p', { class: 'q-help' }, head.help)
-  ));
-
+  /* ---- ② 浓度档 ---- */
+  wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:20px' },
+    '② 偏好哪种浓度（决定留香，选一个）'));
   wrap.appendChild(choiceGrid(CONCENTRATIONS, state.answers.concentration, (id) => {
     state.answers.concentration = id;
-    /* 联动：选完浓度就把留香填成推断值，下面那一行的展示要跟着变，
-       所以重画整屏 —— 这一屏没有滚动长列表，重绘不会让用户丢失位置。 */
+    /* 联动：选完浓度就把留香填成推断值，③ 那一行要跟着变，所以重画整屏。
+       重绘会让 ① 的滑块回到 state 里的值 —— 状态本就存在 state，不丢。 */
     const inferred = CONC_TO_LONGEVITY[id];
     if (inferred != null) state.answers.longevity = inferred;
     render();
   }));
 
-  /* 浓度与浓淡打架时提醒一句。阈值取 2 档：差 1 档是常态，说了等于每屏都挂废话。 */
+  /* ① 与 ② 打架时提醒一句。阈值取 2 档：差 1 档是常态，说了等于每屏都挂废话。 */
   {
     const INTENSITY_BAND = {
       'eau-de-cologne': [1, 2],
@@ -2848,24 +2856,24 @@ function renderConcentration() {
       if (gap >= 2) {
         const concZh = (CONCENTRATIONS.find((c) => c.id === conc) || {}).zh || conc;
         wrap.appendChild(el('div', { class: 'term-note is-warn' },
-          el('strong', {}, '和上一题的浓淡差得有点远：'),
+          el('strong', {}, '① 和 ② 差得有点远：'),
           ` 你要的是 ${want}/5（${INTENSITY_LABEL[want][0]}），但选了${concZh}。`,
           ' 浓淡是体感、浓度是香精占比，两者不完全同步 —— 真想要那个体感，',
-          ' 回头把浓淡调回中间档更稳妥；不改也能出结果，只是候选会少一些。'
+          ' 把 ① 调回中间档更稳妥；不改也能出结果，只是候选会少一些。'
         ));
       }
     }
   }
 
-  /* 留香：由浓度推算，纯展示。老存档里可能带着手动值，一并显示。 */
+  /* ---- ③ 留香：由 ② 浓度推算，纯展示。老存档里可能带着手动值，一并显示。 ---- */
   const curLong = state.answers.longevity;
   const shownLong = curLong == null ? null : String(curLong);
   wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:16px' },
-    '大概能留多久' + (shownLong == null ? '（选浓度后自动给出）' : '（由浓度推断）')));
+    '③ 大概能留多久' + (shownLong == null ? '（选 ② 后自动给出）' : '（由 ② 推断）')));
 
   const longBox = el('div', { class: 'long-read' + (shownLong == null ? ' is-empty' : '') });
   if (shownLong == null) {
-    longBox.appendChild(el('span', { class: 'long-val is-empty' }, '先选上面的浓度'));
+    longBox.appendChild(el('span', { class: 'long-val is-empty' }, '先选上面的 ② 浓度'));
   } else {
     const L = LONGEVITY.find((l) => String(l.id) === shownLong) || LONGEVITY[0];
     longBox.appendChild(el('span', { class: 'long-val' }, L.zh));
@@ -2877,18 +2885,12 @@ function renderConcentration() {
   wrap.appendChild(el('div', { class: 'term-note' },
     el('strong', {}, '关于浓度与留香：'),
     ' 浓度是香精占比，比例越高留得越久，也越容易在密闭空间里让人不舒服（日常最常见的是 EDT 与 EDP）。',
-    ' 上面那一档是按浓度推算的，不是实测 —— 同一瓶在干皮和油皮、冬天和夏天差别可以很大，',
-    '所以它不参与打分。想要留得久，选高一点的浓度就是同一个动作。'
+    ' ③ 那一档是按 ② 推算的，不是实测 —— 同一瓶在干皮和油皮、冬天和夏天差别可以很大，',
+    '所以它不参与打分。想要留得久，把 ② 选高一点的浓度就是同一个动作。'
   ));
 
   wrap.appendChild(navBar('concentration'));
   return wrap;
-}
-
-function renderStrength() {
-  /* 兼容层：旧 id `strength` 已拆成 intensity / concentration。
-     SCENE 表里还有引用，正常渲染路径不会再走到它。 */
-  return renderIntensity();
 }
 
 /* 浓度 → 推断留香的映射，与 data/taxonomy.json 的 concentrationLongevity.map 同一套。
@@ -2964,7 +2966,7 @@ function navBar(stepId) {
      （气质可以不选、季节可以不选、浓度可以不选），所以按钮永远可点 ——
      要求"必须答完才能走"会把可跳过的问题变成门槛。 */
   if (stepId === 'mood' || stepId === 'season' || stepId === 'occasion'
-      || stepId === 'intensity' || stepId === 'concentration') {
+      || stepId === 'concentration') {
     bar.appendChild(el('span', { class: 'hint' }, '不选也能继续'));
     bar.appendChild(el('button', { class: 'btn', type: 'button', onclick: next }, '下一步 →'));
     return bar;
@@ -2986,15 +2988,12 @@ function navBar(stepId) {
     return bar;
   }
 
-  // 情绪和场合点选即自动前进；浓度是滑块，没有"点一下"这个动作，
-  // 必须给显式的前进按钮，否则用户会卡在第 3 步。
-  if (stepId === 'intensity') {
-    bar.appendChild(el('button', {
-      class: 'btn', type: 'button', onclick: next,
-    }, '下一步 →'));
-  } else {
-    bar.appendChild(el('span', { class: 'hint' }, '点选项自动进入下一题'));
-  }
+  /* 走到这里说明该屏的按钮形态没被上面任何一条接住 —— 只可能是新加了步骤
+     却忘了在 navBar 里给出路。给一句可见的提示比留一个空 .actions 好：
+     空 .actions 会让「下一步」凭空消失，用户以为卡死。
+     （原来这里还有一条 `stepId === 'intensity'` 的滑块专用分支；2026-11-11
+      浓淡/浓度合屏后 intensity 不再是步骤 id，那条分支已成死代码，删掉。） */
+  bar.appendChild(el('span', { class: 'hint' }, '点选项自动进入下一题'));
   return bar;
 }
 
@@ -4044,7 +4043,9 @@ function render() {
     mood: 'settle',
     occasion: 'cut',
     season: 'cut',
-    intensity: 'cut',
+    /* 2026-11-11：intensity 与 concentration 合屏后只剩后者一个 id。
+       保留 'concentration' 的 cut —— 它仍是连续作答的一屏；
+       旧的 'intensity' 键随步骤一起删掉，留着会被读成"还有一屏没拆完"。 */
     concentration: 'cut',
     dislikedFamilies: 'settle',
     anchor: 'cut',
