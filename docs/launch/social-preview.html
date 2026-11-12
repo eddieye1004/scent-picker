@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  /* 1280×640 社交预览图（GitHub Social preview 规格）。
+     视觉语言与站点同一套：暖纸底、衬线大标题、克莱因蓝作唯一强调色、
+     右上一条墨色粗线（站内 .masthead 的同一记号）。 */
+  @font-face {
+    font-family: "NotoSC";
+    src: url("../fonts/noto-sans-sc-subset.woff2") format("woff2");
+    font-weight: 100 900;
+    font-display: block;
+  }
+  @font-face {
+    font-family: "InterVar";
+    src: url("../fonts/inter-var-latin.woff2") format("woff2");
+    font-weight: 100 900;
+    font-display: block;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 640px; }
+  body {
+    background: #FAF7F1;
+    color: #14120E;
+    font-family: "InterVar", "NotoSC", -apple-system, "Songti SC", serif;
+    display: flex; flex-direction: column;
+    padding: 64px 76px 58px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* 右上角的标本线——站内每屏页头那一道 */
+  .rule {
+    position: absolute; top: 0; left: 76px; right: 76px;
+    height: 10px; background: #14120E;
+  }
+
+  .kicker {
+    font-size: 15px; letter-spacing: .22em; text-transform: uppercase;
+    color: #5E584E; margin-top: 26px; margin-bottom: 26px;
+  }
+
+  h1 {
+    font-family: "Songti SC", "NotoSC", Georgia, serif;
+    font-size: 92px; line-height: 1.14; font-weight: 600;
+    letter-spacing: -.012em; max-width: 1000px;
+  }
+  h1 em { font-style: normal; color: #002FA7; }
+
+  .sub {
+    margin-top: 26px; font-size: 25px; line-height: 1.62;
+    color: #3A362F; max-width: 880px;
+  }
+
+  .foot {
+    margin-top: auto; display: flex; align-items: flex-end;
+    justify-content: space-between; gap: 40px;
+    padding-top: 26px; border-top: 1px solid #DED6C8;
+  }
+  .stats { display: flex; gap: 46px; }
+  .stat b {
+    display: block; font-size: 34px; font-weight: 600;
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .stat span { display: block; font-size: 14px; color: #5E584E; margin-top: 7px; letter-spacing: .04em; }
+  .url {
+    font-size: 17px; color: #5E584E; text-align: right; line-height: 1.5;
+    font-family: "InterVar", monospace;
+  }
+
+  /* 右下角一枚极简瓶形（与站内 bottleArt 同构：方肩、短颈、浅色液面） */
+  .bottle { position: absolute; right: 84px; top: 96px; width: 118px; opacity: .9; }
+</style>
+</head>
+<body>
+  <div class="rule"></div>
+
+  <div class="kicker">零基础香水选择器</div>
+
+  <h1>不懂香水，<br>也能挑到<em>那一瓶</em></h1>
+
+  <p class="sub">不问「你喜欢什么香调」——问 8 个你答得出的问题，<br>从 1388 瓶里给出 3 瓶具体到名字的推荐，每瓶都附可反推的理由。</p>
+
+  <svg class="bottle" viewBox="0 0 118 190" fill="none" aria-hidden="true">
+    <rect x="47" y="0" width="24" height="14" fill="#14120E"/>
+    <rect x="44" y="14" width="30" height="10" fill="#14120E"/>
+    <rect x="18" y="24" width="82" height="166" stroke="#14120E" stroke-width="3.2"/>
+    <rect x="24" y="92" width="70" height="92" fill="#E7C983" opacity=".55"/>
+    <line x1="24" y1="92" x2="94" y2="92" stroke="#14120E" stroke-width="2"/>
+  </svg>
+
+  <div class="foot">
+    <div class="stats">
+      <div class="stat"><b>1388</b><span>瓶香水库</span></div>
+      <div class="stat"><b>8</b><span>屏问卷</span></div>
+      <div class="stat"><b>58</b><span>个香调词</span></div>
+      <div class="stat"><b>0</b><span>次模型调用</span></div>
+    </div>
+    <div class="url">github.com/eddieye1004/scent-picker</div>
+  </div>
+</body>
+</html>

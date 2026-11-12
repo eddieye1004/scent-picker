@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>关于这个工具 — 零基础香水选择器</title>
+<meta name="description" content="这个工具给不懂香水的人用：8 屏问卷，从 1388 瓶库里挑 3 瓶具体到名字的推荐，每瓶给前中后调和能反推回你答案的理由。数据来自 Scento 开放数据集。">
+<meta name="theme-color" content="#f6f2ea">
+<link rel="stylesheet" href="./styles.css?v=20261110a">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23a86b32'/><circle cx='16' cy='16' r='6' fill='%23f6f2ea'/></svg>">
+<style>
+  /* 介绍页只复用既有 token 与页面骨架类，不新增视觉语言。
+     .about-* 是本页专属的最小排版补充（标题层级、段落行宽、列表间距），
+     全部基于 :root 里已有的 --ink/--line/--bg 变量，换肤自动跟随。 */
+  .about-wrap { max-width: 720px; margin: 0 auto; padding: 0 24px 96px; }
+  .about-wrap h2 {
+    font-size: 1.35rem; line-height: 1.5; margin: 48px 0 12px;
+    padding-top: 28px; border-top: 1px solid var(--line, #ded6c8);
+  }
+  .about-wrap h2:first-of-type { border-top: 0; padding-top: 0; }
+  .about-wrap h3 { font-size: 1.02rem; margin: 24px 0 8px; }
+  .about-wrap p { line-height: 1.85; margin: 0 0 14px; }
+  .about-wrap ul, .about-wrap ol { line-height: 1.85; margin: 0 0 16px; padding-left: 1.4em; }
+  .about-wrap li { margin-bottom: 6px; }
+  .about-wrap code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .88em; background: var(--bg-2, #f2ede4);
+    padding: 1px 5px; border-radius: 3px;
+  }
+  .about-flow {
+    display: grid; gap: 10px; margin: 20px 0 24px;
+    counter-reset: flow;
+  }
+  .about-flow > div {
+    display: grid; grid-template-columns: 28px 1fr; gap: 12px;
+    align-items: baseline; padding: 12px 0;
+    border-bottom: 1px solid var(--hair, #e8e1d5);
+  }
+  .about-flow > div:last-child { border-bottom: 0; }
+  .about-flow > div::before {
+    counter-increment: flow; content: counter(flow);
+    font-variant-numeric: tabular-nums; color: var(--ink-3, #5e584e);
+    font-size: .92em;
+  }
+  .about-flow b { display: block; margin-bottom: 3px; }
+  .about-flow span { color: var(--ink-2, #3a362f); line-height: 1.7; }
+  /* 数字表：与结果页的 .note-row 同一套「左标签右值」读法 */
+  .about-facts { width: 100%; border-collapse: collapse; margin: 8px 0 20px; font-size: .95em; }
+  .about-facts th, .about-facts td {
+    text-align: left; padding: 9px 12px 9px 0;
+    border-bottom: 1px solid var(--hair, #e8e1d5); vertical-align: top;
+  }
+  .about-facts th { font-weight: 600; white-space: nowrap; color: var(--ink-2, #3a362f); }
+  .about-facts td { color: var(--ink-2, #3a362f); line-height: 1.7; }
+  .about-facts td code { white-space: nowrap; }
+  .about-caveat {
+    margin: 20px 0; padding: 14px 16px;
+    border-left: 3px solid var(--blue, #002fa7);
+    background: var(--bg-2, #f2ede4);
+  }
+  .about-caveat p:last-child { margin-bottom: 0; }
+  .about-back { margin-top: 40px; }
+  .about-back a {
+    display: inline-block; padding: 11px 20px;
+    border: 1px solid var(--edge, #6e675c); border-radius: 4px;
+    text-decoration: none; color: var(--ink);
+    min-height: 44px; box-sizing: border-box;
+  }
+  .about-back a:hover { background: var(--bg-2, #f2ede4); }
+  @media print { .about-back { display: none; } }
+</style>
+</head>
+<body>
+<main id="app">
+  <header class="masthead">
+    <p class="kicker">关于</p>
+    <h1>这个工具是干什么的</h1>
+    <p class="lede">给不懂香水的人用。不是「猜你喜欢」的黑盒，每一瓶为什么推给你都能反推。</p>
+  </header>
+
+  <div class="about-wrap">
+
+    <h2 id="who">给谁用</h2>
+    <p>
+      给<b>一瓶香水都没有</b>、或者<b>买过但不知道自己买了什么</b>的人用。
+      典型场景是这样：想买第一瓶，搜到一堆「必买清单」，每个名字都没听过；
+      或者看别人说「木质调好闻」，却不知道自己是不是喜欢木质。
+    </p>
+    <p>
+      这个工具假设你<b>不认识任何香调术语</b>。所以它不问「你喜欢馥奇调还是西普调」——
+      那对一个新手是没有信息量的问题 —— 而是问你闻着舒不舒服、什么时候用、想要多浓。
+    </p>
+
+    <h2 id="how">怎么用</h2>
+    <p>两套入口，走完一次大概两三分钟：</p>
+    <div class="about-flow">
+      <div>
+        <div>
+          <b>选一个大方向</b>
+          <span>圆盘上挑香型（柑橘 / 花香 / 木质 / 东方琥珀 / 清新 / 美食）。不确定就只挑外圈，中圈是可选收窄。</span>
+        </div>
+      </div>
+      <div>
+        <div>
+          <b>点名的味道：想要的 / 受不了的</b>
+          <span>58 个常见香调里点选。跳过也行 —— <b>点名「受不了」比点名「想要」更有效</b>，因为讨厌的东西没有替代品。</span>
+        </div>
+      </div>
+      <div>
+        <div>
+          <b>气质</b>
+          <span>想要它给人什么感觉（清冷 / 温暖 / 干净 / 神秘…）。这一屏同时决定冷暖与甜度两个维度。</span>
+        </div>
+      </div>
+      <div>
+        <div>
+          <b>场合 / 季节 / 浓淡</b>
+          <span>同一瓶香在办公室和约会里表现完全不同。季节和浓淡都可以跳过，不答不扣分。</span>
+        </div>
+      </div>
+      <div>
+        <div>
+          <b>已经试过并且喜欢的</b>
+          <span>这一屏是可选的，但如果有，它是<b>信息量最大的一题</b> —— 它是「你实际闻过并喜欢」的真实反馈，不是偏好声明。</span>
+        </div>
+      </div>
+      <div>
+        <div>
+          <b>结果页：3 瓶候选</b>
+          <span>每瓶给前调 / 中调 / 后调、一句能反推回你某个答案的理由、以及保管建议。</span>
+        </div>
+      </div>
+    </div>
+
+    <h3>关于购买链接</h3>
+    <p>
+      结果页上有购买入口。其中<b>带联盟推广关系的链接会在页脚一行披露</b>，
+      页面源码里对应 <code>rel="sponsored"</code>。通过它们成交本站可能获得佣金，
+      <b>不影响你的支付价格</b>。没有佣金关系的入口（站内搜索兜底）不标 sponsored。
+    </p>
+    <p>
+      当前链接覆盖：淘宝 <b>661 / 1388</b> 瓶，京东 <b>1 / 1388</b> 瓶
+      （数据 <code>data/affiliate-links.json</code> 的 <code>coverage</code> 字段）。
+      覆盖不满的部分走站内搜索兜底，不是所有瓶都点得进商品页。
+    </p>
+
+    <h2 id="data">数据怎么来</h2>
+    <p>
+      香水库来自 <b>Scento Perfume Database</b> 的开放数据集，许可 <b>CC BY 4.0</b>，
+      2026-11-01 快照。经清洗、家族映射与字段裁剪后<b>已修改</b>，逐字署名与许可声明
+      写在页面页脚与 <code>README.md</code> 里。
+    </p>
+
+    <table class="about-facts">
+      <caption class="visually-hidden" style="position:absolute;left:-9999px">香水库与流程的实测数字</caption>
+      <tbody>
+        <tr><th>库里多少瓶</th><td><b>1388 瓶</b>（<code>data/perfumes.json</code> · <code>meta.fullPopulation = true</code>）</td></tr>
+        <tr><th>每瓶多少香调</th><td>平均 <b>8.7 条</b>，全库共 <b>412 种</b>不同写法（同一香调有多种英文写法，匹配时按词而非子串）</td></tr>
+        <tr><th>问卷几屏</th><td>家族入口 <b>8 屏</b>；情绪入口 <b>9 屏</b>（多一屏「整族排除」）</td></tr>
+        <tr><th>一次推几瓶</th><td><b>3 瓶</b>，且刻意来自不同家族，方便对比着闻</td></tr>
+        <tr><th>香调词表</th><td><b>58 个</b>可选 chip（词表 60 项里滤掉 0 命中的 2 项，避免点了没反应）</td></tr>
+      </tbody>
+    </table>
+
+    <h3>推荐是怎么算出来的</h3>
+    <p>
+      纯规则打分，<b>不调用任何大模型</b>。每个因子（家族、香调命中、浓度、季节、冷暖、甜度…）
+      有固定权重，加总排序；结果页的理由是模板拼装，不是生成文本。
+      这样任何一条推荐都能反推到某个具体答案 —— 这也是它和「AI 猜你喜欢」最大的区别。
+    </p>
+
+    <h3>我们怎么知道它准不准</h3>
+    <div class="about-caveat">
+      <p>
+        有一份<b>12 个人设画像的人工金标准</b>用来防回退。当前成绩：
+        <b>top3 里命中 ≥2 瓶的画像 = 2 / 12</b>，<b>top1 命中的 = 4 / 12</b>。
+      </p>
+      <p>
+        这个数字<b>不高，我们不掩饰</b>。原因已经定位：这套金标准量的是
+        <b>家族与气质维度</b>，而香调维度的判定轴与它不对齐（详见仓库
+        <code>CONTROL.md</code> §5 的收口结论）。所以它守的是
+        <b>「改动不许让结果变差」</b>，不是「已经很准」。
+      </p>
+      <p>
+        另有一套 notes 专用小金标准（8 个香调意图明确的画像），
+        当前 <b>0 / 8 与 1 / 8</b>。它同样只用来防回退。
+      </p>
+    </div>
+
+    <h2 id="limits">已知局限</h2>
+    <ul>
+      <li><b>持香与扩散是按浓度推断的</b>，不是实测 —— 源站没有这个字段。</li>
+      <li><b>不展示价格、不做比价</b>。价格随时变，抓不准的东西不编。</li>
+      <li><b>库容随上游更新</b>，可能仍选不到你已经知道的那一瓶。</li>
+      <li><b>家族是多标签的</b>：一瓶香水往往同时属于几个家族，所以「这是木质调」不等于「它只有木质」。这也是金标准成绩偏低的原因之一。</li>
+      <li><b>没有用户账号、不存任何作答</b>。所有计算在浏览器本地完成，刷新即丢。</li>
+    </ul>
+
+    <h2 id="tech">技术上</h2>
+    <p>
+      零构建的静态站：原生 ES module + 一份手写 CSS，没有打包器、没有框架、没有运行时依赖。
+      打分逻辑在 <code>src/scoring.js</code>，香调匹配在 <code>src/notes.js</code>。
+      仓库带 <b>306</b> 项渲染断言与 <b>43</b> 项无障碍断言（对比度 / 字号 / 焦点环 / 触控目标）。
+    </p>
+
+    <p class="about-back"><a href="./">← 回到问卷</a></p>
+  </div>
+</main>
+</body>
+</html>

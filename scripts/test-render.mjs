@@ -1522,6 +1522,20 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
   ok('有佣金关系的按钮仍带 rel=sponsored（机器可读信号不变）',
     directBuy.length > 0 && directBuy.every((a) => String(a.attrs.rel || '').includes('sponsored')),
     directBuy.map((a) => a.attrs.rel).join(' | '));
+
+  /* ---- 介绍页入口（2026-11-12 上线包）----
+     介绍页 about.html 是静态文件，app.js 只负责给出入口。
+     这里钉两件事：
+       ① 页脚里确实有一枚指向 about.html 的链接（删了会让介绍页变成孤岛）；
+       ② 它不在 .aff-note 里 —— 导航链接混进广告披露段落会被读成披露内容的一部分。 */
+  const aboutLinks = appRoot.querySelectorAll('footer.foot a')
+    .filter((a) => /about\.html/.test(String(a.attrs.href || '')));
+  ok('页脚有指向介绍页 about.html 的入口',
+    aboutLinks.length >= 1,
+    `实际 ${aboutLinks.length} 枚`);
+  ok('介绍页入口不在广告披露段落内',
+    aboutLinks.every((a) => !String(a.attrs.class || '').includes('aff-note')),
+    aboutLinks.map((a) => a.attrs.class).join(' | '));
   /* 双渠道说明必须说清"价格没排序"——这是实测结论，不能省。
      只对有搜索渠道的卡要求；纯直达链的卡不许挂（它只有一个入口，写了就是编）。 */
   /* 测试桩的 querySelector 不支持属性选择器（已知限制，见文件头注释），
