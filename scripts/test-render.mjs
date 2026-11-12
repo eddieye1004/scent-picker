@@ -856,6 +856,34 @@ ok('进入第 2 步（想要的味道）', getStepText().includes('特别想闻�
 ok('一屏一问：进度显示共 8 步（家族入口）', /共 8 步/.test(appRoot.textContent),
   appRoot.textContent.slice(0, 40));
 
+/* ---- 两处黑话文案已改（任务8 B，Eddie 2026-11-12 批准）----
+   原文出自 POLISH-20261112.md §2 标出的两个候选：
+     场合屏「主战场决定浓度下限」、浓淡屏「香精占比」。
+
+   **读源码而不是读 DOM**：这两句分别在场合屏与浓淡屏，而这里只走到第 2 屏，
+   DOM 里根本没有它们 —— 用 DOM 断言会恒真（找不到旧词 = 通过），
+   那是一条假绿。直接对 app.js 的 STEPS 文案做文本断言，才真能抓到回退。
+
+   同时钉"新文案在"：只钉"旧词不在"的话，把整句删掉也会通过。 */
+{
+  const src = appSrc;
+  /* 只对 help 字面量做断言，不对整份源码做 includes：
+     代码注释里会合法地引用旧文案（"原文是「主战场…」，改成…"）——
+     对整份源码查旧词，会把这种解释性注释判成回退，那是假红。
+     这里把 help 值抠出来再判。 */
+  const helpValues = [...src.matchAll(/help: '([^']*)'/g)].map((m) => m[1]);
+  const helpAll = helpValues.join('\n');
+  ok('场合屏帮助文案已改为「最常在什么场合用…决定了推荐的浓淡」',
+    helpAll.includes('你最常在什么场合用，决定了推荐的浓淡')
+    && !helpAll.includes('主战场')
+    && !helpAll.includes('浓度下限'),
+    helpValues.find((h) => h.includes('场合')) || '(未找到)');
+  ok('浓淡屏帮助文案已用「浓度类型」替掉「香精占比」',
+    helpAll.includes('再说浓度类型（决定留香多久）')
+    && !helpAll.includes('香精占比'),
+    helpValues.find((h) => h.includes('体感')) || '(未找到)');
+}
+
 const chips = appRoot.querySelectorAll('.chip');
 ok('香调 chip 已渲染', chips.length >= 16, `实际 ${chips.length}`);
 /* 一屏一问的核心契约：这一屏**只有一栏**。改动前是"喜欢 + 讨厌同屏"，

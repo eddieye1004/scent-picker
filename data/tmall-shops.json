@@ -1,0 +1,20 @@
+{
+  "_note": "指向天猫店（detail.tmall.com / detail.m.tmall.com）的淘宝链接所在瓶 id。由 _probe/audit-shop-type.mjs 实测产出，用于结果页「此款在天猫店」提示。只列实测确认的瓶；未列的瓶按淘宝店处理（或未知，不提示）。",
+  "_method": "用淘宝 App 内置浏览器 UA（AliApp(TB/10.30.0) WindVane/8.5.0）打开 data/affiliate-links.json 的 taobao 短链，看最终落地的 redirectURL 指向哪个域名：tmall 记入本表，taobao 不记。外部浏览器 UA 下一律落登录墙，看不到商品页，所以必须用 App UA。",
+  "_auditedAt": "2026-11-12",
+  "_auditedCount": 36,
+  "_auditedScope": "12 画像金标准的 59 个 gold 引用（去重 36 瓶）；其中 9 瓶无淘宝链接，16 瓶是淘宝店，11 瓶是天猫店。",
+  "tmallIds": [
+    "creed-green-irish-tweed",
+    "jo-malone-wood-sage-and-sea-salt",
+    "byredo-gypsy-water",
+    "byredo-blanche",
+    "mfk-grand-soir",
+    "maison-margiela-replica-by-the-fireplace",
+    "maison-margiela-replica-lazy-sunday-morning",
+    "versace-pour-homme",
+    "lancome-idole",
+    "kenzo-kenzo-homme",
+    "ysl-libre"
+  ]
+}

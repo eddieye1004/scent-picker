@@ -166,7 +166,11 @@ const STEPS = [
     id: 'occasion',
     short: '场合',
     title: '主要什么时候用？',
-    help: '主战场决定浓度下限。选一个最像的，拿不准就选日常',
+    /* 任务8 B1（Eddie 2026-11-12 批准）：原文「主战场决定浓度下限」
+       是两处黑话之一（POLISH-20261112.md §2 标出的候选）。
+       「主战场」→「你最常在什么场合用」、「浓度下限」→「推荐的浓淡」，
+       保留原句的因果结构（场合决定什么）与兜底动作（拿不准就选日常）。 */
+    help: '你最常在什么场合用，决定了推荐的浓淡。选一个最像的，拿不准就选日常',
     render: renderOccasion,
   },
   {
@@ -192,7 +196,13 @@ const STEPS = [
     /* help 一句说清这一屏的两个数不是一回事，并把可跳过讲在前面 ——
        原来两屏各写一句 help，合回一屏后不能只留一句，
        否则用户会以为下面那组浓度卡是"同一题的另一种问法"。 */
-    help: '先说体感（想让人闻到多重的分量），再说香精占比（决定留多久）。两项都不选也能出结果',
+    /* 任务8 B2（Eddie 2026-11-12 批准）：原文「香精占比」
+       是两处黑话之二（POLISH-20261112.md §2 标出的候选）。
+       改为「浓度类型」——与这一屏的 short 字段「浓淡」呼应，
+       也与下面单选卡的文案（EDT/EDP 这类选项）对得上。
+       注意只改这一处 help；同一屏内其它几处「香精占比」是页面内释义文字
+       （第 2865/2891 行），它们正是用来解释这个词的，不是黑话本身，不动。 */
+    help: '先说体感（想让人闻到多重的分量），再说浓度类型（决定留香多久）。两项都不选也能出结果',
     render: renderConcentration,
   },
   {
@@ -3352,6 +3362,25 @@ function affiliateHref(perfume, cfg) {
    密钥只在本地用、不进仓库。文件不存在时静默为空 —— 不影响任何现有行为。 */
 let AFF_LINKS = null;
 
+/* ---------- 天猫店清单（任务8 A3，2026-11-12）----------
+   **为什么需要它。** `data/affiliate-links.json` 的淘宝链接是联盟短链
+   （`s.click.taobao.com/t?e=…`），加密串里不含店铺信息，前端没法自己判断
+   「这条是淘宝店还是天猫店」。而两者对用户的行为不同：
+     · 淘宝店 → 手机端点开能唤起淘宝 App 并直达商品页；
+     · 天猫店 → App 内会落到「如未登录成功，请退出本页面，打开淘宝-我的淘宝重试」
+       的登录失效页（实测 `_probe/probe-buy-mobile.mjs`，Dior Eau Sauvage 那条），
+       用户会以为按钮坏了。
+
+   所以维护一份**实测得出**的天猫 id 表（`data/tmall-shops.json`），
+   只对这些瓶多显示一句提示，别的瓶不受影响。
+
+   **这张表怎么来的。** 用淘宝 App 内置浏览器 UA 开短链，看落地域名——
+   外部 UA 一律落登录墙，看不到商品页，所以只有 App UA 能判。
+
+   **它是可选增强。** 加载失败 / 文件缺失时 `TMALL_IDS` 为空集，
+   页面行为与没有这个功能时逐位一致 —— 不让一个提示依赖把首屏拖下水。 */
+let TMALL_IDS = new Set();
+
 /* ---------- 淘宝的两个入口：官方旗舰店 / 全网 ----------
 
    **为什么要拆成两个入口，而不是一个"最优链接"。**
@@ -4008,6 +4037,18 @@ function renderResult() {
       art.appendChild(el('p', { class: 'link-note', role: 'note' },
         `这些是${plats.join(' / ')}搜索结果，不是这一瓶的商品页 —— 本站尚未接入购买链接`));
     }
+    /* 天猫店提示（任务8 A3）。只对这一瓶的链接确实落到天猫店时显示。
+       为什么必须显示：天猫店在 App 内走的是「登录失效重试」页
+       （「如未登录成功，请退出本页面，打开淘宝-我的淘宝重试」），
+       不提示的话用户会以为按钮坏了。
+       为什么只提示这一类：淘宝店的链接点开直达商品页，加这句是误导。
+
+       判定来自 data/tmall-shops.json（实测产出，见该文件 _method）。
+       换源失败、只能保留天猫链接的瓶才需要它 —— 这是本轮 A1/A2 的兜底。 */
+    if (p && TMALL_IDS.has(String(p.id)) && buyLinks.some((l) => l.platform === 'taobao')) {
+      art.appendChild(el('p', { class: 'link-note is-tmall', role: 'note', 'data-note': 'tmall-shop' },
+        '此款在天猫店，点开后请在天猫内搜索'));
+    }
     wrap.appendChild(art);
   });
 
@@ -4282,6 +4323,9 @@ function ensurePhotos() {
 function ensureAffLinks() {
   if (AFF_LINKS !== null) return Promise.resolve(AFF_LINKS);
   const base = new URL('./', import.meta.url);
+  /* 天猫清单与链接表**并行**取，互不阻塞：清单失败不影响链接表，
+     链接表失败也不影响清单（清单单独有意义：提示句与有没有链接无关）。 */
+  ensureTmallShops();
   return fetch(new URL('data/affiliate-links.json', base))
     .then((r) => (r.ok ? r.json() : null))
     .then((d) => {
@@ -4307,6 +4351,23 @@ function ensureAffLinks() {
       return AFF_LINKS;
     })
     .catch(() => { AFF_LINKS = false; return AFF_LINKS; });
+}
+
+/* 天猫店清单。文件缺失/格式不对一律退化成空集（不提示），
+   绝不像 AFF_LINKS 那样有"三态"负担 —— 它只影响一句提示的有无。 */
+let tmallPromise = null;
+function ensureTmallShops() {
+  if (tmallPromise) return tmallPromise;
+  const base = new URL('./', import.meta.url);
+  tmallPromise = fetch(new URL('data/tmall-shops.json', base))
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => {
+      const list = Array.isArray(d?.tmallIds) ? d.tmallIds : [];
+      TMALL_IDS = new Set(list.map((x) => String(x)));
+      return TMALL_IDS;
+    })
+    .catch(() => { TMALL_IDS = new Set(); return TMALL_IDS; });
+  return tmallPromise;
 }
 
 async function boot() {
