@@ -1,0 +1,325 @@
+{
+  "checkedAt": "2026-11-13T04:25:40.837Z",
+  "calls": [
+    {
+      "method": "taobao.tbk.dg.material.optional",
+      "httpStatus": 200,
+      "ok": true,
+      "errorCode": 11,
+      "errorSubCode": "isv.permission-api-package-limit",
+      "errorMessage": "Insufficient isv permissions",
+      "errorSubMessage": "scope ids is 381 11680 11687 11741 11773 16188 16516 16518 27939",
+      "requestId": "15s3fm8z3jifn",
+      "response": {
+        "error_response": {
+          "code": 11,
+          "msg": "Insufficient isv permissions",
+          "sub_code": "isv.permission-api-package-limit",
+          "sub_msg": "scope ids is 381 11680 11687 11741 11773 16188 16516 16518 27939",
+          "request_id": "15s3fm8z3jifn"
+        }
+      }
+    },
+    {
+      "method": "taobao.tbk.dg.material.optional.upgrade",
+      "httpStatus": 200,
+      "ok": true,
+      "errorCode": null,
+      "errorSubCode": null,
+      "errorMessage": null,
+      "errorSubMessage": null,
+      "requestId": null,
+      "response": {
+        "tbk_dg_material_optional_upgrade_response": {
+          "result_list": {
+            "map_data": [
+              {
+                "item_basic_info": {
+                  "annual_vol": "3万+",
+                  "brand_name": "Dior/迪奥",
+                  "category_id": 50010808,
+                  "category_name": "唇膏/口红",
+                  "level_one_category_id": 50010788,
+                  "level_one_category_name": "彩妆/香水/美妆工具",
+                  "pict_url": "https://img.alicdn.com/bao/uploaded/i2/2549841410/O1CN01hrXy0Fc8X0H1chua_!!2549841410-0-tmg_sticker_hand.jpg",
+                  "provcity": "浙江 杭州",
+                  "real_post_fee": "15.00",
+                  "seller_id": 4692892268749674000,
+                  "shop_title": "天猫国际自营全球超级店",
+                  "short_title": "",
+                  "small_images": {
+                    "string": [
+                      "https://img.alicdn.com/i3/2549841410/O1CN01ltUDZw1MHpQGaGZ2J_!!2549841410.jpg",
+                      "https://img.alicdn.com/i2/2549841410/O1CN01MhsESZ1MHpXmpLsy4_!!2549841410.jpg",
+                      "https://img.alicdn.com/i1/2549841410/O1CN01CRzDT01MHpSgOt2Ls_!!2549841410.jpg",
+                      "https://img.alicdn.com/i4/2549841410/O1CN011UmSx31MHpWB0rkTS_!!2549841410.jpg"
+                    ]
+                  },
+                  "sub_title": "",
+                  "title": "【自营】Dior迪奥克丽丝烈艳蓝金唇膏口红丝绒哑光滋润部分礼袋",
+                  "tk_total_sales": "100",
+                  "user_type": 1,
+                  "volume": 0,
+                  "white_image": "https://img.alicdn.com/bao/uploaded/O1CN01d663qz20Bx0UNmzrQ_!!6000000006812-2-yinhe.png"
+                },
+                "item_id": "6R7VB8ydc8tGRmy9JyyFrNJIot3-xnpgBYzOuOWwd2P6VCJD",
+                "presale_info": {
+                  "presale_deposit": ""
+                },
+                "price_promotion_info": {
+                  "final_promotion_path_list": {
+                    "final_promotion_path_map_data": [
+                      {
+                        "promotion_desc": "直降81元",
+                        "promotion_end_time": "1803810881000",
+                        "promotion_fee": "81",
+                        "promotion_id": "3321449631493",
+                        "promotion_start_time": "1791801282000",
+                        "promotion_title": "秒杀直降"
+                      },
+                      {
+                        "promotion_desc": "88VIP专享95折",
+                        "promotion_end_time": "2542895999000",
+                        "promotion_fee": "15.95",
+                        "promotion_id": "812297004633vip95950",
+                        "promotion_start_time": "1530072369000",
+                        "promotion_title": "88VIP9.5折"
+                      },
+                      {
+                        "promotion_desc": "消费券满200减25",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_fee": "25",
+                        "promotion_id": "1ecc0e7ad50345839664a9e7aad5e4b5",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      }
+                    ]
+                  },
+                  "final_promotion_price": "278.05",
+                  "more_promotion_list": {
+                    "more_promotion_map_data": [
+                      {
+                        "promotion_desc": "淘金币频道抵扣4.9%起",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "812297004633coin951",
+                        "promotion_start_time": "1794499200000",
+                        "promotion_title": "淘金币频道专享",
+                        "promotion_total_count": 10000
+                      },
+                      {
+                        "promotion_desc": "消费券满1000减140",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "179445136410000014000",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满1800减265",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "179445136418000026500",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满2200减325",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "179445136422000032500",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满2500减370",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "179445136425000037000",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满3500减525",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "179445136435000052500",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满4000减600",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "179445136440000060000",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满4500减675",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "179445136445000067500",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满6000减900",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "179445136460000090000",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满600减80",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "1794451364600008000",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满7000减1050",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "1794451364700000105000",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满8000减1200",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "1794451364800000120000",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满800减110",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "17944513648000011000",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满1500减220",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "20ea4e0406984218b0374d321dbddd6f",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满3000减450",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "b9d944f7bbe94d72b09871af47db5cb2",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满5000减750",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "bbeba99ce4a2418a832f3b42d7ba8e00",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      },
+                      {
+                        "promotion_desc": "消费券满480减60",
+                        "promotion_end_time": "1794585599000",
+                        "promotion_id": "e3b2970e685f4543812356a21f5e14e8",
+                        "promotion_start_time": "1794412800000",
+                        "promotion_title": "88VIP专享消费券"
+                      }
+                    ]
+                  },
+                  "predict_rounding_up_price": "248.88",
+                  "predict_rounding_up_price_desc": "需凑单",
+                  "promotion_tag_list": {
+                    "promotion_tag_map_data": [
+                      {
+                        "tag_name": "消费券满200减25"
+                      },
+                      {
+                        "tag_name": "88VIP专享95折"
+                      },
+                      {
+                        "tag_name": "淘金币频道抵扣19.6元"
+                      },
+                      {
+                        "tag_name": "直降81元"
+                      }
+                    ]
+                  },
+                  "reserve_price": "450",
+                  "zk_final_price": "400"
+                },
+                "publish_info": {
+                  "click_url": "//s.click.taobao.com/t?e=m%3D2%26s%3DstQs3WEIn8xw4vFB6t2Z2ueEDrYVVa64Dne87AjQPk9yINtkUhsv0F4M%2BFOjqz%2BNVo5qzOkqeKukRjwf6gHH4uGaewGd3THxT0mrdgnOtqCoUs3A3UoirkUYvi1D4K2t%2B5PV7nZjWulTI2nEt%2BAqvSNanOmbqcQLcTLB07JCjizU7fE3%2B7CwoXfRYFKhkGjnvcKNRGt0DwYWchq8ne9ZO%2BftcLBWk1AGXBS8C1G4ba0hEPdaLVYlwvFmTMM%2F70bFOlMN%2FgqeKpkNbElqcf398B%2FlbiP%2FIdURK7EWkp%2BZ%2BcyiZ%2BQMlGz6FQ%3D%3D&union_lens=lensId%3AMAPI%401794543940%402106f9df_1529_1a1d327738a_3791%4001%40eyJmbG9vcklkIjo4MDMwOX0ie",
+                  "commission_type": "MKT",
+                  "coupon_share_url": "//uland.taobao.com/coupon/edetail?e=0XzbuA6SQQgNfLV8niU3R5TgU2jJNKOfc4SfXBF8mZr64of5uD9LIdLTFPnP5hEVq384eJf0BXwSvLpATw1Yzw9l7OkmPuB3ctMdahD9c2BFIe9B7aM4tvR8l2VOcy0n0V9FJNoL7v7n82w%2ForLuxI6bXLNFsfUEm3N23AZ8xolx1%2B8%2BvavhxzY1KWo5XCfGf%2B6NEVs11Qsqaw9XtdFW6s%2FA0GJI1BqZV5xXydLt%2FcnnDDfC96OuBN6MUq7YHsfpl%2FNxnx7dr2DOpBiwnKbA8GUFFgz3RBVH&app_pvid=59590_33.6.249.223_1516_1794543940424&ptl=floorId:80309;app_pvid:59590_33.6.249.223_1516_1794543940424;tpp_pvid:35d7defd-0a26-4778-97b6-1cafbc92b0ed&union_lens=lensId%3AMAPI%401794543940%402106f9df_1529_1a1d327738a_3791%4001%40eyJmbG9vcklkIjo4MDMwOX0ie",
+                  "daily_promotion_sales": 0,
+                  "include_dxjh": "false",
+                  "income_info": {
+                    "commission_amount": "2.5",
+                    "commission_rate": "90"
+                  },
+                  "income_rate": "0.9",
+                  "two_hour_promotion_sales": 1
+                },
+                "scope_info": {
+                  "superior_brand": "0"
+                },
+                "trace_code": "7wdRyuViYPui3sw2Y%2FYbtTj7fDmlEO%2BSAZxiAF7lly4%3D"
+              }
+            ]
+          },
+          "total_results": 16060,
+          "request_id": "16l1iukzlluyw"
+        }
+      }
+    },
+    {
+      "method": "taobao.tbk.dg.optimus.material",
+      "httpStatus": 200,
+      "ok": true,
+      "errorCode": 11,
+      "errorSubCode": "isv.permission-api-package-limit",
+      "errorMessage": "Insufficient isv permissions",
+      "errorSubMessage": "scope ids is 381 11680 11687 11741 11773 16188 16516 16518 27939",
+      "requestId": "15qv6ccqjo581",
+      "response": {
+        "error_response": {
+          "code": 11,
+          "msg": "Insufficient isv permissions",
+          "sub_code": "isv.permission-api-package-limit",
+          "sub_msg": "scope ids is 381 11680 11687 11741 11773 16188 16516 16518 27939",
+          "request_id": "15qv6ccqjo581"
+        }
+      }
+    },
+    {
+      "method": "taobao.tbk.item.convert",
+      "httpStatus": 200,
+      "ok": true,
+      "errorCode": 11,
+      "errorSubCode": "isv.permission-api-package-limit",
+      "errorMessage": "Insufficient isv permissions",
+      "errorSubMessage": "scope ids is 381 11680 11687 11741 11773 16188 16516 16518 27939",
+      "requestId": "15rhcjfah0319",
+      "response": {
+        "error_response": {
+          "code": 11,
+          "msg": "Insufficient isv permissions",
+          "sub_code": "isv.permission-api-package-limit",
+          "sub_msg": "scope ids is 381 11680 11687 11741 11773 16188 16516 16518 27939",
+          "request_id": "15rhcjfah0319"
+        }
+      }
+    },
+    {
+      "method": "taobao.tbk.dg.newuser.order.get",
+      "httpStatus": 200,
+      "ok": true,
+      "errorCode": 40,
+      "errorSubCode": null,
+      "errorMessage": "Missing required arguments:activity_id",
+      "errorSubMessage": null,
+      "requestId": "15s3iqhuec3om",
+      "response": {
+        "error_response": {
+          "code": 40,
+          "msg": "Missing required arguments:activity_id",
+          "request_id": "15s3iqhuec3om"
+        }
+      }
+    }
+  ]
+}
