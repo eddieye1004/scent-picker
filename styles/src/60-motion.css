@@ -83,9 +83,20 @@
 }
 
 /* 盘心内圈那道"表盘刻度"：原 `_wheel7.css:708` 写死 rgba(0,26,94,.05)。
-   它挂的是 `::after` 而不是 `.wheel-back` —— 别按名字猜。 */
+   它挂的是 `::after` 而不是 `.wheel-back` —— 别按名字猜。
+
+   ⚠️ 这一条是**实际生效**的那条（本层比 20-wheel-core.css 晚），
+   改 20 层那句 `border-color` 不会生效。V2 改法 C1 在这里落地：
+   --hair（#E8E1D5，对纸底约 1.06）→ rgba(20,18,14,.10)（**1.15**）。
+   盘心环从 2px 黑环降到 1px 之后，靠这道内线补成「环 + 内线」两级。
+   深色分支保持 --hair（深色下 --hair 是 rgba(255,255,255,.07)，方向是亮线）。 */
 .wheel .disc-hub::after {
   border-color: var(--hair);
+}
+@media (prefers-color-scheme: light) {
+  .wheel .disc-hub::after {
+    border-color: rgba(20, 18, 14, .10);
+  }
 }
 
 /* ---------------- 二、盘的外框：7 层 → 4 层 ---------------- */
@@ -93,13 +104,40 @@
 /* 只保留能分辨的四层：外勾线、内亮线、贴身影、远影。
    删掉的两层（4px 白 inset、5px 淡蓝 inset）在 251–520px 的框上
    与相邻层只差 1px，实测计算样式不同但截图逐像素一致 —— 属于
-   "看起来在调、其实没画出来"的声明，留着只会让后来者不敢改。 */
+   "看起来在调、其实没画出来"的声明，留着只会让后来者不敢改。
+
+   ⚠️ 这一处才是**实际生效**的盘外轮廓：本选择器 0,1,1 与
+   `30-wheel-refine.css` 的同名块相同，而本层声明更晚，整条盖过它。
+
+   V2 改法 A：轮廓色 --stroke-l1（#C9C0B0，对纸底 1.69）→ --edge（#6E675C，**5.23**）。
+   理由：1.69 在 504px 的圆上读不出来 —— 实测截图里外沿是虚的，六块扇区
+   只能靠中间那道黑圈才勉强成立。轮廓必须自己承担「圆盘是一个物体」。
+   `40-theme.css:277` 那条「不能取 --edge，会读成发光箍」是**深色模式**结论
+   （#8a8a8a 亮灰压在 #14120E 暗底上，方向是亮线）；浅色下 #6E675C 压在
+   #FAF7F1 上是暗线收边，不发光。**所以只改浅色这一条，深色分支保持不动**
+   —— 见本文件末尾的深色块（那里仍是 --stroke-l1），以及 40-theme.css:282。
+
+   注意：这里用的是 `--edge` 而不是 `--stroke-l1`。两者在浅色下恰好都是
+   5.23 的同一个值（#6E675C），但语义不同：轮廓是**控件边界**，
+   归 --edge 管；--stroke-l1 是装饰性结构线，留给缝/凹槽一档。
+   深色下 --edge 是 #8a8a8a（发光箍的根源），所以深色块不能跟着换。 */
 .wheel::after {
   box-shadow:
     0 0 0 var(--stroke-l1-w) var(--stroke-l1),
     0 0 0 1px var(--stroke-hi) inset,
     0 16px 34px -18px rgba(0, 26, 94, .42),
     0 48px 96px -58px rgba(0, 26, 94, .72);
+}
+/* 上面那条 light 块必须排在基础规则**之后**才能赢（同特异性看源码顺序）。
+   第一次写反了，实测轮廓仍是 1.69 —— 这里的顺序是结论，不是排版习惯。 */
+@media (prefers-color-scheme: light) {
+  .wheel::after {
+    box-shadow:
+      0 0 0 var(--stroke-l1-w) var(--edge),
+      0 0 0 1px var(--stroke-hi) inset,
+      0 16px 34px -18px rgba(0, 26, 94, .42),
+      0 48px 96px -58px rgba(0, 26, 94, .72);
+  }
 }
 
 /* ---------------- 三、盘心：5 层 → 4 层，空气圈统一 6px ---------------- */
@@ -108,48 +146,68 @@
    `0 1px 0 rgba(255,255,255,.95) inset` 与 `0 0 0 1px var(--stroke-hi) inset`
    在同一个盘心上叠了两道白（一道距边 0、一道距边 1px），
    在 154px 的盘心上一共就 2px，读起来是"边有点发毛"而不是"有厚度"。
-   这里只留一道。 */
-.wheel:not(.is-open) .disc-hub {
-  box-shadow:
-    0 0 0 var(--stroke-l3-w) var(--stroke-l3),
-    0 0 0 1px var(--stroke-hi) inset,
-    0 0 0 var(--halo-w) var(--halo),
-    0 8px 26px -14px rgba(0, 26, 94, .28);
-}
+   这里只留一道。
 
-.wheel.is-open .disc-hub {
-  box-shadow:
-    0 0 0 var(--stroke-l3-w) var(--stroke-l3),
-    0 0 0 1px var(--stroke-hi) inset,
-    0 0 0 var(--halo-w) var(--halo),
-    0 14px 32px -20px rgba(0, 26, 94, .46);
-}
+   V2 改法 A：盘心环由 --stroke-l3（2px，#14120E，**17.49**）降到
+   **1px 的 --stroke-l2（#6E675C，5.23）**，与外轮廓同权。
+   原来那道 2px 纯黑比外轮廓强 13 倍，视线第一眼落在箍上而不是扇区；
+   实测整屏最抢眼的东西是一个空心的黑圈。
+   改后顺序：外轮廓 5.23（最强）≥ 盘心环 5.23 > 缝 1.69 > 填充 1.01–1.04。
+   注意色值取的是 --stroke-l2 而不是 --stroke-l3：80-specimen 层把
+   --stroke-l3 也调到了 #6E675C，但盘心与扇区之间还有中圈那层，
+   两者取值相同会让 L2/L3 两档失去语义区分。
+   L3 这个 token 仍被 40-theme / 30-refine 的深色与特效分支引用，不要删。
 
-/* 悬停只换色不加粗（D50 的既有判断，保留） */
-.wheel:not(.is-open) .disc-hub.is-hover,
-.wheel.is-open .disc-hub.is-hover {
-  box-shadow:
-    0 0 0 var(--stroke-l3-w) var(--blue-amb),
-    0 0 0 1px var(--stroke-hi) inset,
-    0 0 0 var(--halo-w) var(--halo),
-    0 10px 28px -18px rgba(0, 26, 94, .34);
-}
-
-/* 窄屏：2px 双线在 312–342px 的盘上会糊，按既有断点收到 1.5px */
-@media (max-width: 620px) {
+   **整块裹在 light 里**：深色分支的盘心环在 `40-theme.css:166-190`，
+   那里是 2px 的 --stroke-l3（深色下 #F5F1E8，对 #14120E 是 16.6 —— 深色下
+   「最亮的一条线在盘心」是既有判断，V2 不改深色）。本层声明更晚，
+   不裹 light 就会把深色盘心环也压成 1px 的灰。 */
+@media (prefers-color-scheme: light) {
   .wheel:not(.is-open) .disc-hub {
     box-shadow:
-      0 0 0 1.5px var(--stroke-l3),
+      0 0 0 1px var(--stroke-l2),
       0 0 0 1px var(--stroke-hi) inset,
-      0 0 0 calc(var(--halo-w) - 1px) var(--halo),
-      0 8px 20px -14px rgba(0, 26, 94, .26);
+      0 0 0 var(--halo-w) var(--halo),
+      0 8px 26px -14px rgba(0, 26, 94, .28);
   }
+
   .wheel.is-open .disc-hub {
     box-shadow:
-      0 0 0 1.5px var(--stroke-l3),
+      0 0 0 1px var(--stroke-l2),
       0 0 0 1px var(--stroke-hi) inset,
-      0 0 0 calc(var(--halo-w) - 1px) var(--halo),
-      0 12px 26px -16px rgba(0, 26, 94, .42);
+      0 0 0 var(--halo-w) var(--halo),
+      0 14px 32px -20px rgba(0, 26, 94, .46);
+  }
+
+  /* 悬停只换色不加粗（D50 的既有判断，保留）——V2 同样收到 1px */
+  .wheel:not(.is-open) .disc-hub.is-hover,
+  .wheel.is-open .disc-hub.is-hover {
+    box-shadow:
+      0 0 0 1px var(--blue-amb),
+      0 0 0 1px var(--stroke-hi) inset,
+      0 0 0 var(--halo-w) var(--halo),
+      0 10px 28px -18px rgba(0, 26, 94, .34);
+  }
+
+  /* 窄屏：原来 2px 双线在 312–342px 的盘上会糊，收到 1.5px。
+     V2 起桌面也是 1px，窄屏保持 1px 即可 —— 1px 在 342px 的盘上
+     经 0.71 缩放后是 0.71 物理像素，仍能看见（实测见回执）。
+     这里显式写出来，避免被桌面那两条 0,3,0 的规则按特异性压回去。 */
+  @media (max-width: 620px) {
+    .wheel:not(.is-open) .disc-hub {
+      box-shadow:
+        0 0 0 1px var(--stroke-l2),
+        0 0 0 1px var(--stroke-hi) inset,
+        0 0 0 calc(var(--halo-w) - 1px) var(--halo),
+        0 8px 20px -14px rgba(0, 26, 94, .26);
+    }
+    .wheel.is-open .disc-hub {
+      box-shadow:
+        0 0 0 1px var(--stroke-l2),
+        0 0 0 1px var(--stroke-hi) inset,
+        0 0 0 calc(var(--halo-w) - 1px) var(--halo),
+        0 12px 26px -16px rgba(0, 26, 94, .42);
+    }
   }
 }
 

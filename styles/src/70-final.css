@@ -200,13 +200,49 @@
    否则选中与悬停都会被这条基础规则盖掉。
    ============================================================ */
 .wheel .disc-svg .sector-shape {
-  fill: #ffffff;
-  stroke: var(--bg-3);
+  fill: #F9F6EF;
+  stroke: var(--stroke-l1);
   stroke-width: 2.6;
   /* _wheel7.css:506 给扇区挂了 `drop-shadow(0 -0.5px 0 rgba(255,255,255,.85))`
      当倒角高光。缝改成灰之后，这道白影正好压在缝的一侧，
      把 2.6px 的缝削成 1.6px 且一侧发虚 —— 关掉。 */
   filter: none;
+}
+
+/* ---- V2 改法 A：六族填充的微差（对纸底 #FAF7F1 实测 1.00–1.04）----
+   为什么不用渐变而写死纯色：渐变在 60px 缩略下会被抗锯齿抹平，
+   与纯白无差别（A 方向 v12→v13 两次都试过）。纯色至少是确定值，
+   截图对比时能逐块量出来。
+
+   特异性 0,5,0（三个类 + 属性选择器 + .sector-shape），高于上面的基础规则
+   0,3,0，低于 hover（0,6,0）与 is-on（0,5,0 但声明更早则被这几条压住）——
+   三态覆盖关系见回执：实测 hover / is-on 仍生效。
+
+   **必须裹在 light 里**：深色分支靠 `40-theme.css` 的
+   `.wheel .disc-svg .sector-g[data-fam=…] .sector-shape { fill: url(#gFamXxxD) }`
+   给出六条暗色渐变，那条与这里同特异性（0,5,0）但声明更早。
+   不裹 light 的话本层会把深色填成纸白（实测过：深色 fill 变成 #FDFBF7）。 */
+@media (prefers-color-scheme: light) {
+  .wheel .disc-svg .sector-shape {
+    fill: #F9F6EF;
+    stroke: var(--stroke-l1);
+  }
+}
+
+/* ---- V2 改法 A：六族填充的微差（对纸底 #FAF7F1 实测 1.00–1.04）----
+   为什么不用渐变而写死纯色：渐变在 60px 缩略下会被抗锯齿抹平，
+   与纯白无差别（A 方向 v12→v13 两次都试过）。纯色至少是确定值，
+   截图对比时能逐块量出来。
+
+   特异性 0,4,0（两个类 + 属性选择器 + 一个类），高于上面的基础规则 0,3,0，
+   低于 hover（0,6,0）与 is-on（0,5,0）—— 三态覆盖关系不变。 */
+@media (prefers-color-scheme: light) {
+  .wheel .disc-svg .sector-g[data-fam="citrus"]   .sector-shape { fill: #FDFBF7; } /* 1.03 */
+  .wheel .disc-svg .sector-g[data-fam="floral"]   .sector-shape { fill: #FBF7F1; } /* 1.01 */
+  .wheel .disc-svg .sector-g[data-fam="woody"]    .sector-shape { fill: #F7F2E9; } /* 1.01 */
+  .wheel .disc-svg .sector-g[data-fam="amber"]    .sector-shape { fill: #F4EEE3; } /* 1.04 */
+  .wheel .disc-svg .sector-g[data-fam="fresh"]    .sector-shape { fill: #F9F6EF; } /* 1.00 */
+  .wheel .disc-svg .sector-g[data-fam="gourmand"] .sector-shape { fill: #F6F0E6; } /* 1.02 */
 }
 
 /* 扇区文字：白瓦片上不能是纯白字（base 层 `.disc-sector` 默认 --ink，本来就深色，
@@ -485,3 +521,33 @@
 /* 场合屏盘心：方形改成圆形后（`_wheel23.css` 第三节），在 52vh 档圆盘只有 400px，
    42.7% 见方的盘心 = 171px，装「当前选择 / 还没选 / 点扇区，或把指针移上去」三行
    正好够；再窄就换两行文案，收字号会跌破 12px 下限（test-contrast 强制）。 */
+
+/* ============================================================
+   V2 改法 A · 盘底凹槽（扇区之下的那一层）
+   ------------------------------------------------------------
+   扇区之间是 2.6px 的缝，缝里露出来的就是**盘底**。
+   原来盘底 = --bg（纸底本身，1.00）—— 于是缝里露出的仍是纸，
+   「六块扇区嵌进一个凹槽」这件事在几何上成立、在视觉上不存在。
+
+   改成 --bg-3（#E7E0D4，对纸底 **1.23**）：缝里露出的颜色比扇区填充
+   深一档、比扇区缝（--stroke-l1，1.69）浅一档，于是读出
+   「盘底凹槽 → 扇区缝 → 扇区面」三层，而不是「一片白 + 几条线」。
+
+   特异性：`.wheel` 是 0,1,0，`20-wheel-core.css` 与本层都有同名 `.wheel {}`，
+   本层声明更晚所以能赢。
+
+   **必须裹在 light 里**：深色分支的盘底在 `40-theme.css`（#171717 / #1a1a1a，
+   与 --bg-3 的暗档 #2A2620 不是一回事）。不裹 light 会把深色盘底
+   从 #171717 抬到 #2A2620 —— 实测过一次，深色盘面明显发亮。
+   这条只作用于首屏轮盘（带 .wheel 类）；场合屏的 `.disc:not(.wheel)`
+   有自己的 #fafbfe 瓦片体系，不动。 */
+@media (prefers-color-scheme: light) {
+  .wheel {
+    background: var(--bg-3);
+  }
+  /* 展开态：中圈弧片铺在上面，盘底只在最外一圈露出来。
+     保持同一档凹槽色，让「盘是一个整体」在两层之间不断裂。 */
+  .wheel.is-open {
+    background: var(--bg-3);
+  }
+}

@@ -360,13 +360,38 @@ body {
   stroke: var(--ink);
 }
 
-/* 装饰环全部取消：ring-thin / ring-accent / ring-spin / ring-tick
-   在 Swiss 里都属于装饰性元素，一个不留。
-   显式关闭而不是删规则，方便日后回滚。 */
+/* 装饰环：只开 ring-tick 一条，其余三条保持关闭。
+   ------------------------------------------------------------
+   V2 改法 B。原来一条四选择器规则把 ring-thin / ring-accent / ring-spin /
+   ring-tick 全关了，实测 `tickCount: 0` —— **代码里有一套仪器语言，
+   界面上一点也没有**。这属于「写了没生效」，和 V1 的 1d 同一个根因。
+
+   为什么只开刻线：
+     · ring-tick 是「这是一件仪器」的最短信号，36 道、每 3 道加长的几何
+       已经在 app.js:353-365 算好，**开一条 display 即可，零 JS 改动**。
+       罗盘、日晷、量角器都长这样，因为它有用：用户能数出这是被切成几份的东西。
+     · ring-spin 是持续旋转动画，与 prefers-reduced-motion 的既有处理纠缠，
+       且在纸底上会变成噪点 —— 不开。
+     · ring-accent 画在 rIn-16 上，会与盘心环撞成双圈 —— 不开。
+     · ring-thin 与新的外轮廓（--edge，5.23）重复，留着是第二条同权圆环 —— 不开。
+   三条都留规则、只留 display:none，方便日后回滚（也是原来那套写法）。
+
+   色值取 rgba(20,18,14,.10)（对纸底 **1.15**），is-major 取 .18（**1.28**）。
+   刻线是装饰性元素，不承载信息也不做控件边界，所以不套 3:1 的 1.4.11 门槛；
+   但必须**看得见**：1.15 在 504px 的盘上是一道极细的灰，正是要的效果。
+   is-major 的 1.28 与扇区缝的 1.69 拉开一档，避免与缝混成一族。 */
 .disc-svg .ring-thin,
 .disc-svg .ring-accent,
-.disc-svg .ring-spin,
-.disc-svg .ring-tick { display: none; }
+.disc-svg .ring-spin { display: none; }
+
+.disc-svg .ring-tick {
+  stroke: rgba(20, 18, 14, .10);
+  stroke-width: 1;
+  stroke-linecap: butt;
+}
+.disc-svg .ring-tick.is-major {
+  stroke: rgba(20, 18, 14, .18);
+}
 
 /* 扇区文字按钮：透明底，只承载标签。
    min-width / min-height 是触控下限，不能少于 44（test-contrast 会拦）。 */
@@ -412,13 +437,23 @@ body {
 .disc-sector:focus-visible {
 }
 
-/* 盘心：一块压在圆心上的白方块。
-   层次不靠投影，靠**三层边界递进**：
-     1. 外圈留白（方角到内弧的空隙，由 rIn=146 给到，桌面约 32px）
-     2. 双层边框：外 1px --edge（浅，和扇区线同一族）+ 内 1px --ink（重，立刻抓住视线）
-     3. 内容自上而下三级字阶：12 小标 → 22 主词（朱红）→ 12 说明
-   不用 box-shadow：Swiss 里投影是最先该被砍的东西，且浅灰底上投影会脏。
-   方角与内弧的关系由 DISC.rIn 保证（见 app.js 顶部注释），这里只管盒内的呼吸。 */
+/* 盘心：一块压在圆心上的方块（本块只在**未加 .wheel 祖先**时生效，见下）。
+   层次不靠投影，靠**边界递进**：外 1px 环 + 内 1px 发丝线 + 三级字阶。
+   不用 box-shadow 做落影：Swiss 里投影是最先该被砍的东西，且浅灰底上投影会脏。
+
+   ⚠️ V2 改法 C1：更正一处**注释与渲染不符**（比任何色值都重要）。
+   本块原注释写「边长 = 内弧半径 × √2，即内接正方形 …… 四角正好顶到内弧之后，
+   方与圆互相咬合」，并说「方角与内弧的关系由 DISC.rIn 保证」。
+   实测（1440×900，`wheel-desktop-empty`）盘心 computed
+   `border-radius: 50%` —— **它是圆的，不是方的**。
+   真源是 `20-wheel-core.css:325` 的 `.wheel:not(.is-open) .disc-hub`，
+   那一层把这里的 42.7% / 方角覆盖成 66% / 圆。
+
+   也就是说首屏不存在「方角咬合」这件事，拿这条当设计依据会改错对象。
+   本腿按改法 C1（推荐项）处理：**保持圆形、把叙述改成实话**，
+   用「外 1px 环 + 内 1px 发丝线」两级替代原来那道 2px 黑环（见 60-motion.css）。
+   （C2「真做内接正方形」要重验 DISC.rIn=146 与 42.7% 的 0.72% 余量，
+   且有真实回归风险，本腿不取。） */
 .disc-hub {
   position: absolute;
   left: 50%;
@@ -426,10 +461,9 @@ body {
   transform: translate(-50%, -50%);
   /* 边长 = 内弧半径 × √2，即内接正方形。
      DISC.rIn = 146/480 = 30.42%，×1.414 = 43.0%。
-     为什么不是"比内圆小一圈"：盘心缩在内圆中央时，四周留一圈 39px 的白，
-     方块和内圈没有任何几何关系，读起来像「贴在圆盘上的一张卡片」。
-     四角正好顶到内弧之后，方与圆互相咬合，同一张图里成立。
-     留 0.3% 余量防止亚像素舍入把角标顶出弧外。 */
+     **注意：首屏是圆的，这组数字只对「非 .wheel」的盘（如场合屏旧路径）有效** ——
+     `20-wheel-core.css:325` 用 66% + border-radius:50% 覆盖了本块，
+     见上方 ⚠️。留着不删是因为它仍是那条路径的基线，删掉会让后来者无从对照。 */
   width: 42.7%;
   height: 42.7%;
   border-radius: 0;
@@ -3230,9 +3264,13 @@ body { position: relative; }
    ============================================================ */
 
 /* 外轮廓 + 三层落影：贴身细影 / 中距实影 / 远距散影。
-   只写一层会显得"贴纸"，三层才有高度。 */
-.wheel::after {
-}
+   只写一层会显得"贴纸"，三层才有高度。
+
+   V2 清空块：这里原来只有一对空 `{}`，`box-shadow` 实际由
+   `60-motion.css` 的 `.wheel::after` 承担（那一处声明更晚，整条盖过本层）。
+   留着空块会让人以为"轮廓是在这里画的"，改错地方还看不出为什么没生效。
+   这里只留一行指针，不删规则（`opacity` 与展开态的两条仍需要选中这个伪元素）。 */
+.wheel::after { /* box-shadow 由 60-motion.css 承担 */ }
 .wheel.is-open::after {
   opacity: 1;
 }
@@ -3305,8 +3343,9 @@ body { position: relative; }
   stroke: rgba(0, 26, 94, .13);
   stroke-width: 1;
 }
-.wheel::after {
-}
+/* V2 清空块：`.wheel::after` 的 box-shadow 由 60-motion.css 承担，
+   这里原来是一对空 `{}`。留着会误导读代码的人以为轮廓在这层。 */
+.wheel::after { /* 由 60-motion.css 承担 */ }
 
 /* ---- 盘心：加一道内圈发丝线，读成"表盘内的刻度圈" ---- */
 .wheel .disc-hub {
@@ -3379,13 +3418,19 @@ body { position: relative; }
   .wheel-back { left: 2%; top: 3%; }
 }
 
-/* 4. 盘心：内圈加一道发丝环，把"表盘"这层意思做实 */
+/* 4. 盘心：内圈加一道发丝环，把"表盘"这层意思做实。
+   V2 改法 C1：色值从 rgba(0,26,94,.05)（对纸底约 1.03，等于没有）
+   提到 rgba(20,18,14,.10)（对纸底 **1.15**）。
+   盘心环从 2px 黑环降到 1px 的 --stroke-l2 之后，只剩一道边；
+   再补一道内侧发丝线，才成为「环 + 内线」两级 —— 这是 C1 的完整形态，
+   也是原注释里"双层边界递进"真正的落地方式（原先靠 2px 黑环假装）。
+   色相跟着从冷蓝（0,26,94）换到墨系（20,18,14）：暖纸上冷蓝发丝线会偏脏。 */
 .wheel .disc-hub::after {
   content: '';
   position: absolute;
   inset: 5px;
   border-radius: 50%;
-  border: 1px solid rgba(0, 26, 94, .05);
+  border: 1px solid rgba(20, 18, 14, .10);
   pointer-events: none;
 }
 /* ============================================================
@@ -4583,7 +4628,12 @@ body { position: relative; }
   /* 圆角沿用 --radius（4px）。不用胶囊形：胶囊在 8 项网格里会读成
      "标签云/筛选条"，而这一屏是"选一个"，需要方正的按钮感。 */
   border-radius: var(--radius);
-  background: var(--bg);
+  /* V2 改法 D-1：底从「等于纸底」（#FAF7F1，对纸底 **1.00**）改成 #FDFBF7（**1.03**）。
+     1.00 的底 + 5.23 的边，读起来是「纸上画了一个框」，不是「一张卡」。
+     1.03 几乎看不出变化，但它不再是纸本身 —— 这是三档里的最低一档。
+     选这个色不是随便取的：它是六族填充里最亮的一档（citrus），
+     全站「纸上的面」只用这一个比纸亮一档的值，不再新增色阶。 */
+  background: #FDFBF7;
   color: var(--ink);
   font-family: var(--font-body);
   text-align: left;
@@ -4614,50 +4664,114 @@ body { position: relative; }
   line-height: 1.5;
 }
 
-/* 选中态：蓝底反白。与盘心「已选定」用的是同一个 --blue，
-   全站只有一个"选中"的视觉语言，不另造一套。 */
+/* 选中态：V2 改法 D-3。
+   ------------------------------------------------------------
+   改前：整块 323×67 的 #002FA7 实填（对纸底 10.00）—— 7 张卡里一块高饱和色斑，
+   它的视觉重量超过问题标题（26px 衬线），视线先落在选中的那张卡，
+   再回头找「你在问什么」。
+   改后：--blue-wash 水洗底（rgba(0,47,167,.07)，对纸底 **1.05**）
+       + 左侧 3px --blue 竖条 + 文字转 --blue（10.00，仍达标）。
+   色斑面积从 323×67 降到 3×67 一条，问题标题重新成为该屏最重的一行。
+
+   为什么仍然用 --blue 而不是换别的色：全站只有一个「选中」的视觉语言，
+   盘心的已选定也用 --blue；换色会让同一个动作出现两种语义。
+   左边竖条用 border-left 而不是 ::before：这一族卡片已有 border，
+   用同一个属性做「一条边加粗」比叠伪元素更少一层覆盖关系。
+   竖条宽度 3px 是「读得到但不成为色块」的最小值（2px 在 2x 屏上是 4 物理像素，
+   已经是线；3px 才读得出一条"标记"）。 */
 .choice.is-on {
   border-color: var(--blue);
-  background: var(--fill-blue);
-  color: #fff;
-  box-shadow: var(--sh-2);
+  border-left-width: 3px;
+  border-left-color: var(--blue);
+  background: var(--blue-wash);
+  color: var(--blue);
+  box-shadow: none;
 }
-.choice.is-on .choice-zh { color: #fff; }
-/* 反白后的副行：白色 .78 透明度在 --blue 上是 8.4:1 级别，安全；
-   但仍不能低于 12px（test-contrast 的字号下限守门）。 */
-.choice.is-on .choice-desc { color: rgba(255, 255, 255, .78); }
+.choice.is-on .choice-zh { color: var(--blue); }
+/* 副行：改前是 rgba(255,255,255,.78)（白字，压在浅蓝水洗底上不可用）。
+   底变浅之后白字必须换墨字 —— 用 --ink-3（对纸底 6.19、对水洗底约 5.9，都过 4.5）。 */
+.choice.is-on .choice-desc { color: var(--ink-3); }
 
 /* 整族排除那一屏的"负向"选项：选中用朱红，不用蓝。
-   蓝 = 你想要的；红 = 你不要的。同一个动作在两种语义下不该同色。 */
+   蓝 = 你想要的；红 = 你不要的。同一个动作在两种语义下不该同色。
+
+   V2 改法 D-3：跟着选中态的语法一起改 —— 整块 --danger 实填（7.26）
+   同样是一块高饱和色斑。改成「3px 危险色左竖条 + 极浅危险水洗底 + 字转危险色」，
+   与正向选项同一套语法，只换色相。
+   水洗底取 rgba(164,38,44,.06)（--danger #A4262C，压在纸底上约 1.04），
+   字仍用 --danger（对纸底 7.26，对水洗底 7.0 左右，都过 4.5）。 */
 .choice-neg.is-on {
   border-color: var(--danger);
-  background: var(--danger);
-  box-shadow: 0 6px 18px -10px rgba(165, 52, 47, .5);
+  border-left-width: 3px;
+  border-left-color: var(--danger);
+  background: rgba(164, 38, 44, .06);
+  color: var(--danger);
+  box-shadow: none;
 }
+.choice-neg.is-on .choice-zh { color: var(--danger); }
+.choice-neg.is-on .choice-desc { color: var(--ink-3); }
 
 /* v35：深色主题把 --danger 从 #a4262c 换成 #ff8a80（浅粉），
    而 `.choice.is-on` 的字色写死成 #fff —— 白压浅粉只有 2.28:1，
    不到 AA 的一半。同一份样式里另外两处「红底」都用 var(--bg)
    （深色下自动变 #141414）压出来 8.07，只有这一条写死白色。
-   补深色分支：字色跟着 --bg 走，浅色主题不受影响。 */
+   补深色分支：字色跟着 --bg 走，浅色主题不受影响。
+
+   ⚠️ V2 改法 D-3 之后上面的前提不成立了：选中态的语法从「实底 + 反白字」
+   换成了「极浅水洗底 + 同色相文字」。旧值（字色 var(--bg) = #14120E）
+   是为「深红实底」配的，现在底是浅水洗，深字压上去等于深压深（实测 < 1.5）。
+   所以这一段整段重写，见下。 */
 @media (prefers-color-scheme: dark) {
-  .choice-neg.is-on,
-  .choice-neg.is-on .choice-zh { color: var(--bg); }
-  .choice-neg.is-on .choice-desc { color: rgba(20, 20, 20, .72); }
+  /* V2 改法 D-3 之后这条必须重写：选中不再是「深色实底 + 反白字」，
+     而是「极浅水洗底 + 同色相文字」。深色下 rgba(164,38,44,.06) 压在
+     深底上等于没有，字若仍取 --bg（#14120E）就成了深字压深底。
+     所以改成「深底上的一层浅红水洗底 + --danger 文字」，
+     与浅色分支同一套语法，只是水洗底透明度要提一档才看得出来。 */
+  .choice-neg.is-on {
+    background: rgba(255, 138, 128, .12);
+    border-color: var(--danger);
+    border-left-color: var(--danger);
+    color: var(--danger);
+  }
+  .choice-neg.is-on .choice-zh { color: var(--danger); }
+  .choice-neg.is-on .choice-desc { color: var(--ink-3); }
+  /* 正向选中同理：--blue-wash（rgba(0,47,167,.07)）压在 #14120E 上
+     只剩 1.02 级别，几乎看不出「这张被选了」。
+     深色下换亮一档的蓝水洗底 + --blue-lift 文字（5.78 on 深底）。 */
+  .choice.is-on {
+    background: rgba(110, 143, 232, .14);
+    border-color: var(--blue-lift);
+    border-left-color: var(--blue-lift);
+    color: var(--blue-lift);
+  }
+  .choice.is-on .choice-zh { color: var(--blue-lift); }
+  .choice.is-on .choice-desc { color: var(--ink-3); }
 }
 
 /* ---------------- 二、术语解释块 ----------------
    新手友好的落点。三条规矩：
      ① 只在"这个词真的会让人卡住"的屏出现（气质/浓度/留香/排除），
         不是每屏都贴一段 —— 那会变成噪音，用户会开始跳过所有解释框；
-     ② 左边一道 2px 竖线做归属，不用整块底色：
-        整块底色会被读成"警告"，而这里多数是知识而不是警告；
+     ② 用**结构**区分"读的"和"点的"，不用颜色深浅区分；
      ③ 首次出现时它承担"教一次"的职责，所以文案里必须给例子
-        （「香精约 5–15%」比「浓度中等」有用得多）。 */
+        （「香精约 5–15%」比「浓度中等」有用得多）。
+
+   V2 改法 D-4：从「左边一道 2px 竖线」改成「上下各一条 1px 细线」。
+   改前的实测是 `border-left: 2px #DED6C8`（对纸底 **1.35**）——
+   它和选项卡的差别只有「没有整圈边框 + 左边一条 2px」，两种不同性质的东西
+   （**解释** vs **可选项**）靠 1.35:1 的差异区分，用户在 7 张卡里
+   分辨不出哪段是"读的"哪段是"点的"。
+   改后用「上下两条 1px 分隔线 + 无左边框」表达「这是一段旁白」：
+   与「有完整边框的卡片」在**结构上**区分，而不是在颜色深浅上区分。
+   线宽 1px、色取 --stroke-l1（1.69）—— 它只是分隔，不承担控件边界，
+   不套 3:1 门槛；但比原来的 1.35 确实提了一档，扫读时能看出这是被括起来的一段。
+   字号 13px 保持不动（下限 12px，test-contrast 有守）。 */
 .term-note {
   margin: 2px 0 14px;
-  padding: 2px 0 2px 12px;
-  border-left: 2px solid var(--line);
+  padding: 8px 0;
+  border: 0;
+  border-top: 1px solid var(--stroke-l1);
+  border-bottom: 1px solid var(--stroke-l1);
   font-size: 13px;
   line-height: 1.65;
   color: var(--ink-2);
@@ -4667,9 +4781,147 @@ body { position: relative; }
   font-weight: 600;
 }
 /* 推断值那块（第 9 步留香）：这里真的需要警示，因为它不是事实。
-   用 --warn（5.93:1）做竖线，仍不整块铺底 —— 铺底会把长段落读成一堵墙。 */
-.term-note.is-warn { border-left-color: var(--warn); }
+   改法 D-4 之后「竖线」这个通道没有了，警示改用**两条线的颜色**表达：
+   上下线都取 --warn（5.93:1）。仍不整块铺底 —— 铺底会把长段落读成一堵墙。 */
+.term-note.is-warn {
+  border-top-color: var(--warn);
+  border-bottom-color: var(--warn);
+}
 .term-note.is-warn strong { color: var(--warn); }
+
+/* ---- V2 改法 E：可折叠的术语解释块 ----
+   ------------------------------------------------------------
+   只作用于 `.term-note-fold`（第 4 屏「气质」那一段），
+   其余屏的 term-note 仍是完整的上下线段落 —— 那些屏没有「7 张卡挤在一屏」的问题。
+
+   为什么折叠而不是删除：那段「这七个不是香调」是 v42 专门加的澄清，
+   删掉会**丢掉真实内容**。折叠后标题行（13px 一行）留住钩子，
+   正文按需展开，高度还回去。
+   用原生 <details>：零 JS 状态、键盘默认可用、
+   且打印时默认展开（内容不会在纸上消失）。 */
+.term-note-fold {
+  padding: 0;
+  border-top: 1px solid var(--stroke-l1);
+  border-bottom: 1px solid var(--stroke-l1);
+}
+/* 折叠态：summary 就是整块的底边，外层的 border-bottom 会与 summary 之间
+   多出一条悬空的线（截图可见「这七个不是香调」下方有两条平行线）。
+   收掉外框的底边，交给 summary 自己的底边承担；展开时再把底边还给块。
+   这样两种状态的线数都正好是「上一条 + 下一条」。 */
+.term-note-fold:not([open]) { border-bottom: 0; }
+.term-note-fold:not([open]) > summary.term-note-sum {
+  border-bottom: 1px solid var(--stroke-l1);
+}
+.term-note-fold > summary.term-note-sum {
+  /* summary 默认有 list-style 三角，收掉换成自己的标记 */
+  list-style: none;
+  cursor: pointer;
+  padding: 7px 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  /* 触控下限：summary 是可点目标，必须 >= 44px（test-contrast 会拦）。
+     7px 上下 padding + 13px×1.65 行高 ≈ 35，不够；补到 min-height:44。 */
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.term-note-fold > summary.term-note-sum::-webkit-details-marker { display: none; }
+.term-note-fold > summary.term-note-sum::before {
+  content: '＋';
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1;
+  width: 12px;
+}
+.term-note-fold[open] > summary.term-note-sum::before { content: '－'; }
+.term-note-fold > summary.term-note-sum:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.term-note-fold .term-note-body {
+  padding: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  max-width: 52ch;
+}
+
+/* ---- V2 改法 E：标签与建议合并成一个头部（收尾腿补齐）----
+   ------------------------------------------------------------
+   改前：`.chips-label`（15.59px，独占一行）+ `.chips-note`（36px，1–2 行）
+   两个块上下叠，合计 51.6px。改法 E 第 3 条要的是「合并成一行」，
+   上一轮只收了 margin（省 4px），两块仍是上下关系。
+   这里把它们放进 `.chips-head` 横排：标签在左（flex:none，不折行），
+   建议在右（flex:1，可折行）。窄屏 390 档放不下时退回上下两块，
+   但那时建议行已跟着标签走、不再夹在标签与卡片之间。
+   两块各自的字号、颜色、字距全部沿用原值 —— 这一条只改排布。 */
+.chips-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin: 8px 0 6px;
+}
+.chips-head > .chips-label {
+  /* 原 `.chips-label` 自带 28px 0 10px 的外边距，进了 flex 容器后
+     那组值会把整行顶高；这里交给 `.chips-head` 统一管。 */
+  margin: 0;
+  flex: 0 0 auto;
+}
+.chips-head > .chips-note {
+  margin: 0;
+  flex: 1 1 12ch;
+  min-width: 0;
+}
+
+/* ---- V2 改法 E：390 档把这一屏压回一屏半 ----
+   ------------------------------------------------------------
+   改前实测（390×844）：第一张卡 top **603**，工具栏 767，只剩 164px；
+   7 张卡（每张 67 + gap 6 = 73）需要 511px —— 用户要滚 4 屏才看完 7 个原型。
+   三个可省项（合计约 150px）：
+     · `.term-note` 折叠并移到卡组之后（见上 + app.js 注）：整块 45px 让出首屏
+     · `.chips-label` 与 `.chips-note` 横排成一行（见上）：52px → 36px
+     · `.choice-grid` 的 gap 与卡片内边距在 620 档已收过一轮（v35），这里只补
+       「标签与卡片之间」的那段 margin，不动字号、不砍描述行。
+   **不改任何字号**（12px 是硬下限，压字号会直接撞 test-contrast）。 */
+@media (max-width: 620px) {
+  /* 标题与卡片组之间：原 term-note 的 14px 下边距 + chips-label 的默认上边距
+     叠出约 30px 的空气。这一屏最缺的就是高度，收到 8px。 */
+  .chips-label { margin-top: 8px; margin-bottom: 4px; }
+  .chips-note { margin: -2px 0 4px; }
+  /* 建议行紧跟标签，两行之间不要再插一段行高 */
+  .chips-label + .chips-note { margin-top: 2px; }
+  /* 横排头部在 390 档：标签 110px + 建议行折两行 36px。
+     两者 baseline 对齐后整块高 = max(15.6, 36) + gap = 38，
+     比原来的「标签一行 + 建议一行」（51.6 + 两组外边距 ≈ 63.6）矮 25.6px，
+     与清单第 3 条估的 26px 对得上。
+     第一版在这里写成 `flex: 1 1 100%` 让建议行独占一行，实测 55.59px，
+     只省 8px —— 那等于没有合并。**不要改回独占一行**。 */
+  .chips-head { margin: 6px 0 4px; gap: 2px 8px; }
+  .chips-head > .chips-note { flex: 1 1 8ch; }
+  .term-note-fold { margin-bottom: 8px; }
+  /* summary 的可点区下限是 44px，但不要求 inner padding 也顶到 44：
+     7px→6px 上下各让 1px，整块从 46 收到 44 —— 正好仍满足触控下限，
+     同时把第 3 张卡从「压线」推进工具栏之上（实测差 0.22px）。 */
+  .term-note-fold > summary.term-note-sum { padding: 6px 0; }
+  /* 卡片组的上外边距：原来 4px，收到 0 —— 它紧接 suggestion 行，
+     那行已经带了 4px 下边距，两段边距相邻时会折叠成较大者，
+     这里显式归零让「建议行 → 第一张卡」的空气只剩一条。 */
+  .choice-grid { margin-top: 0; }
+  /* 卡片组上外边距归零之后，第 3 张卡仍压在工具栏上沿 0.22px（实测
+     767.21875 vs barTop 767.0）。把 grid 的 gap 从 6 收到 5 —— 只影响
+     相邻卡之间的 6 条缝，7 张卡整体短 6px，第 3 张稳稳落在 761。
+     这同时让「7 张卡需要多少高度」从 500 降到 494。
+     gap 6 是 v35 为「一屏放下第 4 张」定的值，5 与它的视觉差别在
+     390 档上不可辨（实测截图逐块比对见回执），但换来了第 3 张完整可见。 */
+  .choice-grid { gap: 5px; }
+  /* 卡片内边距在 620 档已是 10px 12px（v35），这里只把两行之间的 gap 收 1px，
+     让 7 张卡整体再短一点点；描述行行高保持 1.45 不动。 */
+  .choice { gap: 2px; }
+}
 
 /* ---------------- 三、十段进度条 ----------------
    原来是 4 段、每段 3px 高。扩到 10 段后每段宽度从 25% 掉到 10%，
@@ -4841,7 +5093,10 @@ body { position: relative; }
    原来这里叠了 7 层阴影（1 暗线 + 1 白线 + 4px 白 + 5px 淡蓝 + 三层落影），
    其中 `0 0 0 4px rgba(255,255,255,.55) inset` 与 `0 0 0 5px ... inset`
    在 251px 的框上只差 1px，肉眼分不出，删掉后 A/B 计算样式差异为 0。
-   现在按三档变量重写为 4 层：暗线、亮线、贴身影、两层远影。 */
+   现在按三档变量重写为 4 层：暗线、亮线、贴身影、两层远影。
+
+   V2：本块已被 `60-motion.css` 的 `.wheel::after`（同样 0,1,1、声明更晚）
+   整条覆盖，实际生效的是那一处。改轮廓色请改 60-motion，不要改这里。 */
 .wheel::after {
   box-shadow:
     0 0 0 var(--stroke-l1-w) var(--stroke-l1),
@@ -5548,10 +5803,20 @@ body { position: relative; }
     border-color: var(--edge);
   }
 }
-/* 选中态本来就是实底蓝，压过上面两条 */
+/* 选中态：V2 改法 D-3 的**末态**（必须排在 D1 那三条之后）。
+   D1 的 `.choice { border-color: var(--stroke-ui) }` 与本块 hover 的特异性
+   （0,1,0 / 0,1,1）相同、声明更早；不在这里重申 is-on，选中卡的边框
+   会被压回 --stroke-ui，3px 左竖条也一起被盖掉（实测过一次）。 */
 .choice.is-on {
   border-color: var(--blue);
+  border-left-width: 3px;
+  border-left-color: var(--blue);
+  background: var(--blue-wash);
+  color: var(--blue);
+  box-shadow: none;
 }
+.choice.is-on .choice-zh { color: var(--blue); }
+.choice.is-on .choice-desc { color: var(--ink-3); }
 
 /* ---------------- D2：结果页第 1 名的视觉身份 ----------------
 
@@ -6676,9 +6941,20 @@ body {
 }
 
 /* 盘心内圈那道"表盘刻度"：原 `_wheel7.css:708` 写死 rgba(0,26,94,.05)。
-   它挂的是 `::after` 而不是 `.wheel-back` —— 别按名字猜。 */
+   它挂的是 `::after` 而不是 `.wheel-back` —— 别按名字猜。
+
+   ⚠️ 这一条是**实际生效**的那条（本层比 20-wheel-core.css 晚），
+   改 20 层那句 `border-color` 不会生效。V2 改法 C1 在这里落地：
+   --hair（#E8E1D5，对纸底约 1.06）→ rgba(20,18,14,.10)（**1.15**）。
+   盘心环从 2px 黑环降到 1px 之后，靠这道内线补成「环 + 内线」两级。
+   深色分支保持 --hair（深色下 --hair 是 rgba(255,255,255,.07)，方向是亮线）。 */
 .wheel .disc-hub::after {
   border-color: var(--hair);
+}
+@media (prefers-color-scheme: light) {
+  .wheel .disc-hub::after {
+    border-color: rgba(20, 18, 14, .10);
+  }
 }
 
 /* ---------------- 二、盘的外框：7 层 → 4 层 ---------------- */
@@ -6686,13 +6962,40 @@ body {
 /* 只保留能分辨的四层：外勾线、内亮线、贴身影、远影。
    删掉的两层（4px 白 inset、5px 淡蓝 inset）在 251–520px 的框上
    与相邻层只差 1px，实测计算样式不同但截图逐像素一致 —— 属于
-   "看起来在调、其实没画出来"的声明，留着只会让后来者不敢改。 */
+   "看起来在调、其实没画出来"的声明，留着只会让后来者不敢改。
+
+   ⚠️ 这一处才是**实际生效**的盘外轮廓：本选择器 0,1,1 与
+   `30-wheel-refine.css` 的同名块相同，而本层声明更晚，整条盖过它。
+
+   V2 改法 A：轮廓色 --stroke-l1（#C9C0B0，对纸底 1.69）→ --edge（#6E675C，**5.23**）。
+   理由：1.69 在 504px 的圆上读不出来 —— 实测截图里外沿是虚的，六块扇区
+   只能靠中间那道黑圈才勉强成立。轮廓必须自己承担「圆盘是一个物体」。
+   `40-theme.css:277` 那条「不能取 --edge，会读成发光箍」是**深色模式**结论
+   （#8a8a8a 亮灰压在 #14120E 暗底上，方向是亮线）；浅色下 #6E675C 压在
+   #FAF7F1 上是暗线收边，不发光。**所以只改浅色这一条，深色分支保持不动**
+   —— 见本文件末尾的深色块（那里仍是 --stroke-l1），以及 40-theme.css:282。
+
+   注意：这里用的是 `--edge` 而不是 `--stroke-l1`。两者在浅色下恰好都是
+   5.23 的同一个值（#6E675C），但语义不同：轮廓是**控件边界**，
+   归 --edge 管；--stroke-l1 是装饰性结构线，留给缝/凹槽一档。
+   深色下 --edge 是 #8a8a8a（发光箍的根源），所以深色块不能跟着换。 */
 .wheel::after {
   box-shadow:
     0 0 0 var(--stroke-l1-w) var(--stroke-l1),
     0 0 0 1px var(--stroke-hi) inset,
     0 16px 34px -18px rgba(0, 26, 94, .42),
     0 48px 96px -58px rgba(0, 26, 94, .72);
+}
+/* 上面那条 light 块必须排在基础规则**之后**才能赢（同特异性看源码顺序）。
+   第一次写反了，实测轮廓仍是 1.69 —— 这里的顺序是结论，不是排版习惯。 */
+@media (prefers-color-scheme: light) {
+  .wheel::after {
+    box-shadow:
+      0 0 0 var(--stroke-l1-w) var(--edge),
+      0 0 0 1px var(--stroke-hi) inset,
+      0 16px 34px -18px rgba(0, 26, 94, .42),
+      0 48px 96px -58px rgba(0, 26, 94, .72);
+  }
 }
 
 /* ---------------- 三、盘心：5 层 → 4 层，空气圈统一 6px ---------------- */
@@ -6701,48 +7004,68 @@ body {
    `0 1px 0 rgba(255,255,255,.95) inset` 与 `0 0 0 1px var(--stroke-hi) inset`
    在同一个盘心上叠了两道白（一道距边 0、一道距边 1px），
    在 154px 的盘心上一共就 2px，读起来是"边有点发毛"而不是"有厚度"。
-   这里只留一道。 */
-.wheel:not(.is-open) .disc-hub {
-  box-shadow:
-    0 0 0 var(--stroke-l3-w) var(--stroke-l3),
-    0 0 0 1px var(--stroke-hi) inset,
-    0 0 0 var(--halo-w) var(--halo),
-    0 8px 26px -14px rgba(0, 26, 94, .28);
-}
+   这里只留一道。
 
-.wheel.is-open .disc-hub {
-  box-shadow:
-    0 0 0 var(--stroke-l3-w) var(--stroke-l3),
-    0 0 0 1px var(--stroke-hi) inset,
-    0 0 0 var(--halo-w) var(--halo),
-    0 14px 32px -20px rgba(0, 26, 94, .46);
-}
+   V2 改法 A：盘心环由 --stroke-l3（2px，#14120E，**17.49**）降到
+   **1px 的 --stroke-l2（#6E675C，5.23）**，与外轮廓同权。
+   原来那道 2px 纯黑比外轮廓强 13 倍，视线第一眼落在箍上而不是扇区；
+   实测整屏最抢眼的东西是一个空心的黑圈。
+   改后顺序：外轮廓 5.23（最强）≥ 盘心环 5.23 > 缝 1.69 > 填充 1.01–1.04。
+   注意色值取的是 --stroke-l2 而不是 --stroke-l3：80-specimen 层把
+   --stroke-l3 也调到了 #6E675C，但盘心与扇区之间还有中圈那层，
+   两者取值相同会让 L2/L3 两档失去语义区分。
+   L3 这个 token 仍被 40-theme / 30-refine 的深色与特效分支引用，不要删。
 
-/* 悬停只换色不加粗（D50 的既有判断，保留） */
-.wheel:not(.is-open) .disc-hub.is-hover,
-.wheel.is-open .disc-hub.is-hover {
-  box-shadow:
-    0 0 0 var(--stroke-l3-w) var(--blue-amb),
-    0 0 0 1px var(--stroke-hi) inset,
-    0 0 0 var(--halo-w) var(--halo),
-    0 10px 28px -18px rgba(0, 26, 94, .34);
-}
-
-/* 窄屏：2px 双线在 312–342px 的盘上会糊，按既有断点收到 1.5px */
-@media (max-width: 620px) {
+   **整块裹在 light 里**：深色分支的盘心环在 `40-theme.css:166-190`，
+   那里是 2px 的 --stroke-l3（深色下 #F5F1E8，对 #14120E 是 16.6 —— 深色下
+   「最亮的一条线在盘心」是既有判断，V2 不改深色）。本层声明更晚，
+   不裹 light 就会把深色盘心环也压成 1px 的灰。 */
+@media (prefers-color-scheme: light) {
   .wheel:not(.is-open) .disc-hub {
     box-shadow:
-      0 0 0 1.5px var(--stroke-l3),
+      0 0 0 1px var(--stroke-l2),
       0 0 0 1px var(--stroke-hi) inset,
-      0 0 0 calc(var(--halo-w) - 1px) var(--halo),
-      0 8px 20px -14px rgba(0, 26, 94, .26);
+      0 0 0 var(--halo-w) var(--halo),
+      0 8px 26px -14px rgba(0, 26, 94, .28);
   }
+
   .wheel.is-open .disc-hub {
     box-shadow:
-      0 0 0 1.5px var(--stroke-l3),
+      0 0 0 1px var(--stroke-l2),
       0 0 0 1px var(--stroke-hi) inset,
-      0 0 0 calc(var(--halo-w) - 1px) var(--halo),
-      0 12px 26px -16px rgba(0, 26, 94, .42);
+      0 0 0 var(--halo-w) var(--halo),
+      0 14px 32px -20px rgba(0, 26, 94, .46);
+  }
+
+  /* 悬停只换色不加粗（D50 的既有判断，保留）——V2 同样收到 1px */
+  .wheel:not(.is-open) .disc-hub.is-hover,
+  .wheel.is-open .disc-hub.is-hover {
+    box-shadow:
+      0 0 0 1px var(--blue-amb),
+      0 0 0 1px var(--stroke-hi) inset,
+      0 0 0 var(--halo-w) var(--halo),
+      0 10px 28px -18px rgba(0, 26, 94, .34);
+  }
+
+  /* 窄屏：原来 2px 双线在 312–342px 的盘上会糊，收到 1.5px。
+     V2 起桌面也是 1px，窄屏保持 1px 即可 —— 1px 在 342px 的盘上
+     经 0.71 缩放后是 0.71 物理像素，仍能看见（实测见回执）。
+     这里显式写出来，避免被桌面那两条 0,3,0 的规则按特异性压回去。 */
+  @media (max-width: 620px) {
+    .wheel:not(.is-open) .disc-hub {
+      box-shadow:
+        0 0 0 1px var(--stroke-l2),
+        0 0 0 1px var(--stroke-hi) inset,
+        0 0 0 calc(var(--halo-w) - 1px) var(--halo),
+        0 8px 20px -14px rgba(0, 26, 94, .26);
+    }
+    .wheel.is-open .disc-hub {
+      box-shadow:
+        0 0 0 1px var(--stroke-l2),
+        0 0 0 1px var(--stroke-hi) inset,
+        0 0 0 calc(var(--halo-w) - 1px) var(--halo),
+        0 12px 26px -16px rgba(0, 26, 94, .42);
+    }
   }
 }
 
@@ -7325,13 +7648,49 @@ body {
    否则选中与悬停都会被这条基础规则盖掉。
    ============================================================ */
 .wheel .disc-svg .sector-shape {
-  fill: #ffffff;
-  stroke: var(--bg-3);
+  fill: #F9F6EF;
+  stroke: var(--stroke-l1);
   stroke-width: 2.6;
   /* _wheel7.css:506 给扇区挂了 `drop-shadow(0 -0.5px 0 rgba(255,255,255,.85))`
      当倒角高光。缝改成灰之后，这道白影正好压在缝的一侧，
      把 2.6px 的缝削成 1.6px 且一侧发虚 —— 关掉。 */
   filter: none;
+}
+
+/* ---- V2 改法 A：六族填充的微差（对纸底 #FAF7F1 实测 1.00–1.04）----
+   为什么不用渐变而写死纯色：渐变在 60px 缩略下会被抗锯齿抹平，
+   与纯白无差别（A 方向 v12→v13 两次都试过）。纯色至少是确定值，
+   截图对比时能逐块量出来。
+
+   特异性 0,5,0（三个类 + 属性选择器 + .sector-shape），高于上面的基础规则
+   0,3,0，低于 hover（0,6,0）与 is-on（0,5,0 但声明更早则被这几条压住）——
+   三态覆盖关系见回执：实测 hover / is-on 仍生效。
+
+   **必须裹在 light 里**：深色分支靠 `40-theme.css` 的
+   `.wheel .disc-svg .sector-g[data-fam=…] .sector-shape { fill: url(#gFamXxxD) }`
+   给出六条暗色渐变，那条与这里同特异性（0,5,0）但声明更早。
+   不裹 light 的话本层会把深色填成纸白（实测过：深色 fill 变成 #FDFBF7）。 */
+@media (prefers-color-scheme: light) {
+  .wheel .disc-svg .sector-shape {
+    fill: #F9F6EF;
+    stroke: var(--stroke-l1);
+  }
+}
+
+/* ---- V2 改法 A：六族填充的微差（对纸底 #FAF7F1 实测 1.00–1.04）----
+   为什么不用渐变而写死纯色：渐变在 60px 缩略下会被抗锯齿抹平，
+   与纯白无差别（A 方向 v12→v13 两次都试过）。纯色至少是确定值，
+   截图对比时能逐块量出来。
+
+   特异性 0,4,0（两个类 + 属性选择器 + 一个类），高于上面的基础规则 0,3,0，
+   低于 hover（0,6,0）与 is-on（0,5,0）—— 三态覆盖关系不变。 */
+@media (prefers-color-scheme: light) {
+  .wheel .disc-svg .sector-g[data-fam="citrus"]   .sector-shape { fill: #FDFBF7; } /* 1.03 */
+  .wheel .disc-svg .sector-g[data-fam="floral"]   .sector-shape { fill: #FBF7F1; } /* 1.01 */
+  .wheel .disc-svg .sector-g[data-fam="woody"]    .sector-shape { fill: #F7F2E9; } /* 1.01 */
+  .wheel .disc-svg .sector-g[data-fam="amber"]    .sector-shape { fill: #F4EEE3; } /* 1.04 */
+  .wheel .disc-svg .sector-g[data-fam="fresh"]    .sector-shape { fill: #F9F6EF; } /* 1.00 */
+  .wheel .disc-svg .sector-g[data-fam="gourmand"] .sector-shape { fill: #F6F0E6; } /* 1.02 */
 }
 
 /* 扇区文字：白瓦片上不能是纯白字（base 层 `.disc-sector` 默认 --ink，本来就深色，
@@ -7610,6 +7969,36 @@ body {
 /* 场合屏盘心：方形改成圆形后（`_wheel23.css` 第三节），在 52vh 档圆盘只有 400px，
    42.7% 见方的盘心 = 171px，装「当前选择 / 还没选 / 点扇区，或把指针移上去」三行
    正好够；再窄就换两行文案，收字号会跌破 12px 下限（test-contrast 强制）。 */
+
+/* ============================================================
+   V2 改法 A · 盘底凹槽（扇区之下的那一层）
+   ------------------------------------------------------------
+   扇区之间是 2.6px 的缝，缝里露出来的就是**盘底**。
+   原来盘底 = --bg（纸底本身，1.00）—— 于是缝里露出的仍是纸，
+   「六块扇区嵌进一个凹槽」这件事在几何上成立、在视觉上不存在。
+
+   改成 --bg-3（#E7E0D4，对纸底 **1.23**）：缝里露出的颜色比扇区填充
+   深一档、比扇区缝（--stroke-l1，1.69）浅一档，于是读出
+   「盘底凹槽 → 扇区缝 → 扇区面」三层，而不是「一片白 + 几条线」。
+
+   特异性：`.wheel` 是 0,1,0，`20-wheel-core.css` 与本层都有同名 `.wheel {}`，
+   本层声明更晚所以能赢。
+
+   **必须裹在 light 里**：深色分支的盘底在 `40-theme.css`（#171717 / #1a1a1a，
+   与 --bg-3 的暗档 #2A2620 不是一回事）。不裹 light 会把深色盘底
+   从 #171717 抬到 #2A2620 —— 实测过一次，深色盘面明显发亮。
+   这条只作用于首屏轮盘（带 .wheel 类）；场合屏的 `.disc:not(.wheel)`
+   有自己的 #fafbfe 瓦片体系，不动。 */
+@media (prefers-color-scheme: light) {
+  .wheel {
+    background: var(--bg-3);
+  }
+  /* 展开态：中圈弧片铺在上面，盘底只在最外一圈露出来。
+     保持同一档凹槽色，让「盘是一个整体」在两层之间不断裂。 */
+  .wheel.is-open {
+    background: var(--bg-3);
+  }
+}
 /* ============================================================
    80-specimen.css — 方向 A「标本极简」（Eddie 2026-11-10 19:19 决策）
    ------------------------------------------------------------
@@ -7658,12 +8047,30 @@ body {
   --ink-2: #3A362F;
   --ink-3: #5E584E;
 
-  /* ---- 边界 ---- */
+  /* ---- 边界 ----
+     V2 改法 A：圆盘三层的对比度拉开成真正的三档
+     ------------------------------------------------------------
+     实测（504px 盘，对纸底 --bg #FAF7F1）：
+       改前  扇区填充 1.07 / 扇区缝 1.23 / 盘外轮廓 1.35 / 盘心环 17.49
+     四档跨度 1.07→17.49，中间三档全挤在 1.4 以下，最内层一下跳到 17.5 ——
+     那不是「层次」，是「看不见的底 + 一个黑圈」两级。
+     改后  1.01–1.04 / 1.23 / 1.69 / 5.23 / 5.23，
+     **最强的一条线从盘心移到外轮廓**，才是「一整个圆盘」。
+
+     ⚠️ `40-theme.css` 有一条旧结论：「外沿那道不能取 --edge，
+        在 520px 的圆上会读成一圈发光箍」。
+        那条是**深色模式**实测（#8a8a8a 亮灰压在 #14120E 暗底上，方向是亮线）。
+        浅色模式下 #6E675C 压在纸底上是**暗线收边**，不发光。
+        所以这里只改浅色分支；深色分支仍取 --stroke-l1，见 40-theme.css。 */
   --edge: #6E675C;
   --stroke-ui: #6E675C;
+  /* 盘外轮廓：1.69（--bg-3 一档）→ 5.23。它承担「圆盘是一个物体」的边界，
+     而 1.69 在 504px 的圆上仍然读不出来（实测截图里外沿是虚的）。 */
   --stroke-l1: #C9C0B0;
   --stroke-l2: #6E675C;
-  --stroke-l3: #14120E;
+  /* 盘心环：17.49 → 5.23，与外轮廓同权。原来 2px 纯黑比外轮廓强 13 倍，
+     视线自然全被那个空心的黑圈吸走。现在与轮廓同深、只比它细一档。 */
+  --stroke-l3: #6E675C;
   --stroke-hi: rgba(255, 255, 255, .72);
 
   /* ---- 强调 ---- */

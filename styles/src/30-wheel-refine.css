@@ -254,7 +254,12 @@
   /* 圆角沿用 --radius（4px）。不用胶囊形：胶囊在 8 项网格里会读成
      "标签云/筛选条"，而这一屏是"选一个"，需要方正的按钮感。 */
   border-radius: var(--radius);
-  background: var(--bg);
+  /* V2 改法 D-1：底从「等于纸底」（#FAF7F1，对纸底 **1.00**）改成 #FDFBF7（**1.03**）。
+     1.00 的底 + 5.23 的边，读起来是「纸上画了一个框」，不是「一张卡」。
+     1.03 几乎看不出变化，但它不再是纸本身 —— 这是三档里的最低一档。
+     选这个色不是随便取的：它是六族填充里最亮的一档（citrus），
+     全站「纸上的面」只用这一个比纸亮一档的值，不再新增色阶。 */
+  background: #FDFBF7;
   color: var(--ink);
   font-family: var(--font-body);
   text-align: left;
@@ -285,50 +290,114 @@
   line-height: 1.5;
 }
 
-/* 选中态：蓝底反白。与盘心「已选定」用的是同一个 --blue，
-   全站只有一个"选中"的视觉语言，不另造一套。 */
+/* 选中态：V2 改法 D-3。
+   ------------------------------------------------------------
+   改前：整块 323×67 的 #002FA7 实填（对纸底 10.00）—— 7 张卡里一块高饱和色斑，
+   它的视觉重量超过问题标题（26px 衬线），视线先落在选中的那张卡，
+   再回头找「你在问什么」。
+   改后：--blue-wash 水洗底（rgba(0,47,167,.07)，对纸底 **1.05**）
+       + 左侧 3px --blue 竖条 + 文字转 --blue（10.00，仍达标）。
+   色斑面积从 323×67 降到 3×67 一条，问题标题重新成为该屏最重的一行。
+
+   为什么仍然用 --blue 而不是换别的色：全站只有一个「选中」的视觉语言，
+   盘心的已选定也用 --blue；换色会让同一个动作出现两种语义。
+   左边竖条用 border-left 而不是 ::before：这一族卡片已有 border，
+   用同一个属性做「一条边加粗」比叠伪元素更少一层覆盖关系。
+   竖条宽度 3px 是「读得到但不成为色块」的最小值（2px 在 2x 屏上是 4 物理像素，
+   已经是线；3px 才读得出一条"标记"）。 */
 .choice.is-on {
   border-color: var(--blue);
-  background: var(--fill-blue);
-  color: #fff;
-  box-shadow: var(--sh-2);
+  border-left-width: 3px;
+  border-left-color: var(--blue);
+  background: var(--blue-wash);
+  color: var(--blue);
+  box-shadow: none;
 }
-.choice.is-on .choice-zh { color: #fff; }
-/* 反白后的副行：白色 .78 透明度在 --blue 上是 8.4:1 级别，安全；
-   但仍不能低于 12px（test-contrast 的字号下限守门）。 */
-.choice.is-on .choice-desc { color: rgba(255, 255, 255, .78); }
+.choice.is-on .choice-zh { color: var(--blue); }
+/* 副行：改前是 rgba(255,255,255,.78)（白字，压在浅蓝水洗底上不可用）。
+   底变浅之后白字必须换墨字 —— 用 --ink-3（对纸底 6.19、对水洗底约 5.9，都过 4.5）。 */
+.choice.is-on .choice-desc { color: var(--ink-3); }
 
 /* 整族排除那一屏的"负向"选项：选中用朱红，不用蓝。
-   蓝 = 你想要的；红 = 你不要的。同一个动作在两种语义下不该同色。 */
+   蓝 = 你想要的；红 = 你不要的。同一个动作在两种语义下不该同色。
+
+   V2 改法 D-3：跟着选中态的语法一起改 —— 整块 --danger 实填（7.26）
+   同样是一块高饱和色斑。改成「3px 危险色左竖条 + 极浅危险水洗底 + 字转危险色」，
+   与正向选项同一套语法，只换色相。
+   水洗底取 rgba(164,38,44,.06)（--danger #A4262C，压在纸底上约 1.04），
+   字仍用 --danger（对纸底 7.26，对水洗底 7.0 左右，都过 4.5）。 */
 .choice-neg.is-on {
   border-color: var(--danger);
-  background: var(--danger);
-  box-shadow: 0 6px 18px -10px rgba(165, 52, 47, .5);
+  border-left-width: 3px;
+  border-left-color: var(--danger);
+  background: rgba(164, 38, 44, .06);
+  color: var(--danger);
+  box-shadow: none;
 }
+.choice-neg.is-on .choice-zh { color: var(--danger); }
+.choice-neg.is-on .choice-desc { color: var(--ink-3); }
 
 /* v35：深色主题把 --danger 从 #a4262c 换成 #ff8a80（浅粉），
    而 `.choice.is-on` 的字色写死成 #fff —— 白压浅粉只有 2.28:1，
    不到 AA 的一半。同一份样式里另外两处「红底」都用 var(--bg)
    （深色下自动变 #141414）压出来 8.07，只有这一条写死白色。
-   补深色分支：字色跟着 --bg 走，浅色主题不受影响。 */
+   补深色分支：字色跟着 --bg 走，浅色主题不受影响。
+
+   ⚠️ V2 改法 D-3 之后上面的前提不成立了：选中态的语法从「实底 + 反白字」
+   换成了「极浅水洗底 + 同色相文字」。旧值（字色 var(--bg) = #14120E）
+   是为「深红实底」配的，现在底是浅水洗，深字压上去等于深压深（实测 < 1.5）。
+   所以这一段整段重写，见下。 */
 @media (prefers-color-scheme: dark) {
-  .choice-neg.is-on,
-  .choice-neg.is-on .choice-zh { color: var(--bg); }
-  .choice-neg.is-on .choice-desc { color: rgba(20, 20, 20, .72); }
+  /* V2 改法 D-3 之后这条必须重写：选中不再是「深色实底 + 反白字」，
+     而是「极浅水洗底 + 同色相文字」。深色下 rgba(164,38,44,.06) 压在
+     深底上等于没有，字若仍取 --bg（#14120E）就成了深字压深底。
+     所以改成「深底上的一层浅红水洗底 + --danger 文字」，
+     与浅色分支同一套语法，只是水洗底透明度要提一档才看得出来。 */
+  .choice-neg.is-on {
+    background: rgba(255, 138, 128, .12);
+    border-color: var(--danger);
+    border-left-color: var(--danger);
+    color: var(--danger);
+  }
+  .choice-neg.is-on .choice-zh { color: var(--danger); }
+  .choice-neg.is-on .choice-desc { color: var(--ink-3); }
+  /* 正向选中同理：--blue-wash（rgba(0,47,167,.07)）压在 #14120E 上
+     只剩 1.02 级别，几乎看不出「这张被选了」。
+     深色下换亮一档的蓝水洗底 + --blue-lift 文字（5.78 on 深底）。 */
+  .choice.is-on {
+    background: rgba(110, 143, 232, .14);
+    border-color: var(--blue-lift);
+    border-left-color: var(--blue-lift);
+    color: var(--blue-lift);
+  }
+  .choice.is-on .choice-zh { color: var(--blue-lift); }
+  .choice.is-on .choice-desc { color: var(--ink-3); }
 }
 
 /* ---------------- 二、术语解释块 ----------------
    新手友好的落点。三条规矩：
      ① 只在"这个词真的会让人卡住"的屏出现（气质/浓度/留香/排除），
         不是每屏都贴一段 —— 那会变成噪音，用户会开始跳过所有解释框；
-     ② 左边一道 2px 竖线做归属，不用整块底色：
-        整块底色会被读成"警告"，而这里多数是知识而不是警告；
+     ② 用**结构**区分"读的"和"点的"，不用颜色深浅区分；
      ③ 首次出现时它承担"教一次"的职责，所以文案里必须给例子
-        （「香精约 5–15%」比「浓度中等」有用得多）。 */
+        （「香精约 5–15%」比「浓度中等」有用得多）。
+
+   V2 改法 D-4：从「左边一道 2px 竖线」改成「上下各一条 1px 细线」。
+   改前的实测是 `border-left: 2px #DED6C8`（对纸底 **1.35**）——
+   它和选项卡的差别只有「没有整圈边框 + 左边一条 2px」，两种不同性质的东西
+   （**解释** vs **可选项**）靠 1.35:1 的差异区分，用户在 7 张卡里
+   分辨不出哪段是"读的"哪段是"点的"。
+   改后用「上下两条 1px 分隔线 + 无左边框」表达「这是一段旁白」：
+   与「有完整边框的卡片」在**结构上**区分，而不是在颜色深浅上区分。
+   线宽 1px、色取 --stroke-l1（1.69）—— 它只是分隔，不承担控件边界，
+   不套 3:1 门槛；但比原来的 1.35 确实提了一档，扫读时能看出这是被括起来的一段。
+   字号 13px 保持不动（下限 12px，test-contrast 有守）。 */
 .term-note {
   margin: 2px 0 14px;
-  padding: 2px 0 2px 12px;
-  border-left: 2px solid var(--line);
+  padding: 8px 0;
+  border: 0;
+  border-top: 1px solid var(--stroke-l1);
+  border-bottom: 1px solid var(--stroke-l1);
   font-size: 13px;
   line-height: 1.65;
   color: var(--ink-2);
@@ -338,9 +407,147 @@
   font-weight: 600;
 }
 /* 推断值那块（第 9 步留香）：这里真的需要警示，因为它不是事实。
-   用 --warn（5.93:1）做竖线，仍不整块铺底 —— 铺底会把长段落读成一堵墙。 */
-.term-note.is-warn { border-left-color: var(--warn); }
+   改法 D-4 之后「竖线」这个通道没有了，警示改用**两条线的颜色**表达：
+   上下线都取 --warn（5.93:1）。仍不整块铺底 —— 铺底会把长段落读成一堵墙。 */
+.term-note.is-warn {
+  border-top-color: var(--warn);
+  border-bottom-color: var(--warn);
+}
 .term-note.is-warn strong { color: var(--warn); }
+
+/* ---- V2 改法 E：可折叠的术语解释块 ----
+   ------------------------------------------------------------
+   只作用于 `.term-note-fold`（第 4 屏「气质」那一段），
+   其余屏的 term-note 仍是完整的上下线段落 —— 那些屏没有「7 张卡挤在一屏」的问题。
+
+   为什么折叠而不是删除：那段「这七个不是香调」是 v42 专门加的澄清，
+   删掉会**丢掉真实内容**。折叠后标题行（13px 一行）留住钩子，
+   正文按需展开，高度还回去。
+   用原生 <details>：零 JS 状态、键盘默认可用、
+   且打印时默认展开（内容不会在纸上消失）。 */
+.term-note-fold {
+  padding: 0;
+  border-top: 1px solid var(--stroke-l1);
+  border-bottom: 1px solid var(--stroke-l1);
+}
+/* 折叠态：summary 就是整块的底边，外层的 border-bottom 会与 summary 之间
+   多出一条悬空的线（截图可见「这七个不是香调」下方有两条平行线）。
+   收掉外框的底边，交给 summary 自己的底边承担；展开时再把底边还给块。
+   这样两种状态的线数都正好是「上一条 + 下一条」。 */
+.term-note-fold:not([open]) { border-bottom: 0; }
+.term-note-fold:not([open]) > summary.term-note-sum {
+  border-bottom: 1px solid var(--stroke-l1);
+}
+.term-note-fold > summary.term-note-sum {
+  /* summary 默认有 list-style 三角，收掉换成自己的标记 */
+  list-style: none;
+  cursor: pointer;
+  padding: 7px 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  /* 触控下限：summary 是可点目标，必须 >= 44px（test-contrast 会拦）。
+     7px 上下 padding + 13px×1.65 行高 ≈ 35，不够；补到 min-height:44。 */
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.term-note-fold > summary.term-note-sum::-webkit-details-marker { display: none; }
+.term-note-fold > summary.term-note-sum::before {
+  content: '＋';
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1;
+  width: 12px;
+}
+.term-note-fold[open] > summary.term-note-sum::before { content: '－'; }
+.term-note-fold > summary.term-note-sum:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.term-note-fold .term-note-body {
+  padding: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  max-width: 52ch;
+}
+
+/* ---- V2 改法 E：标签与建议合并成一个头部（收尾腿补齐）----
+   ------------------------------------------------------------
+   改前：`.chips-label`（15.59px，独占一行）+ `.chips-note`（36px，1–2 行）
+   两个块上下叠，合计 51.6px。改法 E 第 3 条要的是「合并成一行」，
+   上一轮只收了 margin（省 4px），两块仍是上下关系。
+   这里把它们放进 `.chips-head` 横排：标签在左（flex:none，不折行），
+   建议在右（flex:1，可折行）。窄屏 390 档放不下时退回上下两块，
+   但那时建议行已跟着标签走、不再夹在标签与卡片之间。
+   两块各自的字号、颜色、字距全部沿用原值 —— 这一条只改排布。 */
+.chips-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin: 8px 0 6px;
+}
+.chips-head > .chips-label {
+  /* 原 `.chips-label` 自带 28px 0 10px 的外边距，进了 flex 容器后
+     那组值会把整行顶高；这里交给 `.chips-head` 统一管。 */
+  margin: 0;
+  flex: 0 0 auto;
+}
+.chips-head > .chips-note {
+  margin: 0;
+  flex: 1 1 12ch;
+  min-width: 0;
+}
+
+/* ---- V2 改法 E：390 档把这一屏压回一屏半 ----
+   ------------------------------------------------------------
+   改前实测（390×844）：第一张卡 top **603**，工具栏 767，只剩 164px；
+   7 张卡（每张 67 + gap 6 = 73）需要 511px —— 用户要滚 4 屏才看完 7 个原型。
+   三个可省项（合计约 150px）：
+     · `.term-note` 折叠并移到卡组之后（见上 + app.js 注）：整块 45px 让出首屏
+     · `.chips-label` 与 `.chips-note` 横排成一行（见上）：52px → 36px
+     · `.choice-grid` 的 gap 与卡片内边距在 620 档已收过一轮（v35），这里只补
+       「标签与卡片之间」的那段 margin，不动字号、不砍描述行。
+   **不改任何字号**（12px 是硬下限，压字号会直接撞 test-contrast）。 */
+@media (max-width: 620px) {
+  /* 标题与卡片组之间：原 term-note 的 14px 下边距 + chips-label 的默认上边距
+     叠出约 30px 的空气。这一屏最缺的就是高度，收到 8px。 */
+  .chips-label { margin-top: 8px; margin-bottom: 4px; }
+  .chips-note { margin: -2px 0 4px; }
+  /* 建议行紧跟标签，两行之间不要再插一段行高 */
+  .chips-label + .chips-note { margin-top: 2px; }
+  /* 横排头部在 390 档：标签 110px + 建议行折两行 36px。
+     两者 baseline 对齐后整块高 = max(15.6, 36) + gap = 38，
+     比原来的「标签一行 + 建议一行」（51.6 + 两组外边距 ≈ 63.6）矮 25.6px，
+     与清单第 3 条估的 26px 对得上。
+     第一版在这里写成 `flex: 1 1 100%` 让建议行独占一行，实测 55.59px，
+     只省 8px —— 那等于没有合并。**不要改回独占一行**。 */
+  .chips-head { margin: 6px 0 4px; gap: 2px 8px; }
+  .chips-head > .chips-note { flex: 1 1 8ch; }
+  .term-note-fold { margin-bottom: 8px; }
+  /* summary 的可点区下限是 44px，但不要求 inner padding 也顶到 44：
+     7px→6px 上下各让 1px，整块从 46 收到 44 —— 正好仍满足触控下限，
+     同时把第 3 张卡从「压线」推进工具栏之上（实测差 0.22px）。 */
+  .term-note-fold > summary.term-note-sum { padding: 6px 0; }
+  /* 卡片组的上外边距：原来 4px，收到 0 —— 它紧接 suggestion 行，
+     那行已经带了 4px 下边距，两段边距相邻时会折叠成较大者，
+     这里显式归零让「建议行 → 第一张卡」的空气只剩一条。 */
+  .choice-grid { margin-top: 0; }
+  /* 卡片组上外边距归零之后，第 3 张卡仍压在工具栏上沿 0.22px（实测
+     767.21875 vs barTop 767.0）。把 grid 的 gap 从 6 收到 5 —— 只影响
+     相邻卡之间的 6 条缝，7 张卡整体短 6px，第 3 张稳稳落在 761。
+     这同时让「7 张卡需要多少高度」从 500 降到 494。
+     gap 6 是 v35 为「一屏放下第 4 张」定的值，5 与它的视觉差别在
+     390 档上不可辨（实测截图逐块比对见回执），但换来了第 3 张完整可见。 */
+  .choice-grid { gap: 5px; }
+  /* 卡片内边距在 620 档已是 10px 12px（v35），这里只把两行之间的 gap 收 1px，
+     让 7 张卡整体再短一点点；描述行行高保持 1.45 不动。 */
+  .choice { gap: 2px; }
+}
 
 /* ---------------- 三、十段进度条 ----------------
    原来是 4 段、每段 3px 高。扩到 10 段后每段宽度从 25% 掉到 10%，
@@ -512,7 +719,10 @@
    原来这里叠了 7 层阴影（1 暗线 + 1 白线 + 4px 白 + 5px 淡蓝 + 三层落影），
    其中 `0 0 0 4px rgba(255,255,255,.55) inset` 与 `0 0 0 5px ... inset`
    在 251px 的框上只差 1px，肉眼分不出，删掉后 A/B 计算样式差异为 0。
-   现在按三档变量重写为 4 层：暗线、亮线、贴身影、两层远影。 */
+   现在按三档变量重写为 4 层：暗线、亮线、贴身影、两层远影。
+
+   V2：本块已被 `60-motion.css` 的 `.wheel::after`（同样 0,1,1、声明更晚）
+   整条覆盖，实际生效的是那一处。改轮廓色请改 60-motion，不要改这里。 */
 .wheel::after {
   box-shadow:
     0 0 0 var(--stroke-l1-w) var(--stroke-l1),
@@ -1219,10 +1429,20 @@
     border-color: var(--edge);
   }
 }
-/* 选中态本来就是实底蓝，压过上面两条 */
+/* 选中态：V2 改法 D-3 的**末态**（必须排在 D1 那三条之后）。
+   D1 的 `.choice { border-color: var(--stroke-ui) }` 与本块 hover 的特异性
+   （0,1,0 / 0,1,1）相同、声明更早；不在这里重申 is-on，选中卡的边框
+   会被压回 --stroke-ui，3px 左竖条也一起被盖掉（实测过一次）。 */
 .choice.is-on {
   border-color: var(--blue);
+  border-left-width: 3px;
+  border-left-color: var(--blue);
+  background: var(--blue-wash);
+  color: var(--blue);
+  box-shadow: none;
 }
+.choice.is-on .choice-zh { color: var(--blue); }
+.choice.is-on .choice-desc { color: var(--ink-3); }
 
 /* ---------------- D2：结果页第 1 名的视觉身份 ----------------
 
