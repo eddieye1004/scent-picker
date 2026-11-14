@@ -1188,10 +1188,18 @@ ok('吐出 3 瓶', picks.length === 3, `实际 ${picks.length}`);
       ? appMod.recommend(shallow, appMod.__perfumes || [], appMod.__tax)
       : null;
     /* 主流程里拿不到内部数据，退而求其次：直接断言措辞函数的行为。
-       badgeTextFor 是这次抽出来的纯函数，见 app.js。 */
+       badgeTextFor 是这次抽出来的纯函数，见 app.js。
+
+       **V3 改法 3c 同步（2026-11-14）**：无百分比时的文案按
+       docs/visual-spec-changelist-20261114.md 的 3c 从「原始分最高」改成
+       「最接近你答的」——「原始分最高」是排序实现的术语，描述的是我们的算法，
+       不是用户能理解的事。这里只同步这一个字面量，**断言的意图一字未改**：
+       仍然是「有百分比才允许说最匹配，没有时必须说一句只陈述事实的话」。
+       若将来再改文案，改这一行即可，不要放宽成 /最匹配/ 的否定式 ——
+       那样「最接近你答的」被改成「最匹配」也不会红。 */
     if (appMod.__aff && appMod.__badgeText) {
       ok('无百分比时徽标不用「最匹配」',
-        appMod.__badgeText(false) === '原始分最高', appMod.__badgeText(false));
+        appMod.__badgeText(false) === '最接近你答的', appMod.__badgeText(false));
       ok('有百分比时徽标用「最匹配」',
         appMod.__badgeText(true) === '最匹配', appMod.__badgeText(true));
     } else {

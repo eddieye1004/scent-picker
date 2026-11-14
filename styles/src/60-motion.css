@@ -497,3 +497,36 @@
     padding: 10px 0 calc(12px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* ---------------- 九、V3 改法 1a：结果页取消吸底（硬缺陷修复）----------------
+
+   缺陷（docs/visual-spec-changelist-20261114.md 3-1，1440×900 实测）：
+   第 1 张卡的 `.pick-foot` top 808 / bottom 852，`.actions` top 815 / bottom 900 ——
+   `footBehindBar: true`，`.pick-foot a`（top 821、高 19）整条落在 815–900 之间，
+   被这道实心 `--bg` 底 + `z-index: 6` 的条盖掉，连 hover 都进不去。
+   移动端当时「恰好没撞上」（footTop 855 > barTop 724），但那是卡片高度带来的巧合。
+
+   **机制（与内容无关）**：结果页把吸底这件事**整个拿掉** —— `position: static`。
+   不是靠给结果区垫高度、也不是靠 scroll-margin 让位：
+   条回到文档流末尾之后，任何高度的卡片都不可能被它遮住，
+   今后卡片变高变矮、理由条数增减都不影响这一点。
+
+   为什么结果页可以不要常驻条：这一屏的 `.actions` 只有「重新来一次」一个按钮
+   （实测条宽 656、按钮宽 116，右侧 500px 是空的），用户滑到底自然会看到；
+   而问卷页的「下一步」必须常驻，那条规则原样保留在上一段。
+
+   覆盖范围与上面那条同一个媒体查询，必须写在它**之后** ——
+   手机那条 `padding: 10px 0 calc(12px + …)` 是同特异性，
+   放在前面会被它顶回来。 */
+@media (max-height: 950px), (max-width: 620px) {
+  #app[data-step="result"] .actions {
+    position: static;
+    z-index: auto;
+    /* 底色/落影/上边线是"浮在内容之上"的视觉线索，取消吸底后它们只会
+       让这一行读成一条悬空的横带，所以一起撤回普通文档流的形态 */
+    background: transparent;
+    box-shadow: none;
+    border-top: 1px solid var(--line);
+    padding: 20px 0 0;
+  }
+}
