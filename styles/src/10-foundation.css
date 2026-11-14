@@ -872,12 +872,17 @@ body {
   font-weight: 500;
   margin-bottom: 10px;
 }
+/* V3 改法 2b：34px → 22px。
+   「柑橘调 · 浓郁度 3/5」是**筛选条件**，不是答案；34px 让它排在首屏第二重，
+   比真正的答案（`.pick h3` 21px）还大 1.6 倍。降到 22px 后与卡片名同档，
+   与 `.pick h3` 的 26px（改法 2c）形成「条件 < 答案」的正确顺序。
+   实测首屏字号序列 46/34/21 → 28/22/26（见 docs/visual-spec-changelog 的 C.2 #8）。 */
 .result-head h2 {
-  font-size: 34px;
+  font-size: 22px;
   margin: 0 0 10px;
   font-weight: 700;
-  letter-spacing: -0.028em;
-  line-height: 1.08;
+  letter-spacing: -0.022em;
+  line-height: 1.14;
 }
 .result-head p {
   margin: 0;
@@ -885,20 +890,47 @@ body {
   font-size: 16px;
   line-height: 1.5;
 }
-/* 用户画像回显：等宽小字，像规格表 */
-.result-head .profile-line {
-  margin-top: 16px;
+/* 匹配度的口径说明（V3 改法 2d）。
+   改前它挂在 `.result-head` 里，位于三张卡**之前** —— 用户还没看到任何一瓶，
+   先读到一段 33px 高的方法论免责说明（移动端 54px、两行）。
+   app.js 现在把它渲染到第三张卡之后，所以这里不再是 `.result-head` 的后代：
+   选择器跟着改成独立类，顶部那条分隔线也从"接在标题下"改成"与卡片断开"。
+   字号 12 → 13px：12px 等宽 + 满宽 + 多行是全站唯一那处"读起来像法律条款"的组合。 */
+.profile-line {
+  margin: 26px 0 0;
   padding-top: 12px;
   border-top: 1px solid var(--line);
-  font-family: var(--font-mono);
-  font-size: 12px;
+  font-family: var(--font-body);
+  font-size: 13px;
   line-height: 1.7;
   color: var(--ink-2);
   letter-spacing: 0;
 }
 
+/* V3 改法 2a：结果页的页头降级（46px → 28px，lede 隐藏）。
+   「你的三瓶候选」是**页头**，不是答案；改前它比真正的答案（`.pick h3` 21px）
+   大 2.2 倍，首屏最重的视线落在一个不含信息的标题上。
+   这里用 ID 选择器是有意的：80-specimen.css 的 `.masthead h1 { 46px }` 与
+   70-final.css 的 `@media (min-width:1021px) { .masthead h1 { 44px } }`
+   都是 0,1,1，要在不动它们的前提下只改结果页这一屏，只能提高特异性。
+   lede（「每一瓶的理由都能反推回你刚才的选择」）在结果页是**元话语**：
+   每个用户都会读，但不影响任何决策 —— 隐掉，把 52px（移动端两行）还给答案。
+   问卷各屏的页头一个字都没动。 */
+#app[data-step="result"] .masthead h1 {
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+#app[data-step="result"] .masthead .lede {
+  display: none;
+}
+
 @media (max-width: 620px) {
   .result-head h2 { font-size: 22px; letter-spacing: -0.02em; }
+  /* 窄屏页头收到 20px：附录 C.2 #8 只钉了桌面 28/22/26，
+     但 390 宽下若取 22px，页头、条件摘要、卡片名三行会全是 22px ——
+     恰好把改法 2 要建立的「答案最大、条件次之、页头最小」抹平。
+     取 20px 后仍是 h1 < h2 = h3，层级方向与桌面一致。 */
+  #app[data-step="result"] .masthead h1 { font-size: 20px; }
 }
 
 /* 候选卡：靠顶部粗线和编号建立层级，不用卡片、不用阴影、不用圆角。
@@ -926,13 +958,20 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
   color: var(--ink);
   font-weight: 600;
 }
-/* 编号：等宽加大字号。Swiss 的编号就是信息本身，不是装饰。 */
+/* 编号：等宽加大字号。Swiss 的编号就是信息本身，不是装饰。
+   V3 改法 3a：这里原来是 `color: var(--accent)`（= #002FA7 克莱因蓝），
+   但文件末尾那段「高分量文字统一收墨」的选择器组里又列了一次 `.pick-rank .n`，
+   两条规则互相拆台 —— 编号始终是墨黑，`.pick.is-top .pick-rank { color: var(--blue) }`
+   没有子元素可继承，第 1 名的「三重信号」第三重一直是死的（实测 rgb(20,18,14)）。
+   修法：把蓝色**显式写在 is-top 上**（见 30-wheel-refine.css 的 D2 段），
+   基态保持墨黑 —— 若只删那条收墨规则，三张卡的编号会全部变蓝，
+   「第 1 名才有蓝」这个语义反而丢掉了。 */
 .pick-rank .n {
   font-family: var(--font-mono);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--accent);
+  color: var(--ink);
 }
 .pick-rank .score {
   font-family: var(--font-mono);

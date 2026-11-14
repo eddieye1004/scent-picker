@@ -256,9 +256,27 @@ body {
   padding-top: 22px;
 }
 
+/* V3 改法 2c：瓶子名从 21px → 26px（桌面）/ 22px（窄屏），字重 400 → 500。
+   为什么改这一层而不是 10-foundation.css：本层最后编译，`10-foundation` 里那条
+   `.pick h3 { 26px / 700 }` 从 v30 起就被这里的 21px 覆盖着，改那边是死代码。
+   为什么是 26px/500：21px 的衬线只比下面 14px 的品牌行高 7px，扫读时两行会连成
+   一句「Aqua Universalis Maison Francis Kurkdjian 淡香水 EDT | … 源家族」。
+   提到 26px 后名与 meta 拉开 12px 差，一眼能分出「这是什么」和「谁做的」。
+   字重取 500 而不是 700：InterVar / NotoSC 是可变字体，500 是真实字重
+   （YaHei 时代 500 会塌成 700，这也是历史上不敢用 500 的原因）。
+   **桌面 26px、窄屏 22px 分开写**：`Eterna Man Limited Edition` 这类 24 字符名
+   在 390 宽、26px 下会折两行，把首屏又还回去。 */
 .pick h3 {
-  font-size: 21px;
-  letter-spacing: -0.008em;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+}
+
+@media (min-width: 621px) {
+  .pick h3 {
+    font-size: 26px;
+    letter-spacing: -0.014em;
+  }
 }
 
 /* ---- 页脚与署名：更小、更松，退到背景里 ---- */
@@ -300,13 +318,23 @@ footer.foot {
    截图边界自带定义。
    ============================================================ */
 .share-card {
-  margin-top: 40px;
+  margin-top: 10px;
   padding: 26px 24px 20px;
   background: var(--bg-2);
   border: 1px solid var(--stroke-l1);
   border-radius: 4px;
   /* 不用投影：投影在截图里会变成一圈脏灰边。 */
   max-width: 560px;
+}
+
+/* V3 改法 4a：摘要卡上沿那一行用途说明。
+   卡本身的 margin-top 从 40px 收到 10px —— 它现在不再是"凭空出现的第二块"，
+   而是"一行标签 + 它指的卡"这一组的下半截，组与上一段之间由标签的 margin 给。
+   字距 0：中文在 0.1em 字距下会散成"想 发 出 去"，这不是标本编号而是句子。 */
+.share-hint {
+  margin: 30px 0 10px;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .share-kicker {

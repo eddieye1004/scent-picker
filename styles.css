@@ -872,12 +872,17 @@ body {
   font-weight: 500;
   margin-bottom: 10px;
 }
+/* V3 改法 2b：34px → 22px。
+   「柑橘调 · 浓郁度 3/5」是**筛选条件**，不是答案；34px 让它排在首屏第二重，
+   比真正的答案（`.pick h3` 21px）还大 1.6 倍。降到 22px 后与卡片名同档，
+   与 `.pick h3` 的 26px（改法 2c）形成「条件 < 答案」的正确顺序。
+   实测首屏字号序列 46/34/21 → 28/22/26（见 docs/visual-spec-changelog 的 C.2 #8）。 */
 .result-head h2 {
-  font-size: 34px;
+  font-size: 22px;
   margin: 0 0 10px;
   font-weight: 700;
-  letter-spacing: -0.028em;
-  line-height: 1.08;
+  letter-spacing: -0.022em;
+  line-height: 1.14;
 }
 .result-head p {
   margin: 0;
@@ -885,20 +890,47 @@ body {
   font-size: 16px;
   line-height: 1.5;
 }
-/* 用户画像回显：等宽小字，像规格表 */
-.result-head .profile-line {
-  margin-top: 16px;
+/* 匹配度的口径说明（V3 改法 2d）。
+   改前它挂在 `.result-head` 里，位于三张卡**之前** —— 用户还没看到任何一瓶，
+   先读到一段 33px 高的方法论免责说明（移动端 54px、两行）。
+   app.js 现在把它渲染到第三张卡之后，所以这里不再是 `.result-head` 的后代：
+   选择器跟着改成独立类，顶部那条分隔线也从"接在标题下"改成"与卡片断开"。
+   字号 12 → 13px：12px 等宽 + 满宽 + 多行是全站唯一那处"读起来像法律条款"的组合。 */
+.profile-line {
+  margin: 26px 0 0;
   padding-top: 12px;
   border-top: 1px solid var(--line);
-  font-family: var(--font-mono);
-  font-size: 12px;
+  font-family: var(--font-body);
+  font-size: 13px;
   line-height: 1.7;
   color: var(--ink-2);
   letter-spacing: 0;
 }
 
+/* V3 改法 2a：结果页的页头降级（46px → 28px，lede 隐藏）。
+   「你的三瓶候选」是**页头**，不是答案；改前它比真正的答案（`.pick h3` 21px）
+   大 2.2 倍，首屏最重的视线落在一个不含信息的标题上。
+   这里用 ID 选择器是有意的：80-specimen.css 的 `.masthead h1 { 46px }` 与
+   70-final.css 的 `@media (min-width:1021px) { .masthead h1 { 44px } }`
+   都是 0,1,1，要在不动它们的前提下只改结果页这一屏，只能提高特异性。
+   lede（「每一瓶的理由都能反推回你刚才的选择」）在结果页是**元话语**：
+   每个用户都会读，但不影响任何决策 —— 隐掉，把 52px（移动端两行）还给答案。
+   问卷各屏的页头一个字都没动。 */
+#app[data-step="result"] .masthead h1 {
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+#app[data-step="result"] .masthead .lede {
+  display: none;
+}
+
 @media (max-width: 620px) {
   .result-head h2 { font-size: 22px; letter-spacing: -0.02em; }
+  /* 窄屏页头收到 20px：附录 C.2 #8 只钉了桌面 28/22/26，
+     但 390 宽下若取 22px，页头、条件摘要、卡片名三行会全是 22px ——
+     恰好把改法 2 要建立的「答案最大、条件次之、页头最小」抹平。
+     取 20px 后仍是 h1 < h2 = h3，层级方向与桌面一致。 */
+  #app[data-step="result"] .masthead h1 { font-size: 20px; }
 }
 
 /* 候选卡：靠顶部粗线和编号建立层级，不用卡片、不用阴影、不用圆角。
@@ -926,13 +958,20 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
   color: var(--ink);
   font-weight: 600;
 }
-/* 编号：等宽加大字号。Swiss 的编号就是信息本身，不是装饰。 */
+/* 编号：等宽加大字号。Swiss 的编号就是信息本身，不是装饰。
+   V3 改法 3a：这里原来是 `color: var(--accent)`（= #002FA7 克莱因蓝），
+   但文件末尾那段「高分量文字统一收墨」的选择器组里又列了一次 `.pick-rank .n`，
+   两条规则互相拆台 —— 编号始终是墨黑，`.pick.is-top .pick-rank { color: var(--blue) }`
+   没有子元素可继承，第 1 名的「三重信号」第三重一直是死的（实测 rgb(20,18,14)）。
+   修法：把蓝色**显式写在 is-top 上**（见 30-wheel-refine.css 的 D2 段），
+   基态保持墨黑 —— 若只删那条收墨规则，三张卡的编号会全部变蓝，
+   「第 1 名才有蓝」这个语义反而丢掉了。 */
 .pick-rank .n {
   font-family: var(--font-mono);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--accent);
+  color: var(--ink);
 }
 .pick-rank .score {
   font-family: var(--font-mono);
@@ -5364,7 +5403,45 @@ body { position: relative; }
 .pick-foot {
   align-items: center;
   flex-wrap: wrap;
+  /* V3 改法 3d：横纵间隙分开。
+     原来只有 `gap: 8px`（横纵同值），换行后行间距与列间距相同，
+     读起来像两组标签而不是"一行折成两行"。 */
   gap: 8px;
+  row-gap: 10px;
+}
+/* V3 改法 3d：让第 1 名与第 2/3 名的 `.pick-foot` 高度差由规则决定，不由临界值决定。
+   实测（1440×900，改前）：候选 01 的 foot 高 44、02/03 各 83 —— 差 39px。
+   三张卡的理由条数（各 3 条）、三调表（105px）、卡头（88px）完全相同，
+   唯一差的是**换行**：`flex-wrap: wrap` + 品牌名长度刚好卡在临界值，
+   第 1 名的购买组还挤得进第一行，后两张被挤到第二行，一行 `.tag`（27px）整段翻倍。
+   结果是最该显得「重」的第 1 名看起来最「薄」。
+
+   这里不追求三张卡等高（理由条数与数据真实相关，不该为对齐砍内容），
+   只把「换行与否」从"取决于品牌名恰好几个字"变成"取决于可用宽度"：
+     · `.pick-buy-group` 加 `flex: 0 0 auto` —— 购买组永不被压窄，
+       于是三张卡面对的是同一套宽度预算，不会出现一张挤得进、一张挤不进；
+     · `.pick-foot a`（查看数据来源）允许收缩，它是短文本，收窄不损可读性。
+
+   **实测补充（1440×900）**：只做了上面两条之后，候选 01 的 foot 仍是 44px、
+   02/03 是 85px —— 差 41px 没有消失，因为真正跨过临界值的不是品牌名，
+   而是**购买入口的条数**（01 有 2 个、02/03 有 3 个：多一个「官方旗舰店」渠道，
+   组宽 269 → 385）。这仍然是"由临界值决定"，只是临界值换了位置。
+
+   所以再加一条规则：**购买组永远独占一行**（`flex-basis: 100%`）。
+   于是三张卡的页脚都是「标签行 + 购买行」两行，换不换行不再由任何一个字符宽度决定；
+   剩下的高度差只来自按钮自身的高度（不带范围标签 44px / 带范围标签 48px），
+   而那个差是数据事实（这一瓶有没有官方旗舰店渠道），属于允许的 4px。
+   判据见附录 C.2 #13：三张卡 `.pick-foot` 高度差 ≤ 8px 或相同。 */
+.pick-foot .pick-buy-group {
+  flex: 0 0 auto;
+  /* 独占一行；`margin-left: auto`（见上）在 basis 100% 下不再起作用，
+     靠组自身的 `justify-content: flex-end` 把按钮贴右。 */
+  flex-basis: 100%;
+  margin-left: 0;
+}
+.pick-foot a {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 /* 气质区的建议提示（第五步）：一行灰字，说明"为什么第一项是这个"。
@@ -5500,6 +5577,26 @@ body { position: relative; }
   border-top-width: 4px;
   border-top-color: var(--ink);
   box-shadow: 0 2px 10px -6px rgba(0, 47, 167, .18);
+  /* V3 改法 3b：整卡吃一层极浅的水洗底，让它与后两张在扫读时分成
+     「一张有色、两张没色」。色值取 --blue-wash（rgba(0,47,167,.07)，
+     合成到纸底约 1.05:1，属装饰性，附录 A 已预检）。
+     左右各 -8px 反补：底色要比文字宽一点才读成「这一张被单独圈出」，
+     而不是「这一张被塞进盒子」；内边距补回 8px，正文起点不动，
+     三张卡的编号仍在一条竖线上（v35 的结论不允许再被破坏）。 */
+  margin-left: -8px;
+  margin-right: -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+  background: var(--blue-wash);
+}
+/* V3 改法 3a：把「编号变蓝」写在 is-top 上，而不是放开基态。
+   改前 `.pick-rank .n` 在 10-foundation.css 里先后被 `color: var(--accent)`（蓝）
+   与文件末尾那段「高分量文字统一收墨」的 `color: var(--ink)` 各写一次，
+   后写的赢 —— 于是容器上的 `color: var(--blue)` 没有子元素可继承，
+   第 1 名的「三重信号」第三重一直是死的（实测 rgb(20,18,14) 墨黑）。
+   这里显式给子元素，第 1 名编号 rgb(0,47,167)，第 2/3 名保持墨黑。 */
+.pick.is-top .pick-rank .n {
+  color: var(--blue);
 }
 .pick.is-top .pick-rank { color: var(--blue); }
 .top-badge {
@@ -5521,7 +5618,10 @@ body { position: relative; }
   /* v35：左边框已改成顶线，这里不再收内缩；只把顶线压回 3px，
      否则 390 宽下 4px 的黑线在卡片之间显得过重。 */
   .pick.is-top {
-    padding-left: 0;
+    /* V3 3b：反补量保持 8px —— 这里是"内缩量"，不是"清零"。
+       改前写 padding-left: 0 是对的（那时没有水洗底）；现在底色左右各
+       外扩 8px，内边距必须同样补回 8px，否则 390 宽下正文会挤在底色右缘。 */
+    padding-left: 8px;
     border-top-width: 3px;
   }
 }
@@ -6990,6 +7090,39 @@ body {
     padding: 10px 0 calc(12px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* ---------------- 九、V3 改法 1a：结果页取消吸底（硬缺陷修复）----------------
+
+   缺陷（docs/visual-spec-changelist-20261114.md 3-1，1440×900 实测）：
+   第 1 张卡的 `.pick-foot` top 808 / bottom 852，`.actions` top 815 / bottom 900 ——
+   `footBehindBar: true`，`.pick-foot a`（top 821、高 19）整条落在 815–900 之间，
+   被这道实心 `--bg` 底 + `z-index: 6` 的条盖掉，连 hover 都进不去。
+   移动端当时「恰好没撞上」（footTop 855 > barTop 724），但那是卡片高度带来的巧合。
+
+   **机制（与内容无关）**：结果页把吸底这件事**整个拿掉** —— `position: static`。
+   不是靠给结果区垫高度、也不是靠 scroll-margin 让位：
+   条回到文档流末尾之后，任何高度的卡片都不可能被它遮住，
+   今后卡片变高变矮、理由条数增减都不影响这一点。
+
+   为什么结果页可以不要常驻条：这一屏的 `.actions` 只有「重新来一次」一个按钮
+   （实测条宽 656、按钮宽 116，右侧 500px 是空的），用户滑到底自然会看到；
+   而问卷页的「下一步」必须常驻，那条规则原样保留在上一段。
+
+   覆盖范围与上面那条同一个媒体查询，必须写在它**之后** ——
+   手机那条 `padding: 10px 0 calc(12px + …)` 是同特异性，
+   放在前面会被它顶回来。 */
+@media (max-height: 950px), (max-width: 620px) {
+  #app[data-step="result"] .actions {
+    position: static;
+    z-index: auto;
+    /* 底色/落影/上边线是"浮在内容之上"的视觉线索，取消吸底后它们只会
+       让这一行读成一条悬空的横带，所以一起撤回普通文档流的形态 */
+    background: transparent;
+    box-shadow: none;
+    border-top: 1px solid var(--line);
+    padding: 20px 0 0;
+  }
+}
 /* ============================================================
    _wheel23.css · 圆盘统一（v37 · A + F）
    ------------------------------------------------------------
@@ -7735,9 +7868,27 @@ body {
   padding-top: 22px;
 }
 
+/* V3 改法 2c：瓶子名从 21px → 26px（桌面）/ 22px（窄屏），字重 400 → 500。
+   为什么改这一层而不是 10-foundation.css：本层最后编译，`10-foundation` 里那条
+   `.pick h3 { 26px / 700 }` 从 v30 起就被这里的 21px 覆盖着，改那边是死代码。
+   为什么是 26px/500：21px 的衬线只比下面 14px 的品牌行高 7px，扫读时两行会连成
+   一句「Aqua Universalis Maison Francis Kurkdjian 淡香水 EDT | … 源家族」。
+   提到 26px 后名与 meta 拉开 12px 差，一眼能分出「这是什么」和「谁做的」。
+   字重取 500 而不是 700：InterVar / NotoSC 是可变字体，500 是真实字重
+   （YaHei 时代 500 会塌成 700，这也是历史上不敢用 500 的原因）。
+   **桌面 26px、窄屏 22px 分开写**：`Eterna Man Limited Edition` 这类 24 字符名
+   在 390 宽、26px 下会折两行，把首屏又还回去。 */
 .pick h3 {
-  font-size: 21px;
-  letter-spacing: -0.008em;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+}
+
+@media (min-width: 621px) {
+  .pick h3 {
+    font-size: 26px;
+    letter-spacing: -0.014em;
+  }
 }
 
 /* ---- 页脚与署名：更小、更松，退到背景里 ---- */
@@ -7779,13 +7930,23 @@ footer.foot {
    截图边界自带定义。
    ============================================================ */
 .share-card {
-  margin-top: 40px;
+  margin-top: 10px;
   padding: 26px 24px 20px;
   background: var(--bg-2);
   border: 1px solid var(--stroke-l1);
   border-radius: 4px;
   /* 不用投影：投影在截图里会变成一圈脏灰边。 */
   max-width: 560px;
+}
+
+/* V3 改法 4a：摘要卡上沿那一行用途说明。
+   卡本身的 margin-top 从 40px 收到 10px —— 它现在不再是"凭空出现的第二块"，
+   而是"一行标签 + 它指的卡"这一组的下半截，组与上一段之间由标签的 margin 给。
+   字距 0：中文在 0.1em 字距下会散成"想 发 出 去"，这不是标本编号而是句子。 */
+.share-hint {
+  margin: 30px 0 10px;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .share-kicker {
