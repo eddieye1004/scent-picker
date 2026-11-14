@@ -349,20 +349,13 @@ function buildDisc(items, cfg) {
 
   /* 内圈分度刻线：36 道，每 3 道（30°）加长。
      这不是装饰花纹——罗盘、日晷、量角器都长这样，因为它有用：
-     用户能数出「这是被切成几份的东西」。纯 SVG 直线，不参与命中。 */
+     用户能数出「这是被切成几份的东西」。纯 SVG 直线，不参与命中。
+
+     V2 改法 B：节点顺序从「扇区之前」挪到「扇区之后」。
+     原先它 append 在六个 sector-g 前面，于是 fills 一draw 就把它整片盖掉 ——
+     display 放开后实测仍看不见（刻线在盘心之外、扇区填充之下 = 零像素）。
+     SVG 没有 z-index，绘制顺序就是 DOM 顺序，所以这里必须先画扇区。 */
   const TICK_N = 36;
-  for (let k = 0; k < TICK_N; k++) {
-    const deg = -90 + (360 / TICK_N) * k;
-    const major = k % 3 === 0;
-    const r1 = DISC.rIn - 2;
-    const r2 = DISC.rIn - (major ? 10 : 6);
-    const [x1, y1] = polar(r1, deg);
-    const [x2, y2] = polar(r2, deg);
-    svg.appendChild(svgEl('line', {
-      class: major ? 'ring-tick is-major' : 'ring-tick',
-      x1, y1, x2, y2,
-    }));
-  }
 
   svg.appendChild(svgEl('circle', {
     class: 'ring-accent', cx: DISC.cx, cy: DISC.cy, r: DISC.rIn - 16,
@@ -381,6 +374,21 @@ function buildDisc(items, cfg) {
     svg.appendChild(g);
     groups.push(g);
   });
+
+  /* 刻线最后画，压在扇区之上（见上）。 */
+  for (let k = 0; k < TICK_N; k++) {
+    const deg = -90 + (360 / TICK_N) * k;
+    const major = k % 3 === 0;
+    const r1 = DISC.rIn - 2;
+    const r2 = DISC.rIn - (major ? 10 : 6);
+    const [x1, y1] = polar(r1, deg);
+    const [x2, y2] = polar(r2, deg);
+    svg.appendChild(svgEl('line', {
+      class: major ? 'ring-tick is-major' : 'ring-tick',
+      x1, y1, x2, y2,
+    }));
+  }
+
   rot.appendChild(svg);
 
   /* --- 盘心：默认空态，指针移上去就换成那一条的说明 --- */
@@ -973,6 +981,26 @@ function buildWheel(cfg) {
     class: 'ring-thin', cx: WHEEL.cx, cy: WHEEL.cy, r: WHEEL.r1o + 8,
   }));
 
+  /* 内圈分度刻线：36 道，每 3 道（30°）加长 —— V2 改法 B。
+     ------------------------------------------------------------
+     改动清单假定「几何已经在 app.js:353-365 算好，开一条 display 即可，
+     零 JS 改动」。实测不成立，两条都得补：
+
+     ① **首屏没有这些节点**。那段几何在 buildDisc()（第 4 步场合屏的
+        单层盘），首屏轮盘是 buildWheel()，`.disc-svg` 下只有 ring-thin +
+        6 个 sector-g。所以这里照搬同一套几何补一份。
+     ② **首屏没有能落脚的空环**。闭合态盘心 `width: 66%` → 半径 166.3px
+        = 158.4 视框单位，而外圈扇区内沿 `WHEEL.r1i = 158`，两者正好相切；
+        r1i 之内的刻线全在盘心底下（实测 36 道零可见像素）。
+        画在盘缘又会被 2.6px 的缝和盘底凹槽吃掉（3x 截图只剩几粒灰点）。
+        所以画在**扇区面上、紧贴内沿**那一圈：唯一一片既露在盘心之外、
+        又不在缝和标签上的空白。r1i+1 → +9/+5，最外端 167 单位，
+        离标签中心 193 还有 26 单位余量。
+
+     绘制顺序：必须 append 在六个 sector-g **之后**（SVG 没有 z-index，
+     顺序就是层级）。先画会被扇区填充整片盖掉 —— 场合屏原先就是这个顺序，
+     display 放开后实测仍不可见。 */
+
   /* --- 盘心 --- */
   const hubKicker = el('div', { class: 'hub-kicker' }, '香型轮盘');
   const hubZh = el('div', { class: 'hub-zh' }, '还没选');
@@ -1046,6 +1074,25 @@ function buildWheel(cfg) {
     svg.appendChild(g);
     outerG.push(g);
   });
+
+  /* 分度刻线 36 道（每 3 道加长）—— 见上方长注释。
+     append 在这里而不是 SVG 初始化处：SVG 没有 z-index，绘制顺序就是层级，
+     先画会被六个 sector-shape 的填充整片盖掉（场合屏原先就是这个顺序）。 */
+  {
+    const TICK_N = 36;
+    for (let k = 0; k < TICK_N; k++) {
+      const deg = -90 + (360 / TICK_N) * k;
+      const major = k % 3 === 0;
+      const r1 = WHEEL.r1i + 1;
+      const r2 = WHEEL.r1i + (major ? 9 : 5);
+      const [x1, y1] = polar(r1, deg);
+      const [x2, y2] = polar(r2, deg);
+      svg.appendChild(svgEl('line', {
+        class: major ? 'ring-tick is-major' : 'ring-tick',
+        x1, y1, x2, y2,
+      }));
+    }
+  }
 
   const labelLayer = el('div', { class: 'label-layer', role: 'radiogroup', 'aria-label': '香型大类' });
   rot.appendChild(labelLayer);
@@ -2589,12 +2636,32 @@ function renderMood() {
   /* v42：这段说明原写「家族只说明大方向…这一屏问的是它给人的感觉。
      同一瓶花香，可以清冷也可以甜腻 —— 这就是补上那一层。」
      现在 help 已经说了"讲的是感觉不是味道"，再补一段等于同一句话说两遍。
-     这里改成真正有信息的那句：这些原型**不是**香调名，别拿它当第二个轮盘。 */
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '这七个不是香调：'),
-    ' 「雨后林地」「焦糖琥珀」是气味给人的感觉，不挂在任何单一香调上。',
-    ' 同一瓶花香可以清冷，也可以甜腻。'
-  ));
+     这里改成真正有信息的那句：这些原型**不是**香调名，别拿它当第二个轮盘。
+
+     V2 改法 E：整段不是删除，是**折叠**成 <details>。
+     理由（改动清单原文）：省掉它会**丢掉一段真实内容** ——
+     「这七个不是香调」是 v42 专门加的澄清。但它在 390×844 上实测占 68px
+     （加上 D 改法给的上下线后 82px），把第一张卡从 603 推到 617，
+     而工具栏在 767 —— 7 张卡只有 2 张在工具栏之上。
+     折叠后标题行只占一行小字，正文按需展开：内容还在，高度还回去。
+     用原生 <details> 而不是 JS 展开：零状态、零事件、键盘默认可用，
+     且打印时 <details> 默认是展开的（内容不会在纸上消失）。
+
+     【收尾腿补齐】放置位置：**卡组之后**，不放卡组上方。
+     上一轮把它折叠了但仍留在标题与卡组之间，只省下 24px（68→44），
+     第一张卡 603→555，7 张里 3 张在工具栏之上，没到清单的 ≥4。
+     改动清单对折叠位置写的是「放进 `.q-help` 的 <details>
+     或改成卡组下方一行小字（**不放卡组上方**）」—— 后一种此前没落。
+     挪到卡组之后，整块 45px（含上下线）从首屏移出，加上标签/建议合并，
+     实测第一张卡 555→480，4 张完整落在工具栏之上（数字见回执）。
+     内容一条没删：只是从「选之前先读一段方法论」变成「选的时候有疑问再展开」。 */
+  const termNote = el('details', { class: 'term-note term-note-fold' },
+    el('summary', { class: 'term-note-sum' }, '这七个不是香调'),
+    el('div', { class: 'term-note-body' },
+      '「雨后林地」「焦糖琥珀」是气味给人的感觉，不挂在任何单一香调上。',
+      ' 同一瓶花香可以清冷，也可以甜腻。'
+    )
+  );
 
   /* ① 气质：七个原型，按"与你已答的偏好有多近"排序。
 
@@ -2640,8 +2707,25 @@ function renderMood() {
   };
   paintSuggest();
 
-  wrap.appendChild(el('div', { class: 'chips-label' }, '整体气质（选一个）'));
-  if (suggestNote) wrap.appendChild(suggestNote);
+  /* V2 改法 E：标签与建议合成一行。
+     ------------------------------------------------------------
+     改前是两个块：`.chips-label`（「整体气质（选一个）」，12px + 1.2px 字距，
+     独占一行 16px）在**先**，`.chips-note`（个性化建议，12px、1–2 行）在**后**。
+     两件事都是「这一组在问什么」和「系统猜了哪个」，却各占一行，
+     390 档实测合计 52px，还把卡片从 603 往下推。
+
+     改后：两者放进同一个 `.chips-head` 横排容器 —— 标签保留
+     （它是这一组的名字，不能删），建议行紧跟在同一行的右侧，
+     整个头部从 52px 收到 36px（建议仍折两行，但不再叠在标签下面）。
+     同时它站到卡组之前、标题之下：清单第 3 条要的「移到标题下方」，
+     指的是建议行不该夹在卡片与标签之间当一条独立文案。
+
+     【收尾腿补齐】上一轮只把两块的 margin 收窄（省 4px），没有真正并排，
+     实测 chips-label 15.59 + chips-note 36 = 51.6px 仍在。这次改成横排。 */
+  wrap.appendChild(el('div', { class: 'chips-head' },
+    el('div', { class: 'chips-label' }, '整体气质（选一个）'),
+    suggestNote
+  ));
   wrap.appendChild(choiceGrid(
     ranked.map((c) => ({ id: c.id, zh: c.zh, desc: c.desc })),
     state.answers.characterPreset,
@@ -2663,6 +2747,11 @@ function renderMood() {
       paintSuggest();
     }
   ));
+
+  /* 【收尾腿补齐】折叠块站到卡组之后（见上方长注释：
+     清单要求「不放卡组上方」）。选完卡往下就是「这七个不是香调」的澄清，
+     读序变成「名字与建议 → 七张卡 → 澄清 → 怎么挑」，比原来「先读方法论再选」顺。 */
+  wrap.appendChild(termNote);
 
   /* ② 气味冷暖 与 ③ 甜度 已在 v37 合并进 ①（2026-11-09）。
      七个原型的 dims 是 temp × sweet × weight 的 2×2×2 缺一格，
