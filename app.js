@@ -3893,6 +3893,17 @@ function renderResult() {
 
   const head = el('div', { class: 'result-head' });
   head.append(
+    /* 边距仪器区（视觉深化腿）：编号 + 状态微文，住在左侧留白里。
+       研读第五节「标本图鉴的留白从不空：边距里住着编号、刻度、注脚、状态」。
+
+       aria-hidden 是有意的：这两行是**注脚**，内容已经被
+       .progress-meta（「推荐结果 / 完成 · 共 N 步」）用可读文本表达过一次。
+       同一个事实念两遍对屏幕阅读器用户是噪声，所以这里只服务视觉排版。
+       编号取 state.step（结果页 = 已答完的步数），与进度尺同源，不另算。 */
+    el('div', { class: 'gutter-meta', 'aria-hidden': 'true' },
+      el('span', { class: 'gutter-step' }, String(curSteps().length).padStart(2, '0')),
+      el('span', { class: 'gutter-state' }, '标本陈列')
+    ),
     el('div', { class: 'eyebrow' }, '基于你的回答'),
     /* 场合在第 4 步是「可跳过」的，scoring 那边把没答的情况显式降成 null
        （src/scoring.js:634 `profile.occasion?.zh ?? null`）。原来直接拼模板，
