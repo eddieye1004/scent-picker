@@ -8547,3 +8547,597 @@ footer.foot {
   }
   body { background: #ffffff; }
 }
+/* ===== 90 · 问卷 v5（2026-11-16）=====================================
+   这一层只放 v5 五屏各自**独有**的控件语汇，不改任何既有 token。
+   放在 80-specimen 之后：它消费 token，不重新定义 token。
+
+   五屏五套形式，互不复用（这是规格第 2/3 条的核心约束）：
+
+     屏 1 budget      价签量尺   budget-rail / budget-seg / budget-tick
+     屏 2 occasion    昼夜光景   occasion-light（data-time 五个时段）
+     屏 3 mood        气质坐标   mood-map / map-dot
+     屏 4 season      温度光带   temp-band / temp-seg（--t 由数据给）
+     屏 5 concentration 扩散场    sillage-field / sillage-ring
+
+   另有一件**跨屏**的东西：carry-row（标本签）。规格说呼应是点缀不是装置，
+   所以它只是一行 12px 小签，不占版面、不进任何一屏的控件区。
+
+   所有动效只动 transform / opacity（与圆盘同一条纪律），
+   并且都写了 prefers-reduced-motion 的终态 —— 关掉动画必须停在正确位置。
+   ==================================================================== */
+
+/* ---------- 屏 1：价签量尺 ----------
+   四段实区间 + 一个"不限"开口。宽度由 --w 给（JS 按该档真实瓶数算），
+   所以"哪一段货多"是看得出来的：瓶子多的段更宽。
+   选中段实心，其余段退成虚线刻度 —— 整条尺子读起来像超市货架上的价签条。 */
+.budget-rail {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  margin: 18px 0 6px;
+  padding: 0;
+}
+
+.budget-seg {
+  /* 44px 触控下限由共享规则兜，这里只保证不小于它 */
+  min-height: 56px;
+  flex: var(--w, 1) 1 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 10px 8px;
+  background: var(--bg);
+  border: 1px solid var(--stroke-ui);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-ui, 140ms) var(--ease), color var(--t-ui, 140ms) var(--ease);
+}
+.budget-seg .budget-zh {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+/* 刻度线：长度 = 这一段的宽度，是"这一段有多宽"的唯一视觉表达 */
+.budget-seg .budget-tick {
+  display: block;
+  height: 3px;
+  background: var(--line);
+  transition: background var(--t-ui, 140ms) var(--ease);
+}
+.budget-seg:hover { background: var(--bg-2); }
+.budget-seg.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.budget-seg.is-on .budget-tick { background: rgba(255, 255, 255, .72); }
+/* 「不限」是出口不是区间：虚线边 + 略窄，读起来与四段实区间不同类 */
+.budget-seg.is-any {
+  border-style: dashed;
+  flex-grow: .9;
+}
+.budget-seg.is-any.is-on { border-style: solid; }
+
+/* 每段下面那句人话。用与量尺同一条 flex 权重对齐，读起来像标签贴在对应段下。 */
+.budget-notes {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 14px;
+}
+.budget-note {
+  flex: var(--w, 1) 1 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.budget-note b {
+  display: block;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+/* 「不限」那格没有宽度权重可继承，单独给一个可读宽度 */
+.budget-note.is-any { flex-grow: .9; }
+
+.budget-read {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.budget-read.is-idle { color: var(--ink-3); }
+
+/* ---------- 屏 2：昼夜光景 ----------
+   一条光线带 + 一枚太阳。data-time 切五个时段，颜色与太阳高度都从这一段里换 ——
+   它是「什么时候用」这句话的视觉翻译。
+
+   尺寸经历过一次修正：第一版只有 44px 高、太阳 14px、色差极轻，
+   截图实测「看不太出来换了时段」，而这条带子恰恰是规格点名的三个定版范例之一 ——
+   看不出差别的范例等于没做。现在 76px 高、太阳 20px、五个时段的底色
+   与太阳位置差异都拉开了（正午顶到上沿、夜里沉到底部），
+   并且加了一条地平线把"光从哪来"说清楚。 */
+.occasion-light {
+  position: relative;
+  height: 76px;
+  margin: 10px 0 14px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--bg-3), var(--bg));
+  transition: background 420ms var(--ease);
+}
+.occasion-light .oc-sun {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 20px;
+  height: 20px;
+  margin-left: -10px;
+  border-radius: 50%;
+  background: var(--warn);
+  opacity: .55;
+  transform: translateY(0);
+  transition: transform 420ms var(--ease), opacity 420ms var(--ease), background 420ms var(--ease);
+}
+.occasion-light .oc-horizon {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 1px;
+  background: var(--line);
+}
+/* 五个时段。太阳高度与底色是这一屏唯一的"内容→视觉"映射：
+   正午最高最白，夜里最低最沉，入夜是暖的（约会），上午与阴天在中段。
+   位移量按 76px 高的带子重新分配：底部 6px 起，最高抬 44px（正午）。 */
+.occasion-light[data-time="morning"]  { background: linear-gradient(180deg, #e8f0f8, var(--bg)); }
+.occasion-light[data-time="morning"]  .oc-sun { transform: translateY(-26px); opacity: .8; background: #d9a441; }
+.occasion-light[data-time="noon"]     { background: linear-gradient(180deg, #fff2cc, var(--bg)); }
+.occasion-light[data-time="noon"]     .oc-sun { transform: translateY(-44px); opacity: 1; background: #e0a92e; }
+.occasion-light[data-time="overcast"] { background: linear-gradient(180deg, #e4e4e0, var(--bg)); }
+.occasion-light[data-time="overcast"] .oc-sun { transform: translateY(-18px); opacity: .28; background: var(--ink-3); }
+.occasion-light[data-time="evening"]  { background: linear-gradient(180deg, #f7ddc4, #fdf3e8); }
+.occasion-light[data-time="evening"]  .oc-sun { transform: translateY(-8px); opacity: .95; background: #c9702f; }
+.occasion-light[data-time="night"]    { background: linear-gradient(180deg, #22283a, #3a3f52); }
+.occasion-light[data-time="night"]    .oc-sun { transform: translateY(2px); opacity: .75; background: #cfd8ea; }
+.occasion-light[data-time="night"]    .oc-horizon { background: #cfd8ea; opacity: .4; }
+/* 未选时整块压暗一档：它是"还没定"的背景，不该抢圆盘的注意力 */
+.occasion-light:not(.has-time) { opacity: .5; }
+
+/* 深色模式：底色本来就是暗的，光带只调"太阳高度 + 一点色相"，
+   不再整块铺浅色（浅块在暗底上是亮斑，与结果页白瓷底托同一个教训）。
+   注意每个时段都要重写一遍：上面那条 `[data-time="night"]` 的深蓝底
+   在深色主题下反而比页面更亮，会读成一个发光方块。 */
+@media (prefers-color-scheme: dark) {
+  .occasion-light { background: linear-gradient(180deg, var(--bg-3), var(--bg)); }
+  .occasion-light[data-time="morning"]  { background: linear-gradient(180deg, #26303c, #1b2029); }
+  .occasion-light[data-time="noon"]     { background: linear-gradient(180deg, #38331f, #221f16); }
+  .occasion-light[data-time="overcast"] { background: linear-gradient(180deg, #2b2924, #201e1a); }
+  .occasion-light[data-time="evening"]  { background: linear-gradient(180deg, #402b1e, #251a13); }
+  .occasion-light[data-time="night"]    { background: linear-gradient(180deg, #1a2032, #14161f); }
+}
+
+/* ---------- 术语译文行（全卷共用一条语法）----------
+   规格第 4 条：术语必翻译，选项区常驻一句生活化译文，选项换、译文换。
+   它是一个 <p>，不复用 .term-note —— 后者是"补充说明"（可折叠、常带 strong 起头），
+   前者是"当前这一项的意思"，语义不同，样式必须能分开。 */
+.gloss-line {
+  margin: 0 0 14px;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.gloss-line.is-idle {
+  border-left-color: var(--line);
+  color: var(--ink-3);
+}
+
+/* ---------- 屏 3：气质坐标 ----------
+   一张 2×2 的坐标图，七枚点按 dims（温度 × 甜度）落位。
+   它是同一组数据的第二种投影，不是第二套控件：aria-hidden，点它不接事件
+   （真控件是下面的卡片组）。所以它只做三件事：
+   ① 让"这七个不是并列的七张牌"一眼可见；② 标出你选的那一枚；
+   ③ 在选了之后与下面的卡片形成呼应（同一枚点、同一张卡同时亮）。 */
+.mood-map {
+  position: relative;
+  height: 148px;
+  margin: 4px 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(90deg, transparent calc(50% - .5px), var(--hair) 50%, transparent calc(50% + .5px)),
+    linear-gradient(180deg, transparent calc(50% - .5px), var(--hair) 50%, transparent calc(50% + .5px));
+}
+.mood-map .map-axis {
+  position: absolute;
+  font-size: 12px;
+  letter-spacing: .04em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.mood-map .map-axis-x { right: 8px; bottom: 4px; }
+.mood-map .map-axis-y { left: 8px; top: 4px; }
+
+.mood-map .map-dot {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  border: 1.5px solid var(--stroke-ui);
+  border-radius: 50%;
+  background: var(--bg);
+  transition: background 160ms var(--ease), border-color 160ms var(--ease), transform 160ms var(--ease);
+}
+/* 点上的名字：常态只显示一半透明，选中才实心 —— 七个全实会糊成一片。
+   尺寸取 12px（下限），并且**只显示选中那一枚的名字**（见下一条）：
+   七个名字同时铺在 148px 高的图上，390 视口实测两两压字、读不出任何一个
+   （截图确认过：左上角「不甜/干爽草本/皮革烟草」叠成一团）。 */
+.mood-map .map-dot i {
+  position: absolute;
+  left: 50%;
+  top: 13px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--ink-3);
+  opacity: 0;
+  transition: opacity 160ms var(--ease);
+  pointer-events: none;
+}
+/* 悬停或选中才显示名字：这张图的职责是"让你看见七个位置在哪"，
+   精确到哪一个由下面的卡片组承担（那里每张卡都写全了名字与解释）。 */
+.mood-map .map-dot:hover i,
+.mood-map .map-dot.is-on i { opacity: 1; }
+.mood-map .map-dot.is-on i { color: var(--ink); font-weight: 600; }
+.mood-map .map-dot.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.22);
+  z-index: 2;
+}
+
+/* 卡片上的图鉴图标 */
+.choice.has-plate {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  column-gap: 10px;
+  align-items: center;
+}
+.choice .choice-plate {
+  grid-row: 1 / span 2;
+  display: block;
+  width: 28px;
+  height: 28px;
+}
+.choice .choice-plate .plate-svg {
+  width: 28px;
+  height: 28px;
+  /* 图标是彩图，必须断掉 .plate-svg 的描边继承（与结果页同一条纪律：
+     上色稿自带 stroke/fill，外层再描一遍会把它描成灰边） */
+  fill: initial;
+  stroke: none;
+  stroke-width: 0;
+}
+.choice.is-on .choice-plate .plate-svg { stroke: none; }
+
+/* ---------- 屏 4：温度光带 ----------
+   四段不是等宽，而是按 --t（0 冷 → 1 热）在温度轴上的位置排。
+   每段顶上一根高度 = --t 的条，所以"冷→热→凉→冷"这件事
+   不用读文字，看那根条的高低就懂。
+   选中的段整块亮起，并向外放一次热流（.is-flash）。 */
+.temp-band {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin: 16px 0 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.temp-seg {
+  min-height: 88px;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--ink-3);
+  font: inherit;
+  cursor: pointer;
+  transition: color 160ms var(--ease), border-color 160ms var(--ease);
+}
+.temp-seg .temp-zh {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+/* 温度条：高度由 --t 决定，是这条带子的刻度本身 */
+.temp-seg .temp-bar {
+  display: block;
+  width: 100%;
+  /* 0 → 6px，1 → 54px。用 calc 而不是 JS 算像素：
+     换一份 SEASONS 只要带 temp，这里不用改。 */
+  height: calc(6px + var(--t, .5) * 48px);
+  border-radius: 1px 1px 0 0;
+  /* 色温：冷端偏蓝、热端偏橙。用 color-mix 保证两套主题下都跟着 token 走。 */
+  background: color-mix(in oklab, var(--accent) calc(var(--t, .5) * 100%), var(--line));
+  opacity: .55;
+  transition: opacity 160ms var(--ease), height 220ms var(--ease);
+}
+.temp-seg:hover { color: var(--ink-2); border-color: var(--line); }
+.temp-seg.is-on {
+  color: var(--ink);
+  border-color: var(--stroke-ui);
+  background: var(--bg-2);
+}
+.temp-seg.is-on .temp-bar { opacity: 1; }
+.temp-seg.is-on .temp-zh { color: var(--ink); }
+
+/* 选中时的一次热流：整条带子向左→右扫一道。放一次就停，不循环。 */
+.temp-band.is-flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: .16;
+  animation: tempFlow 420ms var(--ease) both;
+}
+@keyframes tempFlow {
+  from { transform: translateX(-40%); opacity: 0; }
+  50%  { opacity: .18; }
+  to   { transform: translateX(40%); opacity: 0; }
+}
+
+/* ---------- 屏 5：扩散场 ----------
+   五圈同心环，档位越高最外圈推得越远。它就是"浓淡"这个抽象量的物理形态：
+   同一个气味从中心扩散出去多远。
+   实现在 data-level 上（1–5），五圈各自读同一个父级属性——
+   换档只改一个 attribute，不重建 DOM，也不逐个改五个节点。 */
+.sillage-field {
+  position: relative;
+  height: 132px;
+  margin: 8px 0 4px;
+  display: grid;
+  place-items: center;
+}
+.sillage-field .sillage-core {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  z-index: 1;
+}
+.sillage-field .sillage-ring {
+  position: absolute;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(.2);
+  transition: transform 320ms var(--ease), opacity 320ms var(--ease);
+}
+/* 第 k 圈基准直径，档位到第 k 圈才亮。
+   直径写成递增常量（46/72/98/124/150px），是为了让各圈间距均匀 ——
+   等比放大时内圈会挤成一坨，读起来不像"扩散"而像"同心靶"。 */
+.sillage-field .sillage-ring[data-k="1"] { width: 46px;  height: 46px; }
+.sillage-field .sillage-ring[data-k="2"] { width: 72px;  height: 72px; }
+.sillage-field .sillage-ring[data-k="3"] { width: 98px;  height: 98px; }
+.sillage-field .sillage-ring[data-k="4"] { width: 124px; height: 124px; }
+.sillage-field .sillage-ring[data-k="5"] { width: 150px; height: 150px; }
+
+.sillage-field[data-level="1"] .sillage-ring[data-k="1"],
+.sillage-field[data-level="2"] .sillage-ring[data-k="1"],
+.sillage-field[data-level="2"] .sillage-ring[data-k="2"],
+.sillage-field[data-level="3"] .sillage-ring[data-k="1"],
+.sillage-field[data-level="3"] .sillage-ring[data-k="2"],
+.sillage-field[data-level="3"] .sillage-ring[data-k="3"],
+.sillage-field[data-level="4"] .sillage-ring[data-k="1"],
+.sillage-field[data-level="4"] .sillage-ring[data-k="2"],
+.sillage-field[data-level="4"] .sillage-ring[data-k="3"],
+.sillage-field[data-level="4"] .sillage-ring[data-k="4"],
+.sillage-field[data-level="5"] .sillage-ring[data-k="1"],
+.sillage-field[data-level="5"] .sillage-ring[data-k="2"],
+.sillage-field[data-level="5"] .sillage-ring[data-k="3"],
+.sillage-field[data-level="5"] .sillage-ring[data-k="4"],
+.sillage-field[data-level="5"] .sillage-ring[data-k="5"] {
+  transform: scale(1);
+}
+/* 越外圈越淡：外圈是"最远处还能闻到"的那一层，本来就该更弱。 */
+.sillage-field[data-level="3"] .sillage-ring[data-k="1"],
+.sillage-field[data-level="4"] .sillage-ring[data-k="1"],
+.sillage-field[data-level="5"] .sillage-ring[data-k="1"] { opacity: .75; }
+.sillage-field[data-level="2"] .sillage-ring[data-k="2"],
+.sillage-field[data-level="3"] .sillage-ring[data-k="2"],
+.sillage-field[data-level="4"] .sillage-ring[data-k="2"],
+.sillage-field[data-level="5"] .sillage-ring[data-k="2"] { opacity: .58; }
+.sillage-field[data-level="3"] .sillage-ring[data-k="3"],
+.sillage-field[data-level="4"] .sillage-ring[data-k="3"],
+.sillage-field[data-level="5"] .sillage-ring[data-k="3"] { opacity: .44; }
+.sillage-field[data-level="4"] .sillage-ring[data-k="4"],
+.sillage-field[data-level="5"] .sillage-ring[data-k="4"] { opacity: .32; }
+.sillage-field[data-level="5"] .sillage-ring[data-k="5"] { opacity: .22; }
+
+/* 换档时最外那圈推出去一次 */
+.sillage-field.is-pulse .sillage-ring { animation: sillagePush 420ms var(--ease) both; }
+@keyframes sillagePush {
+  from { transform: scale(.62); opacity: 0; }
+  to   { transform: scale(1); }
+}
+
+/* ---------- 跨屏：携带的标本签 ----------
+   规格说呼应是点缀不是装置 —— 所以它只是一行 12px 小签：
+   不占独立版面、不加边框、不加背景，只在进度条下面跟着走。 */
+.carry-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: -2px 0 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+.carry-row .carry-lead {
+  letter-spacing: .08em;
+  color: var(--ink-3);
+  opacity: .8;
+}
+.carry-row .carry-tag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-2);
+}
+.carry-row .carry-tag b {
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+/* ---------- 结果页：两个出口 ----------
+   规格明令结果页必须保留「换一批 / 改一题重推」。
+   这一块是结果页的最后一段，排在分享卡之后、页脚之前。 */
+.result-outlets {
+  margin: 36px 0 8px;
+  padding-top: 20px;
+  border-top: 8px solid var(--ink);
+}
+.outlet-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.outlet-row-col { flex-direction: column; align-items: stretch; gap: 8px; }
+.outlet-row-end { margin-bottom: 0; }
+.outlet-meta {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+.outlet-note {
+  margin: 0 0 22px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+
+/* 改一题的跳转条：五格，每格写题名 + 你答了什么 */
+.outlet-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.outlet-jump-item {
+  min-height: 44px;
+  flex: 1 1 128px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 10px;
+  background: var(--bg);
+  border: 1px solid var(--stroke-ui);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms var(--ease);
+}
+.outlet-jump-item:hover { background: var(--bg-2); }
+.outlet-jump-item .jump-short {
+  font-size: 12px;
+  letter-spacing: .06em;
+  color: var(--ink-3);
+}
+.outlet-jump-item .jump-answer {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* 预算范围声明（结果页顶部）。它是范围，不是理由，所以用一行左侧竖线，
+   与 .gloss-line 同一语法 —— 全卷"一句话解释"都用这一条。 */
+.scope-line {
+  margin: 12px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.scope-line strong { font-weight: 600; color: var(--ink); }
+/* 「没生效」是警告，不是说明 —— 换警告色，否则用户会漏读 */
+.scope-line.is-warn { border-left-color: var(--warn); }
+.scope-line.is-warn strong { color: var(--warn); }
+
+/* ---------- 移动端降级（低端安卓微信浏览器）----------
+   规格第 6 条：移动端可降级动效，逻辑不可缺。
+   这里只关掉三条"纯观感"的动效，控件尺寸与语义一律不动：
+     ① 温度光带的热流扫光    ② 扩散场的推出去
+     ③ 昼夜光景的 420ms 过渡
+   关掉之后每一屏仍然停在正确的终态（选中段照样实心、圈照样亮）。 */
+@media (max-width: 620px) {
+  .temp-band.is-flash::after { display: none; }
+  .sillage-field.is-pulse .sillage-ring { animation: none; }
+  .occasion-light,
+  .occasion-light .oc-sun { transition-duration: 120ms; }
+
+  /* 窄屏的价签量尺改成两行：五段挤在一行时每段只有 60px，
+     四字档位名（"1500 以上"）会折成两行并顶破 56px 高度。 */
+  .budget-rail { flex-wrap: wrap; }
+  .budget-seg { flex: 1 1 44%; }
+  .budget-seg.is-any { flex: 1 1 100%; }
+  .budget-notes { flex-wrap: wrap; }
+  .budget-note { flex: 1 1 44%; }
+  .budget-note.is-any { flex: 1 1 100%; }
+
+  /* 坐标图在窄屏上略矮：七个点 + 七行标签需要留出文字空间 */
+  .mood-map { height: 128px; }
+}
+
+/* ---------- 减少动效偏好 ----------
+   关掉动画必须停在正确位置：三条动效的终态都由 :not(.is-pulse) 的
+   静态规则给出（见上），所以这里只要把动画本身删掉即可，
+   不需要另写一套"终态覆盖"。 */
+@media (prefers-reduced-motion: reduce) {
+  .temp-band.is-flash::after { animation: none; opacity: 0; }
+  .sillage-field.is-pulse .sillage-ring { animation: none; }
+  .occasion-light,
+  .occasion-light .oc-sun,
+  .budget-seg,
+  .temp-seg,
+  .temp-seg .temp-bar,
+  .mood-map .map-dot,
+  .sillage-field .sillage-ring { transition: none; }
+}
+
+/* ---------- 打印 ----------
+   价签量尺与温度光带在纸上不会动，靠 background 表达的信息会丢。
+   所以打印时给选中项补一条实线边框，让"选了哪一段"仍然可读。 */
+@media print {
+  .budget-seg.is-on,
+  .temp-seg.is-on {
+    background: transparent !important;
+    color: #000 !important;
+    border: 2px solid #000 !important;
+  }
+  .budget-seg.is-on .budget-tick { background: #000 !important; }
+  .occasion-light,
+  .sillage-field,
+  .mood-map { display: none; }
+}

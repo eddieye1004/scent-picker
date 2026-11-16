@@ -49,6 +49,10 @@ const PARTS = [
   /* 方向 A「标本极简」视觉层（Eddie 2026-11-10 19:19 决策）。
      必须最后：它覆盖的是 token 与表面样式，不是布局。 */
   '80-specimen.css',
+  /* 问卷 v5 五屏各自的控件语汇（2026-11-16）。放在 specimen 之后：
+     它消费 token，不重新定义 token；也不覆盖 specimen 的任何规则
+     （类名全部是 v5 新增的，见该文件头的五屏对照表）。 */
+  '90-quiz-v5.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');

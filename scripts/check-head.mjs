@@ -24,8 +24,14 @@ const ROOT = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\/([
 const NODE = process.execPath;
 
 const SUITES = [
-  ['test-render.mjs', 294],
-  ['test-contrast.mjs', 42],
+  /* 断言数基线（2026-11-16 问卷 v5 实测）。
+     test-render 从 294 变到 224：这一轮删掉了香型轮盘与香调点名两屏
+     （规格第 1 条禁止香调术语题），它们原本挂着约 90 条断言。
+     删掉的是**已经不存在的东西的断言**，不是放松守门 ——
+     新增的五屏（预算/场合/气质/季节/浓淡）各有一整套断言顶上，
+     而且都跑在真渲染路径上。所以基线按实测下调，并在此留痕。 */
+  ['test-render.mjs', 224],
+  ['test-contrast.mjs', 43],
   ['test-scoring.mjs', 153],
   ['test-compliance.mjs', 10],
   ['test-union-api.mjs', 76],
