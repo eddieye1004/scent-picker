@@ -509,3 +509,440 @@ footer.foot {
   }
   body { background: #ffffff; }
 }
+
+/* ============================================================
+   问卷 v2（2026-11-16）· 五屏各自的交互样式
+   ------------------------------------------------------------
+   加在最后一层（80-specimen）之后追加，不改动任何既有层：
+   本轮的写范围是「题目内容 + 每屏交互」，既有页面视觉一律不动 ——
+   所以这里只新增 .budget-* / .imp-* / .halo-* 三组类，
+   一个既有选择器都没重写。
+
+   共同约定（来自 test-contrast 的既有判据，不新造标准）：
+     · 触控目标 ≥ 44×44
+     · 所有可点元素有 :focus-visible
+     · 正文不用低于 --ink-3 的色（6.59:1）
+     · 只动 transform / opacity，时长走既有 --ease token
+
+   三屏三套语言，刻意不共用：
+     预算   —— 一维区间量尺（分段填充）
+     印象   —— 翻面卡（正面一句话，背面一段话）
+     浓淡   —— 同心圈（半径即距离）
+   ============================================================ */
+
+/* ---------------- 第 1 屏：预算量尺 ----------------
+   为什么是"一根尺子切成四段"而不是四张卡：
+   四个预算档是一条**有序区间轴**，分段量尺让"连续被切开"这件事可见；
+   四张并列卡片会读成"四个互不相干的选择"。
+   段宽按档位等分（不是按价格区间宽度）—— 等宽才读得出"这是四个台阶"，
+   按真实区间等比反而会让 2000+ 那段窄到点不中。 */
+.budget-rail {
+  display: flex;
+  gap: 0;
+  margin: 18px 0 0;
+  border: 1px solid var(--stroke-ui);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg);
+}
+.budget-seg {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border: 0;
+  border-left: 1px solid var(--stroke-l1);
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background 160ms var(--ease-std), color 160ms var(--ease-std);
+}
+.budget-seg:first-child { border-left: 0; }
+/* 选中：整段实心填充（不是打勾、不是描边）——
+   隐喻是"从这一段货架开始挑"，所以让那一段变成实体。 */
+.budget-seg.is-on {
+  background: var(--blue);
+  color: #fff;
+}
+.budget-seg.is-on .budget-seg-n { color: rgba(255, 255, 255, .82); }
+.budget-seg-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+.budget-seg-n {
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+@media (hover: hover) {
+  .budget-seg:not(.is-on):hover { background: var(--bg-2); color: var(--ink); }
+}
+.budget-seg:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -3px;
+}
+/* 「不限」是兜底，视觉上比四段轻一档 —— 它不是第五个档位。 */
+.budget-any {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 0 16px;
+  border: 1px dashed var(--stroke-ui);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font-body);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 160ms var(--ease-std), color 160ms var(--ease-std);
+}
+.budget-any.is-on {
+  border-style: solid;
+  border-color: var(--blue);
+  color: var(--blue);
+  background: var(--blue-wash);
+}
+.budget-any:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+@media (hover: hover) {
+  .budget-any:not(.is-on):hover { border-color: var(--ink-3); color: var(--ink); }
+}
+/* 读数行：这一屏唯一的反馈通道，所以给它字号与留白上的独立位置。
+   is-idle 时是"这一屏在干什么"，选中后换成该档真实瓶数。 */
+.budget-read {
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  min-height: 22px;
+}
+.budget-read.is-idle { color: var(--ink-3); }
+/* 结果页顶部那行"只在某一段里挑"：范围声明，比正文弱一档。 */
+.budget-line {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+/* ---------------- 第 3 屏：印象翻卡 ----------------
+   正面只给一句话（印象词），背面给"别人会怎么说"。
+   为什么用两段式而不是一屏摊开六段解释：
+   六段同时展开会把卡组推到折叠线以下（旧气质屏 390×844 的老毛病，
+   实测第一张卡从 480 掉到 603，工具栏在 767）。
+   翻面让"选择"与"细读"分成两步，且只在用户想看时给。 */
+.imp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+.imp-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--stroke-ui);
+  border-radius: 6px;
+  background: var(--bg);
+  overflow: hidden;
+  transition: border-color 160ms var(--ease-std), background 160ms var(--ease-std);
+}
+.imp-card.is-on {
+  border-color: var(--blue);
+  border-left-width: 3px;
+  background: var(--blue-wash);
+}
+.imp-pick {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+.imp-pick:focus-visible { outline: 2px solid var(--blue); outline-offset: -3px; }
+.imp-word {
+  /* 印象词是这一屏唯一的"内容"，给它正文级的字号与字重 */
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.imp-card.is-on .imp-word { color: var(--blue); }
+.imp-toggle {
+  /* 44px 是 test-contrast 的触控硬下限，不是审美取值。
+     第一版写 34px（想让它"轻一点"），实测 minBtn=34 被门禁判红 ——
+     正确做法是保住 44px、把视觉重量降在字号与颜色上，而不是压高度。 */
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 0;
+  border-top: 1px solid var(--stroke-l1);
+  background: transparent;
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 160ms var(--ease-std);
+}
+.imp-toggle:focus-visible { outline: 2px solid var(--blue); outline-offset: -3px; }
+@media (hover: hover) {
+  .imp-toggle:hover { color: var(--ink); }
+}
+.imp-more {
+  padding: 2px 10px 12px;
+  border-top: 1px solid var(--stroke-l1);
+  animation: impUnfold 200ms var(--ease-out);
+}
+/* 翻面：高度由内容决定，动画只做 opacity + 极小位移。
+   不给 height 做动画 —— 内容高度不定，写死会截断长句。 */
+@keyframes impUnfold {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+.imp-desc {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.imp-dir {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* ---------------- 第 4 屏：同心扩散圈 ----------------
+   **控件即内容**：圈的位置就是它表达的距离。
+   五圈同心，直径按档位递增；点哪一圈就选中哪一档。
+   为什么不用滑杆：滑杆在语义上是一根**连续**轴，
+   而这一屏的五个档是五个具体距离，不是连续量；
+   且滑杆要拖动，圈只要点 —— 手机上一指点中就够。
+   命中区：每圈是一个绝对定位的圆形 button，
+   直径 ≥ 56px（最小圈），保证 ≥44×44。 */
+.halo {
+  position: relative;
+  width: min(320px, 78vw);
+  aspect-ratio: 1 / 1;
+  margin: 22px auto 0;
+  border-radius: 50%;
+}
+/* 用四层同心环作背景（纯 CSS 渐变），只做视觉底纹，不参与命中。 */
+.halo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%,
+      transparent 0 17%,
+      var(--stroke-l1) 17% calc(17% + 1px),
+      transparent calc(17% + 1px) 34%,
+      var(--stroke-l1) 34% calc(34% + 1px),
+      transparent calc(34% + 1px) 51%,
+      var(--stroke-l1) 51% calc(51% + 1px),
+      transparent calc(51% + 1px) 68%,
+      var(--stroke-l1) 68% calc(68% + 1px),
+      transparent calc(68% + 1px) 85%,
+      var(--stroke-l1) 85% calc(85% + 1px),
+      transparent calc(85% + 1px));
+  pointer-events: none;
+}
+.halo-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  /* 直径按 --i 递增：第 1 圈 34%，第 5 圈 = 本容器 100%。
+     刻意用百分比而不是固定 px —— 容器已在窄屏收窄到 82vw。
+     **第 5 圈必须正好 100%**：原来是 i*17+17，i=5 时算成 102%，
+     最外圈溢出色块边界 3.2px（实测），且它在最底层被裁掉一条边。
+     改成 14% 步长 + 30% 基：i=1 → 44%，i=5 → 100%，五档等距且不溢出。 */
+  width: calc(var(--i) * 14% + 30%);
+  aspect-ratio: 1 / 1;
+  /* **z 序必须与 --i 反序**：五圈同心，每一圈都是一个整圆 >= 里面那圈。
+     若按自然顺序叠（大圈在后 = 在上），最外圈会盖住里面四圈，
+     结果只有第 5 档点得中，第 1–4 档全是死区 —— 实测就是
+     Playwright 报 "element intercepts pointer events" 才发现的。
+     反序后每一圈露出来的部分是"它自己减去里面那圈"的环形带，
+     命中区自然变成五个同心圆环，与视觉一致。
+     这行是这一屏能用的前提，不是层级微调。 */
+  z-index: calc(10 - var(--i));
+  transform: translate(-50%, -50%);
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 160ms var(--ease-std), color 160ms var(--ease-std),
+              border-color 160ms var(--ease-std);
+}
+/* 每一圈都是**实心圆**（为了能整圈染色），所以外面那圈的圆盘会把里面那些
+   整个盖住。反序 z-index 正好解决这件事：最小圈在最上层、只占它自己那一小块，
+   于是每一圈真正能点的范围 = 它自己减去上面那圈 = 一条环形带。
+   五档因此各有一条独立命中带，与视觉完全一致 —— 不需要 pointer-events 花招。
+   （Playwright 点的是元素**中心**，而中心恒被更小的圈占着，所以自动化点击
+   要指定 position；真人点的本来就是那条环带，不受影响。） */
+.halo-n {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  /* 档号贴在圈的顶部，不是圆心 —— 同心圆的圆心是共用的，
+     五个数字叠在中心会糊成一团。 */
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.halo-ring.is-on {
+  border-color: var(--blue);
+  background: var(--blue-wash);
+  color: var(--blue);
+  font-weight: 600;
+}
+.halo-ring:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+@media (hover: hover) {
+  .halo-ring:not(.is-on):hover { background: var(--bg-2); color: var(--ink-2); }
+}
+/* 反馈：选中那一圈向外发一次扩散（**一次**，不循环）。
+   "走过会留一点香"这件事本身就是一次性的 —— 循环会让它读成"一直在散"。 */
+.halo-ring.is-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid var(--blue);
+  animation: haloPulse 520ms var(--ease-out) 1;
+  pointer-events: none;
+}
+@keyframes haloPulse {
+  from { transform: scale(1);   opacity: .55; }
+  to   { transform: scale(1.22); opacity: 0; }
+}
+/* reduced-motion：不播扩散，但选中态必须留在正确位置（终态正确，不是半途）。 */
+@media (prefers-reduced-motion: reduce) {
+  .halo-ring.is-pulse::after { animation: none; opacity: 0; }
+  .imp-more { animation: none; }
+  .budget-seg, .imp-card, .halo-ring, .budget-any, .imp-toggle { transition: none; }
+}
+/* 读数：与预算屏同一位置的反馈通道，但措辞形态不同 ——
+   这里是"主说法 + 一句展开"，预算屏是"一句瓶数"。 */
+.halo-read {
+  margin: 18px auto 0;
+  max-width: 34em;
+  text-align: center;
+  min-height: 46px;
+}
+.halo-read b {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+.halo-read span {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+
+/* ---------------- 结果页：两个出口 ----------------
+   三个按钮语义分开，视觉权重也要分开：
+     换一批     —— 主按钮（这是最轻的动作，用户最常点）
+     改一题重推 —— 折叠入口（次要，但比"重来"常用）
+     重新来一次 —— ghost（代价最大，放最后） */
+.result-actions { flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+.edit-wrap {
+  border: 1px solid var(--stroke-ui);
+  border-radius: 6px;
+  background: var(--bg);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+}
+.edit-sum {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  color: var(--ink-2);
+  cursor: pointer;
+  list-style: none;
+}
+.edit-sum::-webkit-details-marker { display: none; }
+.edit-sum::after {
+  content: '▾';
+  margin-left: 8px;
+  /* 12px 是 test-contrast 的硬下限（全站最小字号），
+     11px 会被它当场判红 —— 这条不是审美取值，是门禁。 */
+  font-size: 12px;
+  color: var(--ink-3);
+  transition: transform 160ms var(--ease-std);
+}
+.edit-wrap[open] .edit-sum::after { transform: rotate(180deg); }
+.edit-sum:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.edit-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  list-style: none;
+  border-top: 1px solid var(--stroke-l1);
+  width: 100%;
+}
+.edit-item {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--stroke-l1);
+  border-radius: 4px;
+  background: transparent;
+  font-family: var(--font-body);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 160ms var(--ease-std), background 160ms var(--ease-std);
+}
+.edit-item:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+@media (hover: hover) {
+  .edit-item:hover { border-color: var(--blue); background: var(--blue-wash); }
+}
+.edit-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.edit-cur { font-size: 12px; color: var(--ink-3); }
+
+/* 窄屏：预算量尺从"四段并排"改成"两行两列"。
+   390 档实测四段并排每段只有 ~92px，而「300–800 元」那一行字要 6 个字符，
+   13px 下约 78px —— 加上左右内边距会挤成两行，四段高度不齐。
+   改成 wrap 后每段 ≥ 50% 宽，标签不折行。 */
+@media (max-width: 620px) {
+  .budget-rail { flex-wrap: wrap; }
+  .budget-seg { flex: 1 1 calc(50% - 1px); min-width: calc(50% - 1px); }
+  .budget-seg:nth-child(3) { border-left: 0; }
+  .budget-seg:nth-child(2) { border-left: 0; }
+  .budget-seg:nth-child(n+3) { border-top: 1px solid var(--stroke-l1); }
+  .budget-any { width: 100%; }
+  .imp-grid { grid-template-columns: repeat(2, 1fr); }
+  .halo { width: min(280px, 82vw); }
+  .result-actions { flex-direction: column; align-items: stretch; }
+  .edit-wrap { width: 100%; justify-content: center; }
+}
