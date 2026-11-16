@@ -1732,11 +1732,24 @@ function renderSeason() {
   ));
 
   /* 光带本体。--band-temp 由选中档写进（-1..1），CSS 用它算色相与亮度。
-     这样"温度"是一个连续量，而不是四个开关量 —— 换成四个色块就退回按钮组了。 */
+     这样"温度"是一个连续量，而不是四个开关量 —— 换成四个色块就退回按钮组了。
+
+     为什么落点位置要走 --stop-pos 而不是直接写 left：
+     最冷（冬, temp=-1）与最热（夏, temp=+1）正好落在光带的 0% 和 100% 边缘，
+     而落点靠 translate(-50%) 以自己为中心对齐 —— 直接写 left 会让这两档
+     有一半探出带外，被 .temp-band 的 overflow:hidden 切掉字形（实测截图里
+     「冬」「夏」只剩半个字）。所以光带两端各留出一段内缩安全区，
+     落点在这段安全区内重新映射：位置语义仍是温度，但不会贴边。
+     这是纯视觉修正，不动"位置即温度"这条断言（顺序与单调性都不变）。 */
   const band = el('div', { class: 'temp-band' + (state.answers.season ? '' : ' is-idle'),
     role: 'radiogroup', 'aria-label': '主季节' });
   const glow = el('span', { class: 'temp-glow', 'aria-hidden': 'true' });
   band.appendChild(glow);
+
+  /* 两端安全区内缩比例。0.08 = 每端留 8% 给半个落点宽度（落点 min-width 60px，
+     光带在 1100px 桌面下约 88px 的 8%），足够放下「冬」「夏」两个字。 */
+  const STOP_INSET = 0.08;
+  const stopPos = (temp) => (STOP_INSET + ((temp + 1) / 2) * (1 - STOP_INSET * 2)) * 100;
 
   const gloss = el('p', { class: 'temp-gloss is-idle' });
 
@@ -1758,8 +1771,9 @@ function renderSeason() {
     const on = state.answers.season === s.id;
     /* 每档在光带上的位置由它的 temp 决定，**不平均分四格** ——
        平均分就把"温度轴"退回成"四个并列选项"。
-       归一化：(temp + 1) / 2 → 0..1 的百分比。 */
-    const pos = ((s.temp + 1) / 2) * 100;
+       归一化：(temp + 1) / 2 → 0..1，再经 stopPos() 收进两端安全区
+       （避免最冷/最热两档被光带的 overflow:hidden 切掉半个字）。 */
+    const pos = stopPos(s.temp);
     const stop = el('button', {
       class: 'temp-stop' + (on ? ' is-on' : ''),
       type: 'button',
@@ -1900,15 +1914,22 @@ function renderConcentration() {
     /* 环的直径由档位派生：最小 32%、每档 +15%，与 RINGS 顺序一致。
        这样"往外走一档"在视觉上真的多一圈，不是一个数字变了。 */
     const pct = 32 + (r.v - 1) * 15;
-    /* 落点位置：沿 12 点方向向上排开。第 v 档的圆心距 = pct/2（百分比），
-       方块贴在圆的最高点内侧一点，互不重叠。 */
+    /* 命中落点：沿 12 点方向向上排开，贴在第 v 档那个圆的**最高点**上。
+       环心在容器正中（50%），所以圆的最高点 = 50 - pct/2。 */
     const topPct = 50 - pct / 2;
     const ringNode = el('div', {
       class: 'diffuse-ring' + (on ? ' is-on' : '') + (r.v < Number(state.answers.intensity) ? ' is-in' : ''),
       'data-v': String(r.v),
       'data-pct': String(pct),
       'aria-hidden': 'true',
-      style: '--ring-pct:' + pct + '%;top:' + topPct.toFixed(2) + '%',
+      /* top 必须写死 50%（= 容器中心），**不能写 topPct**。
+         这里踩过一个坑：.diffuse-ring 的 transform 已经是 translate(-50%,-50%)，
+         它自己就会把盒子居中到 top 指定的那个点上。若 top 再写 50 - pct/2，
+         扣了两次半径 ⇒ 五个环的**圆心各不相同**、而底边全部相切于容器中心
+         （实测 cy = 590.7 / 556.2 / 521.7 / 487.2 / 452.7，底边一律 664.3），
+         最大那个还向上溢出容器 193px、盖住了页头标题。
+         同心圆只需要：圆心固定在 50%，直径各不相同。 */
+      style: '--ring-pct:' + pct + '%;top:50%',
     });
     /* φ 角上的按钮：真实可点、键盘可达、44px。它落在环带的最高点上。 */
     const btn = el('button', {

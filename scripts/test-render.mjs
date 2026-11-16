@@ -523,6 +523,16 @@ ok('第 7 屏是浓淡（data-step=concentration）', stepId() === 'concentratio
     appRoot.querySelectorAll('.diffuse-ring').some((r) => r.classList.contains('is-on')
       && r.attrs['data-v'] === '5'),
     appRoot.querySelectorAll('.diffuse-ring').map((r) => r.attrs['data-v'] + ':' + r.className).join(' | '));
+  /* ==== 回归：五环必须同心（2026-11-17 修） ====
+     曾经把 top 写成 50 - pct/2，而 .diffuse-ring 的 transform 已经是
+     translate(-50%,-50%) —— 半径被扣了两次，五个环圆心各不相同、
+     底边全相切于容器中心，最大那个向上溢出 193px 盖住页头标题
+     （playwright 实测 cy = 590.7/556.2/521.7/487.2/452.7）。
+     同心圆的定义就是圆心固定、直径不同，所以 top 必须恒为 50%。 */
+  const tops = rings.map((x) => String(x.style.top).replace(/\s/g, ''));
+  ok('五环同心（圆心 top 恒为 50%，不被半径扣两次）',
+    new Set(tops).size === 1 && /^50(\.0+)?%$/.test(tops[0]),
+    tops.join(','));
 }
 
 /* ---------- ⑧ 已知款（末屏） ---------- */

@@ -9393,9 +9393,21 @@ footer.foot {
     background: color-mix(in srgb, var(--accent) 10%, var(--bg));
   }
 
-  /* 温度光带在暗底上原色太亮（会抢前景文字）。压到 72% 明度。 */
-  .temp-band { filter: brightness(.72) saturate(.8); }
-  .temp-band.is-idle { filter: brightness(.7) saturate(.3); }
+  /* 温度光带在暗底上原色太亮（会抢前景文字）。
+     ==== 为什么不能写 filter: brightness() ====
+     filter 会作用到**整个元素子树**，.temp-zh 那四个字也被一起压暗：
+     实测暗底上 字≈rgb(158,160,161) / 底≈rgb(170,169,167)，对比度 1.1~1.25，
+     四个季节名基本读不出来（浅色档同一位置是 13~14.7）。
+     test-contrast 只核算 :root 里的 token 组合，照不到这条 —— 它把
+     "文字色 vs 它真正的底"漏掉了，因为这里的底是一张渐变、不是变量。
+     所以改成**直接换深色渐变**，不动 filter，文字保持 --ink 原样。 */
+  .temp-band {
+    background: linear-gradient(90deg, #26313a 0%, #35322a 50%, #453526 100%);
+  }
+  /* 未选态：整条带降饱和 —— 用一次性的低饱和渐变，同样不用 filter。 */
+  .temp-band.is-idle {
+    background: linear-gradient(90deg, #2d3438 0%, #35332f 50%, #3d362e 100%);
+  }
 
   /* 扩散场的色团在暗底上要更淡，否则环线看不清。 */
   .diffuse .diffuse-core { opacity: .3; }
