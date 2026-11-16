@@ -325,24 +325,28 @@
    变成了扇区底（实测截图）。
    深色要反过来：**瓦片比盘底亮一档，缝比瓦片再亮一档**，
    与浅色"瓦片比盘底暗一档、缝=盘底"同一套相对关系。
+
+   2026-11-16 三处 tier 提亮（见 80-specimen.css 深色块）：这一组也跟着把
+   瓦片换到 var(--disc-face)、盘心换到 var(--disc-hub)，与首屏轮盘的
+   深色值**同源同值** —— 两套盘是同一件东西的两种画法，不该一套亮一套暗。
    ============================================================ */
 @media (prefers-color-scheme: dark) {
   #app[data-step="occasion"] .disc-svg .sector-g .sector-shape {
-    fill: var(--bg-2);          /* #2a2a2a，对盘底 #141414 亮一档 */
-    stroke: #3a3a3a;            /* 缝再亮一档，沿用 --line 的取值 */
+    fill: var(--disc-face);     /* #3E3E3E，对盘底 #171717 = 1.676（原是 1.03） */
+    stroke: var(--bg);          /* 缝 = 盘底；改前是 #3a3a3a（比瓦片亮，方向反了） */
   }
   #app[data-step="occasion"] .disc-svg .sector-g:hover .sector-shape,
   #app[data-step="occasion"] .disc-svg .sector-g.is-hot .sector-shape {
-    fill: var(--bg-3);          /* #323232 */
-    stroke: #3a3a3a;
+    fill: #424242;
+    stroke: var(--ink-3);
   }
   #app[data-step="occasion"] .disc-svg .sector-g.is-on .sector-shape {
-    fill: var(--blue-wash);     /* rgba(110,139,255,.14) 压在 #141414 上 */
-    stroke: #3a3a3a;
+    fill: var(--blue-wash);     /* rgba(110,139,255,.14) 压在盘底上 */
+    stroke: var(--blue);
   }
   /* 选中扇区的文字：第二节把它设成 --blue（深色是 #6e8bff），保持不动。 */
   #app[data-step="occasion"] .disc-hub {
-    background: var(--bg-2);
+    background: var(--disc-hub);
     box-shadow: 0 0 0 1px var(--line);
   }
   #app[data-step="occasion"] .disc-hub.is-picked {
@@ -363,34 +367,48 @@
    源顺序在本层内最靠后，同特异性即可覆盖第五、六节。
    ============================================================ */
 @media (prefers-color-scheme: dark) {
+  /* ---- 2026-11-16：三处 tier 提亮（Eddie 批准）----
+     这一组原来一律写 `fill: var(--bg-2)` / `stroke: #3a3a3a`，
+     实测扇区面对盘底只有 1.03–1.19（逐层数据见 80-specimen.css 深色块的注释）。
+     现在统一改读两个盘面专用 token：
+       var(--disc-face) = #404040  → 扇区面 / 中圈弧片，对盘底 1.729
+       var(--disc-hub)  = #443E34  → 盘心面，对盘底 1.694
+     不改 --bg-2 本身：它还喂给结果页摘要卡等非盘面元素。
+
+     缝（stroke）保持 var(--bg) #14120E 不动：深色下瓦片之间是**暗缝**，
+     与浅色下也是暗缝（#C9C0B0 压在 #FDFBF7 上）同一方向。
+     提亮瓦片之后缝自动从 1.19 升到 1.776（浅色 1.744），不需要改缝的颜色。 */
   .wheel .disc-svg .sector-shape {
-    fill: var(--bg-2);
-    stroke: #3a3a3a;
+    fill: var(--disc-face);
+    stroke: var(--bg);
     stroke-width: 2.6;
   }
+  /* 悬停/指针所在：再亮一档。改前 #3a3a3a→--bg-3 只差 1.09，
+     改后 #424242 对瓦片 #3E3E3E 差 1.06——相对关系不变，绝对位置抬进可见带。 */
   .wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
   .wheel .disc-svg .sector-g.is-hot .sector-shape {
-    fill: var(--bg-3);
-    stroke: #4a4a4a;
+    fill: #424242;
+    stroke: var(--ink-3);
   }
   /* 展开态：外圈缩成的家族环 */
   .wheel.is-open .sector-g .sector-shape {
-    fill: var(--bg-2);
-    stroke: #3a3a3a;
+    fill: var(--disc-face);
+    stroke: var(--bg);
   }
   .wheel.is-open .sector-g.is-on .sector-shape {
     fill: var(--blue-wash);
     stroke: var(--blue);
     stroke-width: 2.6;
   }
-  /* 展开态：中圈弧片 */
+  /* 展开态：中圈弧片。必须比家族瓦片**再亮一档**，靠这一点亮度反转
+     把两层分开（改前 #2b2b2b 对瓦片 #232323 只差 1.03，两层读成一层）。 */
   .wheel .sub-arc {
-    fill: var(--bg-2);
-    stroke: #3a3a3a;
+    fill: #434343;
+    stroke: var(--bg);
   }
   .wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
   .wheel .sub-g.is-hot .sub-arc {
-    fill: var(--bg-3);
+    fill: #4A4A4A;
     stroke: var(--ink-3);
     stroke-width: 2.2;
   }
@@ -398,8 +416,17 @@
     fill: var(--blue-wash);
     stroke: var(--blue);
   }
+  /* 盘心面：闭合态与展开态都读同一个 token，盘心始终是「浮起的一层」 */
+  .wheel .disc-hub,
+  .wheel .disc-hub.is-idle,
+  .wheel .disc-hub.is-hover,
+  .wheel .disc-hub.is-wide:not(.is-picked),
+  .wheel.is-open .disc-hub {
+    background: var(--disc-hub);
+  }
   /* 展开态：已选家族的标签转蓝（第六节写的是 var(--blue)，深色自动换成 #6e8bff，无需改） */
 }
+
 /* ===== v42 · 字体真正落地：从"系统兜底"换成"自带可变字体" =====
    问题（实测，不是感觉）：
    1. `--font-body` 第一顺位写的是 "Inter"，但全项目 `@font-face` 数量为 **0**、

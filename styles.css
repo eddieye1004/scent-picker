@@ -7810,24 +7810,28 @@ body {
    变成了扇区底（实测截图）。
    深色要反过来：**瓦片比盘底亮一档，缝比瓦片再亮一档**，
    与浅色"瓦片比盘底暗一档、缝=盘底"同一套相对关系。
+
+   2026-11-16 三处 tier 提亮（见 80-specimen.css 深色块）：这一组也跟着把
+   瓦片换到 var(--disc-face)、盘心换到 var(--disc-hub)，与首屏轮盘的
+   深色值**同源同值** —— 两套盘是同一件东西的两种画法，不该一套亮一套暗。
    ============================================================ */
 @media (prefers-color-scheme: dark) {
   #app[data-step="occasion"] .disc-svg .sector-g .sector-shape {
-    fill: var(--bg-2);          /* #2a2a2a，对盘底 #141414 亮一档 */
-    stroke: #3a3a3a;            /* 缝再亮一档，沿用 --line 的取值 */
+    fill: var(--disc-face);     /* #3E3E3E，对盘底 #171717 = 1.676（原是 1.03） */
+    stroke: var(--bg);          /* 缝 = 盘底；改前是 #3a3a3a（比瓦片亮，方向反了） */
   }
   #app[data-step="occasion"] .disc-svg .sector-g:hover .sector-shape,
   #app[data-step="occasion"] .disc-svg .sector-g.is-hot .sector-shape {
-    fill: var(--bg-3);          /* #323232 */
-    stroke: #3a3a3a;
+    fill: #424242;
+    stroke: var(--ink-3);
   }
   #app[data-step="occasion"] .disc-svg .sector-g.is-on .sector-shape {
-    fill: var(--blue-wash);     /* rgba(110,139,255,.14) 压在 #141414 上 */
-    stroke: #3a3a3a;
+    fill: var(--blue-wash);     /* rgba(110,139,255,.14) 压在盘底上 */
+    stroke: var(--blue);
   }
   /* 选中扇区的文字：第二节把它设成 --blue（深色是 #6e8bff），保持不动。 */
   #app[data-step="occasion"] .disc-hub {
-    background: var(--bg-2);
+    background: var(--disc-hub);
     box-shadow: 0 0 0 1px var(--line);
   }
   #app[data-step="occasion"] .disc-hub.is-picked {
@@ -7848,34 +7852,48 @@ body {
    源顺序在本层内最靠后，同特异性即可覆盖第五、六节。
    ============================================================ */
 @media (prefers-color-scheme: dark) {
+  /* ---- 2026-11-16：三处 tier 提亮（Eddie 批准）----
+     这一组原来一律写 `fill: var(--bg-2)` / `stroke: #3a3a3a`，
+     实测扇区面对盘底只有 1.03–1.19（逐层数据见 80-specimen.css 深色块的注释）。
+     现在统一改读两个盘面专用 token：
+       var(--disc-face) = #404040  → 扇区面 / 中圈弧片，对盘底 1.729
+       var(--disc-hub)  = #443E34  → 盘心面，对盘底 1.694
+     不改 --bg-2 本身：它还喂给结果页摘要卡等非盘面元素。
+
+     缝（stroke）保持 var(--bg) #14120E 不动：深色下瓦片之间是**暗缝**，
+     与浅色下也是暗缝（#C9C0B0 压在 #FDFBF7 上）同一方向。
+     提亮瓦片之后缝自动从 1.19 升到 1.776（浅色 1.744），不需要改缝的颜色。 */
   .wheel .disc-svg .sector-shape {
-    fill: var(--bg-2);
-    stroke: #3a3a3a;
+    fill: var(--disc-face);
+    stroke: var(--bg);
     stroke-width: 2.6;
   }
+  /* 悬停/指针所在：再亮一档。改前 #3a3a3a→--bg-3 只差 1.09，
+     改后 #424242 对瓦片 #3E3E3E 差 1.06——相对关系不变，绝对位置抬进可见带。 */
   .wheel:not(.is-sub-locked) .disc-svg .sector-g:hover .sector-shape,
   .wheel .disc-svg .sector-g.is-hot .sector-shape {
-    fill: var(--bg-3);
-    stroke: #4a4a4a;
+    fill: #424242;
+    stroke: var(--ink-3);
   }
   /* 展开态：外圈缩成的家族环 */
   .wheel.is-open .sector-g .sector-shape {
-    fill: var(--bg-2);
-    stroke: #3a3a3a;
+    fill: var(--disc-face);
+    stroke: var(--bg);
   }
   .wheel.is-open .sector-g.is-on .sector-shape {
     fill: var(--blue-wash);
     stroke: var(--blue);
     stroke-width: 2.6;
   }
-  /* 展开态：中圈弧片 */
+  /* 展开态：中圈弧片。必须比家族瓦片**再亮一档**，靠这一点亮度反转
+     把两层分开（改前 #2b2b2b 对瓦片 #232323 只差 1.03，两层读成一层）。 */
   .wheel .sub-arc {
-    fill: var(--bg-2);
-    stroke: #3a3a3a;
+    fill: #434343;
+    stroke: var(--bg);
   }
   .wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
   .wheel .sub-g.is-hot .sub-arc {
-    fill: var(--bg-3);
+    fill: #4A4A4A;
     stroke: var(--ink-3);
     stroke-width: 2.2;
   }
@@ -7883,8 +7901,17 @@ body {
     fill: var(--blue-wash);
     stroke: var(--blue);
   }
+  /* 盘心面：闭合态与展开态都读同一个 token，盘心始终是「浮起的一层」 */
+  .wheel .disc-hub,
+  .wheel .disc-hub.is-idle,
+  .wheel .disc-hub.is-hover,
+  .wheel .disc-hub.is-wide:not(.is-picked),
+  .wheel.is-open .disc-hub {
+    background: var(--disc-hub);
+  }
   /* 展开态：已选家族的标签转蓝（第六节写的是 var(--blue)，深色自动换成 #6e8bff，无需改） */
 }
+
 /* ===== v42 · 字体真正落地：从"系统兜底"换成"自带可变字体" =====
    问题（实测，不是感觉）：
    1. `--font-body` 第一顺位写的是 "Inter"，但全项目 `@font-face` 数量为 **0**、
@@ -8487,7 +8514,37 @@ footer.foot {
 
 /* ---- 深色模式：纸面与墨色反相，蓝色不动 ----
    与 40-theme.css 的深色块同一判据（prefers-color-scheme: dark），
-   晚于它声明所以能覆盖。深色下不保留纸纹（会在暗底上显脏）。 */
+   晚于它声明所以能覆盖。深色下不保留纸纹（会在暗底上显脏）。
+
+   ==== 2026-11-16：三处 tier 提亮（Eddie 批准）====
+   任务书点名"深色下此前实测 1.09–1.14 的 3 处 tier 元素"。这三处就是
+   .legs/dark-3layers-finish.json（PR #3 修刻线时留下的逐层差分实测）里的
+   L1 填充 1.141 / L2 环带 1.109 / L3 盘心面 1.094 —— 同一块盘的三个分层。
+   本轮的读法与那次不同（那边是"逐层关掉再截图做像素差分"，会把抗锯齿
+   算进比值；这边是 scripts/probe-dark-tiers.mjs 读实际生效色按 WCAG 算），
+   两组数差 ≤0.1、方向一致，判据仍然成立：
+
+     层  被测组合               改前      改后      改前  改后   浅色对照
+     L1  扇区填充 / 盘底 #171717 #232323  #3E3E3E   1.141 1.676  1.269
+     L2  扇区缝 / 扇区填充       --bg     --bg      1.190 1.749  1.744
+     L3  盘心面 / 盘底 #171717  #1E1B16  #46423B   1.045 1.795  1.312
+
+   口径取深色方案**已有元素所在的对比带**，不另立标准：
+   盘面刻线 minor 实测 1.65–1.71（PR #3）、major 2.68–2.71；
+   --stroke-l1 对深底 1.61。三处 tier 落在 1.68–1.80，与刻线同档。
+   不往 3:1 靠：刻线、扇区分块、盘心浮层都是装饰性分层，浅色对应值是
+   1.27 / 1.74 / 1.31，也从没套过 1.4.11 的 3:1。两套盘判据必须一致 ——
+   深色单方面提到 3:1 会让盘面比浅色重一档。
+
+   两条**方向不能反**的关系（改之前就踩了）：
+     · 瓦片必须比盘底亮 —— 改前 #232323 对 #171717 只差 1.14，六块并成一片。
+     · 盘心必须比瓦片亮一点点 —— 浅色是 #FFFFFF / #FDFBF7 = 1.034。
+       第一版把盘心写成 #443E34（比瓦片 #404040 暗，1.011），当场读成
+       "盘心是凹进去的一个洞"，与浅色盘的浮起关系相反。现在 1.071。
+
+   **为什么不直接改 --bg-2**：它同时喂给 .share-card（结果页摘要卡）等
+   非盘面元素，改它等于顺手改了半个结果页。所以另立两个**只给盘面用**的
+   token，消费点全在 70-final.css 的深色块与本节末尾。 */
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14120E;
@@ -8496,8 +8553,13 @@ footer.foot {
     --line: #38332B;
     --hair: #2E2A23;
     --ink: #F5F1E8;
-    --ink-2: #C9C2B4;
-    --ink-3: #9A9284;
+    /* ink-2 / ink-3 一起抬：盘面提到 1.68–1.80 之后，原来压在
+       "1.045 的盘心"上的两档灰字会掉到 3.4–3.9（跌破正文 4.5）。
+       这是提亮的**必要条件**，不是顺手调的。
+       取值按"在每一个深色面上都 ≥4.5，且 ink>ink-2>ink-3 三档台阶可见"：
+       最低各自的比值见下方注释。 */
+    --ink-2: #D2CBBD;   /* 最低 6.13（压在 #434343 的中圈弧片上） */
+    --ink-3: #BAB2A2;   /* 最低 4.70（同上） */
     --edge: #7C7466;
     --stroke-ui: #7C7466;
     --stroke-l1: #3E382F;
@@ -8505,6 +8567,15 @@ footer.foot {
     --stroke-l3: #F5F1E8;
     --stroke-hi: rgba(255, 255, 255, .14);
     --accent: #6E8FE8;
+
+    /* ---- 盘面两层（只此两处消费，不改 --bg-2）----
+       瓦片 #3E3E3E：对盘底 1.676（浅色 1.269）。
+       盘心 #46423B：对盘底 1.795（浅色 1.312），对瓦片 1.071（浅色 1.034）——
+       盘心是浮起件，这条关系两套盘必须同向。
+       盘心带一点暖（R>G>B），与深色纸系 #14120E / #1E1B16 同一色相，
+       不引入一个冷灰的方块。 */
+    --disc-face: #3E3E3E;
+    --disc-hub: #46423B;
   }
 
   body {
