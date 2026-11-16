@@ -182,11 +182,20 @@ def analyse(path_or_bytes):
     return True, m, None
 
 
-def crop_to(src_or_bytes, dst, tw=208, th=352):
-    """按判据裁切并写成 webp。返回 (ok, 指标, 原因)。判据不过就不写文件。"""
+def crop_to(src_or_bytes, dst, tw=208, th=352, force=False):
+    """按判据裁切并写成 webp。返回 (ok, 指标, 原因)。判据不过就不写文件。
+
+    force=True 时**跳过拒收、照样裁切**，并把原拒收原因留在返回值里。
+    这不是给判据开后门用的：判据的默认路径（batch）永远不带 force，
+    所以批量跑图的行为一个字节都没变。它只服务于「人已经逐张看过、
+    判定是判据误杀」的那种特批 —— 那种情况下把图直接丢掉反而更糟，
+    而悄悄放宽全局阈值会让以后所有场景图一起漏进来。
+    每一张 force 的图都必须在回执里点名登记，否则等于绕过判据。
+    """
     ok, m, why = analyse(src_or_bytes)
-    if not ok:
+    if not ok and not force:
         return False, m, why
+    forced_reason = why
     src = BytesIO(src_or_bytes) if isinstance(src_or_bytes, (bytes, bytearray)) else src_or_bytes
     im = Image.open(src).convert('RGB')
     x0, y0, x1, y1 = m['box']
@@ -200,7 +209,7 @@ def crop_to(src_or_bytes, dst, tw=208, th=352):
     im = im.resize((max(1, round(im.width * k)), max(1, round(im.height * k))), Image.LANCZOS)
     os.makedirs(os.path.dirname(dst) or '.', exist_ok=True)
     im.save(dst, 'WEBP', quality=92, method=6)
-    return True, m, None
+    return True, m, forced_reason
 
 
 def main():
@@ -242,6 +251,10 @@ def main():
             items = json.load(fh)
         for it in items:
             rec = {'id': it['id'], 'kind': it.get('kind', 'marketing')}
+            # manifest 里显式写了 force:true 才走特批；不写就是原来的严格判据。
+            # 特批的图会把原拒收原因写进 rec['forced_because']，方便回执逐条点名。
+            if it.get('force'):
+                rec['forced'] = True
             try:
                 ok, m, why = analyse(it['file'])
                 rec.update({k: v for k, v in (m or {}).items() if k != 'box'})
@@ -250,10 +263,15 @@ def main():
                 # 所以这条只对营销图生效，对白底图会误杀。
                 if ok and rec['kind'] == 'marketing' and m.get('hi_sat', 0) > HI_SAT_MARKETING:
                     ok, why = False, f'营销图带高饱和贴纸（{m["hi_sat"] * 100:.1f}% > {HI_SAT_MARKETING * 100:.0f}%）'
+                # 特批：判据判死但人已逐张看过并认定是误杀。原拒收原因留在
+                # forced_because 里，不许丢 —— 丢掉就成了无声绕过。
+                if not ok and rec.get('forced'):
+                    rec['forced_because'] = why
+                    ok, why = True, None
                 rec['ok'] = bool(ok)
                 if ok:
                     dst = os.path.join(outdir, it['id'] + '.webp')
-                    ok2, _, why2 = crop_to(it['file'], dst)
+                    ok2, _, why2 = crop_to(it['file'], dst, force=rec.get('forced', False))
                     if ok2:
                         rec['dst'] = dst
                         rec['bytes'] = os.path.getsize(dst)
