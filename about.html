@@ -58,6 +58,14 @@
     border-left: 3px solid var(--blue, #002fa7);
     background: var(--bg-2, #f2ede4);
   }
+  /* 深色下这块"被框起来的说明"与正文里的 code 是同一档面，
+     1.090 会让它读成没有底的引文。取 #28241D 与 80-specimen.css
+     的深色 tier 提亮同值（对页底 1.212，上面压 --ink-3 仍是 5.01）。
+     写在这里而不是 styles.css：本页 <style> 在 <link> 之后，
+     同权重下它会赢，写在那边会被静默吃掉（实测过一次）。 */
+  @media (prefers-color-scheme: dark) {
+    .about-caveat { background: #28241D; }
+  }
   .about-caveat p:last-child { margin-bottom: 0; }
   .about-back { margin-top: 40px; }
   .about-back a {
