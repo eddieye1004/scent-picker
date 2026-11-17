@@ -62,6 +62,11 @@ const PARTS = [
      顺序本身对观感无影响 —— 实测两层选择器集合**完全不重叠**（quiz-v6 104 个 /
      line-system 11 个，交集 0），谁也覆盖不到谁。 */
   '90-quiz-v6.css',
+  /* 问卷 v7 第 1.5 步：第 1 屏圆盘的设计层（九条缺陷 + 液态玻璃交互）。
+     必须最后：它用 `#app[data-step="family"]` 这个 id 级选择器覆盖
+     70-final 与 20/30 层在圆盘上的取值，且只挂在第 1 屏之下 ——
+     其余七屏与结果页不受影响（那是本层唯一的围栏）。 */
+  '95-quiz-v7-design.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');

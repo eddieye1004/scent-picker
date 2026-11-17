@@ -34,7 +34,22 @@ const isDarkBlock = (index) => {
   const before = CSS.slice(0, index);
   const lastMedia = before.lastIndexOf('@media');
   if (lastMedia < 0) return false;
-  return /prefers-color-scheme\s*:\s*dark/.test(CSS.slice(lastMedia, index));
+  /* v7 第 1.5 步修：原实现只看"这个 :root 之前最近的 @media 条件文本"，
+     但那个 @media 可能早就闭合了。95 层把 :root 放在 styles.css 最末，
+     前面紧邻 90-quiz-v6 的 dark 块 —— 于是整组新 token 被误判成深色版、
+     从 VARS 里消失，四条断言报「CSS 变量缺失」（症状像 token 没定义，
+     实际是这一行判别错）。改成括号计数：@media 已闭合就不算"在里面"。
+     这是把判别改对，不是放宽门槛 —— 真在 dark 里的 :root 仍被跳过。 */
+  const head = CSS.slice(lastMedia, index);
+  const openBrace = head.indexOf('{');
+  if (openBrace < 0) return false;          // 条件还没写完，不算进入
+  let depth = 0;
+  for (let i = 0; i < head.length; i++) {
+    if (head[i] === '{') depth++;
+    else if (head[i] === '}') depth--;
+  }
+  if (depth <= 0) return false;              // 那个 @media 已经闭合
+  return /prefers-color-scheme\s*:\s*dark/.test(head.slice(0, openBrace));
 };
 
 const VARS = {};
@@ -116,6 +131,15 @@ const PAIRS = [
   ['选定态盘心其它（--ink-3 on --bg）', 'ink-3', 'bg', '.disc-hub.is-picked .hub-kicker'],
   ['白 on --blue（选中方格填实）', '#ffffff', 'blue', '.sub-sq.is-on'],
   ['--ink-2 on --bg-3（禁用按钮文案）', 'ink-2', 'bg-3', '.btn:disabled'],
+  /* ---- v7 第 1.5 步：第 1 屏圆盘设计层新增的文字色 ----
+     --spec-ink 是这一层自己的暖墨 #2A2620，同时用于盘心主词、
+     大类标签、盘心标本名与胶囊按钮的字。它必须过 4.5 才算能用；
+     13.8–14.7:1 是实算值。加进审计表而不是绕开断言 ——
+     新 token 一旦承载文字，就该被同一套门守。 */
+  ['--spec-ink on --spec-plate（盘心主词/标签）', 'spec-ink', 'spec-plate', '.disc-hub .hub-zh / .disc-sector.lvl1 .zh'],
+  ['--spec-ink on --bg（盘外胶囊字）', 'spec-ink', 'bg', '.wheel-back / .hub-skip'],
+  ['--spec-ink on 六族色相（标签压在瓦片上）', 'spec-ink', 'spec-tint-citrus', '.disc-sector.lvl1 .zh 落在柑橘瓦片上'],
+  ['--spec-pill-ink on --spec-pill（主按钮）', 'spec-pill-ink', 'spec-pill', '.actions .btn 主操作'],
 ];
 
 /* ---------- 跑 ---------- */

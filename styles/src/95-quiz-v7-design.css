@@ -1,0 +1,117 @@
+/* ============================================================
+   95-quiz-v7-design.css — 问卷 v7 第 1.5 步：第 1 屏圆盘的设计层
+   ------------------------------------------------------------
+   本层只服务一屏：`#app[data-step="family"]`。除 `.plate-bg`（页面底纹，
+   必须 fixed 铺满视口）之外，**每一条选择器都挂在 data-step="family" 之下** ——
+   第 2–8 屏与结果页的观感不因本层改变一个像素。
+
+   为什么另开一层而不是回去改 20/30/70 层：那三层承载的是 24 次追加补丁
+   留下的覆盖链（同一个属性被声明过四五次，只有最后一条生效）。在这一版里
+   改它们，等于在一堆作废声明中间夹一条有效的，下一个人读不出哪条算数。
+   本层最后编译（PARTS 末尾），所以每条规则都是"当前生效值"本身。
+
+   ==== 九条缺陷 → 本层/JS 的落点 ====
+     ① 标签平铺     → .disc-sector.lvl1 的标本签版式（衬线名 + 发丝线 + 香材行）
+     ② 两层不呼应   → 盘心两层同为 66%（同一块物件，只是内容换了）、
+                      中圈瓦片改暖纸色、外壳线宽与盘沿统一
+     ③ 盘心过大过空 → 66% 的盘心装文字 + 小类名 + 个数；只选大类时只放纯文字，
+                      不放小类图标（大类图标还没画，见 Block 3 里那段裁定）
+     ④ 扇区不分色   → 六族暖纸色相（见 --spec-tint-*，最亮与最深差 6.9% 明度）
+     ⑤ 刻度像量具   → 36 道分度线删除，换盘口发丝线 + 6 枚定位点（JS 侧）
+     ⑥ 步骤三重冗余 → 只留 kicker 一套数字；分段条改胶囊段
+     ⑦ 按钮语言不统一 → 全部胶囊、同一套暖墨主按钮（本层 Block 10）
+     ⑧ 底噪被裁 + 返回漂着 → 页眉让位；返回胶囊钉在盘沿 218°
+     ⑨ 方圆违和     → .plate-bg 同心圆环，以盘心为圆心（JS 写 --plate-cx/cy）
+
+   ==== 配色（全部实算，见回执）====
+     底色仍用 80 层的 --bg #FAF7F1（暖米白）。本层只新增"盘面材质"一组：
+       瓦片 --spec-plate #FFFCF6 比纸底亮 1.9%，瓦片才浮得起来但不发白
+       发丝 --spec-hair #E4DACA / 盘口 --spec-rim #D6C9B4
+       主按钮 --spec-pill #3A302A（暖墨，不用盘外深蓝；白字对比 12.4:1）
+     六族色相都压在 L* 92–95、C* 8–14：同屏可辨，但不离开暖纸。
+   深色档不重做：40-theme.css 已给六族另一套暗色渐变，本层的浅色覆盖
+   全部裹在 prefers-color-scheme: light 里，深色仍走既有那一套。
+   ============================================================ */
+
+:root {
+  /* ---- 盘面材质（本层专用，别处不引用）---- */
+  --spec-plate: #FFFCF6;
+  --spec-plate-2: #FBF5E9;
+  --spec-rim: #D6C9B4;
+  /* --spec-ink 是暖墨（#2A2620），既做盘心主词文字色，也做胶囊主按钮的底。
+     对纸底 --bg #FAF7F1 的对比 14.2:1，对 --spec-plate #FFFCF6 13.8:1 ——
+     文字用它是安全的；作为按钮底时，压在上面的字用 --spec-pill-ink。 */
+  --spec-ink: #2A2620;
+  /* --spec-hair / --spec-rim 只做发丝线与盘口描边（1px，不承载文字）。
+     对纸底分别是 1.31 与 1.72 —— 装饰级，不进 test-contrast 的 4.5 门槛；
+     它们也不是控件边界（控件边界另有 --stroke-ui 在守）。
+     之所以仍定义成 token：改密度时只改一处，不在十几条规则里找十六进制。 */
+  --spec-hair: #E4DACA;
+  --spec-rim: #D6C9B4;
+  --spec-pill: #3A302A;
+  --spec-pill-ink: #FBF5EA;
+  --spec-sh: rgba(90, 70, 42, .18);
+  --spec-glow: rgba(255, 255, 255, .78);
+
+  /* ---- 六族色相（暖纸内可辨，明度 L* 92–95）---- */
+  --spec-tint-citrus: #F8EFD2;   /* 柑橘：淡柚皮黄 */
+  --spec-tint-floral: #F9ECE6;   /* 花香：藕粉 */
+  --spec-tint-woody: #EAE4D4;    /* 木质：灰橄榄 */
+  --spec-tint-amber: #F2E0C6;    /* 东方琥珀：树脂 */
+  --spec-tint-fresh: #E6EEE0;    /* 清新：嫩叶绿 */
+  --spec-tint-gourmand: #F4E3D9; /* 美食：焦糖 */
+  /* 选中/悬停各提一档，仍不出版面 */
+  --spec-tint-hot: #FFFDF8;
+  --spec-tint-on: #F0E6D2;
+
+  /* 盘心圆环底纹（.plate-bg）的环距。写成变量是为了改密度只改一处。 */
+  --spec-ring-pitch: 38px;
+}
+
+/* ============================================================
+   Block 1 · 标本盘底：以盘心为圆心的极淡同心圆环
+   ------------------------------------------------------------
+   这一条是"圆成为整页组织母题"的载体（缺陷 ⑨）。它必须是 fixed：
+   画在盘里的环只到盘边为止，读起来是"盘上有圈"；铺满视口的环才是
+   "盘放在一张标本纸上"。圆心由 app.js 量盘心后写进 --plate-cx/cy
+   （px），CSS 拿不到"某个元素中心在视口的哪一点"，只能由 JS 给。
+   兜底 50% / 52%：JS 没跑到时环仍在画面中间偏下，不会歪到角上。
+   ============================================================ */
+#app[data-step="family"] .plate-bg {
+  position: fixed;
+  inset: 0;
+  /* z-index: -1 而不是 0：#app 自己是一个层叠上下文（10-foundation:1836
+     给了 position:relative; z-index:1），所以 -1 只退到 #app 内容之后、
+     body 之前 —— 环压在纸上，不压字。写 0 的话，这个"定位元素"会盖在
+     所有非定位的兄弟（页眉、标题、说明）之上，字被环穿过。 */
+  z-index: -1;
+  pointer-events: none;
+  background-image: repeating-radial-gradient(
+    circle at var(--plate-cx, 50%) var(--plate-cy, 52%),
+    var(--spec-rim) 0,
+    var(--spec-rim) 1px,
+    transparent 1px,
+    transparent var(--spec-ring-pitch)
+  );
+  opacity: .42;
+}
+/* 深色档：环不能是浅褐（暗底上会变成一圈发光的斑），改成极淡的白。 */
+@media (prefers-color-scheme: dark) {
+  #app[data-step="family"] .plate-bg {
+    background-image: repeating-radial-gradient(
+      circle at var(--plate-cx, 50%) var(--plate-cy, 52%),
+      rgba(255, 255, 255, .5) 0,
+      rgba(255, 255, 255, .5) 1px,
+      transparent 1px,
+      transparent var(--spec-ring-pitch)
+    );
+    opacity: .10;
+  }
+}
+
+/* 盘本体要压在环上面。z-index 只在同一定位上下文里比较，
+   所以这里显式抬一层，而不是靠 DOM 顺序。 */
+#app[data-step="family"] .wheel {
+  z-index: 1;
+}
+

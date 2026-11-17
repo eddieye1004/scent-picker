@@ -501,7 +501,7 @@ function applyDirectionToCharacter(emotionId) {
    页面里 `document.documentElement.dataset.build` 会带上它。
    用途是"这次看到的到底是哪份代码"—— 改完 app.js 如果这个值没变，
    说明浏览器还在跑缓存的旧文件，别去猜渲染逻辑。 */
-const BUILD_ID = '2026-11-17-quiz-v7-step1-wheel';
+const BUILD_ID = '2026-11-17-quiz-v7-step15-design';
 
 /* ---------- 上色图标（结果页实物图的降级瓶形，与盘心标本共用同一批） ----------
    24 枚上色版在 ./icon-specimen/svg/ 合计 295.6KB / gzip 80.1KB，
@@ -667,7 +667,6 @@ function scentPlate(sub) {
     .map((en) => TAX.noteIndex.entries.find((x) => normNote(x.en) === normNote(en)))
     .filter(Boolean);
   if (!entries.length) return null;
-
   /* 只画一枚，画得大。图标内容全部来自 ./icon-specimen/svg/ 的上色版，
      这里不再有本地线稿：线稿是过渡期的兜底，实测会先闪一帧旧图形再被替换，
      用户看得见，所以整条线稿通路连同 SUB_MARKS / PLATE_MOTIFS / SUB_FIT 一起删了。
@@ -1515,6 +1514,17 @@ const AXIS_OF_FAMILY = {
 /* ---------- 第 1 步：香型轮盘（外圈家族 + 中圈子家族）---------- */
 function renderFamily() {
   const wrap = el('div', { class: 'fade-in' });
+
+  /* ==== 标本盘底（缺陷 ⑨，v7 第 1.5 步）====
+     以圆盘为圆心、铺满整个视口的极淡同心圆环。它解决的是"方圆违和"：
+     页面骨架全是直角（页眉粗线、进度条、说明文字块），只有中间一块圆盘，
+     圆因此读成"页面上贴了一张图"。有了同心环，圆成为整页的组织母题 ——
+     六族的角、盘心、标签位置都是同一个圆心的半径。
+     fixed 层所以必须挂在 #app 之外？不必：`position:fixed` 的元素即使
+     在 DOM 里是 #app 的子节点，也相对视口定位。挂在 wrap 里是为了让
+     render() 重建时它随之出场/退场，不需要额外的清理逻辑。
+     圆心由 buildWheel 的 layoutRim() 量出来写进 --plate-cx/--plate-cy。 */
+  wrap.appendChild(el('div', { class: 'plate-bg', 'aria-hidden': 'true' }));
 
   wrap.appendChild(el('div', { class: 'stage-lead' },
     el('div', { class: 'q-kicker' }, stepHead('family').kicker),
