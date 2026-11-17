@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="美食调"><title>美食调</title><defs>
+  <linearGradient id="gdSponge" x1="0.05" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#FBEBC2"/><stop offset="0.52" stop-color="#E7C68C"/><stop offset="1" stop-color="#B98F52"/></linearGradient>
+  <linearGradient id="gdCream" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#FFFDF4"/><stop offset="0.55" stop-color="#F7E7C6"/><stop offset="1" stop-color="#DDC088"/></linearGradient>
+  <linearGradient id="gdChoco" x1="0.1" y1="0" x2="0.85" y2="1"><stop offset="0" stop-color="#9A6832"/><stop offset="0.55" stop-color="#71481E"/><stop offset="1" stop-color="#4A2A10"/></linearGradient>
+  <radialGradient id="gdCherry" cx="0.34" cy="0.24" r="0.86"><stop offset="0" stop-color="#FFC2CD"/><stop offset="0.38" stop-color="#F08298"/><stop offset="0.76" stop-color="#C4213C"/><stop offset="1" stop-color="#8E1E36"/></radialGradient>
+  <linearGradient id="gdStem" x1="0" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#8AD49B"/><stop offset="1" stop-color="#2C6B3F"/></linearGradient>
+  <linearGradient id="gdDrip" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#B07C42"/><stop offset="1" stop-color="#5E3A16"/></linearGradient>
+</defs>
+  <path d="M 5.55 10.15 L 18.75 18.15 L 5.55 18.15 Z" fill="url(#gdSponge)" stroke="#8A5C2A" stroke-width="0.9"/>
+  <path d="M 5.55 18.16 L 18.77 18.16 L 15.37 16.1 L 5.55 16.1 Z" fill="url(#gdChoco)" stroke="#4A2A10" stroke-width="0.3"/>
+  <path d="M 5.55 16.1 L 15.37 16.1 L 12.81 14.55 L 5.55 14.55 Z" fill="url(#gdSponge)" stroke="#8A5C2A" stroke-width="0.22"/>
+  <path d="M 5.55 14.55 L 12.81 14.55 L 10.34 13.05 L 5.55 13.05 Z" fill="url(#gdCream)" stroke="#DDC088" stroke-width="0.22"/>
+  <path d="M 5.55 13.05 L 10.34 13.05 L 8.03 11.65 L 5.55 11.65 Z" fill="url(#gdSponge)" stroke="#8A5C2A" stroke-width="0.2"/>
+  <path d="M 5.55 11.65 L 8.03 11.65 L 5.55 10.15 L 5.55 10.15 Z" fill="url(#gdCream)" stroke="#DDC088" stroke-width="0.18"/>
+  <path d="M 5.55 10.15 C 6.35 8.95 7.9 8.32 9.42 8.62 C 10.6 8.85 11.1 9.62 10.72 10.32 C 10.28 11.15 9.32 11.32 8.45 10.98 C 7.5 10.6 6.4 10.62 5.55 10.15 Z" fill="url(#gdCream)" stroke="#DDC088" stroke-width="0.62"/>
+  <path d="M 6.05 9.55 C 7 8.82 8.3 8.6 9.28 8.86" fill="none" stroke="#FFFDF4" stroke-width="0.42" opacity="0.85"/>
+  <path d="M 10.62 8.95 C 11.1 8.55 11.5 8.42 11.85 8.45 C 11.45 9.05 10.95 9.2 10.62 8.95 Z" fill="url(#gdChoco)" stroke="#4A2A10" stroke-width="0.24" opacity="0.8"/>
+  <path d="M 10.05 7.95 C 9.92 6.95 10.35 6.05 11.22 5.32" fill="none" stroke="url(#gdStem)" stroke-width="0.44"/>
+  <circle cx="10.12" cy="8.78" r="1.38" fill="url(#gdCherry)" stroke="#8E1E36" stroke-width="0.7"/>
+  <circle cx="9.62" cy="8.32" r="0.34" fill="#FFE2E8" opacity="0.72"/>
+  <path d="M 11.05 5.18 C 11.62 4.55 12.3 4.48 12.72 4.82 C 12.2 5.28 11.52 5.34 11.05 5.18 Z" fill="#3E8F52" stroke="#2C6B3F" stroke-width="0.26"/>
+  <path d="M 6.55 12.35 C 7.9 13.02 9.9 13.5 11.95 13.7" fill="none" stroke="#FFF8E4" stroke-width="0.32" opacity="0.45"/>
+  <path d="M 12.55 16.1 C 12.95 16.55 13 17 12.72 17.4" fill="none" stroke="#B07C42" stroke-width="0.3" opacity="0.5"/>
+  <circle cx="13.7" cy="17.42" r="0.2" fill="#4A2A10" opacity="0.42"/>
+  <circle cx="15.55" cy="17.62" r="0.16" fill="#4A2A10" opacity="0.34"/>
+  <circle cx="11.55" cy="17.7" r="0.18" fill="#4A2A10" opacity="0.34"/>
+  <path d="M 8.62 17.9 L 8.92 17.9" fill="none" stroke="#4A2A10" stroke-width="0.28" opacity="0.4"/>
+</svg>

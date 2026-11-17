@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="东方琥珀调"><title>东方琥珀调</title><defs>
+  <radialGradient id="amStone" cx="0.34" cy="0.22" r="0.9"><stop offset="0" stop-color="#FFF7DA"/><stop offset="0.3" stop-color="#FFD066"/><stop offset="0.68" stop-color="#E79B1C"/><stop offset="1" stop-color="#A85F04"/></radialGradient>
+  <radialGradient id="amWin" cx="0.4" cy="0.3" r="0.72"><stop offset="0" stop-color="#FFF6CE"/><stop offset="0.55" stop-color="#FFDA7C"/><stop offset="1" stop-color="#E79B1C"/></radialGradient>
+  <linearGradient id="amBase" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" stop-color="#E8A62C"/><stop offset="0.55" stop-color="#C97A0C"/><stop offset="1" stop-color="#8E4E02"/></linearGradient>
+</defs>
+  <path d="M 10.15 4.62 C 12.4 4.02 14.85 4.55 16.72 6.02 C 18.62 7.52 19.7 9.72 19.42 12.02 C 19.16 14.2 18.05 16.35 16.15 17.55 C 14.15 18.82 11.55 18.95 9.42 17.95 C 7.3 16.95 5.85 14.9 5.45 12.62 C 5.05 10.25 5.75 7.72 7.35 6.32 C 8.05 5.7 9.05 4.92 10.15 4.62 Z" fill="url(#amStone)" stroke="#8A4A06" stroke-width="0.92"/>
+  <path d="M 7.05 15.35 C 7.62 13.55 9.55 12.12 11.72 11.85 C 13.55 11.62 15.25 12.12 16.15 13.12 C 17.05 14.12 17.32 15.72 17.42 17.05 C 17.48 17.85 17.05 18.62 16.3 18.82 C 14.05 18.55 11.55 18.85 9.05 18.12 C 7.95 17.78 7.02 17.02 6.82 15.98 C 6.68 15.28 6.98 14.65 7.05 15.35 Z" fill="url(#amBase)" stroke="#8A4A06" stroke-width="0.42" opacity="0.5"/>
+  <ellipse cx="10.65" cy="13.15" rx="3.02" ry="2.28" transform="rotate(-12 10.65 13.15)" fill="url(#amWin)" stroke="#C98217" stroke-width="0.34" opacity="0.95"/>
+  <g opacity="0.86">
+    <path d="M 9.05 13.62 C 8.42 13.5 8.02 13.24 7.78 12.95" fill="none" stroke="#4E2608" stroke-width="0.23"/>
+    <path d="M 9.02 13.86 C 8.42 13.96 8.05 13.86 7.72 13.7" fill="none" stroke="#4E2608" stroke-width="0.23"/>
+    <path d="M 9.32 14.12 C 9.02 14.52 8.7 14.68 8.36 14.78" fill="none" stroke="#4E2608" stroke-width="0.23"/>
+    <path d="M 9.78 14.2 C 9.85 14.62 10.05 14.9 10.3 15.1" fill="none" stroke="#4E2608" stroke-width="0.22"/>
+    <path d="M 11.24 12.22 C 11.48 12.0 11.72 11.92 11.95 11.9" fill="none" stroke="#4E2608" stroke-width="0.22"/>
+    <path d="M 11.05 12.72 C 11.35 12.55 11.6 12.52 11.82 12.58" fill="none" stroke="#4E2608" stroke-width="0.22"/>
+    <ellipse cx="10.28" cy="13.55" rx="0.92" ry="0.58" transform="rotate(-18 10.28 13.55)" fill="#4E2608"/>
+    <ellipse cx="10.48" cy="13.42" rx="0.52" ry="0.24" transform="rotate(-18 10.48 13.42)" fill="#6B3A10" opacity="0.8"/>
+    <circle cx="11.36" cy="13.12" r="0.4" fill="#3E1C04"/>
+    <path d="M 10.9 13.28 C 11.12 13.06 11.3 13.0 11.46 12.98" fill="none" stroke="#FFF3C8" stroke-width="0.18" opacity="0.6"/>
+  </g>
+  <path d="M 9.42 5.95 C 10.5 5.32 11.9 5.02 13.15 5.12" fill="none" stroke="#FFFDF2" stroke-width="0.8" opacity="0.8"/>
+  <path d="M 15.55 5.92 C 16.72 6.98 17.45 8.42 17.62 9.92" fill="none" stroke="#FFEFBE" stroke-width="0.36" opacity="0.5"/>
+  <path d="M 7.55 6.85 C 7.05 7.9 6.75 9.05 6.72 10.15" fill="none" stroke="#FFFBE8" stroke-width="0.34" opacity="0.5"/>
+  <circle cx="14.9" cy="15.62" r="0.3" fill="#FFF8E0" stroke="#B8700C" stroke-width="0.2" opacity="0.75"/>
+  <circle cx="15.62" cy="14.28" r="0.19" fill="#FFF8E0" stroke="#B8700C" stroke-width="0.18" opacity="0.62"/>
+  <circle cx="7.62" cy="11.42" r="0.17" fill="#FFF8E0" stroke="#B8700C" stroke-width="0.18" opacity="0.5"/>
+  <path d="M 16.35 16.55 C 15.92 17.5 15.05 18.2 14.0 18.55" fill="none" stroke="#7A3E02" stroke-width="0.36" opacity="0.4"/>
+</svg>
