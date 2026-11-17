@@ -25,7 +25,7 @@ import path from 'node:path';
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const PORT = 9452;
 const OUT = 'C:/Users/16256/work/.legs/quiz-v7-step1-shots';
-const URL_ = process.env.SHOT_URL || 'http://127.0.0.1:8093/';
+const URL_ = process.env.SHOT_URL || 'http://127.0.0.1:8080/';
 const W = 1440;
 const H = 900;
 
@@ -87,7 +87,18 @@ for (let i = 0; i < 60; i++) {
 }
 await sleep(600);
 
+/* ---- 构建校验：先核对"跑的是哪份代码"，再截图 ----
+   实测踩过：端口上跑的是**另一个 worktree** 的 server.js（服务 v6 的 app.js），
+   脚本照样"成功"产出截图，而图里根本没有圆盘。所以不一致就退出，不产假图。 */
+const diskBuild = (fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8')
+  .match(/BUILD_ID = '([^']+)'/) || [])[1];
+
 const build = await ev(`document.documentElement.dataset.build`);
+if (diskBuild && build !== diskBuild) {
+  console.error(`构建不符：页面 ${build} / 磁盘 ${diskBuild}\n`
+    + `  ${URL_} 上没有在跑当前 worktree 的代码（换端口，或先 node server.js <port>）`);
+  ws.close(); proc.kill(); process.exit(2);
+}
 const fams = await ev(`[...document.querySelectorAll('.sector-g')].map((g) => g.getAttribute('data-fam'))`);
 const famZh = await ev(`[...document.querySelectorAll('.sector-g')].map((g) => (g.querySelector('.zh') || {}).textContent || '')`);
 

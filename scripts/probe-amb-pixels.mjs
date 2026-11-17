@@ -15,7 +15,7 @@ import zlib from 'node:zlib';
 
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const PORT = 9455;
-const URL_ = process.env.SHOT_URL || 'http://127.0.0.1:8157/';
+const URL_ = process.env.SHOT_URL || 'http://127.0.0.1:8080/';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* 极简 PNG 解码：只处理 8bit RGB/RGBA、无隔行 —— CDP 截出来就是这种。 */

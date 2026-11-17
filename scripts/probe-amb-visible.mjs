@@ -16,7 +16,7 @@ import fs from 'node:fs';
 
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const PORT = 9453;
-const URL_ = process.env.SHOT_URL || 'http://127.0.0.1:8157/';
+const URL_ = process.env.SHOT_URL || 'http://127.0.0.1:8080/';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const proc = spawn(EDGE, [
