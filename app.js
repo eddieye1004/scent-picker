@@ -19,24 +19,36 @@ import { ambientOf, ambientVars } from './src/ambient.js';
 const state = {
   step: 0,
   answers: {
-    /* ==== 2026-11-16 问卷 v6：八屏，两层结构 ====
-       规格正本 design-logic-study-20261116.md 五·补（22:56 定版）。
-       与 v5 相比两处结构性改动：
+    /* ==== 2026-11-17 问卷 v7 第 1 步：圆盘回到第一屏 ====
+       v6 的两处结构性改动里，② 被 Eddie 否决（"删了开屏圆盘、删了 24 个图标"），
+       本步把它恢复；① 预算前置保留，只是退到第 2 屏 ——
+       它仍在除大方向外的所有偏好题之前，"先圈池再问偏好"未被破坏。
+
+       v6 的原注释（为什么当年撤盘）留在这里当反面记录，不删：
          ① **预算前置到第 1 屏**（规格：预算题前置，先圈池再问偏好）；
          ② **香型轮盘退场**：那张盘的六个扇区写着「柑橘调 / 花香调 /
             东方琥珀调」，中圈是「古龙水型 / 白花」，它本身就是一道香调术语题 ——
-            而规格底线是「全程无香调术语题」。学它的是设计逻辑（控件即内容、
-            反馈即内容本身的变化），不是把盘的形式搬进每一屏。
-       轮盘的几何=内容这条逻辑落在两处：场合（地平线的位置=时刻）、
-       浓淡（同心环的半径=扩散距离）。
+            而规格底线是「全程无香调术语题」。
+       ② 的论证本身没错，错在结论：盘上的六个词是"香水家族名"，
+       而用户不必认识它们也能选 —— 盘心第一个状态就写着「还没选 / 从外圈挑一个大类」，
+       每一块扇区下面还挂着两味具体香材（柠檬·佛手柑）。术语是**注解**，
+       不是题面。真正的术语题是 v5 那两屏"点名佛手柑"的 chip 墙，那两屏仍不在。
 
-       family / subfamily 保留为 null 而不删：src/scoring.js 的 buildProfile
-       按「family 或 emotion 二选一」取入口，v6 一律走 emotion 入口；
-       删键会让 scoring 的读取变成 undefined —— 行为等价但键表分叉，留着更安全。 */
+       family / subfamily 是圆盘的落点，也是 src/scoring.js 的第一条入口
+       （buildProfile 按「family 或 emotion 二选一」取入口）。
+       direction 是底噪的方向（六轴 id），由 AXIS_OF_FAMILY 从 family 换算 ——
+       两者分开存，是因为一个是"给引擎的口味"，一个是"给背景的光"，
+       合并成一个字段会让两者互相污染。 */
     family: null,
     subfamily: null,
-    /* 第 2 屏「大方向」。值来自 TAX.emotionMap 的六个 id。
-       它同时是**背景层底噪的唯一来源**（src/ambient.js 第 1 条纪律）。 */
+    /* 底噪方向。值域是 src/ambient.js 的 DIRECTION_AXES 六个键
+       （cold/warm/clean/mysterious/bright/lazy）。写入点只有一个：
+       renderFamily 的 onChange —— 圆盘选了家族就换算成轴。
+       **不改评分**：scoring.js 不读这个键。 */
+    direction: null,
+    /* 第 3 屏「大方向」。值来自 TAX.emotionMap 的六个 id。
+       圆盘没有给方向时（用户跳过了第 1 屏），它才充当底噪来源 ——
+       判定写在 src/ambient.js 的 ambientOf 里，不在这里。 */
     emotion: null,
     /* 第 1 屏预算。值 = data/price-bands.json 的 bands[].id，或 'any'。
        **刻意不进 activeDims**：它是候选范围，不是偏好证据。把它写进答案会让
@@ -65,6 +77,18 @@ const state = {
     characterNeg: [],
     temperature: null,          // 'warm' | 'cool' | 'neutral'
     sweetness: null,            // 0..3
+    /* ==== 已知款（anchor）三个键：屏已撤，键保留 ====
+       v7 定版的流程里没有"已知款"这一题，入口（STEPS / renderAnchor /
+       brandsCombobox / navBar / SCENE）已整块删除。但**这三个键不能删**：
+       src/scoring.js 的 anchorNotes 因子（26 分）直接读它们
+       （buildProfile 的 anchorNotes / anchorPerfumeId，见 scoring.js:332-337），
+       删键会让那边的读取从「空集」变成「undefined」。
+
+       行为上两者等价（都是不加分不扣分），但 activeDims 的计数与
+       profile 的键表会分叉 —— 这个仓库已经因为"加字段时漏更新 restart"
+       踩过两次（见 restart 的注释）。所以留键、不写入：
+       它们永远保持空，anchor 因子永远整条跳过，与 v6「用户跳过那一屏」
+       逐位一致。将来若恢复这一屏，写入口接回去即可。 */
     anchorBrand: null,
     anchorPerfume: null,        // perfume.id
     anchorNotes: [],            // 香调 en 列表
@@ -123,54 +147,53 @@ const el = (tag, attrs = {}, ...kids) => {
   return n;
 };
 
-/* ---------- 步骤定义（2026-11-16 v6：八屏） ----------
+/* ---------- 步骤定义（2026-11-17 v7 第 1 步：圆盘回到第一屏） ----------
 
-   ==== 这一版的题目从哪来 ====
-   规格底线四条，逐条落在这里：
-     · 全程无香调术语题 —— 第 3 / 4 屏问的是「生活里记得的味道」
-       （刚剥开的橘子皮 / 寺庙的香灰），不是「佛手柑 / 焚香」。
-       术语只活在映射表 LIFE_NOTES 里，用户点的那一头全是人话。
-     · 预算前置 —— 第 1 屏，先圈池再问偏好。理由不是转化率，
-       是**后六屏的每一次选择都发生在同一个候选池里**：用户不会在最后
-       发现自己答了半天、池子里一半买不起。
-     · 结果页保留「换一批 / 改一题重推」—— 见 renderResult。
-     · 三瓶 + 前中后调 + 可反推理由 —— 引擎打分一行没动，理由仍由 breakdown 生成。
+   ==== 这一版相对 v6 只动两处 ====
+     · 第 1 屏换回香型圆盘（id 'family'），它同时是背景底噪的方向来源；
+     · 末屏「已知款（anchor）」按 v7 定版撤掉 —— 定版流程里没有这一题
+       （圆盘 → 避雷 → 场合 → 季节 → 浓淡 → 预算 → 结果），
+       而且它要求用户认得瓶子，与"零基础"这条前提相反。
+   其余七屏（budget / emotion / wanted / unwanted / occasion / season /
+   concentration）与结果页一律不动 —— 后续步骤另行派工。
 
-   ==== 八屏的顺序不是随意的 ====
-     1 budget        先圈池（范围）
-     2 emotion       **第一个大方向**，同时是背景层底噪的来源（src/ambient.js）
-     3 wanted        想要的味道（生活短语，多选）
-     4 unwanted      受不了的味道（同上，强惩罚 -40）
-     5 occasion      场合 —— 决定浓淡与时段
-     6 season        季节 —— 温度光带（.temp-band），Eddie 定版范例之一
-     7 concentration 浓淡＋浓度（扩散场：同心环半径＝扩散距离）
-     8 anchor        已知款（唯一需要认瓶子的题，可跳过）
+   ==== 八屏的顺序 ====
+     1 family        香型圆盘 —— 定大方向，同时点燃背景底噪
+     2 budget        先圈池（范围）
+     3 emotion       大方向（v6 原屏，本步不动）
+     4 wanted        想要的味道（生活短语，多选）
+     5 unwanted      受不了的味道（同上，强惩罚 -40）
+     6 occasion      场合 —— 决定浓淡与时段
+     7 season        季节 —— 温度光带（.temp-band），Eddie 定版范例之一
+     8 concentration 浓淡＋浓度（扩散场：同心环半径＝扩散距离）
 
-   为什么第 2 屏必须是「大方向」而不是场合：规格 3 说底噪由第一个大方向定调。
-   若场合排在它前面，底噪的起点会落在第 3 屏，前两屏之间出现一次"突然开灯"。
-   而那段恰恰是用户刚决定"我想要什么感觉"的地方 —— 沉浸感要求灯先亮、再走。
+   为什么第 1 屏是圆盘：Eddie 2026-11-17 否决 v6 的第一条就是「删了开屏圆盘」。
+   开屏那张盘是这个产品唯一一处"控件即内容"—— 外圈六族、中圈 24 个小类，
+   父子关系画在同一张图上。预算退到第 2 屏不破坏 v6 的"先圈池再问偏好"：
+   它仍在除大方向之外的所有偏好题之前。
 
-   为什么「气质」退场：它与第 2 屏的大方向是同一件事的两种问法（都问"给人的感觉"）。
-   八屏里留一个就够，重复问一遍只会让用户怀疑刚才那题白答。
-   气质原型的信息没丢 —— 由大方向反推填充，见 applyDirectionToCharacter()。
+   为什么底噪的方向来源可以是圆盘：src/ambient.js 的第 1 条纪律要求
+   "来源只能是第一个大方向"。圆盘选出来的家族就是第一个大方向，
+   换算表见 AXIS_OF_FAMILY（六族 ↔ 六轴的最优匹配，720 种配法里最高那组）。
+   第 3 屏的大方向屏仍然在，它只在圆盘没给方向时才充当来源 ——
+   两个来源都写进 answers（direction / emotion），谁先给谁算数。
 
-   为什么季节**不**退场（这条曾经写反过，2026-11-17 更正）：
-   上一版注释声称"季节退场"，但 season 一直是 STEPS 里的第 6 条，实测八屏。
-   而且规格正本 design-logic-study-20261116.md §五·补把它列为 Eddie 亲自
-   确认的三个定版范例之一（季节题→温度光带），删掉它就违反了规格。
-   季节屏的 temp-band 是**这一屏自己的**效果，不充当全卷装置 ——
-   底噪的来源是第 2 屏大方向，两者不可混。所以：保留 season，改注释。
-
-   为什么「整族排除」退场：它在家族入口下实测 0/30 改变 top-3
-   （scripts/probe-step6-options.mjs，2026-11-09），而 v6 已无家族入口。
-   留着只会让一部人多一屏、另一部人少一屏，进度条数字对不上。
+   为什么「气质」不在这一版出现：它与「大方向」是同一件事的两种问法。
+   v6 里气质原型由大方向反推填充，见 applyDirectionToCharacter()，信息没丢。
    */
 const STEPS = [
+  {
+    id: 'family',
+    short: '香型',
+    title: '你闻着舒服的，是哪一类味道？',
+    help: '不用记名字。外圈挑大方向，中圈再收窄一层；不确定就只选外圈',
+    render: renderFamily,
+  },
   {
     id: 'budget',
     short: '预算',
     title: '你打算花多少钱？',
-    help: '先圈个范围，后面七屏只在这个范围里挑。不限也行，只是候选会多很多',
+    help: '先圈个范围，后面几屏只在这个范围里挑。不限也行，只是候选会多很多',
     render: renderBudget,
   },
   {
@@ -226,28 +249,18 @@ const STEPS = [
     help: '先说体感（想让人闻到多重的分量），再说浓度类型（决定留香多久）。两项都不选也能出结果',
     render: renderConcentration,
   },
-  {
-    id: 'anchor',
-    short: '已知款',
-    title: '有没有已经试过、并且喜欢的香水？',
-    /* help 第一句就卸压力并把"跳过"放最前。原句把"可跳过"放在"最准"之后，
-       读起来像"可跳过但跳了就亏"，会让零基础的人卡在这里。 */
-    help: '不记得名字就跳过 —— 这是唯一一题需要你认得瓶子的，答不出很正常。'
-      + '如果记得品牌，选一下会明显更准',
-    render: renderAnchor,
-  },
 ];
 
 /* 当前生效的步骤表。
 
-   v6 起**八屏固定**，没有 when 条件（v5 的「整族排除」只在情绪入口出现，
-   v6 第 2 屏就是大方向，等于所有用户都走那条路，那屏已无意义 —— 见 STEPS 注释）。
+   八屏固定，没有 when 条件（v5 的「整族排除」只在情绪入口出现，
+   而 v7 起第 1 屏就是圆盘，等于所有用户都走那条路，那屏已无意义 —— 见 STEPS 注释）。
 
    函数保留而不删：所有「第 N 步 / 共 M 步」与进度段数都必须走它，
    不许读 STEPS.length。两套数字一旦分叉，界面会显示「共 8 步」但只有 7 屏，
    用户翻到第 7 屏就出结果，会以为漏了一屏。 */
 function curSteps(answers = state.answers) {
-  /* answers 参数保留（调用点都在传），但 v6 无 when —— 步骤数与答案无关。
+  /* answers 参数保留（调用点都在传），但无 when —— 步骤数与答案无关。
      void 掉是为了提醒下一个想加 when 的人：一旦重新引入条件，
      所有靠 S.cur({}) 断言步数的测试会一起变。 */
   void answers;
@@ -488,7 +501,7 @@ function applyDirectionToCharacter(emotionId) {
    页面里 `document.documentElement.dataset.build` 会带上它。
    用途是"这次看到的到底是哪份代码"—— 改完 app.js 如果这个值没变，
    说明浏览器还在跑缓存的旧文件，别去猜渲染逻辑。 */
-const BUILD_ID = '2026-11-16-quiz-v6';
+const BUILD_ID = '2026-11-17-quiz-v7-step1-wheel';
 
 /* ---------- 上色图标（结果页实物图的降级瓶形，与盘心标本共用同一批） ----------
    24 枚上色版在 ./icon-specimen/svg/ 合计 295.6KB / gzip 80.1KB，
@@ -574,6 +587,1077 @@ function noteZhOf(en) {
   const e = TAX && TAX.noteIndex ? TAX.noteIndex.entries.find((x) => normNote(x.en) === normNote(en)) : null;
   return e ? e.zh : String(en);
 }
+
+/* ============================================================
+   第 1 屏：香型轮盘（2026-11-17 v7 第 1 步，原样恢复）
+   ------------------------------------------------------------
+   源码出处：PR #5（v6）合并之前的主线 a39e498（= PR #3 合并点 652107e
+   加 PR #4 视觉层），即**当时线上跑的那一版**。逐字节取回，不改设计、
+   不改 24 枚图标。v6 把它换成预算 + 天际线两屏之后被 Eddie 否决：
+   「删了开屏圆盘、删了圆盘 24 个香型图标」（quiz-structure-v7 §背景）。
+
+   ==== 为什么必须原样，而不是"用 v6 的语言重画一张盘" ====
+   盘不是装饰，它是这个产品唯一一个"控件即内容"的地方：外圈六族、
+   中圈 24 个小类，父子关系画在同一张图上，用户在盘上就能看见
+   「我在哪一层、往两边各还有什么」。重画一遍必然带进新的几何假设，
+   而那 24 枚标本图标是按 480 视框、24×24 视框、同一线宽配的 ——
+   换骨架等于让它们全部失配（README 里那三条 24px 硬限制就是为此写的）。
+
+   ==== 与 v6 的接线只有两处（本步唯一的增量）====
+    ① 底噪：选定家族 → AXIS_OF_FAMILY 给出六轴之一 → 写 answers.direction，
+       src/ambient.js 拿它当"第一个大方向"，从第 1 屏就开始亮（见下方表）；
+    ② 评分：family / subfamily 原样写进 answers，src/scoring.js 一行未动，
+       所以推荐口径与 PR #5 之前逐位一致（test-gold 的家族画像仍是 2/12·4/12）。
+   其余六屏（budget / emotion / wanted / unwanted / occasion / season /
+   concentration）本步一律不动。
+   ============================================================ */
+
+/* ---------- 盘的 SVG 几何基元 ----------
+   取回自 a39e498:280-316，只留轮盘用得到的四件（DISC / buildDisc 属场合屏
+   旧单层盘，v6 起场合屏已换地平线，那里不需要，故不取回）。 */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+/* 两个盘（本屏的同心轮盘、以及历史上的场合盘）视框都是 480×480、
+   圆心都在 (240,240)。圆心抽成一个常量：它不可能一边改一边不改。 */
+const VB_CENTER = 240;
+
+function polar(r, deg) {
+  const rad = (deg * Math.PI) / 180;
+  return [VB_CENTER + r * Math.cos(rad), VB_CENTER + r * Math.sin(rad)];
+}
+
+/** 环形扇区的 path。外弧顺时针、内弧逆时针，一次成闭合面。 */
+function annulusPath(rOut, rIn, a0, a1) {
+  const [x0o, y0o] = polar(rOut, a0);
+  const [x1o, y1o] = polar(rOut, a1);
+  const [x1i, y1i] = polar(rIn, a1);
+  const [x0i, y0i] = polar(rIn, a0);
+  const large = a1 - a0 > 180 ? 1 : 0;
+  return `M ${x0o.toFixed(2)} ${y0o.toFixed(2)}`
+    + ` A ${rOut} ${rOut} 0 ${large} 1 ${x1o.toFixed(2)} ${y1o.toFixed(2)}`
+    + ` L ${x1i.toFixed(2)} ${y1i.toFixed(2)}`
+    + ` A ${rIn} ${rIn} 0 ${large} 0 ${x0i.toFixed(2)} ${y0i.toFixed(2)} Z`;
+}
+
+function svgEl(tag, attrs) {
+  const n = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  return n;
+}
+
+/* ---------- 多层香型轮盘（第 1 步）----------
+   为什么是同心圆而不是两页问卷：
+   香水的分类本身就是树（家族 → 子家族 → 香材）。做成两页会把"我在哪一层"这个
+   信息抹掉——用户翻到第 2 页就看不见自己选的是哪个大类了。
+   同心圆把父子关系画在同一张图上：外圈是父亲，中圈是儿子，盘心写着当前走到哪。
+   香水圈流传的「香气轮盘」（4 大组 / 13 小组）本来就是这个做法。 */
+const WHEEL = {
+  vb: 480,
+  cx: VB_CENTER,
+  cy: VB_CENTER,
+  r1o: 228,
+  r1i: 158,   // 外圈：6 个香型家族
+  r2o: 152,
+  r2i: 106,   // 中圈：所选家族的子家族
+  // 盘心取中圈内接正方形：r2i=106 → 106×√2 = 149.9 → 149.9/480 = 31.2%，留余量取 30.6%
+  hubPct: 30.6,
+};
+
+function scentPlate(sub) {
+  const entries = (sub.notes || [])
+    .map((en) => TAX.noteIndex.entries.find((x) => normNote(x.en) === normNote(en)))
+    .filter(Boolean);
+  if (!entries.length) return null;
+
+  /* 只画一枚，画得大。图标内容全部来自 ./icon-specimen/svg/ 的上色版，
+     这里不再有本地线稿：线稿是过渡期的兜底，实测会先闪一帧旧图形再被替换，
+     用户看得见，所以整条线稿通路连同 SUB_MARKS / PLATE_MOTIFS / SUB_FIT 一起删了。
+     彩图没到时先放一个空的同位 <svg>（占住 88px 的位，不画任何东西），
+     等 fetch 落地再把内容写进去 —— 既不会跳版，也不会闪旧图。 */
+  const wrap = el('div', { class: 'hub-plate' });
+  const box = svgEl('svg', {
+    class: 'plate-svg is-art',
+    viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
+    'aria-hidden': 'true', focusable: 'false',
+  });
+  const ready = artSvgReady(sub.id);
+  if (ready) box.innerHTML = ready;
+  wrap.appendChild(box);
+  wrap.appendChild(el('div', { class: 'plate-rule' }));
+  /* 名字最多列两味。实测四味的名字在 360px 视口是 144px 宽，
+     而盘心只有 156px 且是圆的 —— 一行放不下、折两行又把「换一个大类」顶出去。
+     完整清单留在 aria-label 里，视觉上两味足够说明这格是哪一路气味。 */
+  const capText = entries.slice(0, 2).map((e) => e.zh).join(' · ')
+    + (entries.length > 2 ? ' 等' : '');
+  wrap.appendChild(el('div', { class: 'plate-cap' }, capText));
+  // 图形本身是装饰，语义交给屏幕阅读器读这句话，避免读出「一张图」却没有内容
+  wrap.setAttribute('role', 'img');
+  wrap.setAttribute('aria-label',
+    '代表香材：' + entries.map((e) => e.zh + '（' + (PLATE_LABEL[e.family] || e.family) + '）').join('、'));
+
+  /* 当时还没到（首次进入、预热未完成）：等它到了再写进去。
+     没有线稿可保留，宁可空一小会儿，也不画一个旧的再换掉。 */
+  if (!ready) {
+    artInner(sub.id).then((inner) => {
+      if (!inner) return;
+      box.innerHTML = artNs(inner, 'a' + (++artSeq));
+    });
+  }
+
+  return wrap;
+}
+
+function buildWheel(cfg) {
+  const { families, onChange } = cfg;
+  let selFamily = cfg.selFamily || null;
+  let selSub = cfg.selSub || null;
+  let hoverFam = null;      // 指针停在外圈哪个家族（只改盘心预览，不改变层数）
+  let hoverSub = null;
+
+  /* ---- 三层环的半径（480 单位视框，控件半径 240）----
+       盘心   46% 直径 = 220.8 单位 → 半径 110.4
+       中圈   118–152（band 34）
+       家族环 158–228（不缩放）
+     三项数量都由实测决定，理由写在各自的注释里。 */
+  /* v17 保持 118–152 不变。曾试过把内径收到 130（带宽 34→22），
+     实测瓦片立起来后只有 34px 厚、点击面积掉 35%，不行 ——
+     层级问题是"外沿贴死盘边 + 内沿外侧空 63px"，两者都由**容器倍率**
+     决定，不该拿带宽去补。见 _wheel11.css 第一节：倍率 1.43 → 1.36。 */
+  const SUB_R2I = 118;
+  const SUB_R2O = 152;
+  const SUB_GROOVE = 2.4;   // 凹槽比弧带每侧多出的宽度
+  /* 标签半径：桌面 193（r1i 158 与 r1o 228 的中线），窄屏 200 / 130。
+     窄屏两个数来自 `_probe/glyph.cjs` 的网格（六组半径 × 三个视口），
+     判据用 Range 量出来的**字形外框**而不是按钮盒 —— 按钮的 padding
+     会把盒子撑得比字宽得多，按盒子判会把真重叠读成"还差 3px"：
+       实测同样半径 193/135，按按钮盒量是「不相交」，
+       按字形量在 390 上仍叠 18 px²、360 上叠 69 px²。
+     200/130 在 390 与 360 上字形零交叠、最小间隙 +1.1px；
+     192/130 在 320 上才零交叠，但 320 不在四视口验收集内，
+     且把标签推到家族环外沿会越出盘外，所以不取。 */
+  const LABEL_R = 193;
+  const LABEL_R_NARROW = 200;
+  /* 窄屏中圈标签半径 = 130（容器自身放大 1.43 之后 = 186 单位）。
+     v15 曾经把它外移到 152，是为了避开"标签压在盘心半径 78.7px 内"；
+     v16 起整个 .sub-ring 放大 1.43，152×1.43 = 217 单位会越出盘外
+     （实测窄屏 3 处 outBox），所以收回 130 —— 放大后落在 186 单位，
+     360 视口（盘 312px，k=0.65）实测：130 → 中心 121px + 半宽 31.5px = 152.5px，
+     而盘半径 156px、四字标签右缘实际越界 3px；收到 120 后中心 111.5px、
+     右缘 143px，留 13px 余量，同时内沿 80px 仍在盘心半径 72px 之外。 */
+  const SUB_LABEL_R_NARROW = 120;
+
+  const root = el('div', { class: 'disc wheel', role: 'group', 'aria-label': '香型轮盘' });
+
+  /* 核心圆盘 = 第一层。初始铺满整个控件；一旦选定大类，整盘缩到 58%，
+     外圈让给第二轮的小方格。
+     缩小后盘里不再画六个扇区（58% 下扇区太窄，字必然溢出），改成一块实心盘，
+     盘心文字直接落在盘上 —— 于是「一块盘 + 一圈方格」是一个整体，
+     而不是「一块盘 + 盘心一个小方块」两个物体。 */
+  const core = el('div', { class: 'disc-core' });
+  const rot = el('div', { class: 'disc-rot' });
+  core.appendChild(rot);
+  root.appendChild(core);
+
+  const svg = svgEl('svg', {
+    class: 'disc-svg',
+    viewBox: '0 0 ' + WHEEL.vb + ' ' + WHEEL.vb,
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+  rot.appendChild(svg);
+  /* ---- 渐变 defs ----
+     所有渐变都在同一个 480×480 坐标系里。角度统一按"光从左上"：
+     靠左上偏亮、靠右下偏暗；斜率控制在 2–3%，再多就成了金属拉丝。
+     用 userSpaceOnUse 而不是 objectBoundingBox —— 后者会让每个扇形
+     各自从自己的包围盒起算，同一圈上六个扇形的光向会各不相同。 */
+  const defs = svgEl('defs', {});
+  const mkGrad = (id, stops, x1, y1, x2, y2) => {
+    const g = svgEl('linearGradient', {
+      id: id,
+      gradientUnits: 'userSpaceOnUse',
+      x1: x1, y1: y1, x2: x2, y2: y2,
+    });
+    stops.forEach(([off, col]) => g.appendChild(svgEl('stop', { offset: off, 'stop-color': col })));
+    defs.appendChild(g);
+  };
+  // 家族扇区：左上 #ffffff → 右下 #eef1f8
+  mkGrad('gFam', [['0', '#ffffff'], ['0.55', '#fafbfe'], ['1', '#eef1f8']], 40, 30, 440, 450);
+  // 家族扇区悬停：整体再亮一档，斜率不变
+  mkGrad('gFamHot', [['0', '#ffffff'], ['0.5', '#f5f8ff'], ['1', '#e4eaf7']], 40, 30, 440, 450);
+  // 中圈弧段：白 → 极浅蓝灰（下沿收暗 = 瓦片厚度）
+  /* 六族同色（v37 / A 方向）。
+     ------------------------------------------------------------
+     上一版六族各带自己色相（#fbfcee / #fdf8fb / …），实测彼此只差
+     2–4% 明度：1440 下六块看上去是同一片浅灰，色相区分**不成立**，
+     唯一被看见的是底色那圈灰蓝箍 —— 也就是说六个渐变只贡献了噪点，
+     没贡献信息。所以统一成纸白，分块交给 2.6px 的白缝（_wheel7.css）。
+
+     为什么仍保留六个 id 而不是删掉改成一个：
+       ① 深色层是另一套 id（gFamXxxD），选择器结构必须保持对称，
+          否则 _wheel14.css 那六条 data-fam 规则会失效、深色盘直接白块；
+       ② 悬停/选中三层覆盖都建立在这六条 fill 引用之上；
+       ③ 留出六条 id 才能只改这里回滚到分色版本，不用碰 CSS。
+     同色不等于"平"：仍保留 0% → 100% 的 2% 明暗，瓦片才有厚度。 */
+  mkGrad('gFamCitrus',   [['0', '#ffffff'], ['0.58', '#fdfdff'], ['1', '#f9fafd']], 40, 30, 440, 450);
+  mkGrad('gFamFloral',   [['0', '#ffffff'], ['0.58', '#fdfdff'], ['1', '#f9fafd']], 40, 30, 440, 450);
+  mkGrad('gFamWoody',    [['0', '#ffffff'], ['0.58', '#fdfdff'], ['1', '#f9fafd']], 40, 30, 440, 450);
+  mkGrad('gFamAmber',    [['0', '#ffffff'], ['0.58', '#fdfdff'], ['1', '#f9fafd']], 40, 30, 440, 450);
+  mkGrad('gFamFresh',    [['0', '#ffffff'], ['0.58', '#fdfdff'], ['1', '#f9fafd']], 40, 30, 440, 450);
+  mkGrad('gFamGourmand', [['0', '#ffffff'], ['0.58', '#fdfdff'], ['1', '#f9fafd']], 40, 30, 440, 450);
+
+  mkGrad('gArc', [['0', '#ffffff'], ['0.62', '#fdfdff'], ['1', '#f2f5fc']], 40, 30, 440, 450);
+  mkGrad('gArcHot', [['0', '#ffffff'], ['1', '#eaf0fd']], 40, 30, 440, 450);
+  // 选中弧段：克莱因蓝，左上亮、右下深
+  mkGrad('gArcOn', [['0', '#2249b8'], ['0.5', '#002fa7'], ['1', '#00268a']], 40, 30, 440, 450);
+
+  /* ---- 深色模式的一套（D4）----
+     上面六个家族渐变是"白纸上的 5% 明暗"，彼此只差几个色阶 ——
+     白底上靠低饱和微差辨色是成立的，把同样的色压暗则不行：
+     #fbfcee 乘 brightness(.26) 之后，六族色相全被抹平，
+     六块退成同一种深灰（实测过，环上只剩描边能分块）。
+
+     所以深色版不是"压暗原色"，而是**重新给六族定色**：
+     在 L* 12–16 这个很窄的暗区间里，改用色相拉开距离
+     （橄榄 / 藕紫 / 暖灰 / 琥珀金 / 青绿 / 铜棕），
+     每族仍保留 8% 左右的同色相明暗，厚度不丢。
+     六色对 --ink #f2f2f2 的对比度都在 11 以上。 */
+  /* A 方向要"统一颜色"，深色层必须一起统一，否则明暗两套盘各说一套话。
+     深色版取 8% 的同色明暗（#1f1f1f → #262626），分块交给 _wheel14.css 里
+     的那道 --bg 描边缝 —— 与浅色层是同一个机制。 */
+  mkGrad('gFamCitrusD',   [['0', '#262626'], ['0.58', '#232323'], ['1', '#1f1f1f']], 40, 30, 440, 450);
+  mkGrad('gFamFloralD',   [['0', '#262626'], ['0.58', '#232323'], ['1', '#1f1f1f']], 40, 30, 440, 450);
+  mkGrad('gFamWoodyD',    [['0', '#262626'], ['0.58', '#232323'], ['1', '#1f1f1f']], 40, 30, 440, 450);
+  mkGrad('gFamAmberD',    [['0', '#262626'], ['0.58', '#232323'], ['1', '#1f1f1f']], 40, 30, 440, 450);
+  mkGrad('gFamFreshD',    [['0', '#262626'], ['0.58', '#232323'], ['1', '#1f1f1f']], 40, 30, 440, 450);
+  mkGrad('gFamGourmandD', [['0', '#262626'], ['0.58', '#232323'], ['1', '#1f1f1f']], 40, 30, 440, 450);
+
+  // 家族扇区悬停：整族提亮一档（浅色版是"更白"，深色版是"更亮的面"）
+  mkGrad('gFamHotD', [['0', '#333333'], ['0.5', '#2d2d2d'], ['1', '#262626']], 40, 30, 440, 450);
+
+  // 中圈弧片：白瓦换成"比家族环亮一档的面" —— 靠这一点亮度反转把两层分开
+  mkGrad('gArcD', [['0', '#2b2b2b'], ['0.62', '#282828'], ['1', '#242424']], 40, 30, 440, 450);
+  mkGrad('gArcHotD', [['0', '#333333'], ['1', '#2c2c2c']], 40, 30, 440, 450);
+  // 选中弧段：#002fa7 在 #141414 上只有 1.9:1，提亮到 #3d5fd9 一族（对深底 4.4）
+  mkGrad('gArcOnD', [['0', '#5a78ee'], ['0.5', '#3d5fd9'], ['1', '#2f4cc0']], 40, 30, 440, 450);
+
+  // 底座：径向，中心略亮、外圈收暗 = 盘面微微内凹
+  const rg = svgEl('radialGradient', { id: 'gBase', gradientUnits: 'userSpaceOnUse', cx: 220, cy: 200, r: 300 });
+  [['0', '#cdd3e2'], ['0.6', '#c3c9dc'], ['1', '#b9c0d6']].forEach(([o, c]) => rg.appendChild(svgEl('stop', { offset: o, 'stop-color': c })));
+  defs.appendChild(rg);
+  svg.appendChild(defs);
+
+
+  /* 最外一道发丝线：把整个轮盘从背景里框出来。
+     圆盘边缘与白底之间没有界线时，大面积留白里会"漏边"。 */
+  svg.appendChild(svgEl('circle', {
+    class: 'ring-thin', cx: WHEEL.cx, cy: WHEEL.cy, r: WHEEL.r1o + 8,
+  }));
+
+  /* 内圈分度刻线：36 道，每 3 道（30°）加长 —— V2 改法 B。
+     ------------------------------------------------------------
+     改动清单假定「几何已经在 app.js:353-365 算好，开一条 display 即可，
+     零 JS 改动」。实测不成立，两条都得补：
+
+     ① **首屏没有这些节点**。那段几何在 buildDisc()（第 4 步场合屏的
+        单层盘），首屏轮盘是 buildWheel()，`.disc-svg` 下只有 ring-thin +
+        6 个 sector-g。所以这里照搬同一套几何补一份。
+     ② **首屏没有能落脚的空环**。闭合态盘心 `width: 66%` → 半径 166.3px
+        = 158.4 视框单位，而外圈扇区内沿 `WHEEL.r1i = 158`，两者正好相切；
+        r1i 之内的刻线全在盘心底下（实测 36 道零可见像素）。
+        画在盘缘又会被 2.6px 的缝和盘底凹槽吃掉（3x 截图只剩几粒灰点）。
+        所以画在**扇区面上、紧贴内沿**那一圈：唯一一片既露在盘心之外、
+        又不在缝和标签上的空白。r1i+1 → +9/+5，最外端 167 单位，
+        离标签中心 193 还有 26 单位余量。
+
+     绘制顺序：必须 append 在六个 sector-g **之后**（SVG 没有 z-index，
+     顺序就是层级）。先画会被扇区填充整片盖掉 —— 场合屏原先就是这个顺序，
+     display 放开后实测仍不可见。 */
+
+  /* --- 盘心 --- */
+  const hubKicker = el('div', { class: 'hub-kicker' }, '香型轮盘');
+  const hubZh = el('div', { class: 'hub-zh' }, '还没选');
+  const hubDesc = el('div', { class: 'hub-desc' }, '从外圈挑一个大类');
+  const hubGlyph = el('div', { class: 'hub-glyph' });
+  /* 只选了大类时的快捷出口：跳过第二轮直接进下一步。
+     放在盘心而不是底部按钮栏，是因为「我只想要大类」这个决定，
+     正好发生在用户刚点完大类、视线还在盘心的一瞬间。 */
+  const hubGo = el('button', {
+    class: 'hub-go',
+    type: 'button',
+    onclick: (ev) => {
+      ev.stopPropagation();
+      const f = families.find((x) => x.id === selFamily) || null;
+      onChange(f, null);
+      next();
+    },
+  }, '直接下一步');
+  /* ① 「中圈可以不选」这件事，原来只有桌面端这颗 .hub-go 在说，
+     而它在 ≤620px 是 display:none —— 手机上最需要这句话的人恰好看不到。
+     补一颗 .hub-skip：窄屏显示、桌面隐藏（.hub-go 说得更具体）。 */
+  const hubSkip = el('button', {
+    class: 'hub-skip',
+    type: 'button',
+    onclick: (ev) => {
+      ev.stopPropagation();
+      const f = families.find((x) => x.id === selFamily) || null;
+      onChange(f, null);
+      next();
+    },
+  }, '中圈可不选');
+  hubSkip.hidden = true;
+  hubGo.hidden = true;
+  /* ② 返回入口挪出盘心。
+     原来盘心底部有一颗 12px 下划线的「换一个大类」，26px 高 ——
+     低于 44px 触控下限，而且和「直接下一步」挤在同一列里，
+     主操作与退路挨在一起，手指再准也会点错。
+     改到盘外左上角：圆盘在方框里是个圆，四个角是空的，
+     按钮落在那里既不压盘面，也不和底部那条主按钮抢位置。 */
+  const backBtn = el('button', {
+    class: 'wheel-back',
+    type: 'button',
+    onclick: (ev) => {
+      ev.stopPropagation();
+      selFamily = null; selSub = null; hoverFam = null; hoverSub = null;
+      paint();
+      onChange(null, null);
+    },
+  }, '← 重选大类');
+  backBtn.hidden = true;
+  root.appendChild(backBtn);
+  const hub = el('div', { class: 'disc-hub is-idle' },
+    hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
+  root.appendChild(hub);
+
+  /* --- 第一层：6 个家族，固定不变 --- */
+  const nFam = families.length;
+  const famStep = 360 / nFam;
+  const famStart = -90 - famStep / 2;
+  const outerG = [];
+  const outerBtn = [];
+
+  families.forEach((f, i) => {
+    const a0 = famStart + i * famStep + 1.0;
+    const a1 = famStart + (i + 1) * famStep - 1.0;
+    /* --i 只服务一处：两层切换时六块按顺序退场/归位。
+       写在 style 上而不是 nth-child 上 —— 家族数由数据决定（6），
+       但同一套错峰逻辑要能照搬到中圈（4–7 段），CSS 里只认这一个变量。 */
+    const g = svgEl('g', { class: 'sector-g lvl1', 'data-fam': f.id, style: '--i: ' + i });
+    g.appendChild(svgEl('path', { class: 'sector-shape', d: annulusPath(WHEEL.r1o, WHEEL.r1i, a0, a1) }));
+    svg.appendChild(g);
+    outerG.push(g);
+  });
+
+  /* 分度刻线 36 道（每 3 道加长）—— 见上方长注释。
+     append 在这里而不是 SVG 初始化处：SVG 没有 z-index，绘制顺序就是层级，
+     先画会被六个 sector-shape 的填充整片盖掉（场合屏原先就是这个顺序）。 */
+  {
+    const TICK_N = 36;
+    for (let k = 0; k < TICK_N; k++) {
+      const deg = -90 + (360 / TICK_N) * k;
+      const major = k % 3 === 0;
+      const r1 = WHEEL.r1i + 1;
+      const r2 = WHEEL.r1i + (major ? 9 : 5);
+      const [x1, y1] = polar(r1, deg);
+      const [x2, y2] = polar(r2, deg);
+      svg.appendChild(svgEl('line', {
+        class: major ? 'ring-tick is-major' : 'ring-tick',
+        x1, y1, x2, y2,
+      }));
+    }
+  }
+
+  const labelLayer = el('div', { class: 'label-layer', role: 'radiogroup', 'aria-label': '香型大类' });
+  rot.appendChild(labelLayer);
+
+  function keyNav(ev, list, i) {
+    let d = 0;
+    if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') d = 1;
+    else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') d = -1;
+    else return;
+    ev.preventDefault();
+    const to = (i + d + list.length) % list.length;
+    list.forEach((b, j) => b.setAttribute('tabindex', j === to ? '0' : '-1'));
+    list[to].focus();
+  }
+
+  families.forEach((f, i) => {
+    const midDeg = famStart + (i + 0.5) * famStep;
+    const rMid = LABEL_R;
+    const p = polar(rMid, midDeg);
+    /* 同一个极角写两套坐标：桌面一套（left/top），窄屏一套（--nl / --nt）。
+       窄屏盘心与大圈之间只剩约 330px（390 视口）或 310px（360），
+       两行标签的中心距小于两个方框的半高之和就必然相交 —— 只收盒子不够，
+       半径也得往里挪一档。半径是 JS 按视框算的（CSS 里拿不到
+       "圆心到某一点的百分比"这种量），所以两套都在这里算好，
+       窄屏那套交给 media query 用 var() 取。 */
+    const pn = polar(LABEL_R_NARROW, midDeg);
+    const px = (q, k) => ((q[k] / WHEEL.vb) * 100).toFixed(2);
+    const btn = el('button', {
+      class: 'disc-sector lvl1',
+      type: 'button',
+      role: 'radio',
+      'aria-checked': 'false',
+      'data-fam': f.id,
+      tabindex: i === 0 ? '0' : '-1',
+      style: '--l:' + px(p, 0) + '%;--t:' + px(p, 1) + '%;--nl:' + px(pn, 0) + '%;--nt:' + px(pn, 1) + '%;--i:' + i,
+    },
+      el('span', { class: 'zh' }, f.zh),
+      el('span', { class: 'notes' }, (f.representativeNotes || []).slice(0, 2).map((e) => noteZhOf(e)).join('·'))
+    );
+    /* **中圈一旦选定小项，大圈 hover 也必须失效**。
+       用户报的第二个 case：选定「香草甜」后指针移到大圈家族环，
+       盘心被改成「点一下换到 柑橘调」、`is-picked` 被摘掉 —— 选中态直接丢了。
+       成因与中圈那对 enter/leave 完全同源：hoverFam 会进 paint() 的
+       `hoverOther` 分支，把盘心让给悬停的那个家族。
+       这里在入口就挡掉，不写 hoverFam、不调 paint()。
+       click 不经过这两个函数，换大类照常。 */
+    const enter = () => {
+      if (selSub) return;
+      hoverFam = f.id; hoverSub = null; paint();
+    };
+    const leave = () => {
+      if (selSub) return;
+      hoverFam = null; paint();
+    };
+    btn.addEventListener('mouseenter', enter);
+    btn.addEventListener('mouseleave', leave);
+    btn.addEventListener('focus', enter);
+    btn.addEventListener('blur', leave);
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      selFamily = f.id; selSub = null; hoverFam = null; hoverSub = null;
+      paint();
+      onChange(f, null);
+    });
+    btn.addEventListener('keydown', (ev) => keyNav(ev, outerBtn, i));
+    labelLayer.appendChild(btn);
+    outerBtn.push(btn);
+
+    // 扇形本体同样可点：只让标签可点的话，用户戳那一大块面积毫无反应
+    const g = outerG[i];
+    g.addEventListener('mouseenter', enter);
+    g.addEventListener('mouseleave', leave);
+    g.addEventListener('click', () => {
+      selFamily = f.id; selSub = null; hoverFam = null; hoverSub = null;
+      paint();
+      onChange(f, null);
+    });
+  });
+
+  /* --- 第二轮：一圈小方格 ---
+     为什么不是同心环：环的宽度被半径卡死。360px 视口下中圈直径只剩 60px，
+     44px 的触控框数学上装不进去，四字标签必然溢出。方格不随圆盘缩放，
+     窄屏也能同时保住 44px 触控与一行四个字的宽度。 */
+  const subRing = el('div', { class: 'sub-ring', role: 'radiogroup', 'aria-label': '子类' });
+  root.appendChild(subRing);
+
+  /* 按下态的唯一释放入口。挂在 buildWheel 作用域而不是每个弧段里：
+     ① chooseSub 需要在确认时兜底释放；
+     ② 弧段每次重建都会换一批节点，逐个挂全局监听会泄漏。
+     这里只记录"当前按下的那一个"，换节点时旧引用自然失效。 */
+  let pressedNode = null;
+  function releasePress() {
+    if (!pressedNode) return;
+    pressedNode.g.classList.remove('is-pressing');
+    pressedNode.btn.classList.remove('is-pressing');
+    pressedNode = null;
+  }
+  /* 全局兜底：指针在弧段外抬起、或窗口失焦，都要把按下态收掉。
+     `pointerup` 是唯一可靠的"这一次交互结束"的信号（click 在拖拽后不派发）。 */
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pointerup', releasePress);
+    window.addEventListener('pointercancel', releasePress);
+    window.addEventListener('blur', releasePress);
+  }
+
+  /* --- 第二层：一圈弧段 ---
+     三代形态的演进，每一代都在修上一代的可读性问题：
+     v5「tier1 铺一圈方格 + 末尾 +N」—— 一次冒出五六个词，末尾那格还要再点一次才展开；
+     v6「三格弧窗 + 左右箭头」—— 一次只看得见三项，箭头把"还有几项、转到第几项"藏起来，
+        用户转两下就不知道自己在环上的哪个位置了；
+     v7「全部细分类等分铺满一整圈弧段」—— 有几项、现在停在第几项、往两边各还有什么，
+        一眼全在。没有箭头，也没有"转到才算选中"的中间态：点哪段就是哪段。
+     为什么是弧段而不是方格：方格是贴上去的，弧段是从这块盘上切下来的 ——
+     同一圆心、同一线宽、同一留白，视觉上属于同一个物件。 */
+  /* 三层环的半径分配（480 单位视框，控件半径 240）：
+       盘心   46% 直径 = 221 单位 → 半径 110.4
+       家族盘 scale(.6) → r1o 228×.6 = 136.8（盘心之外 26.4 单位的一圈，够看出"盘还在"）
+       弧段   152–226：内径离家族盘 15.2 单位的缝，外径离控件边 14 给描边与投影
+     原来弧段 148–232 几乎顶满控件，外圈家族扇区被挤到只剩贴边一条，
+     三层读不出主次。 */
+  /* 中圈弧段的内外径。三条约束都是实测出来的：
+     ① 内径必须离盘心够远。盘心 46% → r = 110.4（480 单位视框）。
+        原来内径 114 只差 3.6 单位（520px 盘上约 4px），白瓦片几乎贴着白盘心，
+        两者并成一块白饼，中圈只剩几道"辐条"—— 截图确认，这是
+        「中圈读不出是浮起的一片片」的直接原因，不是段数不够。
+        现在内径 118，与盘心隔 7.6 单位（约 8px）。
+     ② 外径 < 家族环内沿 r1i = 158（展开态家族环不缩放）。152 留 6 单位。
+     ③ 凹槽要比弧带更宽，两侧各露出 4 单位（约 4.3px）的槽边。
+        槽与弧带同宽时，槽只在段缝里露出，整条带仍读成"一个环"；
+        两侧露边之后，弧段才是"嵌在一圈槽里的瓦"。
+     代价：弧带从 42 收窄到 34 单位，段上文字仍在 rMid = 135，位置不变。 */
+  /* 三层环的半径分配见函数开头（SUB_R2I / SUB_R2O / LABEL_R）。
+     这里只留 arc 的推导：凹槽比弧带每侧宽 SUB_GROOVE，
+     段缝保证 3.4° 以内，段上文字落在弧带中线。 */
+  let subItems = null;
+  let subBtns = [];
+  let subGs = [];   // 与 subBtns 同序的 SVG 弧段组，填充由它驱动
+
+  /* 退场不是"立刻清空"，否则 DOM 里没有节点可播动画。
+     旧实现 `subRing.innerHTML = ''` 一行抹掉七段 —— 上一版文档里写的
+     「返回时中圈播消失动效」在实现层面根本不存在，只能算一句愿望。
+     现在先挂 `.is-exit`（CSS 按 --n-1---i 反序收），420ms 后再清。
+     420 = 220ms 动画 + (n-1)×22ms 的最长错峰 + 60ms 余量。 */
+  let exitTimer = 0;
+  function clearSubRing() {
+    subRing.classList.remove('is-exit');
+    subRing.innerHTML = '';
+    subBtns = [];
+    subGs = [];
+    subItems = null;
+    exitTimer = 0;
+  }
+
+  function buildSubRing(fam) {
+    /* 先掐掉待执行的清空：用户在 420ms 内又把大类点回来时，
+       定时器不能把刚建好的新节点一起删掉。 */
+    if (exitTimer) { clearTimeout(exitTimer); exitTimer = 0; }
+    if (!fam) {
+      if (subRing.children.length) {
+        subRing.classList.add('is-exit');
+        /* 立刻交出选中身份：退场中的那几段不能再被点、也不该再被
+           paint() 当"当前项"高亮 —— 但它们仍留在 DOM 里播动画。 */
+        subBtns = [];
+        subGs = [];
+        subItems = null;
+        exitTimer = setTimeout(clearSubRing, 420);
+      }
+      return;
+    }
+    const all = fam.subfamilies || [];
+    if (!all.length) { clearSubRing(); return; }
+    subRing.classList.remove('is-exit');
+    subRing.innerHTML = '';
+    subBtns = [];
+    subGs = [];
+    subItems = all;
+    renderArcs(fam);
+  }
+
+  function renderArcs(fam) {
+    subRing.innerHTML = '';
+    subBtns = [];
+    subGs = [];
+    const all = subItems || [];
+    const n = all.length;
+    if (!n) return;
+    const step = 360 / n;
+    /* 段间留缝而不是画分隔线：缝里露出的是凹槽的底（.sub-channel），
+       比再补一道描边更干净。缝宽 3.4°：520px 盘上约 8px，
+       两侧各留 1px 白描边之后槽底仍露出 6px —— 低于这个数，
+       缝会退化成「描边没对齐」而不是「瓦片之间的槽」（见 _wheel8.css 第四节）。 */
+    const gap = Math.min(3.4, step * 0.075);
+    const rMid = (SUB_R2O + SUB_R2I) / 2;
+    const svg = svgEl('svg', {
+      class: 'sub-svg',
+      viewBox: '0 0 ' + WHEEL.vb + ' ' + WHEEL.vb,
+      'aria-hidden': 'true',
+      focusable: 'false',
+    });
+    const labels = el('div', { class: 'sub-labels' });
+
+    /* 凹槽环：比弧带每侧再宽 4 单位的深色带，弧段嵌在它上面。
+       没有这条槽，段间的缝透出的是盘心白（同色），七段读成一块连续白环；
+       有了槽，缝里与上下两侧露出的都是槽底（比白瓦深），
+       "从同一个槽里切出来、一片片嵌进去"才成立。
+       stroke-width = 弧带宽 + 2×SUB_GROOVE。 */
+    svg.appendChild(svgEl('circle', {
+      class: 'sub-channel',
+      cx: WHEEL.cx,
+      cy: WHEEL.cy,
+      r: (SUB_R2O + SUB_R2I) / 2,
+      fill: 'none',
+      'stroke-width': (SUB_R2O - SUB_R2I) + SUB_GROOVE * 2,
+    }));
+
+
+    all.forEach((item, i) => {
+      /* -90 = 正上方，与第一层同一套角度约定（混了就会整体偏 90°） */
+      const a0 = -90 + i * step + gap / 2;
+      const a1 = a0 + step - gap;
+      const mid = (a0 + a1) / 2;
+
+      /* --i / --n 只服务一处：入退场错峰。
+           入场按 --i 顺着铺开（第一段先到），退场按 --n-1---i 反着收（最后一段先走）——
+           同一个方向进出，读起来是"一圈绕完再绕回来"，不是七段一起闪。
+           写变量不写死 nth-child：段数由数据决定（4–7），CSS 里只认这两个数。 */
+      const g = svgEl('g', {
+        class: 'sub-g',
+        'data-sub': item.id,
+        style: '--i: ' + i + '; --n: ' + n,
+      });
+      g.appendChild(svgEl('path', {
+        class: 'sub-arc',
+        d: annulusPath(SUB_R2O, SUB_R2I, a0, a1),
+      }));
+      svg.appendChild(g);
+      subGs.push(g);
+
+      const px = polar(rMid, mid);
+      /* 窄屏半径 = 124（实测网格的最佳值）。弧带中线是 135，
+         窄屏把标签往里收 11 单位，是为了让它与家族标签之间留出
+         两个半高的间隙 —— 详见 _wheel8.css 第七节的实测数字。 */
+      const pxm = polar(SUB_LABEL_R_NARROW, mid);
+      const btn = el('button', {
+        class: 'disc-sector lvl2 sub-arc-btn',
+        type: 'button',
+        role: 'radio',
+        'aria-checked': 'false',
+        'data-sub': item.id,
+        tabindex: i === 0 ? '0' : '-1',
+        /* 只写定位变量与错峰变量，不写内联 left/top/transform：
+           内联 left/top 会盖掉窄屏那套（--nl/--nt）的 media query，
+           内联 transform 会盖掉 .disc-sector 基类的居中位移。 */
+        style: '--l: ' + (px[0] / WHEEL.vb * 100).toFixed(2) + '%; --t: ' + (px[1] / WHEEL.vb * 100).toFixed(2)
+          + '%; --nl: ' + (pxm[0] / WHEEL.vb * 100).toFixed(2) + '%; --nt: ' + (pxm[1] / WHEEL.vb * 100).toFixed(2)
+          + '%; --i: ' + i + '; --n: ' + n,
+      }, el('span', { class: 'zh' }, item.label || item.zh));
+      /* 中圈标签用 label 而不是 zh：柑橘调的四个 zh 都是"××柑橘"，
+         并排看分不出差别（用户 m05889 原话「我分不清它们的差异」）。
+         label 是 4 字以内的直白词（纯柑橘/苦橙叶/橙花柑橘/皂感柑橘），
+         zh 保留不动 —— 它仍是表单、推荐理由、无障碍名里用的正式名。 */
+
+      /* **中圈一旦有选中项，hover 一律不再产生反馈**。
+         用户的要求：「中圈一旦被选定，无论鼠标移动到何处，中框的选择状态
+         都不应再发生变化；要重新改变选择必须左键点击」。
+         这里同时挡两件事：
+           ① 不再写 hoverSub（`is-hot` 不会出现 → 没有蓝框）；
+           ② 不再调 paint()（盘心不重绘 → 不闪）。
+         只挡视觉不挡事件：弧段的 click 仍然照常工作。 */
+      const enter = () => {
+        if (selSub) return;
+        hoverSub = item.id; paint();
+      };
+      const leave = () => {
+        if (selSub) return;
+        if (hoverSub === item.id) { hoverSub = null; paint(); }
+      };
+
+      /* ---- 按下态：显式类，不靠 :active ----
+         `:active` 只在"指针真的按住该元素"时成立：键盘 Enter 触发、
+         脚本 dispatch、触屏滑动取消，三种情况全漏，而按下态的意义
+         恰恰是"告诉用户这一次点击被接住了"。所以由这里挂类、由
+         pointerup / pointercancel / pointerleave 三处摘。
+         挂在 `g`（弧段组）上而不是按钮上 —— 两个入口（弧段、按钮）
+         要共用同一个按下视觉，挂两处会各动各的。 */
+      const press = () => {
+        /* 先把上一个收掉：快速连点两段时，若不收，前一段会永远停在按下态
+           （它的 pointerup 早于本次 pointerdown 已经过去）。 */
+        releasePress();
+        pressedNode = { g, btn };
+        g.classList.add('is-pressing');
+        btn.classList.add('is-pressing');
+      };
+      const release = () => {
+        if (pressedNode && pressedNode.g === g) releasePress();
+      };
+      /* 按下与抬起都绑在弧段组上：鼠标在按钮上按下、拖出弧段再松开时，
+         pointerup 落在别的节点，只绑按钮会永远停在按下态。 */
+      g.addEventListener('pointerdown', press);
+      btn.addEventListener('pointerdown', (ev) => { press(); ev.stopPropagation(); });
+      g.addEventListener('pointerup', release);
+      g.addEventListener('pointercancel', release);
+      g.addEventListener('pointerleave', release);
+      /* 键盘路径没有 pointer 事件：Enter / Space 触发 click，
+         在 click 前挂一次、下一个微任务摘掉，给一次同等的按压反馈。 */
+      const keyPress = (ev) => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        press();
+        setTimeout(release, 140);
+      };
+
+      btn.addEventListener('mouseenter', enter);
+      btn.addEventListener('mouseleave', leave);
+      btn.addEventListener('focus', enter);
+      btn.addEventListener('blur', () => { leave(); release(); });
+      btn.addEventListener('keydown', (ev) => { keyPress(ev); keyNav(ev, subBtns, subBtns.indexOf(btn)); });
+      btn.addEventListener('click', (ev) => { ev.stopPropagation(); chooseSub(fam, item); });
+      /* 弧段本身也可点：文字只有 48px 宽，弧段比它大得多，
+         只让文字接事件等于把可用面积缩到三分之一。 */
+      g.addEventListener('mouseenter', enter);
+      g.addEventListener('mouseleave', leave);
+      g.addEventListener('click', (ev) => { ev.stopPropagation(); chooseSub(fam, item); });
+
+      labels.appendChild(btn);
+      subBtns.push(btn);
+    });
+
+    subRing.appendChild(svg);
+    subRing.appendChild(labels);
+  }
+
+  function chooseSub(fam, s) {
+    /* 按下态在这里兜底释放：键盘 Enter、脚本 dispatch、以及"按下后
+       指针在弧段外抬起"三种情况都不会走到弧段自己的 pointerup，
+       不兜底就会永远停在 0.955（实测过：探针只派 pointerdown 时，
+       弧段整整 800ms 卡在 matrix(0.955)）。 */
+    releasePress();
+    selFamily = fam.id;
+    selSub = s.id;
+    hoverFam = null;
+    /* 必须显式清空：`is-hot` 是 paint() 按 hoverSub 重算的，
+       若不清，锁类挂上后那一段仍带着上一帧的 is-hot，看起来像"锚在别的项上"。 */
+    hoverSub = null;
+    paint();
+    onChange(fam, s);
+  }
+
+  /* --- 统一重绘 --- */
+  let builtFor;
+  /* 上一层是不是"展开"状态。只用来判断这次 paint 是不是一次换层 ——
+     hover 引起的重绘每天几十次，不能每次都重播一遍进出场动画。 */
+  let wasOpen = null;
+  let liftTimer = 0;
+
+  /* 动画链总时长，单位 ms。数值必须 ≥ CSS 里最长的一条：
+       进入 = 370（标签层起）+ 160（层淡出）= 530
+       返回 = 240 + 5×20（最后一个文字延迟）+ 320（文字时长）= 660
+     取 700 留 40ms 余量。写成常量而不是散落的 780：
+     长度一旦与 CSS 脱钩，类会提前摘掉，末帧还没到就跳回原位。 */
+  const LAYER_ANIM_MS = 700;
+  /* 四视口实测的"中圈开始长"的时刻：进入动画 0ms 就起，但弧段要到
+     100ms 才有可见尺寸。大圈必须在 100ms 前后明显退掉，否则就是
+     用户报的"滞后边框"。下面这条注释留在代码里，防止以后有人把
+     扇区的 delay 又调回"等文字全散完"。 */
+  function paint() {
+    const famById = new Map(families.map((f) => [f.id, f]));
+    /* 只有"真的选了"才缩放并铺方格；悬停只改盘心预览。
+       悬停就缩放会让指针划过时整个版面跳动，比少一个反馈更糟。 */
+    const open = !!selFamily;
+    /* 悬停优先于已选：缩小后的盘六个扇区都能直接点（见 ③），
+       不给预览就等于蒙眼换类。悬停时盘心先讲那个大类。 */
+    const showFamId = hoverFam || selFamily;
+    const showFam = showFamId ? famById.get(showFamId) : null;
+    const builtKey = selFamily || null;
+    if (builtFor !== builtKey) {
+      buildSubRing(selFamily ? famById.get(selFamily) : null);
+      builtFor = builtKey;
+    }
+    root.classList.toggle('is-open', open);
+
+    /* ---- 换层只在这里发生 ----
+       两类动画类（is-lifting / is-returning）只在这两个分支里挂，
+       挂完 780ms 摘掉。之所以不写成"每次 paint 都重挂"：paint 由
+       hover 高频调用，那样每划过一块扇区就把整盘重播一次。
+       780 = 最长动画链（返回 120ms 起 + 300ms 文字 + n×16 错峰）加余量。
+
+       为什么用类而不是 transitionend：测试桩只调监听器、不派发事件，
+       写成状态机会让 test-render 里的断言链永远停在中间态（D39④ 同因）。 */
+    if (wasOpen !== null && wasOpen !== open) {
+      const cls = open ? 'is-lifting' : 'is-returning';
+      root.classList.remove(open ? 'is-returning' : 'is-lifting');
+      void root.offsetWidth;                  // 强制回流，同一个类连播两次时动画才会重跑
+      root.classList.add(cls);
+      if (liftTimer) clearTimeout(liftTimer);
+      liftTimer = setTimeout(() => { root.classList.remove(cls); liftTimer = 0; }, LAYER_ANIM_MS);
+    }
+    wasOpen = open;
+
+    outerG.forEach((g, i) => {
+      const f = families[i];
+      const on = f.id === selFamily;
+      const hot = f.id === hoverFam;
+      g.classList.toggle('is-on', on);
+      g.classList.toggle('is-hot', hot && !on);
+    });
+    outerBtn.forEach((b, i) => {
+      const f = families[i];
+      const on = f.id === selFamily;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-checked', String(on));
+      b.setAttribute('tabindex', on ? '0' : (i === 0 && !selFamily ? '0' : '-1'));
+    });
+
+    if (subItems) {
+      /* "是哪一项"由 data-sub 决定，不靠下标：弧段顺序与子项顺序一致，
+         但一旦以后要按命中率重排，下标对齐就会错位。 */
+      /* 弧段与它上面那行字是两棵子树（SVG / HTML），状态必须同时挂到两边：
+         只挂按钮的话填充不变，只挂组的话文字不变 —— 两种半亮都很难看。 */
+      subBtns.forEach((b) => {
+        const id = b.getAttribute('data-sub');
+        const on = selSub === id;
+        const hot = hoverSub === id;
+        b.classList.toggle('is-on', on);
+        b.classList.toggle('is-hot', hot && !on);
+        b.setAttribute('aria-checked', String(on));
+      });
+      subGs.forEach((g) => {
+        const id = g.getAttribute('data-sub');
+        const on = selSub === id;
+        const hot = hoverSub === id;
+        g.classList.toggle('is-on', on);
+        g.classList.toggle('is-hot', hot && !on);
+      });
+    }
+
+    /* 正在悬停另一个大类（不是已选的那个）—— 这时盘心必须讲悬停的那一个 */
+    const hoverOther = !!(hoverFam && hoverFam !== selFamily);
+    const sub = (showFam && !hoverOther && selSub)
+      ? (showFam.subfamilies || []).find((x) => x.id === selSub) : null;
+    /* v15：hover 不再参与任何状态。
+       用户的原话是「箱型选择应由左键点击确定，而非鼠标悬停或拖动位置决定，
+       只有再次左键点击其他箱型时才切换」。所以盘心主词只认 selSub 一个值：
+       指针划过某段只让那一段描边加深（.is-hot，纯视觉），
+       盘心既不换词、也不挂 is-picked、更不写 selSub。
+       这条同时修掉 v14 的一个隐患：hover 驱动 paint()，而 paint() 会被
+       高频调用，一旦 hover 改状态，盘心文字就会跟着指针抖。 */
+    const focusSub = sub;
+
+    let kick;
+    let zh;
+    let desc;
+    let idle = false;
+    /* 压深只留给「具体小项」。第一层选中时盘心保持浅色，
+       与第二层的浅色方格是同一档 —— 压深代表"定下来了"，不是"点到了"。 */
+    let picked = false;
+    if (!showFam) {
+      kick = '香型轮盘'; zh = '还没选'; desc = '从外圈挑一个大类'; idle = true;
+    } else if (hoverOther) {
+      /* ③ 盘缩小后六个扇区都能点，盘心先报出"点一下会换到哪" */
+      kick = '点一下换到'; zh = showFam.zh; desc = showFam.style || showFam.oneLine;
+    } else if (focusSub) {
+      picked = !!(sub && sub.id === focusSub.id);
+      kick = picked ? '已选定' : '正在看';
+      zh = focusSub.zh;
+      desc = focusSub.descWheel || focusSub.short || focusSub.desc;
+    } else {
+      kick = hoverFam && !selFamily ? '正在看' : '已选定大类';
+      zh = showFam.zh;
+      desc = showFam.style || showFam.oneLine;
+    }
+    /* CSS 里的 `.sub-g:hover` 是纯样式钩子，JS 管不到 —— 选中之后
+       指针划过去照样会让描边从 1px 变 1.4px、填充变白（实测）。
+       所以给 root 挂一个锁类，_wheel7.css 里所有 hover 规则都写成
+       `.wheel:not(.is-sub-locked) .sub-g:hover`，选中即整体失效。
+       为什么不是删掉 hover 规则：未选中时它仍是必要的"哪里能点"提示，
+       D41 明确要求悬停只给视觉提示、不改状态 —— 它不该被删，该被上锁。 */
+    root.classList.toggle('is-sub-locked', !!selSub);
+    hub.classList.toggle('is-idle', idle);
+    hub.classList.toggle('is-picked', picked);
+    // 整盘翻深由 root 上的 is-picked 驱动：加深的是盘，不是盘心方块
+    root.classList.toggle('is-picked', picked);
+    hub.classList.toggle('is-hover', !!(hoverFam || hoverSub) && !picked && !focusSub);
+    if (hubZh.textContent !== zh || hubKicker.textContent !== kick) {
+      hub.classList.remove('is-swap');
+      void hub.offsetWidth;
+      hub.classList.add('is-swap');
+    }
+    hubKicker.textContent = kick;
+    hubZh.textContent = zh;
+    hubDesc.textContent = desc;
+
+    /* ⑤ 图标常态与选中态要能区分开。
+       常态（预览）画灰线稿、不写香材名；落到具体项后线稿转蓝、名字出现。
+       原来只在"已选定"时才画，等于常态没有图标可比，也就无所谓区分。 */
+    hubGlyph.innerHTML = '';
+    hub.classList.toggle('has-glyph', !!focusSub);
+    if (focusSub) { const plate = scentPlate(focusSub); if (plate) hubGlyph.appendChild(plate); }
+
+    // 只选了大类时给快捷出口；已落到小项就没必要再催一次
+    const canSkip = !!(selFamily && !selSub);
+    hubGo.hidden = !canSkip;
+    if (canSkip) {
+      const f = famById.get(selFamily);
+      hubGo.textContent = '就选「' + (f ? f.zh : '') + '」，下一步 →';
+    }
+    /* 悬停预览某个细分时，「中圈可不选」是第三遍同义出口：
+       底部 navBar 已有「下一步」+ hint，盘心又出现主按钮（桌面）或
+       这枚胶囊（窄屏）。窄屏实测 hub-skip 四角溢出 8.4px（390）/ 5px（360）。 */
+    hubSkip.hidden = !canSkip;
+    backBtn.hidden = !selFamily;
+  }
+
+  paint();
+  return root;
+}
+
+/* --- 家族 → 底噪轴 ------------------------------------------------------------
+   为什么需要这张表：v7 把"第一个大方向"重新交给了圆盘，而底噪（src/ambient.js）
+   的三轴是按 emotionMap 的六个 id 定义的。这两套词表本来各说各的，中间必须有
+   一次显式换算，否则"选了柑橘调"这件事没法变成"渐亮"。
+
+   取值不是随手配的，是 emotionMap 自己给的家族权重上的一次**最大权匹配**：
+   把六个家族与六个轴一一配对，让 ∑ weight(family, axis) 最大。
+   穷举 6! = 720 种配法的结果就是这张表（scripts/test-render.mjs 每次重算一遍
+   并断言表等于最优解，所以它不会悄悄退化成"看着像"）：
+
+     citrus  → bright      0.95  柑橘是最亮的一族（emotionMap bright.citrus）
+     fresh   → clean       0.95  刚洗完澡那种干净（clean.fresh）
+     amber   → mysterious  0.95  暖而稠、不透明（mysterious.amber）
+     woody   → cold        0.90  干、有骨架、收着（cold.woody）
+     gourmand→ lazy        0.70  甜、贴肤、不主动（lazy.gourmand）
+     floral  → warm        0.60  花在太阳底下的那一面（warm.floral）
+
+   全部六格加起来 5.05 —— 在 720 种配法里最高（次优 5.00）。
+   注意 floral 的 0.60 是六格里最低的一格，而它在 emotionMap 里对 bright(0.70)
+   反而更高：匹配是**全局最优，不是逐族 argmax**。逐族取最大会把 citrus 与
+   floral 都判给 bright（0.95 / 0.70），两个家族共用一个方向，底噪就分不出
+   这两族了 —— 那正是"看起来接上了、实际没接"的形态，所以
+   scripts/test-render.mjs 每次重算 720 种配法并断言本表等于最优解。 */
+const AXIS_OF_FAMILY = {
+  citrus: 'bright',
+  floral: 'warm',
+  woody: 'cold',
+  amber: 'mysterious',
+  fresh: 'clean',
+  gourmand: 'lazy',
+};
+
+/* ---------- 第 1 步：香型轮盘（外圈家族 + 中圈子家族）---------- */
+function renderFamily() {
+  const wrap = el('div', { class: 'fade-in' });
+
+  wrap.appendChild(el('div', { class: 'stage-lead' },
+    el('div', { class: 'q-kicker' }, stepHead('family').kicker),
+    el('h2', { class: 'q-title' }, stepHead('family').title),
+    el('p', { class: 'q-help' }, stepHead('family').help)
+  ));
+
+  wrap.appendChild(buildWheel({
+    families: Object.values(TAX.families),
+    selFamily: state.answers.family,
+    selSub: state.answers.subfamily,
+    onChange: (fam, sub) => {
+      state.answers.family = fam ? fam.id : null;
+      state.answers.subfamily = sub ? sub.id : null;
+      /* 两条入口互斥：选了家族就清掉情绪，否则 buildProfile 会以家族为准，
+         而界面上「用感觉选」还亮着，用户以为自己两条都算数。 */
+      if (fam) state.answers.emotion = null;
+      /* ==== v7 第 1 步唯一的增量：把"大方向"喂给底噪 ====
+         ① 方向：家族 → 六轴（AXIS_OF_FAMILY）。只写 direction，**不写
+            temperature / sweetness / characterTags** —— 那三个是打分的因子，
+            a39e498 的圆盘从来不写它们（当年那屏没有"气质反推"这套东西，
+            它是 v6 为情绪屏新加的）。写进去就等于让"恢复圆盘"顺带改了
+            推荐口径，而任务书要求「不得让恢复圆盘改变推荐结果的计算口径」。
+            所以这里只点亮背景层，不碰引擎。
+         ② 立刻生效：盘是"选了不跳屏"的（用户可能还要在中圈再收一层），
+            所以不会经过 render()，而 applyAmbient() 只在 render() 末尾调。
+            不在这里补一次，用户点完扇区会看到"什么都没发生"，
+            直到按「下一步」才突然亮起来 —— 那正是"没接上"的样子。
+            底噪起点的算术在 src/ambient.js 的 ambientOf 里（圆盘来源从第 1 屏起算）。
+         ③ 清空：用户点「← 重选大类」时 fam 为 null，方向必须一起清掉，
+            否则盘心回到"还没选"、背景却还亮着上一族的光。 */
+      state.answers.direction = fam ? (AXIS_OF_FAMILY[fam.id] || null) : null;
+      applyAmbient();
+      // 轮盘是两层，选完不该立刻跳走——用户可能还想在中圈再收一层。
+      // 所以这里只更新家族说明区与底部按钮，前进由按钮控制。
+      paintFamilyPanel(fam);
+      // 底部按钮必须跟着重画：它的 disabled 与提示语都取决于"选了没有"。
+      // 只改 state 不重画的话，用户选完家族按钮还是灰的，看着像坏了。
+      refreshNav('family');
+    },
+  }));
+
+  /* --- 说不清？用感觉选 ---
+     香型轮盘要求用户认识「柑橘调 / 东方琥珀调」这些词，而目标用户正是
+     完全不认识它们的人。此前这条路是**死路**：answers.emotion 在
+     app.js 里只有初始化和 restart 两处写入，没有任何控件能赋值，
+     而 finish() 又硬性要求 answers.family —— 于是「按感觉选」这个引擎
+     一直支持的入口，在界面上根本走不通（scoring.js:151 的两条入口只活了
+     一条）。
+
+     六个情绪词全部来自 TAX.emotionMap，不新造词。
+     选情绪会清掉已选的家族并以情绪为准（反过来选家族会清掉情绪），
+     两条入口永远只有一个生效 —— 这也是 buildProfile 的实际语义。
+
+     v35 顺序调整：这一段原来排在主按钮**之前**。它不是主路径，却占了
+     46px 控件 + 标题 + 说明共 147.6px，把「下一步」顶到 1440×900 的 955px
+     处（视口只有 900）—— 用户必须先看完一个可选控件，才看得到唯一的主操作。
+     现在先给主按钮，再给退路。叙事上也更顺：先走主路，走不通再换。 */
+  wrap.appendChild(navBar('family'));
+
+  /* 第 6 屏「整族排除」在家族入口下**不出现**（实测 0/30 组合改变 top-3，
+     见 STEPS 里 dislikedFamilies 的 when）。但这里必须告诉用户它去哪了 ——
+     否则从情绪入口来的用户会发现自己少了一屏，以为出了 bug；
+     而家族入口的用户则完全不知道"整族划掉"这个能力存在。
+     说清两件事：① 你选的大类已经天然排除了别的族；② 真想排除就去点香调。 */
+  if (state.answers.family) {
+    wrap.appendChild(el('div', { class: 'term-note' },
+      el('strong', {}, '选了香型就等于排除了别的族：'),
+      ' 候选只从你选的这一族里出，所以没有"排除整族"那一题。',
+      ' 想再收窄，下一屏可以点名具体受不了的香调（比如"不要香草"）。'
+    ));
+  }
+
+  wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:24px' },
+    '不想按大类选？也可以按感觉挑一个（二选一，和上面互斥）'));
+  const EMO_OPTS = (TAX.emotionMap || []).map((e) => ({ id: e.id, zh: e.zh, desc: e.desc }));
+  wrap.appendChild(segControl(
+    EMO_OPTS,
+    state.answers.emotion,
+    (id) => {
+      state.answers.emotion = id;
+      /* 选了情绪 = 选了另一条入口，圆盘那边必须让位（见 onChange 的同一条注解）。
+         direction 一起清：底噪的来源只能有一个，切换入口时旧来源不能留着，
+         否则盘心说"还没选"、背景却还亮着上一族的光。 */
+      state.answers.family = null;
+      state.answers.subfamily = null;
+      state.answers.direction = null;
+      render();
+    },
+    '说不清香型时按感觉选'
+  ));
+  wrap.appendChild(segHint(EMO_OPTS, state.answers.emotion));
+
+  // 详情放按钮之后：先让用户能立刻前进，再给"这个大类是什么"的补充阅读。
+  // 反过来放的话，一选中家族说明区就把"下一步"顶到折叠线以下，
+  // 桌面 1440×900 实测按钮落在 1131px 处，必须滚动才点得到。
+  wrap.appendChild(familyPanel(state.answers.family));
+  return wrap;
+}
+
+/** 轮盘右侧/下方的家族详情：代表香材、风格、适用场景、注意事项。 */
+function familyPanel(famId) {
+  const box = el('div', { class: 'fam-panel', 'aria-live': 'polite' });
+  box.__paint = (fam) => {
+    box.innerHTML = '';
+    if (!fam) {
+      box.classList.add('is-empty');
+      box.appendChild(el('p', { class: 'fam-empty' }, '上面转盘里挑一个大类，这里会展开它的代表香材、风格和使用场合'));
+      return;
+    }
+    box.classList.remove('is-empty');
+    box.appendChild(el('div', { class: 'fam-head' },
+      el('span', { class: 'fam-group' }, GROUP_ZH[fam.group] || ''),
+      el('h3', { class: 'fam-title' }, fam.zh),
+      el('span', { class: 'fam-en' }, fam.en)
+    ));
+    box.appendChild(el('p', { class: 'fam-style' }, fam.style || fam.oneLine));
+
+    const rows = [
+      ['代表香材', (fam.representativeNotes || []).map((n) => noteZhOf(n)).join('、')],
+      ['三个特征', (fam.traits || []).join(' · ')],
+      ['常用在哪', (fam.scenes || []).join(' · ')],
+      ['怎么用', fam.wear || ''],
+      ['谁该绕开', fam.avoid || ''],
+    ];
+    const dl = el('dl', { class: 'fam-rows' });
+    for (const [k, v] of rows) {
+      if (!v) continue;
+      dl.appendChild(el('dt', {}, k));
+      dl.appendChild(el('dd', {}, v));
+    }
+    box.appendChild(dl);
+  };
+  box.__paint(TAX.families.find((f) => f.id === famId) || null);
+  return box;
+}
+
+function paintFamilyPanel(fam) {
+  const box = document.querySelector('.fam-panel');
+  if (box && box.__paint) box.__paint(fam);
+}
+
+const GROUP_ZH = { fresh: '清新系', floral: '花香系', woody: '木质系', amber: '琥珀系', gourmand: '美食系' };
 
 /* ---------- 第 3 步：浓郁度 ---------- */
 const INTENSITY_LABEL = {
@@ -910,172 +1994,6 @@ const LONGEVITY = [
   { id: '5', zh: '8 小时以上', desc: '跨天。衣服上留到第二天，一两喷就够' },
 ];
 
-
-
-
-/* ---------- 第 13 步：已知锚点（试过且喜欢的香水 / 味道） ----------
-   **这一屏是整套问卷里信噪比最高的一个输入。**
-   前面 12 屏问的都是"偏好声明"，用户对自己的偏好往往说不太准
-   （新手尤其如此）；而"我试过这瓶，喜欢"是**真实反馈**。
-   做法：拿到那瓶香水的 notesAll（400 瓶全覆盖，平均 8.6 味），
-   去和候选池做香调重合度 —— 比任何加权都直接。
-
-   两种输入并存：
-     ① 从 102 个品牌里选（下拉），再选该品牌的瓶子 —— 适合知道自己喷什么的人；
-     ② 直接点名几个香调（复用第 4 步的 chip 组件）—— 适合记不住名字、
-        但记得"那个有佛手柑和雪松的"的人。
-   两种可以同时用，取并集当锚点。 */
-/* ---------- 可搜索组合框（E6）----------
-
-   品牌有 133 个。原生 <select> 只能滚 —— 这是整个问卷里唯一无法用键盘
-   或输入法快速到达的地方：想找 Creed 要按 c-r-e 无反应，只能用首字母跳。
-
-   为什么不用 <input list="..."> + <datalist>：datalist 的候选项在
-   Chrome/Safari/Firefox 三家的渲染、过滤规则与键盘行为都不一致，
-   且无法给候选项加"已选"标记。
-
-   这里自己拼一个：input + 列表。约束三条：
-     ① 输入即过滤（大小写不敏感、支持子串）
-     ② ↑↓ 导航、Enter 选中、Esc 关闭、Blur 关闭
-     ③ 空结果必须给出路：「没找到？直接点下面的香调」
-
-   ARIA 用 combobox 模式：input 上 role=combobox + aria-expanded +
-   aria-controls + aria-activedescendant；列表 role=listbox，项 role=option。 */
-function brandCombobox(opts) {
-  const { items, placeholder, onPick, label } = opts;
-  /* value 必须可变。
-     第一版把它当成常量解构出来，close() 里写 `input.value = value` 想"恢复成
-     已选值"，但选中之后 value 从没更新过 —— 于是选完立刻被清空，
-     表现是"点了 Creed，输入框变空白，但香水下拉确实出现了 31 个选项"。
-     实测抓到的就是这个：input.value='' 而 select 已经建好。 */
-  let value = opts.value || '';
-  const root = el('div', { class: 'combo' });
-  const listId = 'combo-list-' + Math.random().toString(36).slice(2, 8);
-
-  const input = el('input', {
-    class: 'combo-input',
-    type: 'text',
-    role: 'combobox',
-    'aria-label': label || placeholder || '',
-    'aria-expanded': 'false',
-    'aria-controls': listId,
-    'aria-autocomplete': 'list',
-    autocomplete: 'off',
-    placeholder: value || placeholder || '',
-    value: value || '',
-  });
-
-  const list = el('ul', { class: 'combo-list', id: listId, role: 'listbox' });
-  list.style.display = 'none';
-
-  let filtered = [];
-  let active = -1;
-  let opened = false;
-
-  const setActive = (i) => {
-    active = i;
-    [...list.children].forEach((li, k) => {
-      const on = k === i;
-      li.classList.toggle('is-active', on);
-      li.setAttribute('aria-selected', String(on));
-    });
-    if (i >= 0 && list.children[i]) {
-      input.setAttribute('aria-activedescendant', list.children[i].id);
-      /* 让高亮项滚进视野。block:'nearest' 不会带动整页滚动。 */
-      list.children[i].scrollIntoView({ block: 'nearest' });
-    } else {
-      input.removeAttribute('aria-activedescendant');
-    }
-  };
-
-  const close = () => {
-    opened = false;
-    list.style.display = 'none';
-    input.setAttribute('aria-expanded', 'false');
-    // 关掉时若输入框里是半截过滤词而不是已选项，恢复成已选值
-    input.value = value || '';
-  };
-
-  const open = () => {
-    opened = true;
-    list.style.display = 'block';
-    input.setAttribute('aria-expanded', 'true');
-  };
-
-  const render = (q) => {
-    const needle = String(q || '').trim().toLowerCase();
-    filtered = needle
-      ? items.filter((b) => b.toLowerCase().includes(needle))
-      : items;
-    // 上限 60：133 项全铺开会让列表高过视口，滚动反而更难找
-    const shown = filtered.slice(0, 60);
-    list.innerHTML = '';
-    if (!shown.length) {
-      list.appendChild(el('li', { class: 'combo-empty' },
-        '没找到「' + q + '」。可以直接点下面的香调，或换个拼法试试'));
-      setActive(-1);
-      return;
-    }
-    shown.forEach((b, i) => {
-      list.appendChild(el('li', {
-        class: 'combo-item' + (b === value ? ' is-on' : ''),
-        role: 'option',
-        id: listId + '-' + i,
-        'aria-selected': 'false',
-        onclick: () => { pick(b); },
-      }, b));
-    });
-    // 过滤后默认高亮第一个 —— 这样「输入 + Enter」是最短路径
-    setActive(needle ? 0 : -1);
-  };
-
-  const pick = (b) => {
-    value = b;          /* 先更新，close() 里要用它回填 */
-    input.value = b;
-    onPick(b);
-    close();
-    input.focus();
-  };
-
-  input.addEventListener('input', () => {
-    if (!opened) open();
-    render(input.value);
-  });
-  input.addEventListener('focus', () => {
-    if (!opened) { open(); render(input.value === value ? '' : input.value); }
-  });
-  input.addEventListener('keydown', (ev) => {
-    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
-      ev.preventDefault();
-      if (!opened) { open(); render(input.value); return; }
-      const n = list.querySelectorAll('.combo-item').length;
-      if (!n) return;
-      const d = ev.key === 'ArrowDown' ? 1 : -1;
-      setActive((active + d + n) % n);
-      return;
-    }
-    if (ev.key === 'Enter') {
-      ev.preventDefault();
-      const li = list.querySelector('.combo-item.is-active');
-      if (li) pick(li.textContent);
-      else if (filtered.length === 1) pick(filtered[0]);
-      return;
-    }
-    if (ev.key === 'Escape') {
-      ev.preventDefault();
-      close();
-    }
-  });
-  input.addEventListener('blur', () => {
-    /* 用 setTimeout 而不是直接关：blur 早于点击，直接关会让点击落空。 */
-    setTimeout(() => { if (opened) close(); }, 120);
-  });
-
-  root.appendChild(input);
-  root.appendChild(list);
-  return root;
-}
-
 /* ============================================================
    第 1 屏：预算（标本签的价签行）
    ------------------------------------------------------------
@@ -1262,112 +2180,6 @@ function renderDirection() {
   return wrap;
 }
 
-function renderAnchor() {
-  const wrap = el('div', { class: 'fade-in' });
-  const head = stepHead('anchor');
-  wrap.appendChild(el('div', { class: 'stage-lead' },
-    el('div', { class: 'q-kicker' }, head.kicker),
-    el('h2', { class: 'q-title' }, head.title),
-    el('p', { class: 'q-help' }, head.help)
-  ));
-
-  /* 说明从"为什么这一屏最有用"改成"为什么答不出很正常"。
-     原句「这一屏最有用」对零基础用户是压力：他恰恰是最不知道该答什么的那批人。
-     真正该讲的信息是**为什么不知道名字是常态**（大家用完就扔瓶子），
-     以及"记得牌子就够了"。 */
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '不记得名字很正常：'),
-    ' 大部分人用完就把瓶子扔了，能想起牌子已经很不容易。',
-    ' 记得牌子就选牌子——哪怕记不清是哪一瓶，随便挑一支风格接近的也比空着强。'
-  ));
-
-  /* --- 输入 ①：品牌 → 香水 --- */
-  const brands = [...new Set((DATA?.perfumes || []).map((p) => p.brand))].sort();
-  wrap.appendChild(el('div', { class: 'chips-label' }, '我记得是哪一瓶（可选）'));
-
-  if (!DATA?.perfumes?.length) {
-    wrap.appendChild(el('p', { class: 'q-help' }, '香水库还在加载，稍等一下再选品牌'));
-  } else {
-    const perfumeSlot = el('div', { class: 'anchor-slot' });
-    /* E6：133 个品牌换成可搜索组合框。
-       原生 select 只能滚，是全场唯一无法用输入法快速到达的地方。
-       换品牌要清掉已选的那瓶 —— 否则会出现"Byredo 的瓶子 + Creed 的品牌"。 */
-    const selBrand = brandCombobox({
-      items: brands,
-      value: state.answers.anchorBrand,
-      placeholder: `搜索品牌（共 ${brands.length} 个，输入几个字母即可）`,
-      label: '品牌',
-      onPick: (b) => {
-        state.answers.anchorBrand = b || null;
-        state.answers.anchorPerfume = null;
-        state.answers.anchorPerfumeNotes = [];
-        /* 只重建「香水下拉」那一块，不调 render() ——
-           调 render() 会整页重绘：组合框失焦、下面已勾的香调 chip 全部丢状态。 */
-        if (perfumeSlot) {
-          perfumeSlot.innerHTML = '';
-          perfumeSlot.appendChild(buildPerfumeSelect());
-        }
-      },
-    });
-    wrap.appendChild(selBrand);
-
-    function buildPerfumeSelect() {
-      const list = (DATA.perfumes || []).filter((p) => p.brand === state.answers.anchorBrand);
-      return el('select', {
-        class: 'anchor-select',
-        'aria-label': '香水',
-        onchange: (ev) => {
-          state.answers.anchorPerfume = ev.target.value || null;
-          /* 选中某一瓶时，把它的 notesAll 抄进答案。
-             引擎侧拿这个集合算重合度 —— 比让用户自己点 8 个香调准得多，
-             也是这一屏存在的意义（真实反馈 > 偏好声明）。 */
-          const picked = (DATA.perfumes || []).find((x) => x.id === state.answers.anchorPerfume);
-          state.answers.anchorPerfumeNotes = picked ? (picked.notesAll || []) : [];
-        },
-      },
-        el('option', { value: '' }, `选择 ${state.answers.anchorBrand} 的哪一瓶（${list.length} 瓶）`),
-        ...list.map((p) => el('option', {
-          value: p.id,
-          selected: state.answers.anchorPerfume === p.id ? 'selected' : null,
-        }, `${p.name}${p.concentrationLabelZh ? ' · ' + p.concentrationLabelZh : ''}`))
-      );
-    }
-    if (state.answers.anchorBrand) perfumeSlot.appendChild(buildPerfumeSelect());
-    wrap.appendChild(perfumeSlot);
-  }
-
-  /* --- 输入 ②：直接点名香调 ---
-     复用第 4 步的 chip 组件：这里的语义和第 4 步"我喜欢这些味道"几乎一样，
-     区别只在于它是"锚点"而非"加分项" —— 锚点会和候选做重合度比对，
-     而加分项只是 +14。同一个控件、两种权重，用户不需要学第二套交互。 */
-  wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:18px' },
-    '或者，记得是哪几种味道（可多选）'));
-  const usable = getUsableNotes();
-  const box = el('div', { class: 'chips' });
-  usable.slice(0, 24).forEach((n) => {
-    const on = (state.answers.anchorNotes || []).includes(n.en);
-    const chip = el('button', {
-      class: 'chip',
-      type: 'button',
-      'data-anchor': n.en,
-      'aria-pressed': String(on),
-      onclick: () => {
-        const arr = state.answers.anchorNotes || (state.answers.anchorNotes = []);
-        const i = arr.indexOf(n.en);
-        if (i >= 0) arr.splice(i, 1); else arr.push(n.en);
-        const now = arr.includes(n.en);
-        chip.classList.toggle('neg', false);
-        chip.setAttribute('aria-pressed', String(now));
-      },
-    }, n.zh);
-    box.appendChild(chip);
-  });
-  wrap.appendChild(box);
-  wrap.appendChild(el('div', { class: 'term-note' }, '选多少都行，选得越多越接近你记忆里那瓶。'));
-
-  wrap.appendChild(navBar('anchor'));
-  return wrap;
-}
 
 /* ============================================================
    第 3 / 4 屏：想要的味道 / 受不了的味道（生活短语）
@@ -1691,8 +2503,6 @@ function renderOccasion() {
   wrap.appendChild(navBar('occasion'));
   return wrap;
 }
-
-
 
 /* ============================================================
    第 6 屏：季节（温度光带）
@@ -2084,6 +2894,29 @@ function navBar(stepId) {
   bar.appendChild(el('div', { class: 'spacer' }));
 
 
+  /* 第 1 屏：香型圆盘。取回自 a39e498 的原分支，一字未改 ——
+     它的 disabled 语义有明确理由（下面两条注解都是原文）：
+       两条入口都算「答过了」：轮盘选家族，或下面那排「按感觉选」。
+       只认 family 时，用情绪入口的人会被这个 disabled 卡在第 1 步 ——
+       而那恰好是不认识香型词汇的用户，等于把兜底路也堵死。
+     这也正是本步不改盘下那排「按感觉选」的原因：它是盘的兜底入口，
+     与第 3 屏的大方向屏在**当前**这一步确实问的是同一件事 —— 那一屏是
+     定版要删的（v7 定版「想要什么感觉」整屏删），留给第 2 步处理。
+     现在把它删掉就等于替第 2 步做决定，而且会让"跳过圆盘的人无路可走"。 */
+  if (stepId === 'family') {
+    const byFamily = !!state.answers.family;
+    const byEmotion = !!state.answers.emotion;
+    const done = byFamily || byEmotion;
+    bar.appendChild(el('span', { class: 'hint' }, done
+      ? (byFamily ? '中圈可选，不选就按大类推荐' : '按感觉选也可以，中圈可不选')
+      : '先在外圈挑一个大类，或者用下面的「按感觉选」'));
+    bar.appendChild(el('button', {
+      class: 'btn', type: 'button', disabled: done ? null : 'disabled',
+      onclick: next,
+    }, '下一步 →'));
+    return bar;
+  }
+
   /* v6 的第 3 / 4 屏（生活短语）：多选，一个都不选也能走。
      两屏的 hint 不能写成同一句 —— 「想要」是可选加分，「受不了」是更有效的排除，
      两句说反会让用户以为"这一题不重要"。 */
@@ -2104,20 +2937,22 @@ function navBar(stepId) {
      为什么仍画一个显式的「下一步」而不是点选即自动前进：
      自动前进是 480ms 后触发的，用户点了之后若想反悔，需要一个不依赖
      "等它自己跳"的出口；而且键盘用户 Tab 到这里时自动前进已经错过了，
-     没有按钮他们就卡住了。 */
-  if (stepId === 'budget' || stepId === 'emotion' || stepId === 'season'
-      || stepId === 'occasion' || stepId === 'concentration') {
-    bar.appendChild(el('span', { class: 'hint' }, '不选也能继续'));
-    bar.appendChild(el('button', { class: 'btn', type: 'button', onclick: next }, '下一步 →'));
-    return bar;
-  }
+     没有按钮他们就卡住了。
 
-  /* 锚点屏：永远可点（它是可跳过的），且是最后一屏，按钮直接出结果。 */
-  if (stepId === 'anchor') {
-    bar.appendChild(el('span', { class: 'hint' }, '不填也能看结果'));
+     **末屏（concentration）在这里就出结果**：v7 撤掉了「已知款」那一屏，
+     所以"看推荐"按钮从它挪到了这一屏 —— 不留一条 anchor 分支，
+     否则那个 id 一复活就会静默走到这里。 */
+  if (stepId === 'concentration') {
+    bar.appendChild(el('span', { class: 'hint' }, '不选也能继续'));
     bar.appendChild(el('button', {
       class: 'btn', type: 'button', onclick: (ev) => finish(ev.currentTarget),
     }, '看推荐 →'));
+    return bar;
+  }
+  if (stepId === 'budget' || stepId === 'emotion' || stepId === 'season'
+      || stepId === 'occasion') {
+    bar.appendChild(el('span', { class: 'hint' }, '不选也能继续'));
+    bar.appendChild(el('button', { class: 'btn', type: 'button', onclick: next }, '下一步 →'));
     return bar;
   }
 
@@ -2157,11 +2992,11 @@ async function finish(btn) {
      原来只认 family，把 emotion 这条引擎早就支持的入口卡死了
      （scoring.js:151 的两条入口在生产路径上只活了一条）。
      两条都给不出时才回第 1 步：那时引擎确实无从下手，recommend 会 throw。 */
-  /* 唯一硬约束：必须给出大方向（第 2 屏）。它是引擎的入口
-     （src/scoring.js 的 buildProfile 要求 family 或 emotion 二选一），
-     也是背景层底噪的来源 —— 没有它，整程的调子和打分都无从谈起。
-     这里不再检查 family：v6 已无香型轮盘，family 恒为 null。 */
-  if (!state.answers.emotion) { state.step = 1; render(); return; }
+  /* 唯一硬约束：必须给出一个入口 —— 香型圆盘选了家族，或者用「按感觉选」选了情绪。
+     这是 a39e498 的原文判定，v7 原样恢复（v6 当年只认 emotion，因为 family
+     恒为 null；现在圆盘回来了，family 才是主路径）。
+     两条都给不出时才回第 1 步：那时引擎确实无从下手，recommend 会 throw。 */
+  if (!state.answers.family && !state.answers.emotion) { state.step = 0; render(); return; }
   // 库还没到时，这里会等它下完 —— 只有「四步全答完、但库仍在下载」才会卡到这。
   // 等待期间必须给出可见反馈：按钮换成进度文案并禁用，否则用户会连点几次。
   const busy = setBusy(btn, '正在比对…');
@@ -2221,7 +3056,7 @@ function restart() {
      v6 新增的三个（budget / wanted / unwanted）必须在这里，
      否则重开一局时第一批仍是上一局的第二批。 */
   state.answers = {
-    family: null, subfamily: null, emotion: null, occasion: null, intensity: 3,
+    family: null, subfamily: null, direction: null, emotion: null, occasion: null, intensity: 3,
     budget: 'any', wanted: [], unwanted: [],
     likedNotes: [], dislikedNotes: [], likedZh: {}, dislikedZh: {},
     /* characterNeg 与 longevityManual 是前两轮漏过的：前者是气质原型的
@@ -2231,6 +3066,9 @@ function restart() {
     season: null,
     concentration: null, longevity: null, longevityManual: false,
     dislikedFamilies: [], temperature: null, sweetness: null,
+    /* direction 是 v7 第 1 步新增的底噪方向，必须与 state.answers 的键表一致 ——
+       漏掉它，重开一局时底噪会带着上一局的方向继续走，而圆盘显示的是"还没选"。
+       这正是上面那两句注释说的老毛病，所以两处一起改。 */
     anchorBrand: null, anchorPerfume: null, anchorNotes: [],
   };
   /* 结果页视图状态：不清的话"换一批"会从上一局的第二批开始数。 */
@@ -2270,11 +3108,12 @@ function renderProgress() {
 function renderMasthead() {
   const isResult = state.step >= curSteps().length;
   /* 边距仪器区（规格 5 的"留白深度"）。
-     叶标题不变，只在页眉右侧补一枚 .amb-tick —— 它是**这一程走到哪儿的刻度**，
-     内容由 applyAmbient() 写入（方向 + 档位，如「暖·渐」）。
-     它不算装饰：没有它，"底噪随进程增强"这件事就只能靠感觉，无法核对。
-     没选大方向时它是空的（诚实：那时确实还没有方向）。 */
-  const ambActive = state.answers && state.answers.emotion;
+     叶标题不变，页眉右侧那枚 .amb-tick 是**这一程走到哪儿的刻度**
+     （方向 + 档位，如「亮·起」）。它不算装饰：没有它，"底噪随进程增强"
+     这件事就只能靠感觉，无法核对。没方向时它不出现（诚实：确实还没有方向）。
+
+     v7 起刻度**由 applyAmbient() 统一写**，这里不造节点 —— 见本函数末尾
+     那段注解。所以这里不再需要 ambActive 这个局部判定。 */
   return el('header', { class: 'masthead' },
     // 封面标题里的「第一瓶」是全站唯一的高分量蓝色。
     // 用 em 而不是 span：它承载的是语义强调（"第一瓶"才是这个产品的承诺），
@@ -2285,19 +3124,20 @@ function renderMasthead() {
     el('p', { class: 'lede' },
       isResult
         ? '每一瓶的理由都能反推回你刚才的选择，没有一句是编的'
-        /* 首屏那句 lede 原来写「转盘选香型，再定场合和浓度」—— v6 已无香型轮盘，
-           继续这么说就是在页面上承诺一个不存在的东西。改成描述真实流程。 */
-        : '不用懂前中后调。先说预算和想要的感觉，再挑生活里记得的味道'
+        /* 首屏那句 lede 原来写「转盘选香型，再定场合和浓度」（a39e498），
+           v6 撤盘时改成「先说预算和想要的感觉」，v7 圆盘回来了 ——
+           现在这句必须同时说准两件事：**第一件事是转盘**，而且不问术语。 */
+        : '不用懂前中后调。先在转盘上挑一个大方向，再定场合和浓度'
     ),
     /* 印��：纯装饰（aria-hidden），字取「香」—— 这个应用唯一的主题字。 */
-    el('span', { class: 'seal', 'aria-hidden': 'true' }, '香'),
-    /* 刻度：只在选过大方向之后出现，此时它读得出来；之前留空，不占位。
-       文字直接写在这里（而不是留给 applyAmbient 事后补）——
-       页眉与底噪的计算必须用**同一个** amb 结果，否则两处会分叉：
-       applyAmbient 写完刻度后若再重绘页眉，刻度就又被清空了。
-       所以 renderMasthead 自己算一次，applyAmbient 只负责写 CSS 变量。 */
-    ambActive ? el('span', { class: 'amb-tick', 'aria-hidden': 'true' },
-      ambientOf(state.answers, state.step, curSteps().length).kicker) : null
+    el('span', { class: 'seal', 'aria-hidden': 'true' }, '香')
+    /* 刻度（.amb-tick）**不在这里造** —— 它现在由 applyAmbient() 统一写
+       （见 updateAmbTick）。理由：圆盘是"选了不跳屏"的，点中香型只调
+       applyAmbient() 而不会重绘页眉；若刻度只由这里造，用户点完会看到
+       页眉右侧一片空白、底噪却已经亮了。
+       v6 的写法是"页眉自己算一次"，那时只有大方向屏会写方向、且那一屏
+       紧跟一次 render，所以看不出问题；第 1 屏是底噪开灯的地方之后，
+       这个顺序差就成了可见缺陷。改成一个写者，两处不会再分叉。 */
   );
 }
 
@@ -3378,11 +4218,15 @@ async function reshuffle(btn) {
 
 /* ---------- 改一题：跳到某一屏，其余答案不动 ----------
    不给选择器让用户"选哪一题"：那是把一份问卷变成一张目录。
-   做法是**回到最可能答错的那一屏**，并把其余六屏列成一行可点的小签 ——
-   点哪个回哪个。这样默认动作是"改最关键的一题"，而不是先做一次选择。
-   哪一题最可能答错：预算（它决定候选池，答错整组都不对）。
+   做法是**回到最可能答错的那一屏**，点哪个回哪个 ——
+   这样默认动作是"改最关键的一题"，而不是先做一次选择。
+
+   哪一题最可能答错：**香型圆盘**（v7 起它是第 1 屏）。它同时决定两件事 ——
+   候选池的族向（引擎按 family 取 profile）与整程的底噪方向；答错它，
+   后面每一屏的推荐和光都会跟着偏。预算退到第 2 屏之后仍是"圈池"那一刀，
+   但它只影响范围、不影响方向，所以让位给圆盘。
    这一判断写在 RETUNE_DEFAULT 里，不藏在代码中间。 */
-const RETUNE_DEFAULT = 'budget';
+const RETUNE_DEFAULT = 'family';
 function openRetune(btn) {
   void btn;
   const list = curSteps();
@@ -3463,8 +4307,78 @@ function renderFooter(onResult = false) {
    为什么走 CSS 变量而不是直接改样式：底噪是一条**连续**的量，逐屏重算、
    逐屏写在同一个变量上，样式层只负责"怎么用这三个数"。这样调强度上限
    不必碰 JS，调方向也不必碰 CSS。
-   hardCap 在样式层再做一次（见 styles/src/90-quiz-v6.css 的 .amb-layer），
+   hardCap 在样式层再做一次（见 styles/src/90-quiz-v6.css 的 .amb-wash），
    两处都夹是为了"只改一处也不会失控"。 */
+
+/* ==== v6 遗留缺陷：.amb-wash 这一层从来没有被创建过（2026-11-17 发现）====
+   v6 的样式层（styles/src/90-quiz-v6.css:38-101）把底噪写得很完整 ——
+   三轴变量、强度闸、深色配方、12s 漂移，全部就位；但**没有任何一行 JS
+   创建过 .amb-wash 这个节点**（`git grep amb-wash` 在 v6 的 app.js / index.html
+   里零命中，只在 CSS 与注释里出现）。于是 v6 的"底噪"只剩两样可见物：
+   #app 上的四个 CSS 变量（没人消费）与页眉那枚 .amb-tick 刻度文字。
+   验收时"底噪已点燃"这件事因此无法从截图上看见 —— 这是本步必须补的。
+
+   为什么补在这里而不是新建一条样式：底噪是**接线的一部分**（任务书第 3 条
+   要求把圆盘的大方向喂给底噪系统），而这一层是那条线的末端。样式本身
+   （颜色、强度、漂移、深色配方）一行不动 —— 这里只负责把节点造出来。
+
+   为什么 z-index 用内联 -1 而不是让样式层的 0 生效：样式层假定前景内容
+   有一层 `.sheet { z-index: 1 }` 托着（90-quiz-v6.css:104），而 app.js 的
+   render() 从来没有输出过 .sheet —— 两条假设一起缺，正是这个缺陷的成因。
+   给一条负 z-index 是**只动 JS、不动样式**的最小修法：它落在"父元素背景之上、
+   正常流内容之下"，也就是底噪该待的那一层，不必给每一屏都套一层 .sheet
+   （那会改掉全部七屏的 DOM 结构，超出本步范围）。
+   进 DOM 的时机：applyAmbient() 在每次 render() 重建之后被调用，
+   所以节点被 innerHTML='' 抹掉后会自动补回来。 */
+const AMB_LAYER_ID = 'amb-wash';
+/* 单例：render() 每次把 #app 清空（app.innerHTML = '' —— 真实 DOM 里那会把
+   子节点连同这个层一起销毁），所以每次 applyAmbient() 都要重新挂一次。
+   用模块级变量持有它而不是每次 querySelector('#amb-wash')：
+   test-render 的 DOM 桩只认 .class / tag / [attr]，不认 id 选择器 ——
+   写 id 查询会让"补桩"变成改被测代码的理由，那是本仓库反复反对的改法。 */
+let AMB_LAYER = null;
+
+/** 造（或取回）底噪层。 */
+function ensureAmbientLayer() {
+  if (AMB_LAYER) return AMB_LAYER;
+  AMB_LAYER = el('div', {
+    class: 'amb-wash',
+    id: AMB_LAYER_ID,
+    'aria-hidden': 'true',
+    /* 内联覆盖样式层的 z-index: 0 —— 理由见上面那段（前景没有 .sheet 托着）。 */
+    style: 'z-index:-1',
+  });
+  return AMB_LAYER;
+}
+
+/* ==== 刻度就地更新（v7 第 1 步补）====
+   renderMasthead() 只在 render() 时决定要不要造那枚 .amb-tick，而圆盘是
+   "选了不跳屏"的：点中香型只走 applyAmbient()，不重绘整页。于是刻度会
+   停在"还没选"的样子 —— 页眉右侧一片空白，而底噪其实已经亮了。
+   这不是 v7 引入的：v6 的大方向屏同样只调 applyAmbient()，所以它也要等到
+   下一次 render 才出现刻度（test-render 的刻度断言之所以绿，是因为那时
+   已经翻过屏了）。本步把它补成"跟随当前值"，因为第 1 屏就是底噪开灯的地方，
+   用户点完必须立刻读到这一刻是「亮·起」还是「沉·起」。
+
+   为什么在 applyAmbient 里补而不是在 onChange 里补：底噪的读数必须与
+   底噪本身同源（同一个 amb 对象），两处各算一次就会分叉 —— 那正是
+   renderMasthead 注释里记过的坑。 */
+function updateAmbTick(app, amb) {
+  const head = app.querySelector('.masthead');
+  if (!head) return;
+  let node = app.querySelector('.amb-tick');
+  if (!amb.active || !amb.kicker) {
+    /* 没方向就诚实地不显示（不是显示一个空刻度）。 */
+    if (node && node.parentNode) node.parentNode.removeChild(node);
+    return;
+  }
+  if (!node) {
+    node = el('span', { class: 'amb-tick', 'aria-hidden': 'true' });
+    head.appendChild(node);
+  }
+  if (node.textContent !== amb.kicker) node.textContent = amb.kicker;
+}
+
 function applyAmbient() {
   const app = $('#app');
   if (!app) return;
@@ -3475,10 +4389,10 @@ function applyAmbient() {
   const vars = ambientVars(amb);
   for (const [k, v] of Object.entries(vars)) app.style.setProperty(k, v);
   app.setAttribute('data-amb', amb.active ? amb.axis : 'none');
-  /* 刻度文字不在这里写 —— 它由 renderMasthead 直接算并写进节点，
-     两处都写会分叉（后写的那个赢，而且顺序一改就静默失效）。
-     这里只负责 CSS 三轴 + data-amb（给样式层认方向用）。 */
-  void 0;
+  /* 节点必须先于其余内容进入 #app：它是背景，靠 z-index 站队只是兜底，
+     绘制顺序上也不该压在内容后面。 */
+  app.insertBefore(ensureAmbientLayer(), app.firstChild);
+  updateAmbTick(app, amb);
 }
 
 function render() {
@@ -3501,16 +4415,18 @@ function render() {
        rise   上浮 14px   —— 结果页（全流程唯一"给答案"的一屏）
 
      逐屏理由（也写在 PR 的逐屏表里）：
-       budget   → settle  首屏，自己就是"进门"，下沉最有"推门"感
-       emotion  → settle  换轴：从钱进感觉。**同时是底噪开灯的那一屏**
+       family   → settle  首屏，自己就是"进门"，下沉最有"推门"感；
+                          **同时是底噪开灯的那一屏**（圆盘点中即点燃）
+       budget   → settle  换轴：从"味道"进"范围"。仍是同一段路里的换挡
+       emotion  → settle  换轴：从钱进感觉。底噪此时已在走，这一屏只加不减
        wanted   → cut     与上一屏同属"味道偏好"这段路，连续
        unwanted → cut     同一段路的另一面
        occasion → settle  换轴：从"味道"进"什么时候"
        season   → cut     与场合同属时间轴，连续走完一年与一天
        concentration → settle 换轴：从"什么时候"进"多重的分量"
-       anchor   → lift    收束屏，最后一次提问，之后是结果
        result   → rise    给答案 */
   const SCENE = {
+    family: 'settle',
     budget: 'settle',
     emotion: 'settle',
     wanted: 'cut',
@@ -3518,7 +4434,6 @@ function render() {
     occasion: 'settle',
     season: 'cut',
     concentration: 'settle',
-    anchor: 'lift',
   };
   const list = curSteps();
   /* 越界保护（防御性）。v6 步骤表固定 8 屏、无入口分叉，理论上 state.step
@@ -3795,6 +4710,17 @@ export const __budget = {
   pool: poolForBudget,
   bands: () => priceIndex(),
   setIndex: (v) => { PRICE_INDEX = v; },
+};
+
+/* 圆盘 → 底噪轴的换算层（v7 第 1 步）。
+   测试要验三件事，而这三件事都只有这里取得到：
+     ① 选了家族之后 direction 真的被写进去、清空时真的被清掉；
+     ② AXIS_OF_FAMILY 等于 emotionMap 上的全局最优匹配（不是手配的六个字）；
+     ③ 六个家族映射到六个**不同**的轴（多族共用一轴 = 底噪分不出族）。
+   ② 尤其必要：那张表上差 0.05 分肉眼完全看不出来，必须能算。 */
+export const __dir = {
+  axis: AXIS_OF_FAMILY,
+  directionOf: (answers) => (answers && answers.family ? (AXIS_OF_FAMILY[answers.family] || null) : null),
 };
 
 /* 背景层（底噪）。"只增不减、不换方向"这两条性质必须能直接算，

@@ -144,6 +144,18 @@ class TNode {
      结果是测试和浏览器走两条路。所以桩要补齐，而不是绕开。 */
   insertBefore(n, ref) {
     if (typeof n !== 'string') { n.parentNode = this; }
+    /* 真实 DOM 的 insertBefore 是**移动**语义：节点若已挂在某处，会先被摘下来。
+       桩原先只做 splice 插入，于是同一个节点被反复 insertBefore 会留下多份 ——
+       底噪层（.amb-wash 单例）正好走这条路：每次 render() 重建后都要重新插一次，
+       桩里就攒成了 10 个，断言「只有一个」直接红。
+       这是桩缺能力，补桩而不是改业务代码绕开（本文件开头那条规则）。 */
+    if (typeof n !== 'string' && n.parentNode && n.parentNode !== this) {
+      const oi = n.parentNode.children.indexOf(n);
+      if (oi >= 0) n.parentNode.children.splice(oi, 1);
+    } else if (typeof n !== 'string') {
+      const si = this.children.indexOf(n);
+      if (si >= 0) this.children.splice(si, 1);
+    }
     const i = ref == null ? -1 : this.children.indexOf(ref);
     if (i < 0) this.children.push(n);
     else this.children.splice(i, 0, n);
@@ -310,10 +322,666 @@ async function advance() {
   b2.dispatch('click');
   await new Promise((r) => setTimeout(r, 240));
 }
+/* ============================================================
+   第 1 屏：香型圆盘（2026-11-17 v7 第 1 步恢复）
+   ------------------------------------------------------------
+   断言整块来自 a39e498 的 scripts/test-render.mjs（281–841 行），
+   即 PR #5 合并之前那一版的圆盘断言 —— 与本步恢复的 app.js 代码同源。
+   这样"圆盘视觉与图标零改动"就不靠人眼比对，而是靠**同一份断言**：
+   代码与断言同时取自同一个提交，任何一侧被改都会红。
 
-/* ---------- ① 首屏：预算 ---------- */
-ok('首屏是预算屏（data-step=budget）', stepId() === 'budget', stepId());
-ok('首屏标题是「你打算花多少钱」', getStepText().includes('你打算花多少钱'), getStepText().slice(0, 90));
+   只做了一处包装：整块套进 { } 作用域。原因是它里面的 plate / cap /
+   plates / sectorGroups 等是块内临时量，平铺会和本文件后面的同名量
+   撞成 const 重复声明。作用域不改变任何一条断言的语义。
+   ============================================================ */
+{
+/* ---------- U1：窄屏标签的命中垫 ----------
+   390 展开态下 .lvl1 的元素盒只有 39x26（收窄是被迫的：不收会压到中圈标签），
+   靠 ::before 铺一层透明垫扩到 44x44。断言钉住"垫子存在且够大"。
+   纯 CSS 的几何在 DOM 桩里量不到，所以这里只验规则本身写对了。 */
+{
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  ok('窄屏家族标签有 44px 高的命中垫',
+    /\.wheel\.is-open \.label-layer \.disc-sector\.lvl1::before\s*\{[^}]*height:\s*44px/.test(css),
+    '缺 .lvl1::before 的 44px 垫');
+  ok('中圈弧段标签也有命中垫',
+    /\.wheel \.disc-sector\.lvl2\.sub-arc-btn::before\s*\{[^}]*height:\s*max\(100%,\s*44px\)/.test(css),
+    '缺 .sub-arc-btn::before 的垫');
+}
+
+
+// 闭合态盘心必须填满内孔：外环与盘心连成一整块圆盘。
+// 若只取内接正方形（42.7%），四周会留一圈白，读起来像「环 + 贴在环上的一张卡」。
+{
+  const hubPct = (() => {
+    const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    // 必须取闭合态那条规则；基础 .disc-hub 是旧基线的 42.7%，读到它会得出假结论。
+    const m = css.match(/\.wheel:not\(\.is-open\) \.disc-hub\s*\{[^}]*?width:\s*([\d.]+)%/);
+    return m ? parseFloat(m[1]) : NaN;
+  })();
+  // 内孔 r1i=158 / 视框 480 → 直径 2×158/480 = 65.83%，取 66% 与内弧咬合。
+  ok('闭合态盘心填满内孔（65–67%）', hubPct >= 65 && hubPct <= 67, `实际 ${hubPct}%`);
+  ok('闭合态盘心是圆而不是方', /\.wheel:not\(\.is-open\) \.disc-hub\s*\{[^}]*?border-radius:\s*50%/.test(
+    fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')),
+    '圆盘语义要求盘心与外环同形，方盘会读成贴在盘上的一张卡');
+  ok('闭合态关掉方盘角标', /\.wheel:not\(\.is-open\) \.disc-hub::before\s*\{\s*display:\s*none/.test(
+    fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')),
+    '角标在圆盘外接方框的四角，圆盘下会悬在盘外');
+}
+// 盘心是圆：元素四角的可用宽度按 sqrt(R²−半高²) 收窄，宽元素必须显式收窄，
+// 否则矩形中段贴边、四角顶出弧线。三视口实测溢出 4.7 / 5.7 / 15.8 / 3px。
+{
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  ok('展开态盘心说明收窄到圆弧内（≤ 96%）',
+    /\.wheel\.is-open \.disc-hub \.hub-desc\s*\{[^}]*?max-width:\s*(?:[0-8]\d|9[0-6])%/.test(css),
+    '不加 max-width 时 1440 视口溢出 4.7px；96% 是 270×.96=259.2 < 弧容 266 的上限');
+  ok('选定态盘心说明收窄（≤ 92%）',
+    /\.wheel \.disc-hub\.is-picked \.hub-desc\s*\{[^}]*?max-width:\s*(?:[0-8]\d|9[0-2])%/.test(css),
+    '不加 max-width 时 360 视口溢出 3px');
+  // 窄屏盘心装不下「就选「X」，下一步 →」，且底部已有同义出口
+  ok('窄屏隐藏盘心重复出口', /@media \(max-width: 620px\) \{[\s\S]*?\.wheel \.hub-go \{ display: none; \}/.test(css),
+    '360 视口该按钮宽 156 而圆弧只容 140，且与底部「按大类推荐」重复');
+
+  /* ⑤ 确认后不整盘翻黑（用户原话：「避免内圈直接变黑，反差过大不优雅」）。
+     改成：盘底保持白、只加一圈发丝描边；选中由方格自己填实表达。
+     这条守的是「盘底不许再出现 --ink 实底」。 */
+  ok('选定态盘底不翻黑', (() => {
+    // 必须取层叠里最后一条：基础层/旧追加层里还留着 background: var(--ink) 的墨底规则，
+    // match() 只拿第一条会读到那条已作废的，得出「还在翻黑」的假结论。
+    const all = [...css.matchAll(/\.wheel\.is-open\.is-picked \.disc-core \{[^}]*?background:\s*var\((--[\w-]+)\)/g)];
+    if (!all.length) return false;
+    const token = all[all.length - 1][1];
+    // 只认浅色底板令牌。曾经写死 var(--bg)，后来发现展开态是 --bg-2(#f5f5f5)、
+    // 选中后跳到 --bg(#ffffff) —— 8% 亮度跳变自己就成了一次「整块变色」，只是方向反了。
+    return token === '--bg' || token === '--bg-2';
+  })(),
+    '翻黑是"页面切走了"的信号，不是"你选中了这一格"的信号');
+
+  ok('选中态与展开态同一个底板色', (() => {
+    // 选中瞬间若底板换色，用户会先感到"页面变了"才看到"我选了这格"。
+    // 两态必须同 token，选中只由被选中的方格自己表达。
+    const pick = [...css.matchAll(/\.wheel\.is-open\.is-picked \.disc-core \{[^}]*?background:\s*var\((--[\w-]+)\)/g)];
+    const open = [...css.matchAll(/\.wheel\.is-open \.disc-core \{[^}]*?background:\s*var\((--[\w-]+)\)/g)];
+    if (!pick.length || !open.length) return true; // 展开态未显式声明，继承闭合态，不算违规
+    return pick[pick.length - 1][1] === open[open.length - 1][1];
+  })(), '展开态 #f5f5f5 → 选中态 #ffffff 是 8% 的整块跳变');
+  ok('选定态盘底有激活描边', /\.wheel\.is-open\.is-picked \.disc-core \{[^}]*?box-shadow:[^}]*?var\(--blue-amb\)/.test(css));
+  /* 换底必须换线：标本线稿原写 rgba(255,255,255,.82) 是给墨底配的，
+     底变白之后白线画在白盘上等于图形消失。 */
+  ok('标本线稿跟着底色换成深色', /\.wheel \.plate-svg \{[^}]*?stroke:\s*var\(--ink/.test(css),
+    '换底不换线是改配色最容易漏的一处');
+  /* ① 手机上也要看得见「中圈可不选」 */
+  ok('窄屏出现「中圈可不选」的出口', /@media \(max-width: 620px\) \{[\s\S]*?\.wheel \.hub-skip \{ display: inline-block; \}/.test(css),
+    '原来只有桌面的 .hub-go 在说这件事，它在 ≤620px 是 display:none');
+  /* ② 方格挂在一条与盘同心的轨道上 */
+  ok('方块有一条与盘同心的轨道', /\.wheel \.sub-ring::before \{[^}]*?border:\s*1px dashed/.test(css)
+    && /\.wheel\.is-open \.sub-ring::before \{ opacity: 1; \}/.test(css));
+  /* ---- 第五轮五条（m10062）的守门 ----
+     这些测的都是"用户能不能用"，不是"某段颜色对不对" ——
+     前几轮漏掉的缺陷（返回入口没有、缩小盘点不动、图标常态没有）
+     全都不在视觉参数上，而在交互路径上。 */
+  /* ② 返回入口：44px 触控下限 + 三个状态都要有 */
+  ok('返回入口是 44px 触屏尺寸', /\.wheel \.wheel-back \{[^}]*?min-height:\s*44px/.test(css));
+  ok('返回入口有按下态', /\.wheel \.wheel-back:active \{[^}]*?translateY\(1px\)/.test(css));
+  ok('返回入口能真正隐藏', /\.wheel \.wheel-back\[hidden\] \{ display: none; \}/.test(css),
+    '[hidden] 的 UA display:none 会被作者的 display 顶掉，必须显式压回');
+
+  /* ③ 缩小盘可点的前提：中圈那层不能再吃事件 */
+  ok('中圈容器不再拦截扇区点击', /\.wheel\.is-open \.sub-ring \{ pointer-events: none; \}/.test(css));
+  ok('缩小后的扇区恢复可点', /\.wheel\.is-open \.sector-g \{[^}]*?pointer-events:\s*auto/.test(css)
+    && /\.wheel\.is-open \.sector-g \{[^}]*?cursor:\s*pointer/.test(css));
+  /* v15：大圈在展开态整体退到 0，只有 hover / 键盘聚焦 / 盘心正在讲的那一块
+     浮回 1。所以"不同档"的判据从"当前 .30 vs 其它 1"反转成
+     "全部 0，热区 1" —— 点击换类的入口靠 hover 提示，不靠常亮。 */
+  ok('展开态大圈退到不可见但热区可回看',
+    /\.wheel\.is-open \.sector-g \{[^}]*?opacity:\s*0/.test(css)
+    && /\.wheel\.is-open \.sector-g\.is-hot,[^{]*\{[^}]*?opacity:\s*1/.test(css));
+
+  /* ④ 一圈弧段依次滑出（v7 推翻了 v6 的三格弧窗 + 转动钮） */
+  /* 段与段之间必须有缝，否则七段连成一条环，看不出"有七项" */
+  ok('弧段之间留缝（读得出有几段）',
+    /\.sub-arc \{[^}]*?stroke:\s*rgba\(255,\s*255,\s*255/.test(css));
+  /* 整段弧自己吃事件 —— 只让文字可点等于把可点面积缩到 1/3，
+     而这正是上一版「看得见点不着」的来源 */
+  ok('弧段本身可点（不是只有文字可点）',
+    /\.wheel \.sub-arc \{[^}]*?pointer-events:\s*auto/.test(css)
+    && /\.wheel \.disc-sector\.lvl2\.sub-arc-btn \{[^}]*?pointer-events:\s*auto/.test(css));
+  /* 弧段上的文字按钮仍须达到 44px 触控高 */
+  ok('弧段文字按钮达 44px 触控高',
+    /\.disc-sector\.lvl2\.sub-arc-btn \{[^}]*?min-height:\s*44px/.test(css));
+  /* 依次滑出 —— 用户要的"一个个圆盘圆弧依次滑出并并排排列"，
+     靠 animation-delay 实现；没有这条就变成同时出现，读不出顺序 */
+  ok('弧段依次滑出（有延迟）',
+    /@keyframes arcIn/.test(css) && /animation-delay/.test(css));
+
+  /* ⑥ 两层切换的进出场编排（v14，原 _wheel8.css，2026-11-10 并入 20-wheel-core.css）
+     这四条守的是"退场真的存在"，不是"有没有写动画"。
+     之前 subRing.innerHTML = '' 一行抹掉七段 —— DOM 里没有节点，
+     CSS 再怎么写也没有东西可以动。 */
+  ok('大圈退场到 0 但仍可点（消失与可点是两件事）',
+    /\.wheel\.is-open \.sector-g \{[^}]*?opacity:\s*0/.test(css)
+    && /\.wheel\.is-open \.sector-g \{[^}]*?pointer-events:\s*auto/.test(css),
+    'pointer-events:none 就等于封掉「中圈里点别的大类直接换」');
+  /* v16：进入改成两拍 —— 先六个文字各自散去，再整盘收起。
+     断言因此从"一条错峰动画"变成"两条按时间先后"的链。 */
+  ok('进入第一拍：六个家族文字按 --i 错峰散去',
+    /@keyframes labelVanish/.test(css)
+    && /\.wheel\.is-lifting \.label-layer \.disc-sector\.lvl1 \{[^}]*?animation:\s*labelVanish/.test(css)
+    && /\.wheel\.is-lifting \.label-layer \.disc-sector\.lvl1 \{[^}]*?animation-delay:\s*calc\(var\(--i/.test(css));
+  ok('进入时扇区淡出与文字并行，且 0ms 起（不能等文字散完）',
+    /@keyframes fanCollapse/.test(css)
+    && /\.wheel\.is-lifting \.sector-g \{[^}]*?animation:\s*fanCollapse/.test(css)
+    /* **延迟必须是 0**。用户实测报过"滞后边框"：delay 370ms 时
+       0–370ms 整圈家族环全亮挂着，中圈已经在长，读成没退干净。
+       `both` 填充会把 opacity 钉在 1 直到动画真正开始，所以 delay>0
+       就等于"先亮一段时间再突然消失"。 */
+    && /\.wheel\.is-lifting \.sector-g \{[^}]*?animation-delay:\s*0ms/.test(css)
+    && /@keyframes fanCollapse \{[\s\S]{0,200}?100%\s+\{ opacity: 0;/.test(css));
+  ok('凹槽环用 animation 而不是 transition（节点是新建的）',
+    /@keyframes channelIn/.test(css)
+    && /\.wheel\.is-open \.sub-channel \{[^}]*?animation:\s*channelIn/.test(css),
+    'sub-channel 插入时 is-open 已挂上，transition 没有前值可过渡，第一帧就是全亮');
+  ok('大圈标签层在展开态真的归零（v15 漏在覆盖链里）',
+    /\.wheel\.is-open \.label-layer,[\s\S]{0,120}?opacity:\s*0/.test(css),
+    '_wheel7.css:361 写过 opacity:1（该层已并入 20-wheel-core.css），桌面端 v15 从来没退过标签');
+  ok('返回时大圈从 .80 推出（量足够看出来）',
+    /@keyframes fanPullOut/.test(css)
+    && /\.wheel\.is-returning \.sector-g \{[^}]*?animation:\s*fanPullOut/.test(css)
+    /* 起点必须 ≤ .85：v15 用 .93 只有 7% 量、在 r=228 上不足 2px，读不出"拉出" */
+    && /@keyframes fanPullOut \{[\s\S]{0,200}?0%\s+\{ opacity: 0;\s+transform: scale\(\.8/.test(css));
+  /* v15 新增：点击确认 vs 悬停预览必须在状态上分得开 */
+  ok('悬停不写选中状态（选择只由左键点击确定）',
+    !/hoverSub/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))
+      || /const focusSub = sub;/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8')),
+    'focusSub 若还读 hoverSub，指针划过就会换盘心主词');
+  ok('悬停只给视觉提示不改填充',
+    /\.wheel \.sub-g\.is-hot:not\(\.is-on\) \.sub-arc \{/.test(css)
+    && !/\.wheel \.sub-g\.is-hot:not\(\.is-on\) \.sub-arc \{[^}]*?fill:\s*var\(--blue\)/.test(css),
+    'hover 若用实心蓝，就看不出"哪些是确认的"');
+  ok('确认态弧段是实心蓝 + 一次几何脉冲',
+    /\.wheel \.sub-g\.is-on \.sub-arc \{[^}]*?fill:\s*var\(--blue\)/.test(css)
+    && /@keyframes arcPop/.test(css)
+    && /\.wheel \.sub-g\.is-on \{[^}]*?animation:\s*arcPop/.test(css),
+    '没有脉冲时"点下去"与"指着看"在时间维度上分不开');
+  ok('确认脉冲不改用 filter（浅底上不可见）',
+    /@keyframes arcPop \{[\s\S]{0,200}?transform: scale\(1\.03/.test(css),
+    'v15 用 drop-shadow 做脉冲，实测在 520px 盘上肉眼不可见');
+  ok('确认脉冲不能用 fill both（会永久钉住 transform）',
+    !/\.wheel \.sub-g\.is-on \{[^}]*?arcPop[^}]*?both/.test(css),
+    'both 会让末帧 scale(1) 永久覆盖声明值，按下态就永远看不到');
+  ok('确认态盘心加一道实心短划 + 小勾',
+    /\.wheel\.is-open \.disc-hub\.is-picked \.hub-kicker::before/.test(css)
+    && /\.wheel \.disc-hub\.is-picked \.hub-zh::after \{[^}]*?height:\s*2px/.test(css));
+  /* v18：中圈一旦选定，hover 不得改变任何视觉/状态 */
+  ok('中圈选中后 hover 不再写 hoverSub（JS 守卫）', (() => {
+    const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+    return /const enter = \(\) => \{\s*if \(selSub\) return;/.test(appSrc)
+      && /const leave = \(\) => \{\s*if \(selSub\) return;/.test(appSrc);
+  })(), '不挡的话，选中后指针划过去仍会挂 is-hot，描边 1px→1.4px 并带蓝框');
+  ok('中圈选中后 CSS :hover 整体失效（root 上 is-sub-locked）',
+    /root\.classList\.toggle\('is-sub-locked', !!selSub\)/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))
+    && /\.wheel:not\(\.is-sub-locked\) \.sub-g:hover/.test(css),
+    'CSS :hover 是纯样式钩子，JS 管不到，必须用锁类让它整体不匹配');
+  ok('未选中时 hover 提示仍然保留',
+    /\.wheel:not\(\.is-sub-locked\) \.sub-g:hover \.sub-arc/.test(css),
+    'hover 提示不该被删，只该在选中后被锁');
+  ok('选中时显式清空 hoverSub（避免锁上后仍带旧 is-hot）',
+    /selSub = s\.id;[\s\S]{0,160}?hoverSub = null;[\s\S]{0,80}?paint\(\)/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8')));
+
+  /* v18b：大圈家族 hover 也必须被同一个锁挡住 */
+  ok('中圈选中后大圈 hover 不写 hoverFam（JS 守卫）', (() => {
+    const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+    return /const enter = \(\) => \{\s*if \(selSub\) return;\s*hoverFam = f\.id/.test(appSrc)
+      && /const leave = \(\) => \{\s*if \(selSub\) return;\s*hoverFam = null/.test(appSrc);
+  })(), '不挡的话，选中后指针划到大圈会把盘心换成「点一下换到 X」并摘掉 is-picked，选中态直接丢');
+  ok('中圈选中后大圈 CSS :hover 也被锁', (() => {
+    return /\.wheel:not\(\.is-sub-locked\) \.disc-svg \.sector-g:hover/.test(css)
+      && /\.wheel\.is-open:not\(\.is-sub-locked\) \.sector-g:hover/.test(css);
+  })(), '大圈 hover 有 6 处 CSS 规则，只挡 JS 会留下一半');
+  /* v16：按下态必须是显式类，不能靠 :active */
+  ok('按下态由显式类驱动（不靠 :active）',
+    /\.wheel \.sub-g\.is-pressing \{/.test(css)
+    && /is-pressing/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8')),
+    ':active 在键盘 Enter / 脚本触发 / 触屏滑动取消三种情况下全漏');
+  ok('按下态挂 .sub-g 而不是 .sub-arc',
+    /\.wheel \.sub-g\.is-pressing \{[^}]*?transform: scale\(\.93\)/.test(css),
+    '挂 .sub-arc 会被 arcFadeRise 的 both 填充钉住 transform（实测无效）');
+  ok('按下态带描边收紧（边界位移比亮度更易感知）',
+    /\.wheel \.sub-g\.is-pressing \.sub-arc \{[^}]*?stroke-width:\s*1\.6/.test(css));
+  ok('按下态有兜底释放（pointerup 落在别处也能复位）', (() => {
+    const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+    return /function releasePress/.test(appSrc)
+      && /chooseSub[\s\S]{0,200}?releasePress\(\)/.test(appSrc);
+  })());
+  ok('窄屏展开态关掉隐藏扇区的命中区',
+    /@media \(max-width: 620px\)[\s\S]{0,2000}?\.wheel\.is-open \.sector-g \{ pointer-events: none; \}/.test(css),
+    '看不见却能点 = 误触换大类');
+  ok('中圈整条弧带同步放大，终点占住大圈的位置',
+    /@keyframes ringGrowStrong/.test(css)
+    && /\.wheel\.is-lifting \.sub-ring \{[^}]*?animation:\s*ringGrowStrong/.test(css)
+    /* 终点 1.43，不是 1。弧带原生 118–152、大圈 158–228：
+       1.43 让弧带落在 169–217（中线 193 = 大圈中线），才叫"占据位置"。
+       终点写成 1 时弧带只到 155，占盘直径 68%，外侧空 32%。 */
+    && /@keyframes ringGrowStrong \{[\s\S]{0,300}?100%\s+\{ transform: scale\(1\.43\)/.test(css)
+    /* 过冲：单调增大只被读成"变清晰"，有过冲才读成"弹出来" */
+    && /@keyframes ringGrowStrong \{[\s\S]{0,300}?scale\(1\.49\)/.test(css),
+    '逐段各自动 scale 会各绕自己的包围盒，七段会互相穿插');
+  ok('中圈放大的静态终态与动画末帧一致（摘类不跳帧）',
+    /\.wheel\.is-open \.sub-ring \{ transform: scale\(1\.43\); \}/.test(css),
+    '动画末帧 1.43 而静态值 1 的话，700ms 摘类时会缩回去一截');
+  ok('返回时中圈弧段反序收（不是整块消失）',
+    /@keyframes arcFallOut/.test(css)
+    && /\.sub-ring\.is-exit \.sub-arc \{[^}]*?animation:\s*arcFallOut/.test(css)
+    && /var\(--n,\s*1\) - 1 - var\(--i/.test(css),
+    '退场延时按 --n-1---i 反算；正序收会读成「又铺了一遍」');
+  /* 退场期间容器不能被 :not(.is-open) 的 opacity:0 掐掉 —— 子元素的
+     动画在 0 透明度里播，等于没播。 */
+  ok('退场期间容器保持可见', /\.wheel \.sub-ring\.is-exit \{[^}]*?opacity:\s*1/.test(css));
+  /* 减少动态效果必须覆盖新增的全部动画，否则遵守系统设置的用户会看到
+     一个"动画播到一半就跳"的界面。
+     注意 styles.css 里有**两处** prefers-reduced-motion：基础层的
+     全局 `*` 那一块（把时长压到 0.001ms），和追加层里点名本次新增
+     动画的那一块。只查第一处会读到全局块，得出假结论 —— 所以扫全部块。 */
+  ok('prefers-reduced-motion 覆盖了新增动画', (() => {
+    const blocks = [];
+    for (const m of css.matchAll(/@media \(prefers-reduced-motion: reduce\)\s*\{/g)) {
+      let depth = 0;
+      let end = -1;
+      for (let i = m.index + m[0].length - 1; i < css.length; i += 1) {
+        if (css[i] === '{') depth += 1;
+        else if (css[i] === '}') { depth -= 1; if (depth === 0) { end = i + 1; break; } }
+      }
+      if (end > 0) blocks.push(css.slice(m.index, end));
+    }
+    const joined = blocks.join('\n');
+    return /animation:\s*none/.test(joined)
+      && /is-lifting \.sector-g/.test(joined)
+      && /is-returning \.sector-g/.test(joined)
+      && /is-exit \.sub-arc/.test(joined);
+  })());
+  /* 盘心排版：主词要真的比 kicker 大一档以上（原 22/12 只差 1.8 倍，
+     两个层级读起来是同一段话的两行）。 */
+  ok('盘心主词比 kicker 大出一档', /\.wheel \.disc-hub \.hub-zh \{[^}]*?font-size:\s*2[6-9]px/.test(css),
+    '26px 及以上 = 与 12px 的 kicker 拉开 2.2 倍以上');
+  ok('盘心主词下有一道收口发丝线', /\.wheel \.disc-hub \.hub-zh::after/.test(css));
+
+  /* ⑤ 图标常态与选中态分开 */
+  ok('线稿常态与选中态是两种颜色',
+    /\.wheel \.plate-svg \{[^}]*?stroke:\s*var\(--ink-3\)/.test(css)
+    && /\.wheel \.disc-hub\.is-picked \.plate-svg \{[^}]*?stroke:\s*var\(--blue\)/.test(css));
+  ok('常态香材名压暗、选中态全亮',
+    /\.wheel \.plate-cap \{[^}]*?opacity:\s*\.6/.test(css)
+    && /\.wheel \.disc-hub\.is-picked \.plate-cap \{[^}]*?opacity:\s*1/.test(css));
+
+  // 手臂是插在圆心上的零宽轴，不是满尺寸盒子。
+  // 满尺寸盒子绕过中心会被旋转扫出圆盘外：360 视口实测 l:-39 r:399，
+  // 文档 scrollWidth 401 > clientWidth 360，整页可以左右晃。
+  ok('子类手臂是零宽轴（不再撑宽页面）',
+    /\.wheel \.sub-arm \{[^}]*?width:\s*0/.test(css) && /\.wheel \.sub-arm \{[^}]*?inset:\s*auto/.test(css));
+}
+// 圆盘外面包了一层可旋转容器：SVG 与标签都在里面，旋转才能带着它们一起转。
+// 这里走 parentNode 链判断，不用后代选择器 —— 测试桩的 querySelectorAll
+// 只支持 tag / .class / [attr] 与它们的直接组合，不支持后代选择器。
+const rotLayer = appRoot.querySelector('.disc-rot');
+const inRot = (node) => {
+  for (let p = node?.parentNode; p; p = p.parentNode) if (p === rotLayer) return true;
+  return false;
+};
+ok('圆盘有可旋转层', rotLayer !== null);
+ok('扇形在可旋转层内', inRot(appRoot.querySelector('.disc-svg')));
+ok('扇区标签也在可旋转层内', inRot(appRoot.querySelector('.disc-sector')));
+// 盘心必须留在旋转层外面：它不该跟着圆盘转
+ok('盘心不在可旋转层内', !inRot(appRoot.querySelector('.disc-hub')));
+ok('进度条存在', appRoot.querySelectorAll('.progress').length === 1);
+ok('页脚有许可声明', getStepText().includes('CC BY 4.0'));
+
+/* 扇形本体必须自己挂着点击 —— 只把事件绑在标签上的话，
+   用户戳扇区那一大块面积会毫无反应，等于"看起来能点"。 */
+const sectorGroups = appRoot.querySelectorAll('.sector-g');
+ok('扇区组数量与扇区一致', sectorGroups.length === 6, `实际 ${sectorGroups.length}`);
+const groupHasClick = sectorGroups.every((g) => (g._listeners.click || []).length > 0);
+ok('每个扇形本体都绑了 click', groupHasClick,
+  `绑了 click 的分组数 ${sectorGroups.filter((g) => (g._listeners.click || []).length > 0).length}/${sectorGroups.length}`);
+
+/* 点扇形本体（不是标签）选中家族 —— 等价于用户戳扇区那一大块面积。
+   注意：第 1 步改成两层轮盘后不再自动跳题（用户可能还想在中圈再收一层），
+   所以这里只断言"选中了"，前进由下面的按钮完成。 */
+sectorGroups[0].dispatch('click');
+await new Promise((r) => setTimeout(r, 400));
+
+// 桩的 querySelectorAll 不支持 .class[attr="v"] 这种复合写法，改用 JS 过滤
+const checkedCount = appRoot.querySelectorAll('.disc-sector')
+  .filter((b) => b.getAttribute('aria-checked') === 'true').length;
+const noteTags = appRoot.querySelectorAll('.notes');
+ok('轮盘外圈标签带典型香材', noteTags.length === 6 && noteTags.every((n) => n.textContent.length > 0),
+  `带香材的标签 ${noteTags.filter((n) => n.textContent.length > 0).length}/${noteTags.length}`);
+/* 香材必须是中文。查不到中文时 noteZhOf() 会退回英文原名，
+   那种情况下标签看起来"有内容"，实际用户读不懂 —— 这条专抓它。 */
+ok('香材显示为中文而非英文原名', noteTags.every((n) => !/[a-z]/.test(n.textContent)),
+  noteTags.map((n) => n.textContent).join(' | '));
+ok('点扇形本体选中了家族', checkedCount >= 1, `选中 ${checkedCount} 个`);
+/* 选中后中圈应该长出来：这是"多级多层"的核心断言 ——
+   点外圈若只是高亮、不展开下一层，那就还是一层圆盘。 */
+const midAfter = appRoot.querySelectorAll('.disc-sector.lvl2');
+ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${midAfter.length}`);
+
+/* ---- 盘心示意图（需求③）：香材剖面标本条 ----
+   旧版只在"已选定"时才画，于是"常态与选中态要区分"这句话无从落地。
+   现在预览态（只选了大类、弧上停着某项）也画，只是灰线 + 名字压暗；
+   落到具体小项才转蓝。所以要断的是"预览态有图、但还没到已选定"。 */
+/* 只选了大类、还没指向任何一段：盘心不该有标本。
+   v7 一圈弧段全部可见，没有「停着的那一项」可推断 —— 凭猜画图会让用户
+   以为已经选好。这条与下一条合起来才守得住"预览 vs 已选定"的区别。 */
+{
+  const prevPlates = appRoot.querySelectorAll('.plate-svg');
+  const hubPrev = appRoot.querySelector('.disc-hub');
+  ok('只选大类时盘心还没有标本', prevPlates.length === 0, `${prevPlates.length} 枚`);
+  ok('只选大类时盘心是「正在看」而非「已选定」',
+    !!hubPrev && !hubPrev.classList.contains('is-picked'), hubPrev && hubPrev.className);
+}
+/* 悬停某一段：只加深那一段的描边，盘心一个字都不许改。
+   v15 改成"左键点击才确认"之后，这条从"悬停画标本"反转成"悬停不许动状态"
+   —— 用户原话：「箱型选择应由左键点击确定，而非鼠标悬停或拖动位置决定」。 */
+{
+  const hubBefore = appRoot.querySelector('.disc-hub');
+  const zhBefore = hubBefore.querySelector('.hub-zh').textContent;
+  const kickBefore = hubBefore.querySelector('.hub-kicker').textContent;
+  const g0 = appRoot.querySelectorAll('.sub-g')[0];
+  g0.dispatch('mouseenter');
+  await new Promise((r) => setTimeout(r, 220));
+  const hubHover = appRoot.querySelector('.disc-hub');
+  ok('悬停不改盘心主词（选择只由左键点击确定）',
+    hubHover.querySelector('.hub-zh').textContent === zhBefore
+      && hubHover.querySelector('.hub-kicker').textContent === kickBefore,
+    `${zhBefore} → ${hubHover.querySelector('.hub-zh').textContent}`);
+  ok('悬停不画标本（未确认就没有标本）',
+    appRoot.querySelectorAll('.plate-svg').length === 0,
+    `${appRoot.querySelectorAll('.plate-svg').length} 枚`);
+  ok('悬停态还没到「已选定」', !!hubHover && !hubHover.classList.contains('is-picked'),
+    hubHover && hubHover.className);
+  ok('悬停只给那一段挂 is-hot', g0.classList.contains('is-hot'), g0.className);
+  g0.dispatch('mouseleave');
+  await new Promise((r) => setTimeout(r, 150));
+  ok('鼠标移开后 is-hot 摘掉', !appRoot.querySelectorAll('.sub-g')[0].classList.contains('is-hot'));
+}
+
+/* 中圈第一个子家族 = 「古龙水型」（notes 只有 lemon 一味） */
+midAfter[0].dispatch('click');
+await new Promise((r) => setTimeout(r, 500));
+
+const plate = appRoot.querySelector('.hub-plate');
+ok('落到小项后盘心长出标本', !!plate);
+const plates = appRoot.querySelectorAll('.plate-svg');
+/* 一枚，不是三枚：实测每个小类的代表香材全部同属一个家族，
+   逐味画会出来一排一模一样的图标。这条断言就是钉住那个结论的。 */
+ok('标本只画一枚（不是每味香材一枚）', plates.length === 1, `${plates.length} 枚`);
+/* 统一视框 —— 这就是"风格统一"的可断言部分。
+   上色稿自带自己的 fill / stroke，所以外框不再要求 fill="none"，
+   而是要求它挂 is-art 且真的把上色内容写了进去（见下面 shapeCount）。 */
+ok('标本是 24×24 同一视框', plates[0].getAttribute('viewBox') === '0 0 24 24',
+  plates[0].getAttribute('viewBox'));
+ok('标本走的是上色通路（is-art）', plates[0].classList.contains('is-art'), plates[0].className);
+
+/* 里必须真有几何。桩里塞 markup 字符串的话会被剥成纯文本，
+   容器在、图形空 —— 这是"看起来做了其实没做"的典型形态，必须抓住。 */
+const shapeCount = plates[0].querySelectorAll('circle').length
+  + plates[0].querySelectorAll('path').length + plates[0].querySelectorAll('ellipse').length;
+ok('标本里真画了几何', shapeCount >= 2, `图元数 ${shapeCount}`);
+
+/* 香材名必须落到中文 —— 和香材标签同一套取词逻辑 */
+const cap = appRoot.querySelector('.plate-cap');
+ok('标本下带香材名', !!cap && cap.textContent.length > 0, cap && cap.textContent);
+ok('香材名是中文', !!cap && !/[a-z]/i.test(cap.textContent), cap && cap.textContent);
+
+/* 图形本身是装饰，语义交给这一句。缺了它屏幕阅读器只会读出"图"。 */
+ok('标本有可读的 aria-label',
+  !!plate && /代表香材/.test(plate.getAttribute('aria-label') || ''),
+  plate && plate.getAttribute('aria-label'));
+/* 盘心必须挂上 has-glyph，否则 CSS 里 .hub-glyph 保持 display:none —— 图形等于没画 */
+const hubAfter = appRoot.querySelector('.disc-hub');
+ok('盘心挂上了 has-glyph', !!hubAfter && hubAfter.classList.contains('has-glyph'),
+  hubAfter && hubAfter.className);
+
+/* 同一家族下换个小类，图案必须**不同** —— 这枚图编码的是小类，不是家族。
+   这一条推翻了上一轮的做法（那时同族共用家族母题）。推翻的理由是用户提出的：
+   古龙水型要有古龙独有的标识，青绿柑橘与芳香柑橘各自不同。
+   那个要求是对的 —— 旧做法下选完古龙水型和青绿柑橘，盘心画的是同一枚图，
+   用户看不出自己选的是哪一格。
+   注意这里仍然不是「给同一形状做哈希微差」：每枚画的是该小类的代表香材本体。 */
+const sigOf = () => {
+  const s = appRoot.querySelectorAll('.plate-svg')[0];
+  if (!s) return '';
+  return s.querySelectorAll('path').map((q) => q.getAttribute('d') || '').join('|')
+    + s.querySelectorAll('circle').map((q) => q.getAttribute('r') || '').join('|')
+    + s.querySelectorAll('ellipse').map((q) => (q.getAttribute('rx') || '') + (q.getAttribute('ry') || '')).join('|');
+};
+const sigCitrus = sigOf();
+ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice(0, 40));
+/* 中圈的格子顺序由 taxonomy 的 tier 排序决定，不写死「第 3 个」，
+   而是遍历同族的其它小类，任意一个的签名都应当与第一个不同。 */
+{
+  let compared = 0;
+  let same = 0;
+  /* 走用户真实操作路径：直接点弧段上的文字按钮。
+     v7 没有"转到即选中"的箭头了，七段同时可点，一次点击换一项。
+     每轮重新查——paint() 会重建标签层，旧节点脱离文档。 */
+  for (let i = 1; i <= 2; i += 1) {
+    const btnsNow = appRoot.querySelectorAll('.disc-sector.lvl2');
+    if (btnsNow.length <= i) break;
+    btnsNow[i].dispatch('click');
+    await new Promise((r) => setTimeout(r, 300));
+    const sig = sigOf();
+    if (sig.length) { compared += 1; if (sig === sigCitrus) same += 1; }
+  }
+  ok('同族不同小类各有各的图形', compared > 0 && same === 0,
+    `比较 ${compared} 组，其中 ${same} 组与首个相同`);
+  /* 停在另一项上，后面那条「换小类后香材名跟着变」才有对照。 */
+}
+/* 不断言具体是哪一味：中圈格子的顺序由 taxonomy 决定，写死「葡萄柚」
+   会把测试绑死在当前数据顺序上，数据一改就假失败。要守的是
+   「名字跟着小类变」，这才是这条断言的意义。 */
+/* ---- 每类一枚图标：数据完整性 + 两两不重复 ----
+   线稿（SUB_MARKS / SUB_FIT）已于 2026-11-08 整块删除，盘心直接用
+   icon-specimen/svg/ 里的上色稿。所以这里改成校验 ART_FILE 这张映射表，
+   外加"每个映射到的文件真的存在、真的是 SVG、图元足够"。 */
+{
+  const appJs = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  const s0 = appJs.indexOf('const ART_FILE = {');
+  let depth = 0;
+  let e0 = -1;
+  for (let i = appJs.indexOf('{', s0); i < appJs.length; i += 1) {
+    if (appJs[i] === '{') depth += 1;
+    else if (appJs[i] === '}') { depth -= 1; if (depth === 0) { e0 = i + 1; break; } }
+  }
+  ok('能从 app.js 里切出 ART_FILE 块', s0 > 0 && e0 > s0);
+  const ART = new Function(appJs.slice(s0, e0) + '; return ART_FILE;')();
+
+  const TAXA_MARK = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/taxonomy.json'), 'utf8'));
+  const allSubs = TAXA_MARK.families.flatMap((f) => f.subfamilies.map((s) => ({ id: s.id, fam: f.id })));
+  const missing = allSubs.filter((s) => typeof ART[s.id] !== 'string').map((s) => s.id);
+  ok('每个小类都有对应的上色 SVG（不缺格）', missing.length === 0,
+    `缺 ${missing.length} 个: ${missing.join(',')}`);
+  const extra = Object.keys(ART).filter((k) => !allSubs.some((s) => s.id === k));
+  ok('没有多余的上色映射（不指向数据里不存在的格）', extra.length === 0, extra.join(','));
+
+  /* 每个映射必须落到一个真实、可解析、图元足够的 svg 文件。
+     「文件在」不够 —— 空 svg 也能 200，那等于盘心画了个空白。 */
+  const files = allSubs.map((s) => ({ id: s.id, p: 'icon-specimen/svg/' + ART[s.id] + '.svg' }));
+  const gone = files.filter((f) => !fs.existsSync(path.join(ROOT, f.p))).map((f) => f.id);
+  ok('映射到的 SVG 文件都在磁盘上', gone.length === 0, gone.join(','));
+
+  const thin = [];
+  const noGrad = [];
+  files.forEach((f) => {
+    const full = path.join(ROOT, f.p);
+    if (!fs.existsSync(full)) return;
+    const svgTxt = fs.readFileSync(full, 'utf8');
+    const shapes = (svgTxt.match(/<(path|circle|ellipse|rect|polygon)\b/g) || []).length;
+    if (shapes < 6) thin.push(`${f.id}:${shapes}`);
+    if (!/url\(#/.test(svgTxt)) noGrad.push(f.id);
+  });
+  ok('每枚上色 SVG 的图元数都够（>= 6）', thin.length === 0, thin.join(','));
+  ok('每枚上色 SVG 都带渐变（不是单色块）', noGrad.length === 0, noGrad.join(','));
+
+  /* 上色稿之间不重复：直接比文件字节。同一份文件被映射给两格是典型手误。 */
+  const seenF = new Map();
+  const dupF = [];
+  files.forEach((f) => {
+    const full = path.join(ROOT, f.p);
+    if (!fs.existsSync(full)) return;
+    const k = fs.readFileSync(full, 'utf8');
+    if (seenF.has(k)) dupF.push(`${seenF.get(k)} / ${f.id}`);
+    else seenF.set(k, f.id);
+  });
+  ok('全部上色 SVG 两两不同', dupF.length === 0, dupF.join(' ; '));
+}
+
+ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textContent !== cap.textContent,
+  `${cap.textContent} → ${appRoot.querySelector('.plate-cap').textContent}`);
+
+/* ---- 两层切换的返回路径（v14）----
+   三条：① 返回按钮把大类一起清掉、回到闭合盘；
+        ② 闭合盘上点扇区重新选中；
+        ③ 展开态里点另一个大类是**切换**，不是清空 —— 这是用户明确要的
+           「点大圈就直接变成别的大类」。
+   第 ③ 条曾经在实现里和 ① 混在一起：既然「返回」要清空大类，
+   很容易顺手把扇区点击也写成清空，那样用户每换一次类都要重新挑一次。 */
+{
+  const backNow = appRoot.querySelector('.wheel-back');
+  ok('展开态有返回按钮（未隐藏）', !!backNow && backNow.hidden === false,
+    backNow ? String(backNow.hidden) : 'no button');
+  backNow.dispatch('click');
+  await new Promise((r) => setTimeout(r, 600));
+  const wheelNow = appRoot.querySelector('.disc.wheel');
+  ok('返回后圆盘回到闭合态', !!wheelNow && !wheelNow.classList.contains('is-open'), wheelNow && wheelNow.className);
+  const hubNow = appRoot.querySelector('.disc-hub');
+  ok('返回后盘心回到空态', !!hubNow && hubNow.classList.contains('is-idle'), hubNow && hubNow.className);
+  ok('返回后盘心文案回到「还没选」',
+    appRoot.querySelector('.hub-zh').textContent === '还没选',
+    appRoot.querySelector('.hub-zh').textContent);
+  ok('返回后没有任何扇区仍被标记为选中',
+    appRoot.querySelectorAll('.disc-sector').every((b) => b.getAttribute('aria-checked') === 'false'));
+  /* 退场不是立刻清空：DOM 里要留着节点播动画，420ms 后才移除。
+     600ms 之后必须已经清干净，否则残留节点会接住下一次点击。 */
+  ok('返回后退场结束、中圈节点已清空',
+    appRoot.querySelectorAll('.disc-sector.lvl2').length === 0,
+    `残留 ${appRoot.querySelectorAll('.disc-sector.lvl2').length} 个`);
+
+  /* ③ 切换：重新选一个大类，再点另一个大类 —— 结果应当是「换成新的」 */
+  appRoot.querySelectorAll('.sector-g')[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+  const firstSubs = appRoot.querySelectorAll('.disc-sector.lvl2').map((b) => b.textContent).join('|');
+  const wheelOpen = appRoot.querySelector('.disc.wheel');
+  ok('重新点扇区后中圈再次展开', !!wheelOpen && wheelOpen.classList.contains('is-open'));
+  appRoot.querySelectorAll('.sector-g')[3].dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+  const secondSubs = appRoot.querySelectorAll('.disc-sector.lvl2').map((b) => b.textContent).join('|');
+  const hubAfterSwitch = appRoot.querySelector('.hub-zh').textContent;
+  ok('展开态点另一个大类是切换而不是清空',
+    !!appRoot.querySelector('.disc.wheel').classList.contains('is-open') && hubAfterSwitch !== '还没选',
+    `盘心：「${hubAfterSwitch}」`);
+  ok('切换后中圈换成新大类的小类',
+    secondSubs.length > 0 && secondSubs !== firstSubs,
+    `${firstSubs} → ${secondSubs}`);
+  ok('切换后大类不重复选择（旧大类不再是选中态）',
+    appRoot.querySelectorAll('.disc-sector.lvl1')
+      .filter((b) => b.getAttribute('aria-checked') === 'true').length === 1,
+    /* 桩的 querySelectorAll 不支持后代选择器（见文件开头的说明），
+       所以这里按 .disc-sector.lvl1 取全集再过滤，不要写 `.label-layer .disc-sector`。 */
+    String(appRoot.querySelectorAll('.disc-sector.lvl1').filter((b) => b.getAttribute('aria-checked') === 'true').length));
+
+  /* 把状态还原成「有家族 + 有小类」，后面的流程断言才有东西可走 */
+  appRoot.querySelectorAll('.sector-g')[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+  appRoot.querySelectorAll('.disc-sector.lvl2')[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+}
+}
+
+/* ==== 圆盘 → 底噪的接线（v7 第 1 步的增量，不是取回的那块）====
+   取自回那一块之后，圆盘上已经选了「柑橘调 + 古龙水型」（见上面「把状态还原成…」）。
+   这里验三件事，每件都能否定一种"看起来接上了"的假实现：
+     ① 方向真的被换算成轴写进 state（不是只改了 family）；
+     ② 轴与家族的对应关系是 emotionMap 的**全局最优匹配**，不是手配的六个字；
+     ③ 底噪层节点真的在 DOM 里 —— v6 的样式写得很完整但 JS 从没创建过它，
+        这条断言就是为了让那个缺陷不会再一次静默复现。 */
+{
+  const S = appMod.__dir;
+  ok('圆盘选完家族后 direction 被写进答案',
+    S.directionOf({ family: 'floral' }) === 'warm',
+    String(S.directionOf({ family: 'floral' })));
+  ok('清空家族时 direction 一起被清（不留上一族的光）',
+    S.directionOf({ family: null }) === null, String(S.directionOf({ family: null })));
+
+  /* ② 最优匹配：穷举 720 种六族↔六轴配法，本步的 AXIS_OF_FAMILY 必须等于最高分组。
+     这一条防的是"某人凭感觉改一格"：改一格几乎必然掉出最优，
+     而掉出最优在那张表上肉眼完全看不出来（差 0.05 分，六个数都很像）。 */
+  const taxa3 = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'taxonomy.json'), 'utf8'));
+  const fams3 = taxa3.families.map((f) => f.id);
+  const axes3 = taxa3.emotionMap.map((e) => e.id);
+  const w3 = (f, a) => {
+    const e = taxa3.emotionMap.find((x) => x.id === a);
+    return (e.families && e.families[f]) || 0;
+  };
+  let best = -1;
+  const permute = (rest, picked) => {
+    if (!rest.length) {
+      let s = 0;
+      fams3.forEach((f, i) => { s += w3(f, picked[i]); });
+      if (s > best) best = s;
+      return;
+    }
+    rest.forEach((a, i) => permute(rest.slice(0, i).concat(rest.slice(i + 1)), picked.concat([a])));
+  };
+  permute(axes3, []);
+  const mine = fams3.reduce((s, f) => s + w3(f, S.axis[f]), 0);
+  ok('家族→轴的表等于 emotionMap 上的最优匹配（720 种配法里的最高分）',
+    Math.abs(mine - best) < 1e-9, `本表 ${mine.toFixed(4)} / 最优 ${best.toFixed(4)}`);
+  ok('六个家族各自映射到一个不同的轴（不是多族共用一个方向）',
+    new Set(fams3.map((f) => S.axis[f])).size === 6,
+    fams3.map((f) => `${f}→${S.axis[f]}`).join(' '));
+
+  /* ③ 底噪层真的存在。v6 的缺陷：.amb-wash 在样式层写了 60 行，
+     app.js 里 `amb-wash` 零命中 —— 屏幕上根本没有这一层。 */
+  const washes = appRoot.querySelectorAll('.amb-wash');
+  ok('底噪层 .amb-wash 真的被创建进 DOM（v6 只在 CSS 里存在）',
+    washes.length === 1, `实际 ${washes.length} 个`);
+  ok('底噪层是背景（负 z-index，且不进无障碍树）',
+    washes.length === 1 && String(washes[0].style['z-index']) === '-1'
+    && washes[0].attrs['aria-hidden'] === 'true',
+    washes.length ? `${washes[0].style['z-index']} / ${washes[0].attrs['aria-hidden']}` : '-');
+  /* ③b 刻度必须跟着点击走。圆盘"选了不跳屏"，若刻度只由 renderMasthead 造，
+     用户点完会看到页眉右侧空白、底噪却已亮 —— 那是"接了一半"的样子。 */
+  ok('页眉刻度在点中香型后立刻出现（不等翻屏）',
+    appRoot.querySelectorAll('.amb-tick').length === 1,
+    `实际 ${appRoot.querySelectorAll('.amb-tick').length} 个`);
+  ok('刻度写着方向与档位（与底噪同源）',
+    /[冷暖清沉亮柔]·[起渐满]/.test((appRoot.querySelectorAll('.amb-tick')[0] || {}).textContent || ''),
+    (appRoot.querySelectorAll('.amb-tick')[0] || {}).textContent);
+
+  /* ④ 圆盘点中即点燃：direction 已在，ambientOf 必须给出 active=true 且强度 > 0。
+     这是"选定反馈要能看出底噪已点燃"的可计算部分（截图只能看"有颜色"）。 */
+  const ambNow = appMod.__ambient({ direction: 'bright' }, 0, 8);
+  ok('圆盘给了方向后底噪立即激活（第 1 屏就有光）',
+    ambNow.active === true && ambNow.strength > 0,
+    `${ambNow.active} / ${ambNow.strength}`);
+  ok('底噪在圆盘那一屏是最弱的一档（不抢盘的注意力）',
+    Math.abs(ambNow.strength - 0.34) < 1e-9, String(ambNow.strength));
+  /* 大方向屏（emotion）仍在，但它不许改方向 —— 圆盘先给的算数。
+     这一条守的是 src/ambient.js 第 1 条纪律："来源只能是第一个大方向"。 */
+  const ambBoth = appMod.__ambient({ direction: 'bright', emotion: 'cold' }, 3, 8);
+  ok('后答的大方向不改底噪方向（先给的那一个说了算）',
+    ambBoth.axis === 'bright', ambBoth.axis);
+  /* 圆盘没给方向时，大方向屏照旧能点亮 —— v6 的行为不能被这次改动弄丢。 */
+  const ambEmo = appMod.__ambient({ emotion: 'cold' }, 2, 8);
+  ok('圆盘被跳过时大方向屏仍能点亮底噪（v6 行为保留）',
+    ambEmo.active === true && ambEmo.axis === 'cold', `${ambEmo.active} / ${ambEmo.axis}`);
+}
+
+/* ---------- ① 首屏之后：预算 ---------- */
+await advance();
+ok('第 2 屏是预算屏（data-step=budget）', stepId() === 'budget', stepId());
+ok('预算屏标题是「你打算花多少钱」', getStepText().includes('你打算花多少钱'), getStepText().slice(0, 90));
 ok('预算屏是四档 + 不限，共 5 枚价签',
   appRoot.querySelectorAll('.price-tab').length === 5,
   `实际 ${appRoot.querySelectorAll('.price-tab').length}`);
@@ -343,9 +1011,9 @@ ok('预算屏说明了「价位未知的不参与」', /价位未知/.test(getSt
     appRoot.querySelectorAll('.price-note')[0].textContent.slice(0, 80));
 }
 
-/* ---------- ② 大方向（底噪开灯的那一屏） ---------- */
+/* ---------- ② 大方向（v6 原屏，本步不动；底噪此时已由圆盘点燃） ---------- */
 await advance();
-ok('第 2 屏是大方向（data-step=emotion）', stepId() === 'emotion', stepId());
+ok('第 3 屏是大方向（data-step=emotion）', stepId() === 'emotion', stepId());
 ok('大方向屏标题是「什么感觉」', getStepText().includes('什么感觉'), getStepText().slice(0, 80));
 ok('六个大方向都在屏上', appRoot.querySelectorAll('.sky-band').length === 6,
   `实际 ${appRoot.querySelectorAll('.sky-band').length}`);
@@ -369,7 +1037,7 @@ ok('每条天际线都有天光层', appRoot.querySelectorAll('.sky-line').lengt
 
 /* ---------- ③ 想要的味道（生活短语，无术语） ---------- */
 await advance();
-ok('第 3 屏是「想要的味道」（data-step=wanted）', stepId() === 'wanted', stepId());
+ok('第 4 屏是「想要的味道」（data-step=wanted）', stepId() === 'wanted', stepId());
 {
   const cards = appRoot.querySelectorAll('.life-card');
   ok('生活短语卡已渲染', cards.length >= 12, `实际 ${cards.length}`);
@@ -412,7 +1080,7 @@ ok('第 3 屏是「想要的味道」（data-step=wanted）', stepId() === 'want
 
 /* ---------- ④ 受不了的味道（同结构，另一套状态色） ---------- */
 await advance();
-ok('第 4 屏是「受不了的味道」（data-step=unwanted）', stepId() === 'unwanted', stepId());
+ok('第 5 屏是「受不了的味道」（data-step=unwanted）', stepId() === 'unwanted', stepId());
 ok('受不了屏的网格带 is-neg（划掉语汇）',
   appRoot.querySelectorAll('.life-grid')[0].classList.contains('is-neg'),
   appRoot.querySelectorAll('.life-grid')[0].className);
@@ -421,7 +1089,7 @@ ok('受不了屏也不出现族名', !/柑橘调|花香调|木质调|东方琥�
 
 /* ---------- ⑤ 场合（昼夜光景，定版范例之一） ---------- */
 await advance();
-ok('第 5 屏是场合（data-step=occasion）', stepId() === 'occasion', stepId());
+ok('第 6 屏是场合（data-step=occasion）', stepId() === 'occasion', stepId());
 {
   const bands = appRoot.querySelectorAll('.hour-band');
   ok('场合屏是五个时段段（不是圆盘）', bands.length === 5, `实际 ${bands.length}`);
@@ -442,7 +1110,7 @@ ok('第 5 屏是场合（data-step=occasion）', stepId() === 'occasion', stepId
 
 /* ---------- ⑥ 季节（温度光带，定版范例之二） ---------- */
 await advance();
-ok('第 6 屏是季节（data-step=season）', stepId() === 'season', stepId());
+ok('第 7 屏是季节（data-step=season）', stepId() === 'season', stepId());
 {
   const stops = appRoot.querySelectorAll('.temp-stop');
   ok('季节屏是温度光带上的四个落点', stops.length === 4, `实际 ${stops.length}`);
@@ -483,7 +1151,7 @@ ok('第 6 屏是季节（data-step=season）', stepId() === 'season', stepId());
 
 /* ---------- ⑦ 浓淡（扩散场，定版范例之三） ---------- */
 await advance();
-ok('第 7 屏是浓淡（data-step=concentration）', stepId() === 'concentration', stepId());
+ok('第 8 屏是浓淡（data-step=concentration）', stepId() === 'concentration', stepId());
 {
   const rings = appRoot.querySelectorAll('.diffuse-ring');
   ok('扩散场是五个同心环', rings.length === 5, `实际 ${rings.length}`);
@@ -535,20 +1203,23 @@ ok('第 7 屏是浓淡（data-step=concentration）', stepId() === 'concentratio
     tops.join(','));
 }
 
-/* ---------- ⑧ 已知款（末屏） ---------- */
-await advance();
-ok('第 8 屏是已知款（data-step=anchor）', stepId() === 'anchor', stepId());
-ok('末屏标题问「试过、并且喜欢」', getStepText().includes('试过'), getStepText().slice(0, 80));
-{
-  const combos = appRoot.querySelectorAll('.combo-input');
-  ok('已知款屏的品牌是可搜索组合框', combos.length === 1, `实际 ${combos.length}`);
-  ok('组合框是 combobox 语义', combos.length === 1 && combos[0].attrs.role === 'combobox',
-    combos.length ? String(combos[0].attrs.role) : '-');
-  ok('组合框初始收起', combos.length === 1 && combos[0].attrs['aria-expanded'] === 'false',
-    combos.length ? String(combos[0].attrs['aria-expanded']) : '-');
-  ok('品牌不再用原生 select', appRoot.querySelectorAll('select').length === 0,
-    `实际 ${appRoot.querySelectorAll('select').length} 个 select`);
-}
+/* ---------- ⑧ 末屏「看推荐」+ 已知款入口已撤（v7 第 1 步） ----------
+   v7 定版没有「已知款」这一题，它的入口（STEPS / renderAnchor / 品牌组合框 /
+   navBar 分支 / SCENE 键）整块删除。这里不验"那个函数还在"，验的是
+   三件用户看得见的事：
+     ① 走完最后一屏就能出结果（「看推荐」必须在末屏，而不是凭空消失）；
+     ② 屏上不再有那一题的任何痕迹（标题、组合框、香调锚点 chip）；
+     ③ 用户翻到最后也不会经过一个"空屏"。 */
+ok('末屏是浓淡（data-step=concentration）', stepId() === 'concentration', stepId());
+ok('已知款那题已不在流程里（屏上不再问「试过、并且喜欢」）',
+  !getStepText().includes('已经试过'), getStepText().slice(0, 80));
+ok('已知款的组合框与锚点 chip 都不再渲染',
+  appRoot.querySelectorAll('.combo-input').length === 0
+  && appRoot.querySelectorAll('[data-anchor]').length === 0,
+  `组合框 ${appRoot.querySelectorAll('.combo-input').length} / 锚点 ${appRoot.querySelectorAll('[data-anchor]').length}`);
+ok('末屏直接给「看推荐」（不必先答一题已知款）',
+  !!btnBy(/看推荐/),
+  appRoot.querySelectorAll('.btn').map((x) => x.textContent.trim()).join(' | ').slice(0, 120));
 
 /* ---------- ⑨ 背景层：只增不减、不换方向、封顶 ----------
    这三条是规格 3 的算术部分，截图证明不了，只能算。
@@ -1430,43 +2101,46 @@ ok('结果页无 NaN/undefined', !/NaN|undefined/.test(resultText), resultText.s
 console.log('\n--- 第一瓶渲染结果 ---');
 console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
 
-/* ---------- 步骤表本身（v6：八屏固定，无入口分叉）----------
-   v5 的两条入口（家族 8 步 / 情绪 9 步）在 v6 里不存在：香型轮盘退场、
-   「整族排除」只在家族入口下出现，两条都没了。
-   所以这里改为直接钉住 v6 的**顺序与计数** —— 这是用户唯一看得见的两个数字，
-   它们错一次，用户就会以为自己漏答了一屏。 */
+/* ---------- 步骤表本身（v7 第 1 步：八屏固定，无入口分叉）----------
+   v5 的两条入口（家族 8 步 / 情绪 9 步）早已不存在；v7 又撤掉了「已知款」
+   那一屏、把圆盘放回第 1 屏。所以这里钉的是 v7 的**顺序与计数** ——
+   这是用户唯一看得见的两个数字，它们错一次，用户就会以为自己漏答了一屏。 */
 {
   const S = appMod.__steps;
   const ids = S.all.map((x) => x.id);
-  ok('步骤全集是 8 步（v6）', S.all.length === 8, `实际 ${S.all.length}`);
-  /* 顺序即内容：预算前置、大方向第 2、已知款收尾。
+  ok('步骤全集是 8 步（v7）', S.all.length === 8, `实际 ${S.all.length}`);
+  /* 顺序即内容：圆盘第 1、预算第 2、大方向第 3、浓淡收尾（末屏出结果）。
      写成整串比对而不是逐项 includes —— 逐项判不出顺序错。 */
-  ok('八屏顺序与规格一致',
-    ids.join(',') === 'budget,emotion,wanted,unwanted,occasion,season,concentration,anchor',
+  ok('八屏顺序与 v7 定版一致（圆盘第 1、已知款已撤）',
+    ids.join(',') === 'family,budget,emotion,wanted,unwanted,occasion,season,concentration',
     ids.join(','));
   ok('8 个步骤的 id 两两不同', new Set(ids).size === ids.length, ids.join(','));
 
-  /* 预算必须第 1 屏（规格：预算题前置，先圈池再问偏好）。 */
-  ok('预算是第 1 屏', ids[0] === 'budget', ids[0]);
-  /* 大方向必须第 2 屏（规格 3：底噪由第一个大方向定调，它不能在别的题后面）。 */
-  ok('大方向是第 2 屏（底噪定调的起点）', ids[1] === 'emotion', ids[1]);
+  /* 圆盘必须第 1 屏：v7 定版第一条就是"圆盘是第一屏"，
+     而且它同时是底噪的方向来源（见 src/ambient.js 与 AXIS_OF_FAMILY）。 */
+  ok('圆盘是第 1 屏', ids[0] === 'family', ids[0]);
+  /* 预算仍是"圈池"那一刀，必须排在除大方向外的偏好题之前。 */
+  ok('预算是第 2 屏（先圈池再问偏好）', ids[1] === 'budget', ids[1]);
+  /* 已知款不许复活：它是 v7 定版明确删掉的一屏，且要求用户认得瓶子。 */
+  ok('已知款（anchor）不得复活', !ids.includes('anchor'), ids.join(','));
 
-  /* 被退场的 id 不许复活。名单来自 v5 的实际步骤表。 */
-  const gone = ['family', 'mood', 'dislikedFamilies', 'likedNotes', 'dislikedNotes',
+  /* 被退场的 id 不许复活。名单来自 v5 的实际步骤表；
+     注意 family 已**不再**属于这张表 —— v7 把它请回来了，见上一条。 */
+  const gone = ['mood', 'dislikedFamilies', 'likedNotes', 'dislikedNotes',
     'notes', 'context', 'strength', 'intensity'];
   const revived = gone.filter((g) => ids.includes(g));
-  ok('v5 退场的步骤 id 都不得复活', revived.length === 0, revived.join(','));
+  ok('v5 退场的步骤 id 都不得复活（family 除外，v7 已请回）', revived.length === 0, revived.join(','));
 
-  /* 步骤表与答案无关（v6 无 when）—— 空答案与答满答案必须等长。 */
+  /* 步骤表与答案无关（无 when）—— 空答案与答满答案必须等长。 */
   ok('步骤数与答案无关（无入口分叉）',
     S.cur({}).length === S.cur({ family: 'floral', emotion: 'cold' }).length,
     `${S.cur({}).length} vs ${S.cur({ family: 'floral', emotion: 'cold' }).length}`);
 
   /* 「第 N 步 / 共 M 步」跟着表走 */
   ok('末屏是第 8 步 / 共 8 步',
-    S.head('anchor', {}).kicker === '第 8 步 / 共 8 步', S.head('anchor', {}).kicker);
+    S.head('concentration', {}).kicker === '第 8 步 / 共 8 步', S.head('concentration', {}).kicker);
   ok('第 1 屏是第 1 步 / 共 8 步',
-    S.head('budget', {}).kicker === '第 1 步 / 共 8 步', S.head('budget', {}).kicker);
+    S.head('family', {}).kicker === '第 1 步 / 共 8 步', S.head('family', {}).kicker);
 
   /* 越界夹取 */
   ok('越界夹取：step=9 在 8 步表里夹到 8', S.clamp(9, 8) === 8, String(S.clamp(9, 8)));
@@ -1478,12 +2152,22 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
   ok('8 个步骤全部有可渲染函数', allReachable,
     S.all.filter((x) => typeof x.render !== 'function').map((x) => x.id).join(','));
 
-  /* 每屏 help 都要说清"能不能跳过" —— 七屏都可跳过，这是 v6 的承诺。
+  /* 每屏 help 都要说清"能不能跳过" —— 除圆盘与预算外都可跳过。
+     两处例外的理由不同：
+       · family（圆盘）：必答题，它是引擎入口（buildProfile 要求 family 或
+         emotion 二选一），跳过就没推荐可算。它的 help 该说"怎么选"，
+         而不是"可以跳过"。
+       · budget：可跳过，但它用的是"不限也行"这种说法（比"跳过"更贴这一题：
+         不是跳过，是选「不限」这一档）。关键词表不认它，所以按屏号排除 ——
+         这条排除是 v6 就有的，本步不动那一屏文案。
      只查关键词，不查整句（措辞会改）。 */
-  const noSkipWord = S.all.filter((x) => x.id !== 'budget'
-    && x.id !== 'anchor' && !/跳过|不选也能|不答/.test(x.help || ''));
-  ok('每屏都写明了可跳过（不逼答）', noSkipWord.length === 0,
+  const noSkipWord = S.all.filter((x) => x.id !== 'family' && x.id !== 'budget'
+    && !/跳过|不选也能|不答/.test(x.help || ''));
+  ok('除圆盘外每屏都写明了可跳过（不逼答）', noSkipWord.length === 0,
     noSkipWord.map((x) => x.id).join(','));
+  ok('圆盘的 help 不写「跳过」而写怎么选（它是必答题）',
+    !/跳过/.test((S.all.find((x) => x.id === 'family') || {}).help || ''),
+    (S.all.find((x) => x.id === 'family') || {}).help);
 }
 
 
