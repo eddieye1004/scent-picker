@@ -1,0 +1,908 @@
+/* ============================================================
+   90-quiz-v6.css — 问卷 v6 的两层：前景效果 + 背景底噪
+   ------------------------------------------------------------
+   Eddie 2026-11-16 22:56 定版。本层只做问卷屏，不碰结果页结构、
+   不碰圆盘几何、不碰 80 层的 token。
+
+   ==== 两层结构（本层的第一原则）====
+     背景层 = .amb-wash，由第一个大方向定调、随进程增强，
+              强度硬顶在 AMBIENT_CAP 之下，任何一屏都不许压过前景。
+     前景层 = 每屏自己的那一个效果（.price-row / .sky / .life-grid /
+              .hour-sky / .temp-band / .diffuse / 已知款屏的实物图）。
+              它是该屏的视觉重心：对比度、尺寸、动效幅度都高于底噪。
+
+   ==== 底噪怎么保证"永远在背景" ====
+   四道闸，任何一道单独成立就不会抢戏：
+     ① 值域：ambientOf() 输出的三轴各自 ∈ [-0.85, 0.85]，再乘一次透明度；
+     ② 这一层永远 position:fixed + z-index:0，前景内容在 z-index:1 之上；
+     ③ 只用**低饱和 + 低对比**的径向渐变，且不和文字直接叠（文字在 .sheet 上）；
+     ④ 动效只有 12s 的极缓漂移，幅度 <= 0.6%。没有闪烁、没有位移。
+   逐屏自检的判据写在 PR 的逐屏表里：「第一眼看到的是本題的效果」。
+
+   ==== 深色档 ====
+   深色下底噪改成"提亮式"（用同一个 --amb-* 三轴算但换到暗底的配方），
+   强度再乘 0.6 —— 暗底上的低对比色更容易被看见，必须更收。
+   test-contrast 的 42 项断言全部仍然按 80 层的 token 算，本层不改任何
+   承载文字的颜色，所以不会把它们推红。
+   ============================================================ */
+
+/* ---------- 背景层 ---------- */
+/* 变量默认值：没选大方向时三轴为 0，这一层渲染成不加色的纸面。 */
+#app {
+  --amb-temp: 0;
+  --amb-light: 0;
+  --amb-sat: 0;
+  --amb-strength: 0;
+}
+
+.amb-wash {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* 温度轴：冷 → 青蓝，暖 → 琥珀。两个端点都压过明度，不与纸面打架。 */
+  --amb-cool: #d8e4ec;
+  --amb-warm: #efe0cd;
+  background:
+    radial-gradient(120% 80% at 50% -10%,
+      color-mix(in srgb, var(--amb-warm) calc(max(var(--amb-temp), 0) * 100%), transparent) 0%,
+      transparent 62%),
+    radial-gradient(120% 80% at 50% 110%,
+      color-mix(in srgb, var(--amb-cool) calc(max(calc(var(--amb-temp) * -1), 0) * 100%), transparent) 0%,
+      transparent 62%);
+  /* ② 强度闸：整体透明度直接由 --amb-strength 驱动，且硬顶 AMBIENT_CAP 的
+     等效值。0.34 → 0.30，1.0 → 0.62 —— 满格时也只有 62% 的存在感，
+     再乘上渐变色本身对纸面的 ΔE，实际观感远低于任何前景元素。 */
+  opacity: calc(0.30 + 0.32 * var(--amb-strength));
+  /* ④ 极缓漂移：12s、位移 0.6%。它只让底噪"活着"，不让人注意到在动。 */
+  animation: amb-drift 12s ease-in-out infinite alternate;
+  transition: opacity .9s var(--ease, ease), background .9s var(--ease, ease);
+}
+
+/* 亮度轴单独一层：亮方向把纸面推白一点，暗方向压一点。
+   为什么分两层：温度和亮度是两根独立的轴，混在一个渐变里会互相吃掉。
+   这一层的 alpha 上限 0.26 —— 比温度层更低，因为它直接影响纸面明度。 */
+.amb-wash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--ink);
+  /* light > 0 时不叠墨（那是"更亮"），light < 0 时叠一点墨（"更暗"）。
+     max() 保证正向永远取 0，绝不会把亮方向做成加深。 */
+  opacity: calc(max(calc(var(--amb-light) * -1), 0) * 0.26 * var(--amb-strength));
+  transition: opacity .9s var(--ease, ease);
+}
+
+@keyframes amb-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(0, -0.6%, 0) scale(1.004); }
+}
+
+/* 低端安卓 / 用户要求减少动态：底噪本来就不承载信息，直接停掉最省。
+   停掉之后它仍然是一个静态色温层，"增强"这件事靠 opacity 的 transition
+   仍然成立 —— 逻辑不缺，只是少了那 0.6% 的漂移。 */
+@media (prefers-reduced-motion: reduce) {
+  .amb-wash { animation: none; }
+}
+
+/* 深色档：换配方。暗底上不能用浅色径向（会变成一块发光的斑），
+   改成"底部暖光 + 顶部冷光"，且强度再乘 0.6。 */
+@media (prefers-color-scheme: dark) {
+  .amb-wash {
+    --amb-cool: #1b2a33;
+    --amb-warm: #33261a;
+    opacity: calc((0.30 + 0.32 * var(--amb-strength)) * 0.6);
+  }
+  .amb-wash::after {
+    /* 深色下"更暗"这一侧没有意义（背景已经接近黑），改成提亮。 */
+    background: #ffffff;
+    opacity: calc(max(var(--amb-light), 0) * 0.10 * var(--amb-strength));
+  }
+}
+
+/* 内容必须压在底噪之上。.sheet 是问卷各屏的统一纸面容器（见下）。 */
+.sheet {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- 前瞻：边距仪器区的刻度 ---------- */
+/* 页眉右侧那枚刻度（方向·档位）。它是仪器读数，不是装饰标签：
+   字号 12px（test-contrast 的下限）、--ink-3、字距拉开像刻度。
+   没有它，"底噪随进程增强"就只能靠感觉，无法核对。 */
+.masthead .amb-tick {
+  position: absolute;
+  right: 0;
+  top: 4px;
+  font: 500 12px/1 var(--font-ui, system-ui);
+  letter-spacing: .18em;
+  color: var(--ink-3);
+  /* 两条短线夹住读数，读起来像仪表刻度而不是一个词。 */
+  padding-left: 18px;
+  background:
+    linear-gradient(var(--ink-3), var(--ink-3)) left center / 12px 1px no-repeat;
+}
+
+/* ============================================================
+   第 1 屏：预算（价签行）
+   ------------------------------------------------------------
+   前景效果：四枚标本签横排，选中时签子下沿的**剪口翻起**。
+   剪口是标本签的固有形态（挂绳穿过的地方），也是这一屏唯一属于它的效果。
+   ============================================================ */
+.price-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.price-tab {
+  position: relative;
+  flex: 1 1 148px;
+  min-height: 88px;
+  padding: 16px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  background: var(--bg-2);
+  border: 1px solid var(--stroke-ui);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: transform .22s var(--ease, ease), border-color .22s, background .22s;
+}
+
+/* 剪口：签子左上角那一小块缺口，用 clip-path 切出直角梯形。
+   未选中时缺口很浅（暗示"这里可以翻"），选中时缺口加深并转成蓝色。 */
+.price-tab .price-notch {
+  position: absolute;
+  top: 0;
+  left: 14px;
+  width: 26px;
+  height: 9px;
+  background: var(--bg);
+  clip-path: polygon(0 0, 100% 0, 50% 68%);
+  transition: background .22s, height .22s;
+}
+
+.price-tab .price-zh {
+  font: 500 15px/1.35 var(--font-ui, system-ui);
+  color: var(--ink);
+}
+
+.price-tab .price-n {
+  font: 400 12px/1 var(--font-ui, system-ui);
+  letter-spacing: .04em;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.price-tab:hover {
+  background: var(--bg-3);
+  border-color: var(--ink-3);
+}
+
+.price-tab.is-on {
+  border-color: var(--accent);
+  background: var(--bg);
+  /* 翻起：抬起 2px + 一道内阴影当"签子离开了桌面"。 */
+  transform: translateY(-2px);
+  box-shadow: inset 0 -2px 0 var(--accent), 0 2px 0 rgba(0, 0, 0, .04);
+}
+
+.price-tab.is-on .price-notch {
+  background: var(--accent);
+  height: 11px;
+}
+
+.price-tab.is-on .price-zh { color: var(--accent); }
+
+/* 说明行：选具体档 / 选不限 是两句不同的事实，所以它跟着变。
+   未选时限（is-idle）降一档浓度，表明"这是当前状态下的说明"。 */
+.price-note {
+  margin: 14px 0 0;
+  font: 400 13px/1.6 var(--font-ui, system-ui);
+  color: var(--ink-2);
+}
+
+.price-note.is-idle { color: var(--ink-3); }
+
+/* ============================================================
+   第 2 屏：大方向（昼夜光景的定调）
+   ------------------------------------------------------------
+   前景效果：六条地平线并排，左冷右暖、左暗右亮 —— 位置即天色。
+   选中时那条地平线抬高一档并给出自己的一格天光。
+   这一屏是**底噪开灯**的地方：选中后 .amb-wash 才开始有值。
+   ============================================================ */
+.sky {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  position: relative;
+  z-index: 1;
+}
+
+.sky-band {
+  position: relative;
+  min-height: 168px;
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--stroke-ui);
+  border-radius: 2px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform .26s var(--ease, ease), border-color .26s;
+}
+
+/* 天际线：每条带上沿的一道渐变，色相由 data-dir 决定。
+   用它而不是给每条带换个底色 —— 换底色会让六格看起来是"六个色卡"，
+   一条线才读得出"同一天里的六个时刻"。 */
+.sky-band .sky-line {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 62%;
+  opacity: .5;
+  transition: opacity .3s, height .3s;
+}
+
+.sky-band[data-dir="cold"]       .sky-line { background: linear-gradient(#cfdde8, transparent); }
+.sky-band[data-dir="warm"]       .sky-line { background: linear-gradient(#f2ddc0, transparent); }
+.sky-band[data-dir="clean"]      .sky-line { background: linear-gradient(#e6eef2, transparent); }
+.sky-band[data-dir="mysterious"] .sky-line { background: linear-gradient(#4a4438, transparent); }
+.sky-band[data-dir="bright"]     .sky-line { background: linear-gradient(#fff4d8, transparent); }
+.sky-band[data-dir="lazy"]       .sky-line { background: linear-gradient(#e8dcd0, transparent); }
+
+.sky-band .sky-zh {
+  font: 500 16px/1.2 var(--font-display, Georgia, serif);
+  color: var(--ink);
+  letter-spacing: .02em;
+}
+
+.sky-band .sky-moment {
+  font: 400 12px/1.5 var(--font-ui, system-ui);
+  color: var(--ink-3);
+}
+
+.sky-band:hover { background: var(--bg-3); }
+
+.sky-band.is-on {
+  border-color: var(--accent);
+  transform: translateY(-3px);
+}
+
+/* 选中：那条天光升到满、并向上漫出格子上沿 3px ——
+   "天色定了"这一下只在这一屏发生一次。 */
+.sky-band.is-on .sky-line {
+  opacity: .95;
+  height: 74%;
+}
+
+.sky-band.is-on .sky-zh { color: var(--accent); }
+
+.sky-gloss {
+  margin: 16px 0 0;
+  min-height: 44px;
+  font: 400 14px/1.65 var(--font-ui, system-ui);
+  color: var(--ink-2);
+}
+
+.sky-gloss.is-idle { color: var(--ink-3); }
+
+/* ============================================================
+   第 3 / 4 屏：生活短语（想要 / 受不了）
+   ------------------------------------------------------------
+   前景效果：一条**标本抽屉**。每张卡是一枚小标本签：名字在上、气味提示在下、
+   右下角一枚库存数（我们有多少瓶含这个东西）。
+   选中 = 收下（左上角打一枚勾），并移到抽屉最前。
+   ============================================================ */
+.life-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  margin-bottom: 14px;
+  position: relative;
+  z-index: 1;
+}
+
+.life-count {
+  font: 500 12px/1 var(--font-ui, system-ui);
+  letter-spacing: .1em;
+  color: var(--ink-3);
+  padding-right: 4px;
+}
+
+.life-count.is-on { color: var(--accent); }
+
+/* 已选小签：点一下取消。它住在网格外，位置稳定 ——
+   误触不会造成"选了又取消"的来回。 */
+.life-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 10px;
+  font: 500 13px/1 var(--font-ui, system-ui);
+  color: var(--bg);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.life-tag-x {
+  font-size: 14px;
+  opacity: .8;
+}
+
+.life-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.life-card {
+  position: relative;
+  min-height: 78px;
+  padding: 13px 40px 13px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: left;
+  background: var(--bg-2);
+  border: 1px solid var(--stroke-ui);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background .18s, border-color .18s, transform .18s var(--ease, ease);
+}
+
+.life-card .life-zh {
+  font: 500 15px/1.3 var(--font-ui, system-ui);
+  color: var(--ink);
+}
+
+.life-card .life-hint {
+  font: 400 12px/1.5 var(--font-ui, system-ui);
+  color: var(--ink-3);
+}
+
+/* 库存数：右下角、等宽数字、极小 —— 它是"这支抽屉里还有多少"，不是推荐度。 */
+.life-card .life-n {
+  position: absolute;
+  right: 12px;
+  bottom: 11px;
+  font: 400 12px/1 var(--font-ui, system-ui);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  opacity: .85;
+}
+
+.life-card:hover { background: var(--bg-3); border-color: var(--ink-3); }
+
+/* 选中：收下。打勾用 ::before，不新增 DOM（这是纯视觉状态）。 */
+.life-card.is-on {
+  border-color: var(--accent);
+  background: var(--bg);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.life-card.is-on::before {
+  content: '✓';
+  position: absolute;
+  top: 11px;
+  right: 12px;
+  font: 600 13px/1 var(--font-ui, system-ui);
+  color: var(--accent);
+}
+
+.life-card.is-on .life-zh { color: var(--accent); }
+
+/* "受不了"那两屏用另一套色：不是红色警告（那是错误色），
+   是"划掉"——左边缘一道横杠，字降一档。 */
+.life-grid.is-neg .life-card.is-on {
+  box-shadow: inset 3px 0 0 var(--danger, #8c2f28);
+  border-color: var(--danger, #8c2f28);
+}
+
+.life-grid.is-neg .life-card.is-on::before {
+  content: '✕';
+  color: var(--danger, #8c2f28);
+}
+
+.life-grid.is-neg .life-card.is-on .life-zh {
+  color: var(--danger, #8c2f28);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* 译文行：常驻・选项换它也换（规格 5）。 */
+.life-gloss {
+  margin: 16px 0 0;
+  min-height: 42px;
+  font: 400 14px/1.65 var(--font-ui, system-ui);
+  color: var(--ink-2);
+}
+
+.life-gloss.is-idle { color: var(--ink-3); }
+
+/* ============================================================
+   第 5 屏：场合（昼夜光景）
+   ------------------------------------------------------------
+   前景效果：一条横向地平线，五个场合按**时段**从左到右排开
+   （白天三档在前、傍晚两档在后）。选中的那一段天色由灰转实，
+   下方译文换成"光线 + 距离"。位置即时间 —— 这是本屏的对应关系。
+   ============================================================ */
+.hour-sky {
+  position: relative;
+  z-index: 1;
+  padding: 0 0 8px;
+}
+
+/* 天光：一条从左（晨，冷白）到右（夜，深蓝）的连续渐变。
+   它铺在整条地平线之下，**不给任何单格换底色** ——
+   换底色会让五格看起来是五张色卡，一条渐变才读得出"一天"。 */
+.hour-glow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -6px;
+  height: 54px;
+  background: linear-gradient(90deg,
+    #dfe9f0 0%, #eae4d6 34%, #d9c9ae 58%, #8d7f74 78%, #4a4438 100%);
+  opacity: .55;
+  border-radius: 2px 2px 0 0;
+  pointer-events: none;
+}
+
+.hour-rail {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  position: relative;
+  padding-top: 52px;
+}
+
+.hour-band {
+  position: relative;
+  min-height: 118px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 6px;
+  text-align: left;
+  background: var(--bg-2);
+  border: 1px solid var(--stroke-ui);
+  border-top: 3px solid var(--stroke-ui);
+  border-radius: 0 0 2px 2px;
+  cursor: pointer;
+  transition: background .2s, border-color .2s, transform .2s var(--ease, ease);
+}
+
+/* 夜间那两段：顶线转深，与白天分开。这是"时段"的唯一视觉编码，
+   不用文字标签重复说一遍。 */
+.hour-band.is-night { border-top-color: var(--ink-3); }
+
+.hour-band .hour-zh {
+  font: 500 15px/1.3 var(--font-ui, system-ui);
+  color: var(--ink);
+}
+
+.hour-band .hour-desc {
+  font: 400 12px/1.55 var(--font-ui, system-ui);
+  color: var(--ink-3);
+}
+
+.hour-band:hover { background: var(--bg-3); }
+
+/* 选中：这一段天色转实（顶线变蓝、底提亮），并抬起 2px。 */
+.hour-band.is-on {
+  background: var(--bg);
+  border-top-color: var(--accent);
+  border-color: var(--accent);
+  border-top-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, .05);
+}
+
+.hour-band.is-on .hour-zh { color: var(--accent); }
+
+.hour-ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font: 400 12px/1 var(--font-ui, system-ui);
+  letter-spacing: .12em;
+  color: var(--ink-3);
+}
+
+.hour-gloss {
+  margin: 16px 0 0;
+  min-height: 42px;
+  font: 400 14px/1.65 var(--font-ui, system-ui);
+  color: var(--ink-2);
+}
+
+.hour-gloss.is-idle { color: var(--ink-3); }
+
+/* ============================================================
+   第 6 屏：季节（温度光带）
+   ------------------------------------------------------------
+   前景效果：一条**连续的温度光带**，冷在左、热在右。
+   四个季节落在带上各自的温度位置（由 SEASONS[].temp 算，不平均分四格）——
+   位置就是温度读数。选中时整条带移到那一档的色温。
+   这一屏的光带**只属于这一屏**，不许拿去当全卷底噪。
+   ============================================================ */
+.temp-band {
+  position: relative;
+  height: 132px;
+  margin: 8px 0 0;
+  border-radius: 2px;
+  z-index: 1;
+  /* 光带本体：色相由 --band-temp 插值。冷 #dbe7ef → 热 #efd3ad。
+     两个端点都过对比度核算（它们只做背景，不承载文字）。 */
+  --band-temp: 0;
+  background: linear-gradient(90deg, #dbe7ef 0%, #e9e6dc 50%, #efd3ad 100%);
+  border: 1px solid var(--stroke-ui);
+  overflow: hidden;
+  transition: filter .35s var(--ease, ease), border-color .35s;
+}
+
+/* 光带上的温度光：一团跟着选中档移动的暖光，位置由选中档的 temp 决定。
+   它让"温度"成为一个连续量而不是四个开关量。 */
+.temp-band .temp-glow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 34%;
+  left: calc(var(--band-temp) * 50% + 33% - 17%);
+  background: radial-gradient(circle at 50% 50%,
+    rgba(255, 255, 255, .9), rgba(255, 248, 236, .35) 46%, transparent 72%);
+  transition: left .4s var(--ease, ease);
+  pointer-events: none;
+}
+
+/* 未选：整条带降饱和 —— 诚实地表示"还没定温度"。
+   filter 不动文字（带里只有短词与圆点）。 */
+.temp-band.is-idle { filter: saturate(.35) brightness(.99); }
+
+.temp-stop {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 60px;
+  min-height: 60px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.temp-stop .temp-zh {
+  font: 500 16px/1 var(--font-display, Georgia, serif);
+  color: var(--ink);
+  letter-spacing: .06em;
+}
+
+/* 档位圆点：选中时填实并放大 —— 微小但确定的"落点"。 */
+.temp-stop .temp-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  transition: transform .22s var(--ease, ease), background .22s;
+}
+
+.temp-stop.is-on .temp-dot {
+  background: var(--accent);
+  transform: scale(1.9);
+}
+
+.temp-stop.is-on .temp-zh { color: var(--accent); }
+
+/* 键盘焦点必须看得见（test-contrast 的 INTERACTIVE 清单里有 .btn，
+   这里补 .price-tab / .sky-band / .life-card / .hour-band / .temp-stop /
+   .diffuse-ring 的焦点环）。 */
+.temp-stop:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.temp-gloss {
+  margin: 14px 0 0;
+  min-height: 40px;
+  font: 400 14px/1.65 var(--font-ui, system-ui);
+  color: var(--ink-2);
+}
+
+.temp-gloss.is-idle { color: var(--ink-3); }
+
+/* ============================================================
+   第 7 屏：浓淡（扩散场）
+   ------------------------------------------------------------
+   前景效果：同心环。**环的半径就是扩散距离** —— 内圈一臂、外圈整条走廊。
+   这是圆盘"几何=内容"这条逻辑在本卷的第二次落地（第一次是场合的时间轴）。
+   拖动/点选穿到外圈时，场心的色团跟着涨大。
+   ============================================================ */
+.diffuse {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 460px;
+  aspect-ratio: 1 / 1;
+  margin: 8px auto 0;
+  /* 同心环按绝对定位排在中心：每个环自己的 --ring-pct 决定直径。 */
+  display: block;
+}
+
+/* 场心：一团随档位涨大的色团。它是"这团气味"的本体。 */
+.diffuse .diffuse-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22%;
+  height: 22%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    var(--accent) 0%, color-mix(in srgb, var(--accent) 40%, transparent) 58%, transparent 78%);
+  opacity: .22;
+  pointer-events: none;
+  transition: width .3s var(--ease, ease), height .3s var(--ease, ease), opacity .3s;
+}
+
+/* 视觉环：纯装饰（aria-hidden），不接收事件。它只负责"这一圈在哪儿"。 */
+.diffuse-ring {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--ring-pct);
+  height: var(--ring-pct);
+  border-radius: 50%;
+  border: 1px dashed var(--stroke-ui);
+  background: transparent;
+  pointer-events: none;
+  transition: border-color .2s, background .2s;
+}
+
+/* 命中按钮：每个环在 12 点方向贴一枚 44px 的落点。
+   ==== 为什么必须与视觉环分开 ====
+   五个环是同心的，外环盒子把内环整个包住。若 button 自己也占满整圆，
+   只有最外那圈收得到点击，里面四档永远点不动
+   （playwright 实测：点 1/5 被 5/5 "intercepts pointer events" 拦住）。
+   现在按钮只占一个小方块，五个落点沿半径排开、互不重叠 ——
+   视觉仍是整圈（由上面的 .diffuse-ring 画），命中是这枚 44px。
+   落点位置就在它自己那一圈的顶点上，点哪条线就是哪一档，语义一致。 */
+.diffuse-hit {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.diffuse-hit .diffuse-label {
+  white-space: nowrap;
+  font: 500 12px/1 var(--font-ui, system-ui);
+  letter-spacing: .06em;
+  color: var(--ink-3);
+  transition: color .2s;
+  /* 文字压在环线之上，需要一层纸底，否则虚线会从字里穿过去。 */
+  background: var(--bg);
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.diffuse-hit:hover .diffuse-label { color: var(--ink); }
+
+.diffuse-hit.is-on .diffuse-label {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.diffuse-hit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 已越过（内圈）：填一层极淡的实底 —— 能看出"这团已经到了这一圈"。 */
+.diffuse-ring.is-in {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+/* 当前档：实线 + 蓝。 */
+.diffuse-ring.is-on {
+  border-style: solid;
+  border-color: var(--accent);
+  border-width: 2px;
+}
+
+/* 撑不住（① 与 ② 差 >= 2 档）：那一圈转成警示色并抖一次 ——
+   反馈是内容本身的变化，不另起一条提示。 */
+.diffuse-ring.is-strained {
+  border-color: var(--danger, #8c2f28);
+  animation: ring-strain .5s ease-in-out 2;
+}
+
+.diffuse-hit.is-strained .diffuse-label { color: var(--danger, #8c2f28); }
+
+@keyframes ring-strain {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.012); }
+}
+
+.diffuse-read {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 10px 0 0;
+  font: 400 14px/1.6 var(--font-ui, system-ui);
+  color: var(--ink-2);
+}
+
+.diffuse-read b {
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 焦点环：同心圆上的按钮必须有清晰焦点（键盘用户在环间移动）。 */
+.diffuse-ring:focus-visible,
+.price-tab:focus-visible,
+.sky-band:focus-visible,
+.life-card:focus-visible,
+.hour-band:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* ============================================================
+   移动端降级（规格 7：低端安卓微信浏览器可降级动效，逻辑不可缺）
+   ------------------------------------------------------------
+   降的是"动"和"密度"，不降任何一项可点、可读、可键盘到达的东西。
+   逐条说明为什么这一条能在窄屏降：
+     · .sky 六列 → 两列：六条并排在 390 上每格只有 58px，
+       地平线的"左冷右暖"位置信息在这么窄的格子里已经读不出来，
+       改成两列后位置信息让给"每条自己的天光"，方向仍然一眼可见；
+     · .hour-rail 五列 → 横向滚动：地平线的顺序必须保留（那是内容），
+       所以不换行、改成可横滑，顺序不动；
+     · .diffuse 的最大宽度收到 100%：同心环靠百分比定位，缩容器即可；
+     · 所有 transition 时长减半（省电、少掉帧）。
+   ============================================================ */
+@media (max-width: 620px) {
+  .sky { grid-template-columns: repeat(2, 1fr); }
+  .sky-band { min-height: 132px; }
+
+  .hour-rail {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 62%;
+    gap: 6px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+  }
+  .hour-band { scroll-snap-align: start; }
+
+  .diffuse { max-width: 100%; }
+  .diffuse-hit .diffuse-label { font-size: 12px; }
+
+  .life-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+
+  .price-tab { flex: 1 1 100%; min-height: 74px; }
+
+  .temp-band { height: 116px; }
+  .temp-stop { min-width: 52px; padding: 6px 6px; }
+
+  .masthead .amb-tick { display: none; }
+
+  .price-tab, .sky-band, .life-card, .hour-band,
+  .temp-stop, .diffuse-ring {
+    transition-duration: .12s;
+  }
+}
+
+/* 极窄（<= 380）：连两列天际线都挤，收成一列。 */
+@media (max-width: 380px) {
+  .sky { grid-template-columns: 1fr; }
+  .sky-band { min-height: 96px; }
+}
+
+/* ============================================================
+   深色档：前景各屏的表面跟随 token，底噪已在上文单独收过
+   ------------------------------------------------------------
+   本层不新增任何承载文字的色值 —— 所有文字色都取 --ink / --ink-2 / --ink-3
+   / --accent，由 80 层与 test-contrast 统一核算。这里只调表面与描边。
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  /* 价签 / 天际线 / 标本签 / 地平线：选中态在暗底上靠描边不够，
+     需要一层极淡的蓝底，否则"选中"读不出来。 */
+  .price-tab.is-on,
+  .hour-band.is-on,
+  .life-card.is-on {
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  }
+
+  /* 温度光带在暗底上原色太亮（会抢前景文字）。
+     ==== 为什么不能写 filter: brightness() ====
+     filter 会作用到**整个元素子树**，.temp-zh 那四个字也被一起压暗：
+     实测暗底上 字≈rgb(158,160,161) / 底≈rgb(170,169,167)，对比度 1.1~1.25，
+     四个季节名基本读不出来（浅色档同一位置是 13~14.7）。
+     test-contrast 只核算 :root 里的 token 组合，照不到这条 —— 它把
+     "文字色 vs 它真正的底"漏掉了，因为这里的底是一张渐变、不是变量。
+     所以改成**直接换深色渐变**，不动 filter，文字保持 --ink 原样。 */
+  .temp-band {
+    background: linear-gradient(90deg, #26313a 0%, #35322a 50%, #453526 100%);
+  }
+  /* 未选态：整条带降饱和 —— 用一次性的低饱和渐变，同样不用 filter。 */
+  .temp-band.is-idle {
+    background: linear-gradient(90deg, #2d3438 0%, #35332f 50%, #3d362e 100%);
+  }
+
+  /* 扩散场的色团在暗底上要更淡，否则环线看不清。 */
+  .diffuse .diffuse-core { opacity: .3; }
+
+  /* 天际线的六条渐变在暗底上需要整体压暗，否则最亮那条（bright）
+     会成为整屏最亮的元素 —— 那正是"底噪抢前景"的一种。 */
+  .sky-band .sky-line { opacity: .3; }
+  .sky-band.is-on .sky-line { opacity: .62; }
+}
+
+/* ============================================================
+   结果页的三颗出路（换一批 / 改一题 / 重新来）
+   ------------------------------------------------------------
+   顺序按代价从小到大：换一批（答案全留）→ 改一题（只动一屏）→ 重新来（清空）。
+   「重新来」退到一行小结里，不和三颗并列 —— 它代价最大。
+   ============================================================ */
+.result-actions {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.result-restart {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 18px 0 0;
+  font: 400 13px/1.6 var(--font-ui, system-ui);
+  color: var(--ink-3);
+}
+
+/* 行内文字按钮：要有 44px 触达（它是可点的），但视觉上像一句链接。 */
+.link-btn {
+  min-height: 44px;
+  padding: 0 4px;
+  font: 500 13px/1 var(--font-ui, system-ui);
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  cursor: pointer;
+}
+
+.link-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}

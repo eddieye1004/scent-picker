@@ -395,6 +395,41 @@ else fails.push(`触控目标偏小: ${touchBad.join(' / ')}`);
   else fails.push('打印未切白纸：找不到顶层 @media print 里的 `--bg: #fff`（D6 回归）');
 }
 
+/* ---------- 滤镜陷阱：承载文字的元素不许被 filter 整体压暗 ----------
+   2026-11-17 实测踩到：深色档给 `.temp-band` 写了 filter: brightness(.72)，
+   filter 作用于整个子树，于是带里的「春 / 夏 / 秋 / 冬」四个字一起被压暗，
+   截图像素量出来 字≈rgb(158,160,161) / 底≈rgb(170,169,167)，对比度 1.1~1.25，
+   四个季节名基本读不出来（浅色档同一位置 13~14.7）。
+   本测试按 :root token 算对比度，照不到"渐变底 + 子树滤镜"这条路径，
+   所以这里单独加一道结构性闸：凡是被已知承载文字的子选择器挂着的父级，
+   不许出现整体降亮度的 filter。 */
+{
+  const NO_COMMENT = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+  /* 这些容器内部有真实文字（.temp-zh / .diffuse-label / .sky-gloss …） */
+  const TEXTHOSTS = ['.temp-band', '.sky-band', '.life-card', '.hour-band',
+    '.price-tab', '.diffuse', '.choice'];
+  const filterBad = [];
+  for (const host of TEXTHOSTS) {
+    /* 抓 `.host { ... }` 与 `.host.x { ... }` 两种块体 */
+    const re = new RegExp('\\' + host + '[^{}]*\\{([^{}]*)\\}', 'g');
+    let m;
+    while ((m = re.exec(NO_COMMENT))) {
+      const body = m[1];
+      const fm = body.match(/filter\s*:\s*([^;}]+)/);
+      if (!fm) continue;
+      const val = fm[1];
+      /* 只禁止"降低亮度"这一类：brightness(<1) 或含 brightness 且系数 < 1。
+         saturate / opacity 单独用不改变文字与底的相对明度关系，放行。 */
+      const bm = val.match(/brightness\(\s*([\d.]+)\s*\)/);
+      if (bm && parseFloat(bm[1]) < 0.95) {
+        filterBad.push(`${host} { filter: ${val.trim()} } —— 会连带压暗子元素文字`);
+      }
+    }
+  }
+  if (filterBad.length === 0) pass++;
+  else fails.push(`承载文字的容器被整体降亮度（子树文字会被一起压暗）：${filterBad.join('; ')}`);
+}
+
 /* ---------- 输出 ---------- */
 console.log('===== 无障碍测试（对比度 / 字号 / 焦点 / 触控）=====');
 for (const [label, fgk, bgk] of PAIRS) {
