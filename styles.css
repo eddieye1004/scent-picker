@@ -10492,3 +10492,144 @@ footer.foot {
   }
 }
 
+/* ============================================================
+   Block 11 · 液态玻璃交互层（B 段）
+   ------------------------------------------------------------
+   只加"反馈"，不动选择机制：指针移动 → 高光跟着流动；按下/选中 →
+   弹性落定（一次带过冲的位移，不是 0→1 的二值切换）。
+   为什么用 radial-gradient 而不是 filter: blur()：这层在盘上随指针
+   每帧改两个自定义属性，blur 会让整块盘每帧重绘（实测 520px 盘上
+   掉到 30fps 以下）；渐变只改 paint，不动布局也不动合成层。
+   降级：prefers-reduced-motion 下高光常驻、涟漪与落定全部关掉。
+
+   高光定位：--gx/--gy 是**相对盘面**的百分比，由 app.js 的 pointermove
+   写进来。写百分比而不是 px，是因为盘径在四个断点上从 312 变到 520。
+   ============================================================ */
+#app[data-step="family"] .wheel .glass {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  /* 只在**环带**上出现，不盖盘心：34%–97% 是家族环（r1i 158/240 = 65.8%
+     是盘心外沿的一半……这里取的是半径百分比，不是半径，所以 34% 对应
+     直径的 34%）。盘心是文字区，任何一层白光压上去都会让 contrast 从
+     14.7 掉下来；而"玻璃反光"本来就该出现在器物的外沿，不该出现在
+     印着字的心口。 */
+  mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent 0 34%,
+    #000 44% 96%,
+    transparent 100%
+  );
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent 0 34%,
+    #000 44% 96%,
+    transparent 100%
+  );
+  background:
+    radial-gradient(
+      circle 210px at var(--gx, 50%) var(--gy, 34%),
+      rgba(255, 255, 255, .9) 0%,
+      rgba(255, 255, 255, .42) 38%,
+      rgba(255, 255, 255, 0) 72%
+    );
+  mix-blend-mode: soft-light;
+  transition: opacity 420ms var(--ease-std);
+}
+/* 盘心必须压在玻璃之上：它承载文字。z-index 只在同为定位元素之间比较，
+   而 .disc-hub 本来就是 position:absolute，所以这里补一个数即可。 */
+#app[data-step="family"] .wheel .disc-hub {
+  z-index: 3;
+}
+#app[data-step="family"] .wheel.is-glint .glass {
+  opacity: 1;
+}
+/* 高光跟着指针走时不能有 transition（会拖影），只在进出时缓动。
+   位移本身每帧重算，等价于连续运动。 */
+
+/* 点击涟漪：从落点扩散一圈暖光。它证明"这一下被接住了"，
+   也给"弹性落定"一个起点 —— 二值高亮没有起点。 */
+#app[data-step="family"] .wheel .glass-ripple {
+  position: absolute;
+  z-index: 3;
+  left: var(--rx, 50%);
+  top: var(--ry, 50%);
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  border: 1px solid var(--spec-ink);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(.4);
+}
+#app[data-step="family"] .wheel .glass-ripple.is-on {
+  animation: glassRipple 620ms var(--ease-out) forwards;
+}
+@keyframes glassRipple {
+  0%   { opacity: .5; transform: scale(.4); }
+  55%  { opacity: .22; transform: scale(7.5); }
+  100% { opacity: 0; transform: scale(11); border-color: var(--spec-rim); }
+}
+
+/* 弹性落定：选中那一刻，被选中的那块瓦片先压后弹（一次过冲），
+   盘心同时做一次 0.985 → 1 的回收。两者都只动 transform，
+   所以是合成层动画，不会带着文字重排。 */
+#app[data-step="family"] .wheel .sub-g.is-on .sub-arc {
+  transform-box: view-box;
+  transform-origin: 240px 240px;
+  animation: glassSettle 520ms cubic-bezier(.22, 1.4, .36, 1) both;
+}
+@keyframes glassSettle {
+  0%   { transform: scale(.955); }
+  52%  { transform: scale(1.022); }
+  78%  { transform: scale(.996); }
+  100% { transform: scale(1); }
+}
+#app[data-step="family"] .wheel .disc-hub.is-swap {
+  animation: hubSettle 460ms cubic-bezier(.22, 1.35, .36, 1) both;
+}
+@keyframes hubSettle {
+  0%   { transform: translate(-50%, -50%) scale(.972); }
+  60%  { transform: translate(-50%, -50%) scale(1.006); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* 窄屏不显示盘心那颗主按钮（必须在 Block 10 之后写，见文件末尾的注）。
+   `.hub-go` 在桌面的作用是「我只想要大类」的快捷出口；窄屏上底部
+   .actions 里已经有同一句「下一步 →」+ hint，盘心再来一颗就是两个
+   同义主操作抢同一处。20-wheel-core 早就写了这条，用的是两个类；
+   本层给四枚胶囊统一写了 `#app[data-step] … { display: inline-flex }`，
+   id 级选择器更高，于是那条旧规则被顶掉、按钮在手机上又冒出来 ——
+   实测 390 视口盘心被撑到溢出圆外。这里按同样的 id 级压回来。 */
+@media (max-width: 620px) {
+  #app[data-step="family"] .wheel .hub-go {
+    display: none;
+  }
+}
+
+/* 降级：动效全关，状态仍靠颜色/描边表达（不是"关掉反馈"，
+   而是把时间维度拿掉，静态差异一个不少）。 */
+@media (prefers-reduced-motion: reduce) {
+  #app[data-step="family"] .wheel .glass {
+    opacity: .0;
+    transition: none;
+  }
+  #app[data-step="family"] .wheel .glass-ripple.is-on {
+    animation: none;
+    opacity: 0;
+  }
+  #app[data-step="family"] .wheel .sub-g.is-on .sub-arc {
+    animation: none;
+  }
+  #app[data-step="family"] .wheel .disc-hub.is-swap {
+    animation: none;
+  }
+  #app[data-step="family"] .progress i,
+  #app[data-step="family"] .actions .btn:not(.ghost) {
+    transition: none;
+  }
+}

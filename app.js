@@ -999,6 +999,159 @@ function buildWheel(cfg) {
     hubOrn, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
   root.appendChild(hub);
 
+  /* ---- 液态玻璃交互层（B 段）----
+     两层，都只做反馈、不接事件（pointer-events:none）：
+       .glass        高光，位置由 --gx/--gy 驱动，每帧跟着指针走
+       .glass-ripple 点击涟漪，从落点扩散一次
+     为什么不直接对扇区做 filter：扇区是 SVG 路径，filter 会让整块盘
+     每帧重新光栅化（520px 盘实测掉到 30fps 以下）。这里只改渐变中心，
+     属于 paint 级更新。
+
+     **挂在 root 上，不在可旋转层 .disc-rot 里**：那一层带
+     `transform: rotate(var(--disc-rot))`，高光跟着转的话，"光从左上打来"
+     这件事会随盘一起歪掉。挂在 root 上则以控件盒为坐标，稳定。 */
+  const glass = el('div', { class: 'glass' });
+  root.appendChild(glass);
+  /* 涟漪挂在 root 上（不在 rot 里）：它要以盘盒的百分比定位到点击落点，
+     而 rot 是可旋转层 —— 一旦盘被转动（--disc-rot），涟漪会跟着转，
+     落点就对不上指针了。 */
+  const ripple = el('div', { class: 'glass-ripple' });
+  root.appendChild(ripple);
+
+  /* ---- 指针移动：高光跟着流动 ----
+     写成「按帧合并」而不是每次 pointermove 直接写变量：pointermove 在
+     144Hz 鼠标上每秒 144 次，每次都写两个自定义属性会让样式重算排队。
+     rAF 合并之后，每帧最多一次写入，视觉上仍是连续跟随（这就是
+     「禁止二值硬切换」在这一层的具体做法：位置是连续量，不是档位）。
+
+     坐标换算成**百分比**：盘径在四个断点上从 312px 变到 520px，
+     写 px 会让窄屏上的高光落错位置。rect 是 .wheel 的盒（正方形），
+     所以 x/y 各自归一化到 0–100 即可。 */
+  let glintRaf = 0;
+  let glintX = 50;
+  let glintY = 34;
+  const flushGlint = () => {
+    glintRaf = 0;
+    glass.style.setProperty('--gx', glintX.toFixed(1) + '%');
+    glass.style.setProperty('--gy', glintY.toFixed(1) + '%');
+  };
+  const onGlintMove = (ev) => {
+    if (typeof root.getBoundingClientRect !== 'function') return;
+    const r = root.getBoundingClientRect();
+    if (!r || !r.width || !r.height) return;
+    /* 指针在盘外的圆角区域时，把高光夹回盘内 —— 否则高光会跑到盘外面，
+       盘看起来像一块被切走一角的玻璃。 */
+    const nx = (ev.clientX - r.left) / r.width;
+    const ny = (ev.clientY - r.top) / r.height;
+    const dx = nx - 0.5;
+    const dy = ny - 0.5;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const k = Math.min(1, 0.5 / dist);   // 半径 50% 之外夹回圆周
+    glintX = (0.5 + dx * k) * 100;
+    glintY = (0.5 + dy * k) * 100;
+    root.classList.add('is-glint');
+    if (!glintRaf && typeof requestAnimationFrame === 'function') {
+      glintRaf = requestAnimationFrame(flushGlint);
+    } else if (!glintRaf) {
+      flushGlint();   // 无 rAF 的环境（测试桩）直接落值
+    }
+  };
+  const onGlintLeave = () => {
+    root.classList.remove('is-glint');
+    /* 回到默认光位而不是停在最后一格：指针离开后盘上仍有一道"从左上打来"
+       的光，界面不会突然变平。 */
+    glintX = 50;
+    glintY = 34;
+    if (!glintRaf && typeof requestAnimationFrame === 'function') {
+      glintRaf = requestAnimationFrame(flushGlint);
+    }
+  };
+  root.addEventListener('pointermove', onGlintMove);
+  root.addEventListener('pointerleave', onGlintLeave);
+  root.addEventListener('pointercancel', onGlintLeave);
+
+  /* ---- 点击：涟漪从落点扩散 ----
+     与「弹性落定」（CSS 的 glassSettle）配套：涟漪给起点，落定给终点，
+     中间 520ms 是连续位移。二值切换没有起点，所以这两件事必须成对出现。 */
+  let rippleTimer = 0;
+  const splash = (ev) => {
+    if (typeof root.getBoundingClientRect !== 'function') return;
+    const r = root.getBoundingClientRect();
+    if (!r || !r.width || !r.height) return;
+    const x = ev && typeof ev.clientX === 'number' ? ev.clientX : (r.left + r.width / 2);
+    const y = ev && typeof ev.clientY === 'number' ? ev.clientY : (r.top + r.height / 2);
+    ripple.style.setProperty('--rx', (((x - r.left) / r.width) * 100).toFixed(1) + '%');
+    ripple.style.setProperty('--ry', (((y - r.top) / r.height) * 100).toFixed(1) + '%');
+    ripple.classList.remove('is-on');
+    /* 强制回流：连续两次点同一处时，动画要能从 0 重播（同一个类连挂两次
+       浏览器不会重跑动画）。 */
+    void ripple.offsetWidth;
+    ripple.classList.add('is-on');
+    if (rippleTimer) clearTimeout(rippleTimer);
+    rippleTimer = setTimeout(() => { ripple.classList.remove('is-on'); rippleTimer = 0; }, 680);
+  };
+
+  /* ---- 盘沿几何：返回胶囊与盘底共同依赖的两个量 ----
+     ① --bl/--bt：返回胶囊要在盘沿上（缺陷 ⑧）。JS 算是因为 CSS 拿不到
+        "半径 236 单位在 218° 处对应盘盒的百分之几" —— 百分比定位相对的是
+        外接方框，而盘是内切圆。
+     ② --plate-cx/--plate-cy：页面底纹（.plate-bg）的同心圆环必须以这盘
+        的圆心为圆心（缺陷 ⑨）。那是 fixed 层，圆心要的是**视口坐标**，
+        只能量。
+     两者都绑在 resize 上重算：横竖屏切换、窗口拖动都会让圆心移动。 */
+  const layoutRim = () => {
+    if (typeof root.getBoundingClientRect !== 'function') return;
+    const r = root.getBoundingClientRect();
+    if (!r || !r.width) return;
+    /* ==== 返回胶囊的落点（缺陷 ⑧）====
+       原来写死 `left:0; top:0` —— 那是盘的**外接方框**左上角，而盘是圆的，
+       那个角落在盘外 84px 的空白里，读起来是一颗漂在页面上的按钮。
+
+       现在的落点不是猜的，是扫出来的：scripts/probe-rim.mjs 把六族逐个
+       点进第二层，量出 6 枚 lvl1 + n 枚 lvl2 的盒子，然后在极坐标上
+       按 2° × 0.02 倍半径扫一遍，要求「与所有可点标签都不相交」且
+       「不越出页面左右留白」。三个视口（1440/390/360）的无碰撞区间
+       交集只有一处：角度 −128°、半径 1.12 倍盘半径。
+       1.12 的含义正是"别在盘口线上"—— 胶囊半高 22px 折算 0.087 个盘半径，
+       所以它的内沿落在 1.03、外沿落在 1.21：**一半压在盘沿上，一半在纸面上**。
+       这正是缺陷 ⑧ 要的"锚进标本盘构图，不漂在盘外"。
+       −128° 落在「美食调」与「柑橘调」两块之间的接缝带里（接缝在 −120°），
+       那里本来就只有一条缝，没有别的字。 */
+    /* 极角 → 控件盒百分比。注意半径是**盘半径的倍数**（1 = 盘口线），
+       而 left/top 的百分比相对控件盒宽度（= 盘直径），所以这里乘 50
+       而不是 100。乘 100 会让胶囊跑到盘外一倍的半径处 —— 实测过，
+       probe-design 报 onRim 2.24。 */
+    const at = (deg, rad) => [
+      50 + rad * 50 * Math.cos((deg * Math.PI) / 180),
+      50 + rad * 50 * Math.sin((deg * Math.PI) / 180),
+    ];
+    const [bx, by] = at(-128, 1.00);
+    backBtn.style.setProperty('--bl', bx.toFixed(2) + '%');
+    backBtn.style.setProperty('--bt', by.toFixed(2) + '%');
+    /* 窄屏：盘 312–342px，胶囊占比更大（44/312 = 0.141R），
+       要让内沿落在盘口线上，中心要在 1.07R；这一档仍落在
+       probe-rim 报的无碰撞区间内（360 上 −128° 的自由半径是 1.04–1.26）。 */
+    const [nbx, nby] = at(-128, 1.07);
+    backBtn.style.setProperty('--bl-n', nbx.toFixed(2) + '%');
+    backBtn.style.setProperty('--bt-n', nby.toFixed(2) + '%');
+
+    /* 底纹圆心 = 盘心的视口坐标（fixed 层用视口坐标，不是文档坐标） */
+    const bg = document.querySelector('.plate-bg');
+    if (bg) {
+      bg.style.setProperty('--plate-cx', (r.left + r.width / 2).toFixed(1) + 'px');
+      bg.style.setProperty('--plate-cy', (r.top + r.height / 2).toFixed(1) + 'px');
+    }
+  };
+  layoutRim();
+  /* 首帧再量一次：这一刻 .wheel 还没进文档，getBoundingClientRect 全是 0。
+     两拍之后（rAF 后一拍，等字体与布局稳定）量的才是最终几何。 */
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => { requestAnimationFrame(layoutRim); });
+  }
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('resize', layoutRim);
+  }
+
   /* --- 第一层：6 个家族，固定不变 --- */
   const nFam = families.length;
   const famStep = 360 / nFam;
@@ -1106,6 +1259,7 @@ function buildWheel(cfg) {
     btn.addEventListener('blur', leave);
     btn.addEventListener('click', (ev) => {
       ev.stopPropagation();
+      splash(ev);
       selFamily = f.id; selSub = null; hoverFam = null; hoverSub = null;
       paint();
       onChange(f, null);
@@ -1118,7 +1272,8 @@ function buildWheel(cfg) {
     const g = outerG[i];
     g.addEventListener('mouseenter', enter);
     g.addEventListener('mouseleave', leave);
-    g.addEventListener('click', () => {
+    g.addEventListener('click', (ev) => {
+      splash(ev);
       selFamily = f.id; selSub = null; hoverFam = null; hoverSub = null;
       paint();
       onChange(f, null);
@@ -1362,12 +1517,12 @@ function buildWheel(cfg) {
       btn.addEventListener('focus', enter);
       btn.addEventListener('blur', () => { leave(); release(); });
       btn.addEventListener('keydown', (ev) => { keyPress(ev); keyNav(ev, subBtns, subBtns.indexOf(btn)); });
-      btn.addEventListener('click', (ev) => { ev.stopPropagation(); chooseSub(fam, item); });
+      btn.addEventListener('click', (ev) => { ev.stopPropagation(); splash(ev); chooseSub(fam, item); });
       /* 弧段本身也可点：文字只有 48px 宽，弧段比它大得多，
          只让文字接事件等于把可用面积缩到三分之一。 */
       g.addEventListener('mouseenter', enter);
       g.addEventListener('mouseleave', leave);
-      g.addEventListener('click', (ev) => { ev.stopPropagation(); chooseSub(fam, item); });
+      g.addEventListener('click', (ev) => { ev.stopPropagation(); splash(ev); chooseSub(fam, item); });
 
       labels.appendChild(btn);
       subBtns.push(btn);
