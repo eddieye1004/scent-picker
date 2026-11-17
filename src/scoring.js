@@ -615,14 +615,48 @@ export function scorePerfume(p, profile, taxonomy, opts = {}) {
 
   // 2b) 子家族香材命中（第 2 步选的子家族，其挂靠香材命中了几个）
   const subHits = hitsOf(profile.subfamilyNotes || []);
+
+  /* 满分阈值的归一化（taxonomy v2.3.0，2026-11-17）：
+     原实现写死 `/ 2` —— 命中 2 条就算满分。那对 3–9 条 notes 的小类是合理的
+     （大约 1/3 覆盖率），但对只有 1 条 notes 的小类（檀木 = 仅 sandalwood）
+     等于**永远拿不到满分**：命中 1 条也被算成 0.5，而这已经是它的全部。
+     檀木是本轮 A 类里最典型的一格，但规则是通用的：
+       t = min(2, 该小类 notes 条数)
+     即"最多要求 2 条，少于 2 条时按实际条数要求"。不按小类 id 写死。
+
+     为什么上限仍是 2 而不是 notes 条数本身：≥2 条的小类如果按条数算，
+     9 条 notes 的雪松苔藓要命中 4.5 条才满分，等于把这一格在排序里永久压低 ——
+     那是在拿"notes 列表的长度"当难度，不是在量用户意图。 */
+  const subNoteCount = (profile.subfamily?.notes || []).length;
+  const subFullAt = Math.max(1, Math.min(2, subNoteCount || 2));
+
+  /* 主心骨香材（coreNotes，taxonomy v2.3.0 新增的可选字段）：
+     有些小类是一组同族香材挂靠的，但其中只有一两味是"本味的来源"。
+     茶香就是这个形状：notes = tea / bergamot / jasmine，可这格的题目是"茶"，
+     只命中佛手柑与茉莉的白花茶香水不该拿满分 —— 它闻起来是柑橘白花，没有茶。
+
+     规则：带 coreNotes 的小类，除命中数达阈值外，还必须至少命中 1 个 coreNotes，
+     否则该项得分封顶一半。没有 coreNotes 的小类完全不受影响（字段缺省即跳过）。
+     同样是通用机制 —— 不写死 'tea' 这个 id，也不写死任何香调名。 */
+  const subCoreNotes = (profile.subfamily?.coreNotes || []).map((n) => String(n).toLowerCase());
+  const coreHits = subCoreNotes.length
+    ? subHits.filter((n) => subCoreNotes.includes(String(n).toLowerCase()))
+    : [];
+
   if (subHits.length) {
-    const sScore = clamp01(subHits.length / 2) * WEIGHTS.subfamilyHits;
+    let rawShare = clamp01(subHits.length / subFullAt);
+    if (subCoreNotes.length && !coreHits.length) rawShare = Math.min(rawShare, 0.5);
+    const sScore = rawShare * WEIGHTS.subfamilyHits;
     score += sScore;
     breakdown.push({
       factor: 'subfamilyHits',
       score: sScore,
       subfamilyZh: profile.subfamily?.zh || '',
       hits: subHits.map((n) => profile.noteEntryOf?.get(n)?.zh || n),
+      /* 这两项只为让「为什么没拿满」可核查：满分线提到 2 时说明是阈值没到，
+         还是主心骨没中。UI 不渲染它们，probe/test 可以读。 */
+      fullAt: subFullAt,
+      coreHit: subCoreNotes.length ? coreHits.length > 0 : null,
     });
   }
 
