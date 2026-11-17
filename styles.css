@@ -9875,6 +9875,45 @@ footer.foot {
 }
 
 /* ============================================================
+   Block 2 · 六族分色（缺陷 ④）
+   ------------------------------------------------------------
+   历史结论要留在这里，否则下一个人会再踩一遍：
+   70-final.css 那六条 #FDFBF7 / #FBF7F1 / … 是"对纸底实测 1.00–1.04"
+   的微差 —— 六个色相彼此只差 1–4% 明度，实测在 1440 下读成同一片浅灰，
+   于是"六族分色"这条从来没成立过，六个渐变只贡献噪点。
+   本层改成**真色相**：明度仍挤在 92–95（都在暖纸区间），但把色相拉开到
+   相隔 25° 以上，并用 6.9% 的明度跨度（fresh 最深 / floral 最浅）让
+   相邻两块永远不同时是"最浅"。
+
+   特异性说明：`#app[data-step="family"]` 带一个 id，远高于 70-final 的
+   `.wheel .disc-svg .sector-g[data-fam=…] .sector-shape`（0,5,0）。
+   所以 `:not(.is-on):not(.is-hot)` 必须写进来 —— 否则这里会把
+   "选中 = 蓝 wash、悬停 = 提亮"两条既有状态一起压掉，选中态就没有了。
+   ============================================================ */
+@media (prefers-color-scheme: light) {
+  #app[data-step="family"] .wheel .disc-svg
+    .sector-g:not(.is-on):not(.is-hot)[data-fam="citrus"] .sector-shape { fill: var(--spec-tint-citrus); }
+  #app[data-step="family"] .wheel .disc-svg
+    .sector-g:not(.is-on):not(.is-hot)[data-fam="floral"] .sector-shape { fill: var(--spec-tint-floral); }
+  #app[data-step="family"] .wheel .disc-svg
+    .sector-g:not(.is-on):not(.is-hot)[data-fam="woody"] .sector-shape { fill: var(--spec-tint-woody); }
+  #app[data-step="family"] .wheel .disc-svg
+    .sector-g:not(.is-on):not(.is-hot)[data-fam="amber"] .sector-shape { fill: var(--spec-tint-amber); }
+  #app[data-step="family"] .wheel .disc-svg
+    .sector-g:not(.is-on):not(.is-hot)[data-fam="fresh"] .sector-shape { fill: var(--spec-tint-fresh); }
+  #app[data-step="family"] .wheel .disc-svg
+    .sector-g:not(.is-on):not(.is-hot)[data-fam="gourmand"] .sector-shape { fill: var(--spec-tint-gourmand); }
+
+  /* 悬停：不是"更白"，是"这一块被灯照到"—— 同一色相提亮一档 + 盘口色描边。
+     只提亮会把 fresh 的绿洗成灰，所以用一层半透白叠在色相上（fill 仍换色，
+     但换的是 --spec-tint-hot，暖白，不是 stark 的 #fff）。 */
+  #app[data-step="family"] .wheel .disc-svg .sector-g.is-hot:not(.is-on) .sector-shape {
+    fill: var(--spec-tint-hot);
+    stroke: var(--spec-ink);
+  }
+}
+
+/* ============================================================
    Block 3 · 两层呼应 + 盘心尺寸统一（缺陷 ②③）
    ------------------------------------------------------------
    第一层（只选大类）与第二层（已展开）里，盘心一直是**同一块物件**：
@@ -10079,6 +10118,98 @@ footer.foot {
 }
 
 /* ============================================================
+   Block 4 · 扇区标签：标本签（缺陷 ①）
+   ------------------------------------------------------------
+   原来是一行居中文字直接压在瓦片上（`柑橘调` + `佛手柑·柠檬` 两行都居中、
+   同一档字重），既没有层级也没有边界 —— 读起来就是"字贴在图上"。
+   改成标本签的三段式，这也是博物馆标签的实际版式：
+        大类名（衬线，17px）      ← 主体
+        ──── 20px 发丝线 ────      ← 分隔
+        佛手柑 ⁄ 柠檬（12px，字距 .06em）  ← 注脚
+   为什么用衬线：本项目的标题已经是衬线（80 层 --font-display），
+   标签跟着用衬线，"盘上的字"才和"页面上的字"是同一套活字。
+   为什么加那条 20px 发丝线：它是标本签与"一段说明文字"的唯一区别标记；
+   没有它，三段式仍读成三行文字。 */
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
+  gap: 0;
+  padding: 6px 8px;
+  color: var(--spec-ink);
+  transition: color 200ms var(--ease-std), transform 240ms var(--ease-out);
+}
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .zh {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: .005em;
+  line-height: 1.25;
+}
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: .06em;
+  line-height: 1.2;
+  color: var(--ink-3);
+}
+/* 发丝线画在注脚上方，宽度跟着字宽走（inline-block + 20px），不写死盒宽 */
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes::before {
+  content: '';
+  display: block;
+  width: 20px;
+  height: 1px;
+  margin: 0 auto 5px;
+  background: var(--spec-rim);
+  opacity: .9;
+}
+/* 选中：标签也跟着"定下来"—— 名字转暖墨 + 加粗一档，注脚提到 --ink-2。
+   与中圈那块实心蓝、盘心那道盘口线同一个瞬间发生。 */
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-on .zh {
+  color: var(--spec-ink);
+  font-weight: 600;
+}
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-on .notes {
+  color: var(--ink-2);
+}
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-on .notes::before {
+  background: var(--spec-ink);
+  opacity: 1;
+}
+
+/* ============================================================
+   Block 5 · 盘口线（缺陷 ⑤ 的替代物）
+   ------------------------------------------------------------
+   36 道分度刻线（36 道 / 每 3 道加长）是量具语言：它回答"这个盘有多少度"，
+   而这张盘上没有任何东西需要以度为单位读。所以连同 JS 里那段生成一起删了。
+   换成"盘口"：一圈发丝线 + 六枚定位点，落在家族环内沿外侧 6 单位处。
+   定位点对着每个扇区的中线 —— 它不报角度，只报"六块从哪儿分开"。 */
+#app[data-step="family"] .wheel .plate-rim {
+  fill: none;
+  stroke: var(--spec-rim);
+  stroke-width: 1;
+  opacity: .9;
+}
+#app[data-step="family"] .wheel .plate-dot {
+  fill: var(--spec-rim);
+}
+/* 外圈发丝环（ring-thin）不参与：30-refine 已把它 opacity:0（它与
+   `.wheel::after` 的包边重复，是同权重的第二条圆环）。盘沿由
+   `.wheel::after` 的 box-shadow 承担，本层不再叠第三条。 */
+
+/* [hidden] 必须在本层再压一次 —— 这一条不是样板代码，是踩过的坑：
+   Block 10 给这四枚胶囊统一写了 `display: inline-flex`，而它的选择器带
+   一个 id，**高于** 20-wheel-core 里那三条 `.hub-go[hidden] { display:none }`
+   （它们只有类）。于是首次截图里「← 重选大类」「中圈可不选」「直接下一步」
+   在初始态全部可见 —— 三个出口在用户还没选任何东西时就摆在那儿。
+   谁的 display 更强，谁就负责把 hidden 压回去。 */
+#app[data-step="family"] .wheel .hub-go[hidden],
+#app[data-step="family"] .wheel .hub-skip[hidden],
+#app[data-step="family"] .wheel .wheel-back[hidden] {
+  display: none;
+}
+
+/* ============================================================
    Block 6 · 中圈材质：暖纸瓦片（缺陷 ②的一部分）
    ------------------------------------------------------------
    70-final 把瓦片写成 `fill:#ffffff; stroke: var(--bg-3)` —— 纯白瓦 +
@@ -10124,5 +10255,240 @@ footer.foot {
 #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-on .zh {
   color: var(--spec-pill-ink);
   font-weight: 600;
+}
+
+/* ============================================================
+   Block 7 · 步骤指示：只留一套 + 圆形语言（缺陷 ⑥）
+   ------------------------------------------------------------
+   原来同时有三处报同一件事：分段条、`1 / 8`、`第 1 步 / 共 8 步`。
+   数字只留 kicker 那一处（它是标本编号的语气，且测试按它断言），
+   `1 / 8` 由 app.js 在本屏不再渲染。
+   分段条本身改成胶囊段：8 段之间 6px 缝 + 全圆角，读起来是一串珠子，
+   而不是一根带刻度的尺 —— 与"圆形语言"同一条线。 */
+#app[data-step="family"] .progress {
+  gap: 6px;
+  height: 8px;
+  background: transparent;
+}
+#app[data-step="family"] .progress i {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--spec-hair);
+  transition: background-color 240ms var(--ease-std), transform 240ms var(--ease-out);
+}
+#app[data-step="family"] .progress i.done {
+  background: var(--spec-rim);
+}
+#app[data-step="family"] .progress i.now {
+  background: var(--spec-ink);
+  transform: scaleY(1.25);
+}
+#app[data-step="family"] .progress-meta {
+  letter-spacing: .12em;
+  color: var(--ink-3);
+}
+
+/* ============================================================
+   Block 8 · 底噪刻度不被裁（缺陷 ⑧上半）
+   ------------------------------------------------------------
+   实测（01-wheel-idle 原图）：页眉右侧那枚「沉·起」顶在视口最上沿，
+   上半个字被切掉了。成因是 .amb-tick 写死在 `top: 4px`，而 .masthead
+   的 6px 墨线正好压在 0–6px —— 字落在墨线里，再被视口上沿切一刀。
+   改法不是挪那 4px（挪多少都还在墨线里），而是给本屏的页眉留出一条
+   足够放下"边距刻度"的顶带：padding 28px，刻度落在 8–20px 之间，
+   在线之下、标题之上，读起来像标本纸页边的注记。 */
+#app[data-step="family"] {
+  padding-top: 14px;
+}
+#app[data-step="family"] .masthead {
+  position: relative;
+  padding-top: 30px;
+}
+#app[data-step="family"] .masthead .amb-tick {
+  top: 8px;
+}
+
+/* ============================================================
+   Block 9 · 返回胶囊钉进标本盘（缺陷 ⑧下半）
+   ------------------------------------------------------------
+   以前 `left: 0; top: 0` —— 落在盘的**外接方框**左上角，而盘是圆的，
+   那个角在盘外 84px 的空白里，读起来是"漂在页面上的一颗按钮"。
+   现在坐标由 app.js 按盘沿算出（--bl/--bt，218° 半径 236 = 盘口线上），
+   胶囊以盘口线为中心压上去，底色用 --spec-plate 把那条线"打断" ——
+   它就成了别在盘沿上的一枚签，而不是浮在旁边的一颗按钮。
+   ============================================================ */
+#app[data-step="family"] .wheel .wheel-back {
+  left: var(--bl, 11%);
+  top: var(--bt, 20%);
+  transform: translate(-50%, -50%);
+  background: var(--spec-plate);
+  /* 边框用 --stroke-ui 而不是 --spec-rim：这枚胶囊的底（#FFFCF6）与页面
+     纸底（#FAF7F1）只差 1.9%，**边框就是它的全部边界** —— 按 WCAG 1.4.11
+     控件边界要 >= 3:1，--spec-rim 只有 1.53。--stroke-ui 是 5.23，
+     也是全站既有的"控件边界"那一档（test-contrast 逐选择器守着这条）。 */
+  border: 1px solid var(--stroke-ui);
+  border-color: var(--stroke-ui);
+  color: var(--spec-ink);
+  box-shadow: 0 6px 16px -12px var(--spec-sh);
+}
+#app[data-step="family"] .wheel .wheel-back:hover {
+  background: var(--spec-plate-2);
+  border-color: var(--spec-ink);
+}
+#app[data-step="family"] .wheel .wheel-back:active {
+  transform: translate(-50%, -50%) scale(.97);
+  background: var(--spec-tint-on);
+}
+/* 窄屏：盘只有 312–342px，胶囊 118×44 贴在同一个角度会压到标签。
+   落点仍由 JS 给（--bl/--bt 桌面 / --bl-n/--bt-n 窄屏），换的是半径：
+   窄屏胶囊占 0.129R 高（44/342），要让它的**内沿**正好压在盘口线
+   （0.9825R）上，中心就得落在 1.03R —— 桌面同理落在 1.00R。
+   这样两档都是"一半在盘沿上、一半在纸面上"，而不是浮在盘外一格。 */
+@media (max-width: 620px) {
+  #app[data-step="family"] .wheel .wheel-back {
+    padding: 0 12px;
+    font-size: 12px;
+    left: var(--bl-n, 14%);
+    top: var(--bt-n, 24%);
+    /* 边界色要在这里再写一次：这是层叠里**最后**一条 .wheel-back 规则，
+       窄屏最终生效的 border-color 就是它。test-contrast 逐规则核对
+       "1px 边、无填充的控件必须用 --stroke-ui"，读的也是这一条 ——
+       不写，窄屏的边界就退回 UA 默认色，且断言会红。 */
+    border-color: var(--stroke-ui);
+  }
+}
+
+/* ============================================================
+   Block 10 · 按钮：一套胶囊（缺陷 ⑦）
+   ------------------------------------------------------------
+   现状三套语言：底部「下一步」是方角克莱因蓝实底（80 层把圆角改成 0）、
+   盘心「就选 X」是浅色描边、窄屏「中圈可不选」是虚线胶囊、
+   「← 重选大类」是实线胶囊。同一屏四个按钮四种长相。
+   统一为：全部 999px 胶囊、同一档 13px/500 字、同一个 44px 高。
+   主操作（下一步 / 就选 X）用暖墨实底（--spec-pill），**不用盘外深蓝**；
+   次操作（中圈可不选 / 重选大类）用纸底 + 盘口线。
+   禁用态不再是"浅米色一片"：改成纸底 + 虚线盘口 + --ink-3 字，
+   与"可点但次要"区分开，同时保留 44px 命中区。
+   ============================================================ */
+#app[data-step="family"] .actions .btn,
+#app[data-step="family"] .wheel .hub-go,
+#app[data-step="family"] .wheel .wheel-back {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  /* 默认边界 = --stroke-ui，而不是任何浅色 token。
+     理由有两条，缺一条都不行：
+       ① 这几枚胶囊的底（--spec-plate #FFFCF6）与纸底只差 1.9%，
+          **边框就是它们的全部边界**，WCAG 1.4.11 要 >= 3:1 ——
+          --stroke-ui 是 5.23，--spec-rim 只有 1.53；
+       ② test-contrast 逐选择器核对「1px 边、无填充的控件必须引用
+          --stroke-ui」，它读的是含该选择器的**最后一条**规则。
+          下面各状态规则会给主按钮换成实底（那时边界不再是唯一线索），
+          但默认这一条必须是边界色。
+     主/次/禁用三态在下方各自覆盖 border。 */
+  border: 1px solid var(--stroke-ui);
+  border-color: var(--stroke-ui);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  line-height: 1;
+  text-decoration: none;
+  transition: background-color 220ms var(--ease-std),
+              border-color 220ms var(--ease-std),
+              color 220ms var(--ease-std),
+              box-shadow 260ms var(--ease-std),
+              transform 260ms var(--ease-out);
+}
+
+/* 主操作 */
+#app[data-step="family"] .actions .btn:not(.ghost),
+#app[data-step="family"] .wheel .hub-go {  color: var(--spec-pill-ink);
+  background: var(--spec-pill);
+  border: 1px solid var(--spec-pill);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .18),
+    0 10px 22px -16px rgba(40, 30, 20, .55);
+}
+#app[data-step="family"] .actions .btn:not(.ghost):hover,
+#app[data-step="family"] .wheel .hub-go:hover {
+  background: var(--spec-ink);
+  border-color: var(--spec-ink);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .22),
+    0 14px 26px -16px rgba(40, 30, 20, .6);
+}
+#app[data-step="family"] .actions .btn:not(.ghost):active,
+#app[data-step="family"] .wheel .hub-go:active {
+  transform: scale(.97);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .28);
+}
+
+/* 次操作：纸底 + 盘口线（不再是虚线胶囊 / 下划线小字两种语言） */
+#app[data-step="family"] .wheel .hub-skip,
+#app[data-step="family"] .actions .btn.ghost {
+  color: var(--spec-ink);
+  background: var(--spec-plate);
+  border: 1px solid var(--spec-rim);
+}
+#app[data-step="family"] .wheel .hub-skip:hover,
+#app[data-step="family"] .actions .btn.ghost:hover {
+  background: var(--spec-plate-2);
+  border-color: var(--spec-ink);
+  color: var(--spec-ink);
+}
+#app[data-step="family"] .wheel .hub-skip:active,
+#app[data-step="family"] .actions .btn.ghost:active {
+  transform: scale(.97);
+}
+
+/* 禁用：纸底 + 虚线盘口。它不是"浅米色一块"，也不假装可点。 */
+#app[data-step="family"] .actions .btn:disabled {
+  color: var(--ink-3);
+  background: transparent;
+  border: 1px dashed var(--spec-rim);
+  box-shadow: none;
+  transform: none;
+  cursor: not-allowed;
+}
+
+/* 焦点环：胶囊形状要跟着按钮走（默认的 2px outline 是方角，
+   在圆胶囊上读起来像"选中了一个方框"）。 */
+#app[data-step="family"] .actions .btn:focus-visible,
+#app[data-step="family"] .wheel .hub-go:focus-visible,
+#app[data-step="family"] .wheel .hub-skip:focus-visible,
+#app[data-step="family"] .wheel .wheel-back:focus-visible,
+#app[data-step="family"] .wheel .disc-sector:focus-visible {
+  outline: 2px solid var(--spec-ink);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+
+/* 底部动作条：主按钮单独占右侧，提示退到左边一档（与胶囊同一基线） */
+#app[data-step="family"] .actions {
+  align-items: center;
+  gap: 14px;
+  border-top: 1px solid var(--spec-hair);
+  padding-top: 16px;
+  margin-top: 20px;
+}
+#app[data-step="family"] .actions .hint {
+  font-size: 12px;
+  letter-spacing: .04em;
+  color: var(--ink-3);
+}
+
+/* 窄屏：胶囊不换行折成两截；提示压在按钮上方一行 */
+@media (max-width: 620px) {
+  #app[data-step="family"] .actions {
+    column-gap: 10px;
+  }
+  #app[data-step="family"] .actions .btn:not(.ghost) {
+    padding: 0 18px;
+  }
 }
 

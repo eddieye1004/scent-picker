@@ -3216,9 +3216,19 @@ function renderProgress() {
      注意 `state.step` 可能等于 total（结果页），此时 labels[state.step] 是
      undefined —— 下面的三元已经先判了 `>= total`，不会再读到它。 */
   const labels = list.map((st) => st.short || st.title.slice(0, 4));
+  /* ==== v7 第 1.5 步：第 1 屏不再显示「1 / 8」（缺陷 ⑥）====
+     这一屏同时报了三遍同一个数字：分段条、`1 / 8`、`第 1 步 / 共 8 步`。
+     三处都在说"你在第几步"，等于没有一处是重点。
+     只留 kicker（`第 1 步 / 共 8 步`）—— 它是标本编号的语气，也是测试
+     按名断言的那一处；分段条本身留着当图形（它现在是一串胶囊），
+     但右侧那个数字在这一屏不再出现，左侧标签仍报"这一段是什么"。
+     其余七屏不动：那一处的数字在别的屏上没有第二份。 */
+  const familyStep = list[state.step] && list[state.step].id === 'family';
   const meta = el('div', { class: 'progress-meta' },
     el('span', {}, state.step >= total ? '推荐结果' : labels[state.step]),
-    el('span', {}, state.step >= total ? `完成 · 共 ${total} 步` : `${state.step + 1} / ${total}`)
+    familyStep
+      ? null
+      : el('span', {}, state.step >= total ? `完成 · 共 ${total} 步` : `${state.step + 1} / ${total}`)
   );
   box.append(bar, meta);
   return box;
