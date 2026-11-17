@@ -163,10 +163,14 @@ for (const [k, v] of Object.entries(WEIGHTS)) {
 
 /* T15 每个可选香调都必须能命中至少 1 瓶
  * 命中 0 的选项 = 用户勾了却没有反馈，等于骗一次点击。
- * 实测已知：`cocoa`（可可）与 `sea salt`（海盐）在全库 1388 瓶里出现 0 次。
+ * 实测已知：`sea salt`（海盐）在全库 1388 瓶里出现 0 次。
  * 注意：这不是 UI 缺陷 —— `app.js` 的 getUsableNotes() → usableEntries()
- * 已经把这两条过滤掉了（实测 60 条 → 58 条）。本断言守的是"taxonomy 里新增
- * 死选项时能被发现"，不是"UI 暴露了死选项"。 */
+ * 已经把它过滤掉了（实测 60 条 → 59 条）。本断言守的是"taxonomy 里新增
+ * 死选项时能被发现"，不是"UI 暴露了死选项"。
+ *
+ * 2026-11-17 taxonomy v2.3.0：`可可/cocoa` 从这张表里摘掉了 —— 它不再是死选项。
+ * 库内这一味写作 Chocolate（25 瓶），noteIndex 给 cocoa 加了 chocolate 别名，
+ * 所以 chip 现在真能命中。旧登记留着会让这条断言继续声称一件不成立的事。 */
 {
   const dead = [];
   for (const e of TAX.noteIndex.entries) {
@@ -178,7 +182,7 @@ for (const [k, v] of Object.entries(WEIGHTS)) {
     if (!any) dead.push(`${e.zh}/${e.en}`);
   }
   /* 已知死选项允许存在，但必须被显式列出 —— 不许悄悄多出来新的 */
-  const KNOWN_DEAD = ['可可/cocoa', '海盐/sea salt'];
+  const KNOWN_DEAD = ['海盐/sea salt'];
   const unexpected = dead.filter((d) => !KNOWN_DEAD.includes(d));
   check('T15 无新增死选项', unexpected.length === 0, unexpected.join(', '));
   check('T15 已知死选项数不增加', dead.length <= KNOWN_DEAD.length, `实际 ${dead.length}: ${dead.join(', ')}`);

@@ -796,17 +796,48 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
   ok('能从 app.js 里切出 ART_FILE 块', s0 > 0 && e0 > s0);
   const ART = new Function(appJs.slice(s0, e0) + '; return ART_FILE;')();
 
+  /* 同批切出 ART_MISSING —— 这是"已知没图标"的显式登记表。
+     有了它，"缺映射"与"故意没有"才分得开：前者是 bug，后者是待画的活。 */
+  const m0 = appJs.indexOf('const ART_MISSING = {');
+  let md = 0;
+  let m1 = -1;
+  for (let i = appJs.indexOf('{', m0); i < appJs.length; i += 1) {
+    if (appJs[i] === '{') md += 1;
+    else if (appJs[i] === '}') { md -= 1; if (md === 0) { m1 = i + 1; break; } }
+  }
+  ok('能从 app.js 里切出 ART_MISSING 块', m0 > 0 && m1 > m0);
+  const MISSING_ART = new Function(appJs.slice(m0, m1) + '; return ART_MISSING;')();
+
   const TAXA_MARK = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/taxonomy.json'), 'utf8'));
   const allSubs = TAXA_MARK.families.flatMap((f) => f.subfamilies.map((s) => ({ id: s.id, fam: f.id })));
-  const missing = allSubs.filter((s) => typeof ART[s.id] !== 'string').map((s) => s.id);
-  ok('每个小类都有对应的上色 SVG（不缺格）', missing.length === 0,
-    `缺 ${missing.length} 个: ${missing.join(',')}`);
+
+  /* 2026-11-17 taxonomy v2.3.0（24→22）后这条断言的口径变了：
+     旧写法要求"每个小类都有映射"，而新增的 coffee-cocoa 暂无图标是既定事实
+     （图标步另开一轮）。改成要求**每个小类都有交代**：
+     要么有指向真实文件的映射，要么在 ART_MISSING 里显式登记。
+     这样"新加一格却忘了配图"仍然会红，而"承认还没画"不会被误判成 bug。 */
+  const unmapped = allSubs
+    .filter((s) => typeof ART[s.id] !== 'string')
+    .map((s) => s.id);
+  ok('每个小类都在 ART_FILE 里有条目（含显式留空的待画格）',
+    unmapped.length === 0, `缺 ${unmapped.length} 个: ${unmapped.join(',')}`);
+
+  const noArtFiles = allSubs.filter((s) => ART[s.id] === '');
+  const undeclared = noArtFiles.filter((s) => !MISSING_ART[s.id]).map((s) => s.id);
+  ok('没有图标的小类必须在 ART_MISSING 里显式登记（不许静默留空）',
+    undeclared.length === 0, undeclared.join(','));
+
   const extra = Object.keys(ART).filter((k) => !allSubs.some((s) => s.id === k));
   ok('没有多余的上色映射（不指向数据里不存在的格）', extra.length === 0, extra.join(','));
 
-  /* 每个映射必须落到一个真实、可解析、图元足够的 svg 文件。
-     「文件在」不够 —— 空 svg 也能 200，那等于盘心画了个空白。 */
-  const files = allSubs.map((s) => ({ id: s.id, p: 'icon-specimen/svg/' + ART[s.id] + '.svg' }));
+  const extraMissing = Object.keys(MISSING_ART).filter((k) => !noArtFiles.some((s) => s.id === k));
+  ok('ART_MISSING 里的格子必须真的没有图标（画好了就要从表里摘掉）',
+    extraMissing.length === 0, extraMissing.join(','));
+
+  /* 每个**有映射**的小类必须落到一个真实、可解析、图元足够的 svg 文件。
+     「文件在」不够 —— 空 svg 也能 200，那等于盘心画了个空白。
+     空映射（ART_MISSING 登记的）走占位盘，不进这一组。 */
+  const files = allSubs.filter((s) => ART[s.id]).map((s) => ({ id: s.id, p: 'icon-specimen/svg/' + ART[s.id] + '.svg' }));
   const gone = files.filter((f) => !fs.existsSync(path.join(ROOT, f.p))).map((f) => f.id);
   ok('映射到的 SVG 文件都在磁盘上', gone.length === 0, gone.join(','));
 

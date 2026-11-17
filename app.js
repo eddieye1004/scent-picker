@@ -117,8 +117,9 @@ let PHOTOS = null;
 /* 已抠图（透明背景）的 id 集合。与 PHOTOS 同批加载，见 ensurePhotos()。 */
 let CUTOUTS = null;
 
-// 香调 chip 表：滤掉在 200 瓶样本里 0 命中的死选项（实测只有 可可/cocoa）。
-// 每次重渲染都会调用，命中数是纯计算，缓存一份避免重复扫 200×40。
+// 香调 chip 表：滤掉在全库里 0 命中的死选项（2026-11-17 实测只剩 海盐/sea salt；
+// 可可/cocoa 在 taxonomy v2.3.0 给 cocoa 加了 chocolate 别名之后已经能命中 25 瓶）。
+// 每次重渲染都会调用，命中数是纯计算，缓存一份避免重复扫全库×条目数。
 let usableCache = null;
 function getUsableNotes() {
   const all = TAX.noteIndex.entries;
@@ -168,7 +169,8 @@ const el = (tag, attrs = {}, ...kids) => {
      8 concentration 浓淡＋浓度（扩散场：同心环半径＝扩散距离）
 
    为什么第 1 屏是圆盘：Eddie 2026-11-17 否决 v6 的第一条就是「删了开屏圆盘」。
-   开屏那张盘是这个产品唯一一处"控件即内容"—— 外圈六族、中圈 24 个小类，
+   开屏那张盘是这个产品唯一一处"控件即内容"—— 外圈六族、中圈 22 个小类
+   （v2.3.0 起；此前 24，见 data/taxonomy.json 的 mergeNote），
    父子关系画在同一张图上。预算退到第 2 屏不破坏 v6 的"先圈池再问偏好"：
    它仍在除大方向之外的所有偏好题之前。
 
@@ -501,11 +503,15 @@ function applyDirectionToCharacter(emotionId) {
    页面里 `document.documentElement.dataset.build` 会带上它。
    用途是"这次看到的到底是哪份代码"—— 改完 app.js 如果这个值没变，
    说明浏览器还在跑缓存的旧文件，别去猜渲染逻辑。 */
-const BUILD_ID = '2026-11-17-quiz-v7-step1-wheel';
+const BUILD_ID = '2026-11-17-taxonomy-v23';
 
 /* ---------- 上色图标（结果页实物图的降级瓶形，与盘心标本共用同一批） ----------
-   24 枚上色版在 ./icon-specimen/svg/ 合计 295.6KB / gzip 80.1KB，
+   磁盘上 24 枚上色版在 ./icon-specimen/svg/（合计 295.5KB / gzip 86.7KB，实测），
    按需 fetch + 内存缓存，首屏零代价；file:// 下会被 CORS 拦，必须跑 server.js。
+   注意 24 = 磁盘文件数，**不等于**小类数：v2.3.0 起小类 22 个，
+   其中 21 个有映射、coffee-cocoa 走占位盘（见 ART_MISSING），
+   另有 3 枚是被删小类留下的文件（citrus-citrus-floral / floral-green-floral /
+   amber-resinous）—— 保留待图标步处置，代码里已不再引用。
 
    为什么 v6 还留这一整套：香型轮盘退场了，但**结果页**的图标与瓶子插图
    仍走这条通路（pickArt → bottleArt），而 spec 5·续 把"图标精致/呼应/美观"
@@ -513,16 +519,23 @@ const BUILD_ID = '2026-11-17-quiz-v7-step1-wheel';
    v6 只是不再用它来讲香调术语。 */
 const PLATE_SIZE = 24;
 const PLATE_LABEL = { citrus: '柑橘', floral: '花', woody: '木质', amber: '树脂', fresh: '叶', gourmand: '果实' };
+/* 小类 id → icon-specimen 里的上色稿文件名。
+   与 taxonomy 的小类**一一对应**（test-render 有一条断言守它）。
+   taxonomy v2.3.0（2026-11-17，24→22 类）后：
+     · 退役三格，映射一并删除：citrus-floral / green-floral / resinous。
+       对应的 svg 文件**保留在磁盘上**（icon-specimen/svg/citrus-citrus-floral.svg
+       等三份），由图标步统一处置 —— 这里只断开代码引用，不动物件本身。
+     · 新增 coffee-cocoa。图标还没画，见 ART_MISSING：留空是**显式**的，
+       不是靠 map[subId] 取到 undefined 隐式表达（那样"忘了配"和"故意没有"
+       长得一模一样，测试也守不住）。 */
 const ART_FILE = {
   'cologne': 'citrus-cologne',
   'green-citrus': 'green-citrus-a',
-  'citrus-floral': 'citrus-citrus-floral',
   'aromatic-citrus': 'citrus-aromatic-citrus',
   'rose': 'floral-rose',
   'white-floral': 'white-floral-a',
   'fruity-floral': 'floral-fruity-floral',
   'powdery-floral': 'floral-powdery-floral',
-  'green-floral': 'floral-green-floral',
   'soliflore': 'floral-soliflore',
   'sandalwood': 'woody-sandalwood',
   'vetiver': 'woody-vetiver',
@@ -530,7 +543,6 @@ const ART_FILE = {
   'woody': 'woody-woody',
   'amber': 'amber-amber',
   'incense': 'amber-incense',
-  'resinous': 'amber-resinous',
   'leather': 'amber-leather',
   'aquatic': 'fresh-aquatic',
   'green': 'fresh-green',
@@ -538,7 +550,11 @@ const ART_FILE = {
   'tea': 'fresh-tea',
   'vanilla-gourmand': 'gourmand-vanilla-gourmand',
   'fruity-gourmand': 'gourmand-fruity-gourmand',
+  'coffee-cocoa': '',   // 待画。空串 = 已知缺格，走 scentPlate 里的占位分支
 };
+/* 已知缺图标的小类 → 占位盘上写什么字。
+   只收"承认没有"的这几格；不在这里的 id 缺映射仍然算 bug（测试会红）。 */
+const ART_MISSING = { 'coffee-cocoa': '咖啡' };
 const ART_CACHE = new Map();
 /* 已解析完成的内容单独记一份：artInner() 返回 Promise，微任务里替换图元会
    让"先画线稿、再换彩图"多出一帧 —— 实测用户能看见约 1s 的旧线稿闪现。
@@ -563,7 +579,9 @@ function artInner(subId) {
   }
   return ART_CACHE.get(p);
 }
-/* 首屏就把 24 枚全部拉进内存（与香水库并行，不阻塞渲染）。 */
+/* 首屏就把 ART_FILE 里的全部映射拉进内存（与香水库并行，不阻塞渲染）。
+   按映射表遍历而不是按数字：v2.3.0 起 22 个小类里 21 个有图，
+   空映射那一格（coffee-cocoa）的 artInner 直接返回空 Promise，不发请求。 */
 function artWarmAll() {
   Object.keys(ART_FILE).forEach((id) => { artInner(id).catch(() => {}); });
 }
@@ -582,9 +600,18 @@ function artSvgReady(subId) {
 /* 尽早开始预热：不等 taxonomy、不等 DOMContentLoaded。 */
 if (typeof window !== 'undefined') artWarmAll();
 
-/* 香材英文名 → 中文，供代表香材行显示。找不到就退回原文。 */
+/* 香材英文名 → 中文，供代表香材行显示。找不到就退回原文。
+   查表要连**别名**一起查，不能只比 en：
+      taxonomy v2.3.0 起，词表按 perfumes.json 的实际写法对齐 ——
+      大类 representativeNotes 写 cedarwood / sea notes / tea，
+      而 noteIndex 的 en 仍是 cedar / marine notes / green tea（别名里含前者）。
+      只比 en 的话这三处会漏成英文原名，用户读不懂。
+   与 lifeNoteHitCount() 的查法保持一致（那里早就是 en + aliases 两条都查）。 */
 function noteZhOf(en) {
-  const e = TAX && TAX.noteIndex ? TAX.noteIndex.entries.find((x) => normNote(x.en) === normNote(en)) : null;
+  if (!TAX || !TAX.noteIndex) return String(en);
+  const key = normNote(en);
+  const e = TAX.noteIndex.entries.find((x) => normNote(x.en) === key
+    || (x.aliases || []).some((a) => normNote(a) === key));
   return e ? e.zh : String(en);
 }
 
@@ -598,9 +625,9 @@ function noteZhOf(en) {
 
    ==== 为什么必须原样，而不是"用 v6 的语言重画一张盘" ====
    盘不是装饰，它是这个产品唯一一个"控件即内容"的地方：外圈六族、
-   中圈 24 个小类，父子关系画在同一张图上，用户在盘上就能看见
-   「我在哪一层、往两边各还有什么」。重画一遍必然带进新的几何假设，
-   而那 24 枚标本图标是按 480 视框、24×24 视框、同一线宽配的 ——
+   中圈 22 个小类（v2.3.0 定版；取回时是 24），父子关系画在同一张图上，
+   用户在盘上就能看见「我在哪一层、往两边各还有什么」。重画一遍必然带进
+   新的几何假设，而那批标本图标是按 480 视框、24×24 视框、同一线宽配的 ——
    换骨架等于让它们全部失配（README 里那三条 24px 硬限制就是为此写的）。
 
    ==== 与 v6 的接线只有两处（本步唯一的增量）====
@@ -679,13 +706,41 @@ function scentPlate(sub) {
     viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
     'aria-hidden': 'true', focusable: 'false',
   });
-  const ready = artSvgReady(sub.id);
+
+  /* 还没有上色稿的小类（ART_MISSING 里登记的那几格，当前只有 coffee-cocoa）：
+     放**中性占位** —— 纯色圆盘 + 一个字，不新画图形。
+
+     为什么不借一个近亲的图标：盘心这枚图编码的是"你选的是哪一格"，
+     拿香草美食的图标冒充咖啡可可，用户看到的是错的那一格。
+     为什么不干脆留白：留白会跟"图还没 fetch 到"（下面那个空同位 svg）长得一样，
+     而那是几百毫秒就消失的瞬态，这是长期的稳态 —— 两者必须能区分。
+     字取 ART_MISSING 里的短名（盘心 88px、圆盘直径 2×24 单位，两字放得下）。 */
+  const noArt = !artPath(sub.id);
+  if (noArt) {
+    box.setAttribute('class', 'plate-svg is-art is-placeholder');
+    box.appendChild(svgEl('circle', { cx: 12, cy: 12, r: 11, class: 'plate-disc' }));
+    const label = ART_MISSING[sub.id] || String(sub.zh || '').slice(0, 2);
+    /* font-size 写成元素属性、不进样式表：这里的 9 是 **viewBox 单位**，
+       88px 的盒子对 24 单位视框是 3.67 倍，实际落在屏上是 33px。
+       写进 CSS 会被 test-contrast 的「任何文字不得小于 12px」当成 9 CSS px 抓住 ——
+       那条守的是真实的可读性下限，不该为了 SVG 内部坐标去放宽它。
+       属性写法把"这是图形内部坐标"这件事留在它该待的地方。 */
+    const txt = svgEl('text', {
+      x: 12, y: 12, class: 'plate-disc-txt',
+      'font-size': 9,
+      'text-anchor': 'middle', 'dominant-baseline': 'central',
+    });
+    txt.textContent = label;
+    box.appendChild(txt);
+  }
+
+  const ready = noArt ? '' : artSvgReady(sub.id);
   if (ready) box.innerHTML = ready;
   wrap.appendChild(box);
   wrap.appendChild(el('div', { class: 'plate-rule' }));
   /* 名字最多列两味。实测四味的名字在 360px 视口是 144px 宽，
      而盘心只有 156px 且是圆的 —— 一行放不下、折两行又把「换一个大类」顶出去。
-     完整清单留在 aria-label 里，视觉上两味足够说明这格是哪一路气味。 */
+     完整清单留在 aria-label 里，视觉上两味足够说明这一路气味。 */
   const capText = entries.slice(0, 2).map((e) => e.zh).join(' · ')
     + (entries.length > 2 ? ' 等' : '');
   wrap.appendChild(el('div', { class: 'plate-cap' }, capText));
@@ -695,8 +750,9 @@ function scentPlate(sub) {
     '代表香材：' + entries.map((e) => e.zh + '（' + (PLATE_LABEL[e.family] || e.family) + '）').join('、'));
 
   /* 当时还没到（首次进入、预热未完成）：等它到了再写进去。
-     没有线稿可保留，宁可空一小会儿，也不画一个旧的再换掉。 */
-  if (!ready) {
+     没有线稿可保留，宁可空一小会儿，也不画一个旧的再换掉。
+     占位那格不挂这条通路 —— 它等的那个文件不存在，挂上去只会多一个空 Promise。 */
+  if (!ready && !noArt) {
     artInner(sub.id).then((inner) => {
       if (!inner) return;
       box.innerHTML = artNs(inner, 'a' + (++artSeq));
@@ -4614,7 +4670,7 @@ async function boot() {
     ensureAffLinks().catch(() => {});
     /* 实物图清单也是压到底再读的便利层，顺手预热。 */
     ensurePhotos().catch(() => {});
-    /* 盘心彩图：与香水库并行预热，24 枚一起拉，用户点到哪格都有现成的。 */
+    /* 盘心彩图：与香水库并行预热，ART_FILE 里的映射一起拉，用户点到哪格都有现成的。 */
     artWarmAll();
     /* 价位带索引（第 1 屏预算要用）。它与 taxonomy 一起到位就够了 ——
        第 1 屏必须能立刻画出四枚价签，否则首屏会先空一下。

@@ -1,7 +1,7 @@
 {
-  "version": "2.2.0",
+  "version": "2.3.0",
   "authored": "2026-10-31",
-  "note": "本文件为原创编辑资产（家族/子家族划分与情绪映射为作者整理），不含任何第三方站点的描述性文字。香调名词本身属于事实性信息。 | 2026-10-28 补 notesZh：情绪锚点香调的中文名，供理由文案回显。 | 2026-10-31 v2.0.0：按 _audit/CLASSIFICATION-AUDIT-20261031.md 的 P0–P3 处置执行，32 类 → 28 类（合并 3、降级 2、拆分 1），并同步 noteIndex 与全部 notes。 | 2026-10-31 v2.1.0：四族（citrus/woody/floral/amber）新增优先级级联 rules 与每类 boundary；不增删小类，fresh/gourmand 结构未动。 | 2026-10-31 v2.1.0：四族（citrus/woody/floral/amber）新增优先级级联 rules 与每类 boundary；不增删小类，fresh/gourmand 结构未动。 | 2026-11-01 v2.2.0：合并冷/暖焚香→焚香、香草/辛香琥珀→琥珀、芳香木质/苔藓木质/干燥木质→木质（24 类）。规则表同步重写；木质新增 sandalwood 优先于 vetiver 的显式次序。旧 note：2026-10-31 v2.1.0：四族（citrus/woody/floral/amber）新增优先级级联 rules 与每类 boundary；不增删小类，fresh/gourmand 结构未动。",
+  "note": "本文件为原创编辑资产（家族/子家族划分与情绪映射为作者整理），不含任何第三方站点的描述性文字。香调名词本身属于事实性信息。 | 2026-10-31 v2.0.0：按 _audit/CLASSIFICATION-AUDIT-20261031.md 的 P0–P3 处置执行，32 类 → 28 类（合并 3、降级 2、拆分 1），并同步 noteIndex 与全部 notes。 | 2026-10-31 v2.1.0：四族（citrus/woody/floral/amber）新增优先级级联 rules 与每类 boundary；不增删小类，fresh/gourmand 结构未动。 | 2026-11-01 v2.2.0：合并冷/暖焚香→焚香、香草/辛香琥珀→琥珀、芳香木质/苔藓木质/干燥木质→木质（24 类）。规则表同步重写；木质新增 sandalwood 优先于 vetiver 的显式次序。 | 2026-11-17 v2.3.0：树脂→琥珀（24→22）；删柑橘花香与绿叶花香（铃兰并入白花）；新增咖啡可可并给美食调补第一份级联 rules（coffee/chocolate 优先于 vanilla-gourmand）；soliflore→「栀子桂花」、woody/woody→「雪松苔藓」（只改 zh，id 不动）；22 条 descWheel 全部换新手口语版；note 词表按 perfumes.json 实际写法对齐（sea salt 删除、cedar→cedarwood、marine notes→sea notes、neroli / orange blossom 拆两条、cocoa 加 chocolate 别名）；茶香新增 coreNotes。",
   "families": [
     {
       "id": "citrus",
@@ -14,23 +14,21 @@
           "id": "cologne",
           "zh": "古龙水型",
           "en": "Cologne",
-          "desc": "柑橘+草本+极淡木质，三层都要有：柠檬酸亮在前、薰衣草凉在中、麝香收尾压住",
+          "desc": "最经典的一路：柠檬与佛手柑的酸亮在前、极淡的木质与麝香收尾，没有花、没有叶、没有草本",
           "notes": [
             "lemon",
             "bergamot",
             "lavender",
             "musk"
           ],
-          "descWheel": "不是香型，是\"剩下\"：不含花、不含叶、不含草本的柑橘",
+          "descWheel": "最经典的柑橘：柠檬佛手柑的酸亮清爽，像老牌古龙水",
           "tier": 1,
           "boundary": {
             "check": [
-              "不含 neroli / orange blossom",
               "不含 petitgrain / galbanum",
               "不含 lavender / rosemary / sage / thyme / mint / basil"
             ],
             "exclude": [
-              "含橙花 → 柑橘花香",
               "含苦橙叶或白松香 → 青绿柑橘",
               "含芳香草本 → 芳香柑橘"
             ],
@@ -53,7 +51,7 @@
             "grapefruit",
             "violet leaf"
           ],
-          "descWheel": "苦橙叶的涩绿 · 一颗青皮",
+          "descWheel": "青皮橘子的苦绿味，像咬开一颗没熟的橙子",
           "tier": 1,
           "requires": [
             "petitgrain",
@@ -75,33 +73,6 @@
           "label": "苦橙叶"
         },
         {
-          "id": "citrus-floral",
-          "zh": "柑橘花香",
-          "en": "Citrus Floral",
-          "desc": "柑橘打头，中调转白花：橙花是桥梁，茉莉是落点",
-          "notes": [
-            "neroli",
-            "orange blossom",
-            "jasmine",
-            "orange"
-          ],
-          "descWheel": "橙花当桥 · 柑橘转白花",
-          "tier": 1,
-          "boundary": {
-            "check": [
-              "含 neroli 或 orange blossom"
-            ],
-            "exclude": [
-              "若同时含芳香草本，仍归柑橘花香（优先级 10 高于 30）"
-            ],
-            "examples": [
-              "Creed Silver Mountain Water"
-            ]
-          },
-          "short": "橙花当桥：柑橘开头，中调转白花，茉莉收尾",
-          "label": "橙花柑橘"
-        },
-        {
           "id": "aromatic-citrus",
           "zh": "芳香柑橘",
           "en": "Aromatic Citrus",
@@ -112,7 +83,7 @@
             "rosemary",
             "sage"
           ],
-          "descWheel": "薰衣草的皂 · 剃须水",
+          "descWheel": "薰衣草肥皂加柑橘，像理发店的剃须水",
           "tier": 2,
           "requires": [
             "lavender",
@@ -138,7 +109,8 @@
       "representativeNotes": [
         "bergamot",
         "lemon",
-        "neroli / orange blossom"
+        "neroli",
+        "orange blossom"
       ],
       "style": "开场明亮，半小时后转淡，是刚洗完手那种干净",
       "scenes": [
@@ -161,15 +133,6 @@
       "avoid": "想要一整天都闻得到的人，这类傍晚就散了",
       "wear": "淡香水为主，出门前喷 3–4 下，午后可补一次",
       "rules": [
-        {
-          "id": "citrus-floral",
-          "priority": 10,
-          "any": [
-            "neroli",
-            "orange blossom"
-          ],
-          "why": "橙花/橙花油是\"柑橘转白花\"的物理证据；出现即说明中调要转花"
-        },
         {
           "id": "green-citrus",
           "priority": 20,
@@ -200,7 +163,7 @@
           "why": "兜底：只剩果皮明亮的柑橘，没有花、没有叶、没有草本"
         }
       ],
-      "rulesVersion": "2026-10-31",
+      "rulesVersion": "2026-11-17",
       "rulesNote": "族内优先级级联：priority 从小到大，第一个通过即归属，最后一个为兜底。判定字段：must（必须全中）/ any（至少一个）/ not（一个都不能中）/ always（无条件）。"
     },
     {
@@ -220,7 +183,7 @@
             "geranium",
             "violet leaf"
           ],
-          "descWheel": "玫瑰的各种做法，从花瓣到花酱",
+          "descWheel": "新鲜玫瑰花瓣的味道，从清甜到浓艳都有",
           "tier": 1,
           "boundary": {
             "check": [
@@ -238,13 +201,14 @@
           "id": "white-floral",
           "zh": "白花",
           "en": "White Floral",
-          "desc": "茉莉、晚香玉、栀子、依兰。浓郁、有存在感、易晕香；依兰是\"暖白花\"那一支",
+          "desc": "茉莉、晚香玉、铃兰、依兰。浓郁、有存在感、易晕香；依兰是\"暖白花\"那一支",
           "notes": [
             "jasmine",
             "tuberose",
-            "ylang-ylang"
+            "ylang-ylang",
+            "lily of the valley"
           ],
-          "descWheel": "茉莉晚香玉一类，厚且会扩",
+          "descWheel": "茉莉晚香玉的浓香，存在感最强，喷一点满屋都是",
           "tier": 1,
           "labels": [
             {
@@ -261,7 +225,7 @@
           "boundary": {
             "check": [
               "不含前述",
-              "含 jasmine / tuberose / ylang-ylang / gardenia / magnolia 之一"
+              "含 jasmine / tuberose / ylang-ylang / gardenia / magnolia / lily of the valley 之一"
             ],
             "exclude": [
               "无"
@@ -281,7 +245,7 @@
             "blackcurrant",
             "peach"
           ],
-          "descWheel": "花底下垫着桃子梨子",
+          "descWheel": "花香里垫着桃子和梨，甜润不腻",
           "tier": 1,
           "boundary": {
             "check": [
@@ -308,7 +272,7 @@
             "heliotrope",
             "aldehydes"
           ],
-          "descWheel": "鸢尾、紫罗兰、天芥菜，带粉笔/婴儿粉质感",
+          "descWheel": "爽身粉和粉笔的粉感，干、柔、带一点脂粉气",
           "tier": 1,
           "boundary": {
             "check": [
@@ -324,42 +288,17 @@
           }
         },
         {
-          "id": "green-floral",
-          "zh": "绿叶花香",
-          "en": "Green Floral",
-          "desc": "风信子、铃兰、紫罗兰叶，清透偏冷：花带茎叶，像折断的花枝",
-          "notes": [
-            "lily of the valley",
-            "hyacinth",
-            "violet leaf"
-          ],
-          "descWheel": "花带茎叶，像折断的花枝",
-          "tier": 2,
-          "boundary": {
-            "check": [
-              "不含单一花 / 粉感原料",
-              "含 lily of the valley 或 hyacinth"
-            ],
-            "exclude": [
-              "白花但没有铃兰/风信子 → 白花"
-            ],
-            "examples": [
-              "MMM Replica Lazy Sunday Morning"
-            ]
-          }
-        },
-        {
           "id": "soliflore",
-          "zh": "单一花",
+          "zh": "栀子桂花",
           "en": "Soliflore",
-          "desc": "只做一种花，且要做它的三个部位：花瓣（主体）+ 叶（茎）+ 花苞（未开的那一朵）",
+          "desc": "只做一种花：栀子的奶甜与桂花的蜜甜各自单独出场，木兰与小苍兰同理，不做混花束",
           "notes": [
             "gardenia",
             "magnolia",
             "freesia",
             "osmanthus"
           ],
-          "descWheel": "只做一朵花，闻得到花瓣",
+          "descWheel": "一朵花唱主角：栀子的奶甜、桂花的蜜甜",
           "tier": 2,
           "structure": [
             "petal",
@@ -427,15 +366,6 @@
           "why": "粉感来自鸢尾根/天芥菜/醛的粉质，与花种无关，必须早判"
         },
         {
-          "id": "green-floral",
-          "priority": 30,
-          "any": [
-            "lily of the valley",
-            "hyacinth"
-          ],
-          "why": "铃兰与风信子天生带茎叶的青绿，是\"花带叶\"的固定组合"
-        },
-        {
           "id": "fruity-floral",
           "priority": 40,
           "any": [
@@ -453,9 +383,10 @@
             "tuberose",
             "ylang-ylang",
             "gardenia",
-            "magnolia"
+            "magnolia",
+            "lily of the valley"
           ],
-          "why": "白花＝吲哚类的厚与扩，茉莉/晚香玉/依兰是它的三种强度"
+          "why": "白花＝吲哚类的厚与扩；茉莉/晚香玉/依兰是三种强度，铃兰 2026-11-17 由绿叶花香并入"
         },
         {
           "id": "rose",
@@ -465,7 +396,7 @@
           "why": "兜底：玫瑰是花香族最常见的骨架，无其它强特征时归此"
         }
       ],
-      "rulesVersion": "2026-10-31",
+      "rulesVersion": "2026-11-17",
       "rulesNote": "族内优先级级联：priority 从小到大，第一个通过即归属，最后一个为兜底。判定字段：must（必须全中）/ any（至少一个）/ not（一个都不能中）/ always（无条件）。"
     },
     {
@@ -483,7 +414,7 @@
           "notes": [
             "sandalwood"
           ],
-          "descWheel": "奶感、圆润、微暖，越贴肤越舒服",
+          "descWheel": "奶香木头，软暖贴肤，像高级护手霜的底味",
           "tier": 1,
           "form": "resin-core",
           "excludes": [
@@ -515,7 +446,7 @@
             "vetiver",
             "angelica"
           ],
-          "descWheel": "干草、土壤、微苦。两极分化严重",
+          "descWheel": "干草和泥土的苦味，像晒干的草根，带一点烟感",
           "tier": 1,
           "form": "root",
           "compares": "与干燥木质的分界是\"湿 vs 干\"：vetiver 带土腥湿气，cedarwood 是锯末",
@@ -544,7 +475,7 @@
             "labdanum",
             "saffron"
           ],
-          "descWheel": "乌木，深、动物感、留很久",
+          "descWheel": "沉香味：最深最沉的木头，带药香和烟熏，像老药柜",
           "tier": 2,
           "form": "resin-core",
           "boundary": {
@@ -561,7 +492,7 @@
         },
         {
           "id": "woody",
-          "zh": "木质",
+          "zh": "雪松苔藓",
           "en": "Woody",
           "desc": "除檀木与香根草之外的木质：雪松、愈创木的干裂，橡苔与广藿香的土苔，杜松与鼠尾草的草本压在木上",
           "notes": [
@@ -575,7 +506,7 @@
             "guaiac wood",
             "ambroxan"
           ],
-          "descWheel": "木头加薰衣草迷迭香，干净",
+          "descWheel": "铅笔木屑的干爽加一点青苔，像刚削开的铅笔",
           "tier": 1,
           "form": "herb-wood",
           "requires": [
@@ -604,7 +535,7 @@
       ],
       "representativeNotes": [
         "patchouli",
-        "cedar",
+        "cedarwood",
         "sandalwood"
       ],
       "style": "干燥、有骨架，越往后越沉，是多数中性香的地基",
@@ -663,7 +594,7 @@
           "why": "兜底木质：干裂木（雪松/愈创木）、土苔（橡苔+广藿香）、草本压木（杜松/鼠尾草）在 v2.2 合并为一类"
         }
       ],
-      "rulesVersion": "2026-10-31",
+      "rulesVersion": "2026-11-17",
       "rulesNote": "族内优先级级联：priority 从小到大，第一个通过即归属，最后一个为兜底。判定字段：must（必须全中）/ any（至少一个）/ not（一个都不能中）/ always（无条件）。"
     },
     {
@@ -677,7 +608,7 @@
           "id": "amber",
           "zh": "琥珀",
           "en": "Amber",
-          "desc": "甜暖树脂的统称：香草的奶甜、安息香与劳丹脂的膏甜、肉桂豆蔻的辛甜都归这里",
+          "desc": "甜暖树脂的统称：香草的奶甜、安息香与劳丹脂的膏甜、肉桂豆蔻的辛甜；乳香/没药/安息香的教堂感也归这里，不谈烟，只谈树脂本身",
           "notes": [
             "vanilla",
             "benzoin",
@@ -686,28 +617,35 @@
             "cinnamon",
             "cardamom",
             "saffron",
-            "clove"
+            "clove",
+            "myrrh"
           ],
-          "descWheel": "香草+安息香+劳丹脂，甜暖厚",
+          "descWheel": "甜暖厚实，像焦糖和冬天的毛毯，越闻越暖",
           "tier": 1,
           "requires": [
             "vanilla"
           ],
           "boundary": {
             "check": [
+              "含 benzoin 且含 labdanum 的纯树脂构成，归这里（原 resinous 判据）",
+              "含乳香 / 没药 / 安息香的教堂感树脂，也归这里",
               "不含前述所有特征"
             ],
             "exclude": [
+              "带皮革 → 皮革",
+              "带焚香或烟 → 焚香",
               "无（兜底）"
             ],
             "examples": [
-              "MFK Grand Soir"
+              "MFK Grand Soir",
+              "Amouage Gold Man（据库内 notes）"
             ]
           },
           "representativeNotes": [],
           "mergedFrom": [
             "vanilla-amber",
-            "spicy-amber"
+            "spicy-amber",
+            "resinous"
           ]
         },
         {
@@ -722,7 +660,7 @@
             "benzoin",
             "cinnamon"
           ],
-          "descWheel": "烟熏、灰烬、干燥，冷调焚香与暖调焚香差别很大",
+          "descWheel": "寺庙烧香的烟味，干、静、带灰烬感",
           "tier": 1,
           "requires": [
             "incense"
@@ -747,36 +685,6 @@
           ]
         },
         {
-          "id": "resinous",
-          "zh": "树脂",
-          "en": "Resinous",
-          "desc": "三种树脂的温差：安息香甜、劳丹脂带皮革感、没药苦。不谈烟，只谈树脂本身",
-          "notes": [
-            "benzoin",
-            "labdanum",
-            "myrrh"
-          ],
-          "descWheel": "乳香、没药、安息香，教堂感",
-          "tier": 2,
-          "requires": [
-            "benzoin",
-            "labdanum"
-          ],
-          "boundary": {
-            "check": [
-              "不含 leather",
-              "不含焚香类",
-              "含 benzoin 且含 labdanum"
-            ],
-            "exclude": [
-              "无"
-            ],
-            "examples": [
-              "Amouage Gold Man（据库内 notes）"
-            ]
-          }
-        },
-        {
           "id": "leather",
           "zh": "皮革",
           "en": "Leather",
@@ -787,7 +695,7 @@
             "saffron",
             "styrax"
           ],
-          "descWheel": "皮革与烟熏，最不像\"香\"的一类",
+          "descWheel": "皮包和皮衣的味道，带烟熏，酷而干",
           "tier": 2,
           "requires": [
             "leather"
@@ -840,15 +748,6 @@
           "why": "皮革是结构（烟熏+药感+树脂），一旦出现会主导整个后调"
         },
         {
-          "id": "resinous",
-          "priority": 20,
-          "must": [
-            "benzoin",
-            "labdanum"
-          ],
-          "why": "树脂只谈树脂本身：安息香 + 劳丹脂是它的最小构成"
-        },
-        {
           "id": "incense",
           "priority": 30,
           "any": [
@@ -865,7 +764,7 @@
           "why": "兜底琥珀：香草奶甜、安息香膏甜、肉桂豆蔻辛甜都在这里（v2.2 由香草琥珀+辛香琥珀合并）"
         }
       ],
-      "rulesVersion": "2026-10-31",
+      "rulesVersion": "2026-11-17",
       "rulesNote": "族内优先级级联：priority 从小到大，第一个通过即归属，最后一个为兜底。判定字段：must（必须全中）/ any（至少一个）/ not（一个都不能中）/ always（无条件）。"
     },
     {
@@ -879,14 +778,16 @@
           "id": "aquatic",
           "zh": "水生",
           "en": "Aquatic",
-          "desc": "西瓜酮类的海水／泳池感：melone 给水感，盐给皮肤上的干盐粒",
+          "desc": "西瓜酮类的海水／泳池感：calone 与 melon 给水感，salt 给皮肤上的干盐粒",
           "notes": [
             "calone",
             "melon",
-            "sea salt",
+            "sea notes",
+            "aquatic accord",
+            "salt",
             "driftwood"
           ],
-          "descWheel": "海水与西瓜酮，像刚出水",
+          "descWheel": "海水和泳池的清凉感，像刚从水里出来",
           "tier": 1,
           "labels": [
             {
@@ -894,7 +795,7 @@
               "zh": "盐感",
               "en": "Saline",
               "notes": [
-                "sea salt",
+                "salt",
                 "driftwood"
               ],
               "desc": "海风、湿石头、盐晶，原先单列的\"海洋\"",
@@ -913,7 +814,7 @@
             "fig",
             "tomato leaf"
           ],
-          "descWheel": "草与叶，掐断的青味",
+          "descWheel": "刚割的草和掐断的叶子，青绿清新",
           "tier": 1,
           "excludes": [
             [
@@ -934,7 +835,7 @@
             "oakmoss",
             "tonka bean"
           ],
-          "descWheel": "薰衣草加苔藓，老派男香骨架",
+          "descWheel": "老派男香：薰衣草、青苔、剃须膏的味道",
           "tier": 1,
           "requires": [
             "lavender",
@@ -945,24 +846,27 @@
           "id": "tea",
           "zh": "茶香",
           "en": "Tea",
-          "desc": "伯爵茶结构：茶叶的干薄为骨，佛手柑为面，茉莉为尾。不是\"绿茶的清新\"",
+          "desc": "茶叶的干薄为骨、佛手柑为面、茉莉为尾：绿茶的清与红茶的醇都在这一支，讲究干与净，不是糖水",
           "notes": [
             "tea",
             "bergamot",
             "jasmine"
           ],
-          "descWheel": "绿茶与红茶，薄而干净",
+          "descWheel": "绿茶红茶的清香，淡、净、不甜腻",
           "tier": 2,
           "requires": [
             "tea",
             "bergamot"
+          ],
+          "coreNotes": [
+            "tea"
           ]
         }
       ],
       "representativeNotes": [
         "lavender",
-        "green tea",
-        "marine notes"
+        "sea notes",
+        "tea"
       ],
       "style": "水、空气与草，攻击性最低，也最难留下记忆点",
       "scenes": [
@@ -993,6 +897,33 @@
       "beginnerFriendly": 3,
       "subfamilies": [
         {
+          "id": "coffee-cocoa",
+          "zh": "咖啡可可",
+          "en": "Coffee & Cocoa",
+          "desc": "现磨咖啡的焦苦加黑巧克力的苦甜：烘焙线，苦在前、甜在后，和香草美食的奶甜是两条路",
+          "notes": [
+            "coffee",
+            "chocolate",
+            "cocoa"
+          ],
+          "descWheel": "现磨咖啡加黑巧克力，苦里带甜",
+          "tier": 1,
+          "boundary": {
+            "check": [
+              "含 coffee / chocolate / cocoa 之一",
+              "苦味在前、甜在后（香草只作收尾）"
+            ],
+            "exclude": [
+              "只有香草与零陵香豆、无咖啡/巧克力 → 香草美食",
+              "果味在前、咖啡只是陪衬 → 果味美食"
+            ],
+            "examples": [
+              "Montale Chocolate Greedy（chocolate + coffee）",
+              "Kilian Paris Intoxicated（coffee + cardamom + vanilla）"
+            ]
+          }
+        },
+        {
           "id": "vanilla-gourmand",
           "zh": "香草美食",
           "en": "Vanilla Gourmand",
@@ -1002,23 +933,12 @@
             "tonka bean",
             "benzoin"
           ],
-          "descWheel": "香草+糖+零陵香豆",
+          "descWheel": "香草冰淇淋和焦糖布丁的甜香",
           "tier": 1,
           "requires": [
             "vanilla"
           ],
           "labels": [
-            {
-              "id": "brewed",
-              "zh": "咖啡可可",
-              "en": "Coffee & Cocoa",
-              "notes": [
-                "coffee",
-                "chocolate"
-              ],
-              "desc": "烘焙线：咖啡的焦苦在前、可可在中、香草在尾",
-              "mergedFrom": "coffee-cocoa"
-            },
             {
               "id": "nutty",
               "zh": "坚果",
@@ -1055,7 +975,7 @@
             "peach",
             "caramel"
           ],
-          "descWheel": "桃子苹果，甜得清爽",
+          "descWheel": "水蜜桃和苹果派的果甜，甜但清爽",
           "tier": 1
         }
       ],
@@ -1083,7 +1003,28 @@
         "秋冬与夜晚最合适"
       ],
       "avoid": "怕甜、或常在密闭空间的人，半下就够",
-      "wear": "香精浓度多，一下足够，别叠在甜味护肤品上"
+      "wear": "香精浓度多，一下足够，别叠在甜味护肤品上",
+      "rules": [
+        {
+          "id": "coffee-cocoa",
+          "priority": 10,
+          "any": [
+            "coffee",
+            "chocolate",
+            "cocoa"
+          ],
+          "why": "含 coffee/chocolate 时优先于 vanilla-gourmand：烘焙的苦盖得住香草的奶甜，反过来不成立"
+        },
+        {
+          "id": "vanilla-gourmand",
+          "priority": 90,
+          "always": true,
+          "fallback": true,
+          "why": "兜底：香草荚 + 零陵香豆的奶甜，无咖啡/巧克力强特征时归此"
+        }
+      ],
+      "rulesVersion": "2026-11-17",
+      "rulesNote": "族内优先级级联：priority 从小到大，第一个通过即归属，最后一个为兜底。判定字段：must（必须全中）/ any（至少一个）/ not（一个都不能中）/ always（无条件）。"
     }
   ],
   "emotionMap": [
@@ -1352,7 +1293,7 @@
         "zh": "橙花",
         "en": "neroli / orange blossom",
         "family": "citrus",
-        "subfamily": "citrus-floral",
+        "subfamily": "cologne",
         "aliases": [
           "neroli",
           "orange blossom"
@@ -1404,7 +1345,7 @@
         "zh": "铃兰",
         "en": "lily of the valley",
         "family": "floral",
-        "subfamily": "green-floral"
+        "subfamily": "white-floral"
       },
       {
         "zh": "牡丹",
@@ -1476,7 +1417,7 @@
         "zh": "乳香",
         "en": "frankincense",
         "family": "amber",
-        "subfamily": "resinous",
+        "subfamily": "incense",
         "aliases": [
           "frankincense",
           "olibanum"
@@ -1486,7 +1427,7 @@
         "zh": "没药",
         "en": "myrrh",
         "family": "amber",
-        "subfamily": "resinous"
+        "subfamily": "incense"
       },
       {
         "zh": "焚香",
@@ -1537,7 +1478,10 @@
         "zh": "可可",
         "en": "cocoa",
         "family": "gourmand",
-        "subfamily": "vanilla-gourmand"
+        "subfamily": "vanilla-gourmand",
+        "aliases": [
+          "chocolate"
+        ]
       },
       {
         "zh": "杏仁",
@@ -1859,6 +1803,6 @@
       "5": "很长（8h+）"
     }
   },
-  "updated": "2026-11-01",
-  "mergeNote": "v2.2 依用户指令合并：冷焚香+暖焚香→焚香；香草琥珀+辛香琥珀→琥珀；芳香木质+苔藓木质+干燥木质→木质。28 类 → 24 类，目的是降低新手区分难度。"
+  "updated": "2026-11-17",
+  "mergeNote": "v2.3 依 2026-11-17 审计（D/F/G/H 节）定版：树脂→琥珀、删柑橘花香与绿叶花香（铃兰并入白花）、新增咖啡可可。24 类 → 22 类；木质的 woody 改名\"雪松苔藓\"、单一花改名\"栀子桂花\"（id 不动）；全部 22 条 descWheel 换新手口语版；note 词表按 perfumes.json 实际写法对齐。"
 }
