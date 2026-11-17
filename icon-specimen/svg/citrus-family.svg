@@ -6,25 +6,21 @@
   <linearGradient id="cfStem" x1="0" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#7A5A2E"/><stop offset="1" stop-color="#4E3718"/></linearGradient>
 </defs>
   <path d="M 15 8.42 C 17.85 7.79 19.9 6.36 20.15 4.35 C 18.71 4.86 16.75 6.4 15 8.42 Z" fill="url(#cfLeaf)" stroke="#1F4A24" stroke-width="0.5"/>
-  <path d="M 14.55 8.95 C 16.19 7.07 18.11 6.08 19.72 6.62 C 18.75 7.5 16.78 8.39 14.55 8.95 Z" fill="url(#cfLeaf)" stroke="#1F4A24" stroke-width="0.46" opacity="0.96"/>
-  <path d="M 14.42 9.16 C 15.62 7.86 17.42 6.62 19.3 5.6" fill="none" stroke="#24541F" stroke-width="0.26" opacity="0.55"/>
-  <path d="M 14.86 8.9 L 14.42 7.62" fill="none" stroke="url(#cfStem)" stroke-width="0.72"/>
+  <path d="M 14.55 8.95 C 16.19 7.07 18.11 6.08 19.72 6.62 C 18.75 7.5 16.78 8.39 14.55 8.95 Z" fill="url(#cfLeaf)" stroke="#1F4A24" stroke-width="0.48"/>
+  <path d="M 14.85 8.75 C 16.1 7.72 17.6 6.72 19.15 6.05" fill="none" stroke="#24541F" stroke-width="0.26" opacity="0.5"/>
+  <path d="M 14.86 8.9 L 14.42 7.62" fill="none" stroke="url(#cfStem)" stroke-width="0.7"/>
   <circle cx="11.5" cy="12.35" r="7.2" fill="url(#cfRind)" stroke="#8A4400" stroke-width="0.92"/>
-  <circle cx="11.5" cy="12.35" r="6.46" fill="url(#cfPith)" stroke="#C98A2A" stroke-width="0.28"/>
-  <circle cx="11.5" cy="12.35" r="5.9" fill="#FFE3AE" stroke="none" opacity="0.55"/>
-  <path d="M 11.53 11.45 L 11.72 6.73 A 5.62 5.62 0 0 1 14.63 7.68 L 12 11.6 A 0.9 0.9 0 0 0 11.53 11.45 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.32"/>
-  <path d="M 12.06 11.64 L 14.98 7.93 A 5.62 5.62 0 0 1 16.77 10.41 L 12.34 12.04 A 0.9 0.9 0 0 0 12.06 11.64 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.32"/>
-  <path d="M 12.37 12.1 L 16.91 10.82 A 5.62 5.62 0 0 1 16.91 13.88 L 12.37 12.6 A 0.9 0.9 0 0 0 12.37 12.1 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.32"/>
-  <path d="M 12.34 12.66 L 16.77 14.29 A 5.62 5.62 0 0 1 14.98 16.77 L 12.06 13.06 A 0.9 0.9 0 0 0 12.34 12.66 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.32"/>
-  <path d="M 12 13.1 L 14.63 17.02 A 5.62 5.62 0 0 1 11.72 17.97 L 11.53 13.25 A 0.9 0.9 0 0 0 12 13.1 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.32"/>
-  <path d="M 11.47 13.25 L 11.28 17.97 A 5.62 5.62 0 0 1 8.37 17.02 L 11 13.1 A 0.9 0.9 0 0 0 11.47 13.25 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.32"/>
-  <path d="M 10.94 13.06 L 8.02 16.77 A 5.62 5.62 0 0 1 6.23 14.29 L 10.66 12.66 A 0.9 0.9 0 0 0 10.94 13.06 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.32"/>
-  <path d="M 10.63 12.6 L 6.09 13.88 A 5.62 5.62 0 0 1 6.09 10.82 L 10.63 12.1 A 0.9 0.9 0 0 0 10.63 12.6 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.32"/>
-  <path d="M 10.66 12.04 L 6.23 10.41 A 5.62 5.62 0 0 1 8.02 7.93 L 10.94 11.64 A 0.9 0.9 0 0 0 10.66 12.04 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.32"/>
-  <path d="M 11 11.6 L 8.37 7.68 A 5.62 5.62 0 0 1 11.28 6.73 L 11.47 11.45 A 0.9 0.9 0 0 0 11 11.6 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.32"/>
+  <circle cx="11.5" cy="12.35" r="6.46" fill="url(#cfPith)" stroke="#C98A2A" stroke-width="0.3"/>
+  <circle cx="11.5" cy="12.35" r="5.92" fill="#FFE3AE" stroke="none" opacity="0.5"/>
+  <path d="M 11.51 11.45 L 11.58 6.73 A 5.62 5.62 0 0 1 14.74 7.75 L 12.02 11.61 A 0.9 0.9 0 0 0 11.51 11.45 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.3"/>
+  <path d="M 12.04 11.63 L 14.87 7.85 A 5.62 5.62 0 0 1 16.82 10.53 L 12.35 12.06 A 0.9 0.9 0 0 0 12.04 11.63 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.3"/>
+  <path d="M 12.36 12.08 L 16.87 10.69 A 5.62 5.62 0 0 1 16.87 14.01 L 12.36 12.62 A 0.9 0.9 0 0 0 12.36 12.08 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.3"/>
+  <path d="M 12.35 12.64 L 16.82 14.17 A 5.62 5.62 0 0 1 14.87 16.85 L 12.04 13.07 A 0.9 0.9 0 0 0 12.35 12.64 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.3"/>
+  <path d="M 12.02 13.09 L 14.74 16.95 A 5.62 5.62 0 0 1 11.58 17.97 L 11.51 13.25 A 0.9 0.9 0 0 0 12.02 13.09 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.3"/>
+  <path d="M 11.49 13.25 L 11.42 17.97 A 5.62 5.62 0 0 1 8.26 16.95 L 10.98 13.09 A 0.9 0.9 0 0 0 11.49 13.25 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.3"/>
+  <path d="M 10.96 13.07 L 8.13 16.85 A 5.62 5.62 0 0 1 6.18 14.17 L 10.65 12.64 A 0.9 0.9 0 0 0 10.96 13.07 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.3"/>
+  <path d="M 10.64 12.62 L 6.13 14.01 A 5.62 5.62 0 0 1 6.13 10.69 L 10.64 12.08 A 0.9 0.9 0 0 0 10.64 12.62 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.3"/>
+  <path d="M 10.65 12.06 L 6.18 10.53 A 5.62 5.62 0 0 1 8.13 7.85 L 10.96 11.63 A 0.9 0.9 0 0 0 10.65 12.06 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.3"/>
+  <path d="M 10.98 11.61 L 8.26 7.75 A 5.62 5.62 0 0 1 11.42 6.73 L 11.49 11.45 A 0.9 0.9 0 0 0 10.98 11.61 Z" fill="url(#cfFlesh)" stroke="#D98214" stroke-width="0.3"/>
   <circle cx="11.5" cy="12.35" r="0.9" fill="url(#cfPith)" stroke="#D98214" stroke-width="0.24"/>
-  <path d="M 6.35 9.35 C 7.4 7.3 9.32 5.95 11.48 5.72" fill="none" stroke="#FFF8DC" stroke-width="0.7" opacity="0.66"/>
-  <path d="M 6.55 15.35 C 7.35 17.05 8.8 18.2 10.5 18.62" fill="none" stroke="#8F4A00" stroke-width="0.42" opacity="0.28"/>
-  <circle cx="14.95" cy="14.55" r="0.2" fill="#FFF2CC" opacity="0.55"/>
-  <circle cx="8.15" cy="11.5" r="0.2" fill="#FFF2CC" opacity="0.55"/>
 </svg>
