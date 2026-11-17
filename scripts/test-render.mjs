@@ -678,6 +678,26 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
   ok('只选大类时盘心还没有标本', prevPlates.length === 0, `${prevPlates.length} 枚`);
   ok('只选大类时盘心是「正在看」而非「已选定」',
     !!hubPrev && !hubPrev.classList.contains('is-picked'), hubPrev && hubPrev.className);
+
+  /* ---- 只选大类时中心盘 = 纯文字（本步临时裁定）----
+     24 枚上色标本画的是"小类"那一层，大类这一层没有自己的图标。
+     只选大类就摆一排小类图标，等于用下一层的词汇回答当前这一层的问题。
+     所以这里守两条，缺一条裁定就落空：
+       ① 盘心不许有任何图标（小类图标也不行）
+       ② 盘心必须有文字（小类名 + 个数），否则"承载信息"这条又退回空圆 */
+  const hubGlyphBox = appRoot.querySelector('.hub-glyph');
+  const hubSvgs = hubGlyphBox ? hubGlyphBox.querySelectorAll('svg') : [];
+  ok('只选大类时盘心没有任何图标', hubSvgs.length === 0,
+    `盘心 SVG ${hubSvgs.length} 枚`);
+  const famText = appRoot.querySelector('.fam-text');
+  const famItems = appRoot.querySelectorAll('.fam-text-item');
+  ok('只选大类时盘心给出小类名（纯文字）', !!famText && famItems.length > 0,
+    `文字项 ${famItems.length}`);
+  /* 个数那行必须是数字推出来的，不是写死的 —— 与实际列出的小类数一致 */
+  const famCount = appRoot.querySelector('.fam-text-count');
+  ok('盘心报的小类数与列出的名字一致',
+    !!famCount && famCount.textContent === `${famItems.length} 个小类`,
+    famCount && famCount.textContent);
 }
 /* 悬停某一段：只加深那一段的描边，盘心一个字都不许改。
    v15 改成"左键点击才确认"之后，这条从"悬停画标本"反转成"悬停不许动状态"

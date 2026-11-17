@@ -705,6 +705,75 @@ function scentPlate(sub) {
   return wrap;
 }
 
+/* ---------- 大类文字签（v7 第 1.5 步新增，缺陷 ③）----------
+   为什么需要它：只选了大类、还没落到小类时，盘心原来只有三行文字，
+   底下是一个 343px 的空圆 —— 用户看到的"最大的东西"是一块空白。
+   任务书缺陷 ③ 要求"盘心要承载信息"，且授权改 app.js 里那处
+   `if (focusSub) {...}`（原第 1461–1463 行）。
+
+   ==== 为什么是纯文字，而不是小类图标 ====
+   这里一度画过一段弧、摆着这一族全部小类的标本图标（.fam-glyph）。
+   裁定改回纯文字，理由是**图标还没画到能承担这件事的程度**：
+   24 枚上色标本画的是"小类"这一层，大类这一层没有自己的图标。
+   于是只选大类时盘心摆出一排小类图标，等于用下一层的词汇回答
+   当前这一层的问题 —— 用户明明还没收窄，盘心却先摊开了四件标本，
+   读起来像"已经替你选好了其中一件"。裁定口径：只选大类时中心盘
+   只放文字，等大类图标补齐再谈图形。
+
+   文字放什么：这一族的小类名 + 个数。两件事都是数据里来的，不是编的；
+   盘心因此在说"这一族由这四格组成"，而不只是一句风格描述。
+   为什么不做成"·"串一行就完：小类名之间要能一眼数清有几格，
+   所以名字之间用间隔点，个数单独一行小字（与盘心其它小字同一档）。 */
+function familyText(fam) {
+  const subs = (fam.subfamilies || []);
+  if (!subs.length) return null;
+
+  const wrap = el('div', { class: 'fam-text' });
+  const list = el('div', { class: 'fam-text-list' });
+  subs.forEach((s, i) => {
+    if (i) {
+      /* 间隔点只是排版记号，不该被读屏念成内容 */
+      list.appendChild(el('span', { class: 'fam-text-sep', 'aria-hidden': 'true' }, '·'));
+    }
+    list.appendChild(el('span', { class: 'fam-text-item' }, s.zh || s.id));
+  });
+  wrap.appendChild(list);
+  wrap.appendChild(el('span', { class: 'fam-text-count' }, subs.length + ' 个小类'));
+  return wrap;
+}
+
+/* ---------- 盘心空态纹样（缺陷 ③ 的另一半）----------   还没选大类时，盘心是一块空圆 + 两行小字。补一枚与盘同构的纹样：
+   一圈发丝环、六枚定位点、中心十字。六个点就是外圈六族的位置，
+   于是"空盘"仍在讲这张盘的结构，而不是一块白。
+   这里是内联 SVG（不是 fetch 的上色图），因为它属于界面骨架，
+   不能等网络。 */
+function hubOrnament(families) {
+  const svg = svgEl('svg', {
+    class: 'hub-orn',
+    viewBox: '0 0 100 100',
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+  const ring = (r, cls) => svg.appendChild(svgEl('circle', {
+    class: cls, cx: 50, cy: 50, r,
+  }));
+  ring(46, 'orn-ring is-outer');
+  ring(30, 'orn-ring');
+  /* 六枚定位点：与外圈六族同一角度约定（-90 起，每 60°） */
+  const n = families.length || 6;
+  for (let k = 0; k < n; k++) {
+    const rad = ((-90 + (360 / n) * k) * Math.PI) / 180;
+    svg.appendChild(svgEl('circle', {
+      class: 'orn-dot',
+      cx: (50 + 46 * Math.cos(rad)).toFixed(2),
+      cy: (50 + 46 * Math.sin(rad)).toFixed(2),
+      r: 1.8,
+    }));
+  }
+  svg.appendChild(svgEl('path', { class: 'orn-cross', d: 'M46 50 H54 M50 46 V54' }));
+  return svg;
+}
+
 function buildWheel(cfg) {
   const { families, onChange } = cfg;
   let selFamily = cfg.selFamily || null;
@@ -922,8 +991,12 @@ function buildWheel(cfg) {
   }, '← 重选大类');
   backBtn.hidden = true;
   root.appendChild(backBtn);
+  /* 空态纹样（缺陷 ③）：六枚定位点就是外圈六族的位置，空盘也在讲盘的结构。
+     单独一棵节点而不是塞进 hubGlyph：hubGlyph 归标本管，两者互斥，
+     混用会让 paint() 里"清空标本"那一步顺手把纹样也删掉。 */
+  const hubOrn = hubOrnament(families);
   const hub = el('div', { class: 'disc-hub is-idle' },
-    hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
+    hubOrn, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
   root.appendChild(hub);
 
   /* --- 第一层：6 个家族，固定不变 --- */
@@ -945,21 +1018,31 @@ function buildWheel(cfg) {
     outerG.push(g);
   });
 
-  /* 分度刻线 36 道（每 3 道加长）—— 见上方长注释。
-     append 在这里而不是 SVG 初始化处：SVG 没有 z-index，绘制顺序就是层级，
-     先画会被六个 sector-shape 的填充整片盖掉（场合屏原先就是这个顺序）。 */
+  /* 盘口：一圈发丝线 + 六枚定位点（v7 第 1.5 步替换掉 36 道分度刻线）。
+     ------------------------------------------------------------
+     原来的 36 道刻线（每 3 道加长）是量具语言：它回答"这个盘有多少度"，
+     而这张盘上没有任何东西需要以角度为单位读 —— 六族是均分的结果，
+     不是测量结果。留着它，盘就读成仪表盘，与"标本纸面"这一套相反。
+     （这就是任务书缺陷 ⑤「内圈刻度齿环像量具」。）
+
+     换成两件东西，都只报结构不报角度：
+       · plate-rim：一道发丝线 = 盘口。落在家族环外沿 228 与
+         `.wheel::after` 包边 236 之间取 232 —— 两侧各留 4 单位，
+         它是盘沿内侧的一道唇线，不与任何既有圆环重合。
+       · plate-dot：六枚定位点，正对每个**扇区接缝**（不是中线）——
+         中线已经站着标签了，接缝上放点才是在说"六块从这儿分开"。
+     绘制顺序仍在六个 sector-g 之后（SVG 没有 z-index，顺序即层级）。 */
   {
-    const TICK_N = 36;
-    for (let k = 0; k < TICK_N; k++) {
-      const deg = -90 + (360 / TICK_N) * k;
-      const major = k % 3 === 0;
-      const r1 = WHEEL.r1i + 1;
-      const r2 = WHEEL.r1i + (major ? 9 : 5);
-      const [x1, y1] = polar(r1, deg);
-      const [x2, y2] = polar(r2, deg);
-      svg.appendChild(svgEl('line', {
-        class: major ? 'ring-tick is-major' : 'ring-tick',
-        x1, y1, x2, y2,
+    const RIM = WHEEL.r1o + 4;      // 228 + 4 = 232
+    svg.appendChild(svgEl('circle', {
+      class: 'plate-rim', cx: WHEEL.cx, cy: WHEEL.cy, r: RIM,
+    }));
+    const nFamDot = families.length;
+    for (let k = 0; k < nFamDot; k++) {
+      /* famStart = -90 - 半步，第 k 条接缝 = famStart + k × 步 */
+      const [dx, dy] = polar(RIM, -90 - 180 / nFamDot + (360 / nFamDot) * k);
+      svg.appendChild(svgEl('circle', {
+        class: 'plate-dot', cx: dx.toFixed(2), cy: dy.toFixed(2), r: 2.2,
       }));
     }
   }
@@ -1312,6 +1395,9 @@ function buildWheel(cfg) {
 
   /* --- 统一重绘 --- */
   let builtFor;
+  /* 盘心标本当前画的是哪一个。`sub:<id>` / `fam:<id>` / `none`。
+     只在这个 key 变化时重建盘心 DOM（paint 由 hover 高频调用）。 */
+  let builtGlyphKey = null;
   /* 上一层是不是"展开"状态。只用来判断这次 paint 是不是一次换层 ——
      hover 引起的重绘每天几十次，不能每次都重播一遍进出场动画。 */
   let wasOpen = null;
@@ -1456,10 +1542,33 @@ function buildWheel(cfg) {
 
     /* ⑤ 图标常态与选中态要能区分开。
        常态（预览）画灰线稿、不写香材名；落到具体项后线稿转蓝、名字出现。
-       原来只在"已选定"时才画，等于常态没有图标可比，也就无所谓区分。 */
-    hubGlyph.innerHTML = '';
-    hub.classList.toggle('has-glyph', !!focusSub);
-    if (focusSub) { const plate = scentPlate(focusSub); if (plate) hubGlyph.appendChild(plate); }
+       原来只在"已选定"时才画，等于常态没有图标可比，也就无所谓区分。
+
+       ==== v7 第 1.5 步：盘心在"只选大类"时也要有内容（缺陷 ③）====
+       原来这一行是 `if (focusSub) {...}`，于是只选大类时盘心只剩三行字，
+       底下是一块 343px 的空圆 —— 用户看到的面积最大的东西是空白。
+       现在三种状态都有东西：
+         落到小类   → 一枚代表香材（.plate-svg，语义不变）
+         只选大类   → 这一族的小类名 + 个数，**纯文字**（.fam-text）
+         什么都没选 → 空态纹样（六枚定位点，见 hubOrnament）
+       只选大类那一路为什么不放图标：24 枚上色标本画的是小类那一层，
+       大类这一层没有自己的图标；摆一排小类图标等于用下一层的词汇
+       回答当前这一层的问题（详见 familyText 上方）。裁定：纯文字。
+       三种状态互斥，所以 `has-glyph` 只在 ①② 为真时挂上 ——
+       CSS 靠它决定纹样是否退场。 */
+    const famForGlyph = showFam || null;
+    const glyphKey = focusSub ? ('sub:' + focusSub.id)
+      : (famForGlyph ? ('fam:' + famForGlyph.id) : 'none');
+    /* 只在"该画哪个"真的变了时才重建 DOM：
+       paint() 由 hover 高频调用，每次重建会让盘心闪一下。 */
+    if (glyphKey !== builtGlyphKey) {
+      builtGlyphKey = glyphKey;
+      hubGlyph.innerHTML = '';
+      const glyph = focusSub ? scentPlate(focusSub)
+        : (famForGlyph ? familyText(famForGlyph) : null);
+      if (glyph) hubGlyph.appendChild(glyph);
+    }
+    hub.classList.toggle('has-glyph', glyphKey !== 'none');
 
     // 只选了大类时给快捷出口；已落到小项就没必要再催一次
     const canSkip = !!(selFamily && !selSub);

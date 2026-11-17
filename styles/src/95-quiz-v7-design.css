@@ -115,3 +115,255 @@
   z-index: 1;
 }
 
+/* ============================================================
+   Block 3 · 两层呼应 + 盘心尺寸统一（缺陷 ②③）
+   ------------------------------------------------------------
+   第一层（只选大类）与第二层（已展开）里，盘心一直是**同一块物件**：
+   同一个直径 66%、同一种暖纸材质、同一圈盘口线。以前第二层把它收到 46%，
+   于是"点一下盘心缩了三分之一"，视觉上像换了个东西；而且 46% 只填了
+   中圈内沿（70.3% 半径）的一半，留下一圈空白的暖纸 —— 那才是"过大过空"
+   的真正观感（大白圆 + 一圈空环）。
+   66% 是唯一同时满足三条的数：
+     · 闭合态：2×158/480 = 65.83% → 66% 与家族环内沿咬合（既有断言守着）
+     · 展开态：中圈瓦片内沿在 118×1.43 = 168.7 单位 → 半径 158.4 仍在里面
+     · 两态同值 → 尺寸变化为 0，"盘心"永远是同一块
+   ============================================================ */
+#app[data-step="family"] .wheel .disc-hub,
+#app[data-step="family"] .wheel:not(.is-open) .disc-hub,
+#app[data-step="family"] .wheel.is-open .disc-hub,
+#app[data-step="family"] .wheel.is-open.is-picked .disc-hub {
+  width: 66%;
+  height: 66%;
+  border-radius: 50%;
+  /* 内边距按百分比写在圆盒上会被解析成"父容器宽度"的百分比 ——
+     这里故意用 px：盘心在四个断点上从 206px 到 333px，px 与字号一起
+     缩放才会让"文字块占圆的比例"保持一致。 */
+  padding: 20px 26px;
+  gap: 2px;
+  /* 内容分带上中下三段，不留中央空洞：这是缺陷 ③ 的排版面。
+     justify-content:center 会把整组内容挤在圆心，上下各空 60px ——
+     那正是"过大过空"的观感来源，与内容多少无关。 */
+  justify-content: center;
+  border: 1px solid var(--spec-rim);
+  background: var(--spec-plate);
+  color: var(--spec-ink);
+  /* 光从上来：上沿一道内高光 + 下沿一道柔影。两层同一条，材质才是同一块。 */
+  box-shadow:
+    inset 0 1px 0 var(--spec-glow),
+    inset 0 -14px 26px -22px var(--spec-sh),
+    0 12px 30px -20px var(--spec-sh);
+  transition: background-color 260ms var(--ease-std),
+              border-color 260ms var(--ease-std),
+              box-shadow 260ms var(--ease-std),
+              transform 260ms var(--ease-out);
+}
+
+/* 盘心主词：衬线，与标题同一支。数字（26px）不动 —— 既有断言守着
+   "主词比 kicker 大出一档"这条排版关系。 */
+#app[data-step="family"] .wheel .disc-hub .hub-zh {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -.01em;
+  color: var(--spec-ink);
+  line-height: 1.15;
+}
+#app[data-step="family"] .wheel .disc-hub .hub-kicker {
+  font-size: 12px;
+  letter-spacing: .14em;
+  color: var(--ink-3);
+}
+#app[data-step="family"] .wheel .disc-hub .hub-desc {
+  font-size: 12px;
+  line-height: 1.55;
+  max-width: 92%;
+  color: var(--ink-2);
+}
+/* 盘心有标本时 kicker 不再让位：它现在承载"已选定大类 / 已选定"这个层级信息，
+   而标本只说明是哪一类标本。以前 `has-glyph` 会把 kicker 整行 display:none，
+   于是"我选的是大类还是小类"这件事在盘心消失了。 */
+#app[data-step="family"] .wheel .disc-hub.has-glyph .hub-kicker {
+  display: block;
+}
+#app[data-step="family"] .wheel .disc-hub.has-glyph .hub-desc {
+  max-height: 40px;
+}
+
+/* 选中（落到小类）：不翻深、不换材质，只把盘口线收紧成暖墨 ——
+   "定下来了"由中圈那块实心蓝瓦片说，不由整块盘变黑说（既有结论，沿用）。 */
+#app[data-step="family"] .wheel.is-open.is-picked .disc-hub {
+  border-color: var(--spec-ink);
+  box-shadow:
+    inset 0 1px 0 var(--spec-glow),
+    inset 0 -14px 26px -22px var(--spec-sh),
+    0 0 0 4px var(--spec-plate),
+    0 0 0 5px var(--spec-rim),
+    0 14px 34px -22px var(--spec-sh);
+}
+
+/* 盘心标本：同一条发丝分割线、同一档字号（与 20 层一致，这里只是把
+   颜色接到新 token 上，避免中圈暖、盘心冷的割裂感）。 */
+#app[data-step="family"] .wheel .plate-rule {
+  background: var(--spec-rim);
+}
+#app[data-step="family"] .wheel .plate-cap {
+  color: var(--ink-3);
+  letter-spacing: .04em;
+}
+
+/* ---- 空盘（还没选大类）的盘心纹样 ----
+   一个空圆 + 两行小字，无论怎么调字号都读成"这里什么都没有"。
+   补一枚与盘同构的纹样：一圈发丝环 + 六枚定位点 + 中心十字。
+   它不是装饰：六个点就是外圈六族的位置，"空盘"因此仍在讲这张盘的结构。 */
+#app[data-step="family"] .wheel .hub-orn {
+  display: block;
+  width: 74px;
+  height: 74px;
+  flex: none;
+  margin: 2px 0 4px;
+}
+/* 纹样的三道笔画都直接引用 --spec-rim，不经 currentColor：
+   `color:` 是文字色通道，test-contrast 会把它的值当成"承载文字"来审 ——
+   这枚纹样一个字形都没有，走 color 会被误判成 1.53:1 的文字。 */
+#app[data-step="family"] .wheel .hub-orn .orn-ring {
+  fill: none;
+  stroke: var(--spec-rim);
+  stroke-width: 1;
+  opacity: .75;
+}
+#app[data-step="family"] .wheel .hub-orn .orn-ring.is-outer {
+  opacity: 1;
+}
+#app[data-step="family"] .wheel .hub-orn .orn-dot {
+  fill: var(--spec-rim);
+}
+#app[data-step="family"] .wheel .hub-orn .orn-cross {
+  stroke: var(--spec-rim);
+  stroke-width: 1;
+  opacity: .6;
+}
+#app[data-step="family"] .wheel .hub-orn .orn-ring,
+#app[data-step="family"] .wheel .hub-orn .orn-dot,
+#app[data-step="family"] .wheel .hub-orn .orn-cross {
+  transition: opacity 260ms var(--ease-std);
+}
+#app[data-step="family"] .wheel .disc-hub.has-glyph .hub-orn {
+  display: none;
+}
+
+/* ---- 大类文字签（缺陷 ③ 的载体）----
+   只选大类时，盘心放的是这一族的**小类名 + 个数**，纯文字，没有图标。
+   为什么不是图标（这里一度画过一排小类标本）：24 枚上色标本画的是
+   "小类"那一层，大类这一层没有自己的图标 —— 只选大类就摆一排小类图标，
+   等于用下一层的词汇回答当前这一层的问题，读起来像"已经替你选好了一件"。
+   裁定：大类这一层只放文字，等大类图标补齐再谈图形。
+   排版：名字一行、间隔点分行，个数另起一行小字 —— 与盘心其它小字同档，
+   这样"有几格"能被一眼数清，而不是读成一串形容。 */
+#app[data-step="family"] .wheel .fam-text {
+  position: relative;
+  display: block;
+  width: 92%;
+  flex: none;
+  margin: 6px 0 2px;
+  text-align: center;
+}
+#app[data-step="family"] .wheel .fam-text-list {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: .02em;
+  color: var(--spec-ink);
+  /* 名字最多 6 个（花香调），一行放得下；窄屏由媒体查询降一档字号，
+     不折行 —— 折行会把"个数"那行顶到盘心外沿。 */
+  white-space: normal;
+}
+#app[data-step="family"] .wheel .fam-text-item {
+  display: inline;
+  white-space: nowrap;
+}
+/* 间隔点：它是排版记号（aria-hidden），但**它有颜色**，所以仍要落在
+   已审计的文字色里 —— test-contrast 的完整性检查会扫出任何未进审计表的
+   `color: var(--x)`。--ink-3 过 4.5，再用 opacity 压到比名字浅一档，
+   于是它看起来是分隔而不是内容，却不需要引一个只作装饰的色。 */
+#app[data-step="family"] .wheel .fam-text-sep {
+  display: inline;
+  margin: 0 5px;
+  color: var(--ink-3);
+  opacity: .6;
+  font-weight: 400;
+}
+#app[data-step="family"] .wheel .fam-text-count {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+/* 容器必须有明确宽度，否则文字块会缩到内容宽度：
+   `.hub-glyph` 是 flex 列里的一项（width:auto → 收缩到内容宽度），
+   收缩后 92%/居中都不再生效。这条与下方 has-glyph 那条成对。 */
+#app[data-step="family"] .wheel .disc-hub.has-glyph .hub-glyph {
+  width: 100%;
+}
+@media (max-width: 620px) {
+  #app[data-step="family"] .wheel .fam-text-list {
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  #app[data-step="family"] .wheel .fam-text-sep {
+    margin: 0 3px;
+  }
+}
+
+/* ============================================================
+   Block 6 · 中圈材质：暖纸瓦片（缺陷 ②的一部分）
+   ------------------------------------------------------------
+   70-final 把瓦片写成 `fill:#ffffff; stroke: var(--bg-3)` —— 纯白瓦 +
+   灰褐缝。第一层是暖纸底，第二层突然一片冷白，两层材质对不上，
+   这正是"不呼应"最直接的一处。
+   改成：瓦片 --spec-plate（比纸底亮 1.9%），缝用 --spec-hair（暖发丝），
+   凹槽环（.sub-channel）用 --spec-hair 加深一档 —— 缝里露出的仍是暖色。
+   ============================================================ */
+#app[data-step="family"] .wheel .sub-arc {
+  fill: var(--spec-plate);
+  stroke: var(--spec-hair);
+  stroke-width: 1;
+}
+#app[data-step="family"] .wheel .sub-channel {
+  stroke: var(--spec-hair);
+}
+#app[data-step="family"] .wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
+#app[data-step="family"] .wheel .sub-g.is-hot .sub-arc {
+  fill: var(--spec-tint-hot);
+  stroke: var(--spec-ink);
+  stroke-width: 1.4;
+}
+/* 确认：实心克莱因蓝 + 白字。饱和度只在这 1/n 块上出现，
+   盘面其余部分仍是纸 —— 这是"一眼可辨"，且不靠加大面积换强度。 */
+#app[data-step="family"] .wheel .sub-g.is-on .sub-arc,
+#app[data-step="family"] .wheel.is-open .sub-g.is-on .sub-arc {
+  fill: var(--blue);
+  stroke: var(--blue);
+  stroke-width: 1.4;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+  color: var(--spec-ink);
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: .01em;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-hot,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-hot .zh {
+  color: var(--spec-ink);
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-on,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-on .zh {
+  color: var(--spec-pill-ink);
+  font-weight: 600;
+}
+
