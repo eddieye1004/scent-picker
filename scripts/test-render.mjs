@@ -17,7 +17,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 
 /* ---------- 极简 SVG markup → TNode ----------
-   只为 innerHTML 服务：盘心写进来的是 24 枚上色 SVG 的内部内容。
+   只为 innerHTML 服务：盘心写进来的是上色 SVG 的内部内容
+   （v2.3.0 图标步后 31 枚：22 小类 + 6 大类 + 3 枚退役留档，映射 28 条）。
    认三种形态：自闭合 <tag .../>、开标签 <tag ...>、闭标签 </tag>。
    属性只按 `k="v"` / `k='v'` 取，够覆盖上色稿用到的全部属性。 */
 function parseStubMarkup(src, parent) {
@@ -669,13 +670,15 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
    旧版只在"已选定"时才画，于是"常态与选中态要区分"这句话无从落地。
    现在预览态（只选了大类、弧上停着某项）也画，只是灰线 + 名字压暗；
    落到具体小项才转蓝。所以要断的是"预览态有图、但还没到已选定"。 */
-/* 只选了大类、还没指向任何一段：盘心不该有标本。
-   v7 一圈弧段全部可见，没有「停着的那一项」可推断 —— 凭猜画图会让用户
-   以为已经选好。这条与下一条合起来才守得住"预览 vs 已选定"的区别。 */
+/* 只选了大类、还没指向任何一段：盘心画的是**大类图**（v2.3.0 图标步新增）。
+   原先这条断的是"没有标本"—— 那时六族没有图，凭猜画小类图会让用户
+   以为已经选好。图标步补上 6 枚大类图之后，盘心画大类图既不会误报"选好了"
+   （图形是族徽不是小类标本，accent 仍是"已选定大类"），也让用户在大类这层
+   就看见自己的选择。断言改成守这条新口径，并且守"还是没到已选定"。 */
 {
   const prevPlates = appRoot.querySelectorAll('.plate-svg');
   const hubPrev = appRoot.querySelector('.disc-hub');
-  ok('只选大类时盘心还没有标本', prevPlates.length === 0, `${prevPlates.length} 枚`);
+  ok('只选大类时盘心显示大类图（一枚）', prevPlates.length === 1, `${prevPlates.length} 枚`);
   ok('只选大类时盘心是「正在看」而非「已选定」',
     !!hubPrev && !hubPrev.classList.contains('is-picked'), hubPrev && hubPrev.className);
 }
@@ -694,8 +697,11 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
     hubHover.querySelector('.hub-zh').textContent === zhBefore
       && hubHover.querySelector('.hub-kicker').textContent === kickBefore,
     `${zhBefore} → ${hubHover.querySelector('.hub-zh').textContent}`);
-  ok('悬停不画标本（未确认就没有标本）',
-    appRoot.querySelectorAll('.plate-svg').length === 0,
+  /* 悬停不换来第二枚 —— 盘心始终只有一枚（大类那一枚）。
+     原先这条断的是"没有标本"，图标步起大类有图了，判据改成"枚数不变"：
+     悬停若能加一枚，盘心就会同时挂族徽与小类标本。 */
+  ok('悬停不新增标本（未确认就只有大类那一枚）',
+    appRoot.querySelectorAll('.plate-svg').length === 1,
     `${appRoot.querySelectorAll('.plate-svg').length} 枚`);
   ok('悬停态还没到「已选定」', !!hubHover && !hubHover.classList.contains('is-picked'),
     hubHover && hubHover.className);
@@ -810,34 +816,45 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
 
   const TAXA_MARK = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/taxonomy.json'), 'utf8'));
   const allSubs = TAXA_MARK.families.flatMap((f) => f.subfamilies.map((s) => ({ id: s.id, fam: f.id })));
+  const allFams = TAXA_MARK.families.map((f) => f.id);
 
-  /* 2026-11-17 taxonomy v2.3.0（24→22）后这条断言的口径变了：
-     旧写法要求"每个小类都有映射"，而新增的 coffee-cocoa 暂无图标是既定事实
-     （图标步另开一轮）。改成要求**每个小类都有交代**：
-     要么有指向真实文件的映射，要么在 ART_MISSING 里显式登记。
-     这样"新加一格却忘了配图"仍然会红，而"承认还没画"不会被误判成 bug。 */
+  /* v2.3.0 图标步（2026-11-18）后的口径：
+     ① 22 个小类**全部有图**，ART_MISSING 必须是空表 —— 画好了还留登记就是过期；
+     ② 6 个大类各有一枚 `fam:<id>` 图，"只选大类"时盘心画它；
+     ③ 两个命名空间共用一张 ART_FILE，所以 `fam:` 前缀是硬约定：
+        带前缀的键必须是真实家族，不带前缀的键必须是真实小类，谁都不许越界。 */
   const unmapped = allSubs
-    .filter((s) => typeof ART[s.id] !== 'string')
+    .filter((s) => typeof ART[s.id] !== 'string' || ART[s.id] === '')
     .map((s) => s.id);
-  ok('每个小类都在 ART_FILE 里有条目（含显式留空的待画格）',
-    unmapped.length === 0, `缺 ${unmapped.length} 个: ${unmapped.join(',')}`);
+  ok('每个小类都有实际指向的图标（不是空串）', unmapped.length === 0,
+    `缺 ${unmapped.length} 个: ${unmapped.join(',')}`);
 
-  const noArtFiles = allSubs.filter((s) => ART[s.id] === '');
-  const undeclared = noArtFiles.filter((s) => !MISSING_ART[s.id]).map((s) => s.id);
-  ok('没有图标的小类必须在 ART_MISSING 里显式登记（不许静默留空）',
-    undeclared.length === 0, undeclared.join(','));
+  ok('ART_MISSING 已清空（画好了就不许再登记）',
+    Object.keys(MISSING_ART).length === 0, Object.keys(MISSING_ART).join(','));
 
-  const extra = Object.keys(ART).filter((k) => !allSubs.some((s) => s.id === k));
+  const famKeys = Object.keys(ART).filter((k) => k.startsWith('fam:'));
+  const famBare = famKeys.map((k) => k.slice(4)).filter((id) => !allFams.includes(id));
+  ok('大类图键的前缀指向真实家族（fam:<id> 不许写错）', famBare.length === 0, famBare.join(','));
+  const famGone = allFams.filter((id) => !famKeys.includes('fam:' + id));
+  ok('六个大类各有一枚大类图', famGone.length === 0, `缺 ${famGone.join(',')}`);
+
+  const extra = Object.keys(ART).filter((k) => !k.startsWith('fam:') && !allSubs.some((s) => s.id === k));
   ok('没有多余的上色映射（不指向数据里不存在的格）', extra.length === 0, extra.join(','));
 
-  const extraMissing = Object.keys(MISSING_ART).filter((k) => !noArtFiles.some((s) => s.id === k));
-  ok('ART_MISSING 里的格子必须真的没有图标（画好了就要从表里摘掉）',
-    extraMissing.length === 0, extraMissing.join(','));
+  /* 退役三枚「文件留档、永不复用」：文件仍在磁盘上，但任何键都不许再指向它们。
+     这条从"文件被删了"改成"文件在但没人引用"—— 定版决策是留档不删。 */
+  const RETIRED = ['amber-resinous', 'citrus-citrus-floral', 'floral-green-floral'];
+  const revived = RETIRED.filter((n) => Object.values(ART).includes(n));
+  ok('退役图标仍留档在磁盘上（定版：留档不删）',
+    RETIRED.every((n) => fs.existsSync(path.join(ROOT, 'icon-specimen/svg/' + n + '.svg'))),
+    RETIRED.filter((n) => !fs.existsSync(path.join(ROOT, 'icon-specimen/svg/' + n + '.svg'))).join(','));
+  ok('退役图标没有任何映射引用', revived.length === 0, revived.join(','));
 
-  /* 每个**有映射**的小类必须落到一个真实、可解析、图元足够的 svg 文件。
-     「文件在」不够 —— 空 svg 也能 200，那等于盘心画了个空白。
-     空映射（ART_MISSING 登记的）走占位盘，不进这一组。 */
-  const files = allSubs.filter((s) => ART[s.id]).map((s) => ({ id: s.id, p: 'icon-specimen/svg/' + ART[s.id] + '.svg' }));
+  /* 每个**有映射**的格子（小类 + 大类）都必须落到真实、可解析、图元足够的 svg 文件。
+     「文件在」不够 —— 空 svg 也能 200，那等于盘心画了个空白。 */
+  const files = Object.keys(ART)
+    .filter((k) => ART[k])
+    .map((k) => ({ id: k, p: 'icon-specimen/svg/' + ART[k] + '.svg' }));
   const gone = files.filter((f) => !fs.existsSync(path.join(ROOT, f.p))).map((f) => f.id);
   ok('映射到的 SVG 文件都在磁盘上', gone.length === 0, gone.join(','));
 
@@ -864,7 +881,11 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
     if (seenF.has(k)) dupF.push(`${seenF.get(k)} / ${f.id}`);
     else seenF.set(k, f.id);
   });
-  ok('全部上色 SVG 两两不同', dupF.length === 0, dupF.join(' ; '));
+  ok('全部上色 SVG 两两不同（含大类图）', dupF.length === 0, dupF.join(' ; '));
+  /* 28 = 22 个小类 + 6 个大类；退役三枚不进这张表（它们只在磁盘上留档）。
+     写成等号而不是 ≥，是因为"少一条映射"正是这组断言要抓的东西。 */
+  ok('上色映射恰好 28 条（22 小类 + 6 大类，不含退役三枚）',
+    files.length === 28, `${files.length} 条`);
 }
 
 ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textContent !== cap.textContent,

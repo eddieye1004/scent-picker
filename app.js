@@ -503,15 +503,16 @@ function applyDirectionToCharacter(emotionId) {
    页面里 `document.documentElement.dataset.build` 会带上它。
    用途是"这次看到的到底是哪份代码"—— 改完 app.js 如果这个值没变，
    说明浏览器还在跑缓存的旧文件，别去猜渲染逻辑。 */
-const BUILD_ID = '2026-11-17-taxonomy-v23';
+const BUILD_ID = '2026-11-17-icons-v23';
 
 /* ---------- 上色图标（结果页实物图的降级瓶形，与盘心标本共用同一批） ----------
-   磁盘上 24 枚上色版在 ./icon-specimen/svg/（合计 295.5KB / gzip 86.7KB，实测），
-   按需 fetch + 内存缓存，首屏零代价；file:// 下会被 CORS 拦，必须跑 server.js。
-   注意 24 = 磁盘文件数，**不等于**小类数：v2.3.0 起小类 22 个，
-   其中 21 个有映射、coffee-cocoa 走占位盘（见 ART_MISSING），
+   磁盘上 31 枚上色版在 ./icon-specimen/svg/（v2.3.0 图标步：24 → 31，
+   新增 6 枚大类图 + coffee-cocoa），按需 fetch + 内存缓存，首屏零代价；
+   file:// 下会被 CORS 拦，必须跑 server.js。
+   注意文件数**不等于**小类数：v2.3.0 起小类 22 个，22 个全有映射；
+   另有 6 枚是**大类**图（键名 `fam:<id>`），供"只选了大类"时盘心显示；
    另有 3 枚是被删小类留下的文件（citrus-citrus-floral / floral-green-floral /
-   amber-resinous）—— 保留待图标步处置，代码里已不再引用。
+   amber-resinous）—— 图标步定版：**文件保留、永不复用**，代码里零引用。
 
    为什么 v6 还留这一整套：香型轮盘退场了，但**结果页**的图标与瓶子插图
    仍走这条通路（pickArt → bottleArt），而 spec 5·续 把"图标精致/呼应/美观"
@@ -519,27 +520,39 @@ const BUILD_ID = '2026-11-17-taxonomy-v23';
    v6 只是不再用它来讲香调术语。 */
 const PLATE_SIZE = 24;
 const PLATE_LABEL = { citrus: '柑橘', floral: '花', woody: '木质', amber: '树脂', fresh: '叶', gourmand: '果实' };
-/* 小类 id → icon-specimen 里的上色稿文件名。
-   与 taxonomy 的小类**一一对应**（test-render 有一条断言守它）。
+/* 小类/大类 id → icon-specimen 里的上色稿文件名。
+   小类条目与小类**一一对应**（test-render 有一条断言守它）。
+   大类条目一律写成 `fam:<大类 id>`，前缀是刻意的：两个命名空间（大类 / 小类）
+   共用一张表时，`citrus` 既是家族 id 也接近小类 id，裸键一定会撞。
    taxonomy v2.3.0（2026-11-17，24→22 类）后：
      · 退役三格，映射一并删除：citrus-floral / green-floral / resinous。
        对应的 svg 文件**保留在磁盘上**（icon-specimen/svg/citrus-citrus-floral.svg
-       等三份），由图标步统一处置 —— 这里只断开代码引用，不动物件本身。
-     · 新增 coffee-cocoa。图标还没画，见 ART_MISSING：留空是**显式**的，
-       不是靠 map[subId] 取到 undefined 隐式表达（那样"忘了配"和"故意没有"
-       长得一模一样，测试也守不住）。 */
+       等三份），图标步定版为"留档不再引用"—— 这里只断开代码引用，不动物件本身。
+     · 新增 coffee-cocoa，图标已于图标步画好（gourmand-coffee-cocoa）。
+     · 单花（soliflore）的 zh 改为「栀子桂花」后，旧图画的是一朵粉色六瓣花，
+       名实不符 → 图标步按栀子 + 桂花重画（新旧对比见 .legs/icon-step-shots）。
+     · 三类异类文件名（green-citrus-a / oud-a / white-floral-a）统一成
+       `{大类}-{小类}` 形态，与其余 19 枚同一个规则。 */
 const ART_FILE = {
+  /* ---- 六个大类（fam: 前缀）---- */
+  'fam:citrus': 'citrus-family',
+  'fam:floral': 'floral-family',
+  'fam:woody': 'woody-family',
+  'fam:amber': 'amber-family',
+  'fam:fresh': 'fresh-family',
+  'fam:gourmand': 'gourmand-family',
+  /* ---- 22 个小类 ---- */
   'cologne': 'citrus-cologne',
-  'green-citrus': 'green-citrus-a',
+  'green-citrus': 'citrus-green-citrus',
   'aromatic-citrus': 'citrus-aromatic-citrus',
   'rose': 'floral-rose',
-  'white-floral': 'white-floral-a',
+  'white-floral': 'floral-white-floral',
   'fruity-floral': 'floral-fruity-floral',
   'powdery-floral': 'floral-powdery-floral',
   'soliflore': 'floral-soliflore',
   'sandalwood': 'woody-sandalwood',
   'vetiver': 'woody-vetiver',
-  'oud': 'oud-a',
+  'oud': 'woody-oud',
   'woody': 'woody-woody',
   'amber': 'amber-amber',
   'incense': 'amber-incense',
@@ -550,16 +563,22 @@ const ART_FILE = {
   'tea': 'fresh-tea',
   'vanilla-gourmand': 'gourmand-vanilla-gourmand',
   'fruity-gourmand': 'gourmand-fruity-gourmand',
-  'coffee-cocoa': '',   // 待画。空串 = 已知缺格，走 scentPlate 里的占位分支
+  'coffee-cocoa': 'gourmand-coffee-cocoa',
 };
 /* 已知缺图标的小类 → 占位盘上写什么字。
-   只收"承认没有"的这几格；不在这里的 id 缺映射仍然算 bug（测试会红）。 */
-const ART_MISSING = { 'coffee-cocoa': '咖啡' };
+   **v2.3.0 图标步起为空**：22 个小类全部有图。表留着是因为占位通路还要守
+   ——"以后新加一格却忘了配图"必须能走同一条显式登记，而不是靠
+   map[subId] 取到 undefined 那种隐式表达（那样"忘了配"和"故意没有"长得一样）。
+   空表本身就是一条断言：`test-render` 会红任何一个"画好了却还留在这"的格子。 */
+const ART_MISSING = {};
 const ART_CACHE = new Map();
 /* 已解析完成的内容单独记一份：artInner() 返回 Promise，微任务里替换图元会
    让"先画线稿、再换彩图"多出一帧 —— 实测用户能看见约 1s 的旧线稿闪现。
    ART_READY 让调用方在【同步】阶段就能判断彩图在不在。 */
 const ART_READY = new Map();
+/* 大类在这张表里的键前缀。写成函数而不是让调用方自己拼字符串：
+   拼错一处就是"盘心空着但没人报错"，而这类静默失败最难查。 */
+function famArtKey(famId) { return 'fam:' + String(famId || ''); }
 function artPath(subId) {
   const f = ART_FILE[subId];
   return f ? './icon-specimen/svg/' + f + '.svg' : '';
@@ -592,9 +611,11 @@ function artNs(inner, ns) {
   return inner.replace(/id="([^"]+)"/g, (m, x) => 'id="' + x + '-' + ns + '"')
     .replace(/url\(#([^)]+)\)/g, (m, x) => 'url(#' + x + '-' + ns + ')');
 }
-/* 彩图已就绪就直接返回可写进 <svg> 的内部内容；没就绪返回 ''。 */
-function artSvgReady(subId) {
-  const inner = ART_READY.get(artPath(subId));
+/* 彩图已就绪就直接返回可写进 <svg> 的内部内容；没就绪返回 ''。
+   入参是**表里的键**（小类 id 或 `fam:<大类 id>`），不是文件名 ——
+   大类的键带前缀，按 id 查不到，所以两个调用方都走这一个入口。 */
+function artSvgReadyOf(key) {
+  const inner = ART_READY.get(artPath(key));
   return inner ? artNs(inner, 'a' + (++artSeq)) : '';
 }
 /* 尽早开始预热：不等 taxonomy、不等 DOMContentLoaded。 */
@@ -689,8 +710,16 @@ const WHEEL = {
   hubPct: 30.6,
 };
 
-function scentPlate(sub) {
-  const entries = (sub.notes || [])
+/* 盘心那枚标本。两种用法：
+     scentPlate(sub)                  → 小类图（一张图编码"你选的是哪一格"）
+     scentPlate(null, { fam })        → 大类图（只选了大类、还没落到小类时）
+   两者共用同一条消费通路（ART_FILE → fetch → 同步 ready → 异步补写），
+   差别只在查表用的键与下面那行香材名的来源。 */
+function scentPlate(sub, opt) {
+  const fam = (opt && opt.fam) || null;
+  const key = fam ? famArtKey(fam.id) : (sub && sub.id);
+  const noteList = fam ? (fam.representativeNotes || []) : ((sub && sub.notes) || []);
+  const entries = noteList
     .map((en) => TAX.noteIndex.entries.find((x) => normNote(x.en) === normNote(en)))
     .filter(Boolean);
   if (!entries.length) return null;
@@ -707,7 +736,7 @@ function scentPlate(sub) {
     'aria-hidden': 'true', focusable: 'false',
   });
 
-  /* 还没有上色稿的小类（ART_MISSING 里登记的那几格，当前只有 coffee-cocoa）：
+  /* 还没有上色稿的格子（ART_MISSING 里登记的；v2.3.0 图标步后为空表）：
      放**中性占位** —— 纯色圆盘 + 一个字，不新画图形。
 
      为什么不借一个近亲的图标：盘心这枚图编码的是"你选的是哪一格"，
@@ -715,11 +744,12 @@ function scentPlate(sub) {
      为什么不干脆留白：留白会跟"图还没 fetch 到"（下面那个空同位 svg）长得一样，
      而那是几百毫秒就消失的瞬态，这是长期的稳态 —— 两者必须能区分。
      字取 ART_MISSING 里的短名（盘心 88px、圆盘直径 2×24 单位，两字放得下）。 */
-  const noArt = !artPath(sub.id);
+  const noArt = !artPath(key);
   if (noArt) {
     box.setAttribute('class', 'plate-svg is-art is-placeholder');
     box.appendChild(svgEl('circle', { cx: 12, cy: 12, r: 11, class: 'plate-disc' }));
-    const label = ART_MISSING[sub.id] || String(sub.zh || '').slice(0, 2);
+    const label = ART_MISSING[key] || ART_MISSING[sub && sub.id]
+      || String((sub && sub.zh) || (fam && fam.zh) || '').slice(0, 2);
     /* font-size 写成元素属性、不进样式表：这里的 9 是 **viewBox 单位**，
        88px 的盒子对 24 单位视框是 3.67 倍，实际落在屏上是 33px。
        写进 CSS 会被 test-contrast 的「任何文字不得小于 12px」当成 9 CSS px 抓住 ——
@@ -734,7 +764,7 @@ function scentPlate(sub) {
     box.appendChild(txt);
   }
 
-  const ready = noArt ? '' : artSvgReady(sub.id);
+  const ready = noArt ? '' : artSvgReadyOf(key);
   if (ready) box.innerHTML = ready;
   wrap.appendChild(box);
   wrap.appendChild(el('div', { class: 'plate-rule' }));
@@ -747,13 +777,14 @@ function scentPlate(sub) {
   // 图形本身是装饰，语义交给屏幕阅读器读这句话，避免读出「一张图」却没有内容
   wrap.setAttribute('role', 'img');
   wrap.setAttribute('aria-label',
-    '代表香材：' + entries.map((e) => e.zh + '（' + (PLATE_LABEL[e.family] || e.family) + '）').join('、'));
+    (fam ? '大类代表香材：' : '代表香材：')
+    + entries.map((e) => e.zh + '（' + (PLATE_LABEL[e.family] || e.family) + '）').join('、'));
 
   /* 当时还没到（首次进入、预热未完成）：等它到了再写进去。
      没有线稿可保留，宁可空一小会儿，也不画一个旧的再换掉。
      占位那格不挂这条通路 —— 它等的那个文件不存在，挂上去只会多一个空 Promise。 */
   if (!ready && !noArt) {
-    artInner(sub.id).then((inner) => {
+    artInner(key).then((inner) => {
       if (!inner) return;
       box.innerHTML = artNs(inner, 'a' + (++artSeq));
     });
@@ -1513,10 +1544,18 @@ function buildWheel(cfg) {
 
     /* ⑤ 图标常态与选中态要能区分开。
        常态（预览）画灰线稿、不写香材名；落到具体项后线稿转蓝、名字出现。
-       原来只在"已选定"时才画，等于常态没有图标可比，也就无所谓区分。 */
+       原来只在"已选定"时才画，等于常态没有图标可比，也就无所谓区分。
+
+       v2.3.0 图标步起多一档：**只选了大类、还没落到小类**时也画，
+       画的是那一枚大类图（ART_FILE 的 `fam:<id>`）。为什么不等到小类才画：
+       用户在盘上停在大类这一步就已经"看见"了自己的选择，盘心空着会读成
+       "还没生效"；而大类图与小类图是两张不同的图，读者从图形本身就能看出
+       自己现在在哪一层 —— 这一层信息原先只有那行 kicker 文字在承担。 */
     hubGlyph.innerHTML = '';
-    hub.classList.toggle('has-glyph', !!focusSub);
+    const hubFam = !focusSub && showFam && selFamily ? showFam : null;
+    hub.classList.toggle('has-glyph', !!(focusSub || hubFam));
     if (focusSub) { const plate = scentPlate(focusSub); if (plate) hubGlyph.appendChild(plate); }
+    else if (hubFam) { const plate = scentPlate(null, { fam: hubFam }); if (plate) hubGlyph.appendChild(plate); }
 
     // 只选了大类时给快捷出口；已落到小项就没必要再催一次
     const canSkip = !!(selFamily && !selSub);
