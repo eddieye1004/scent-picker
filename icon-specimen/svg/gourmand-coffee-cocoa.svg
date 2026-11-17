@@ -1,23 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="咖啡可可"><title>咖啡可可</title><defs>
-  <linearGradient id="ccCup" x1="0.12" y1="0" x2="0.88" y2="1"><stop offset="0" stop-color="#FFFDF4"/><stop offset="0.5" stop-color="#F4E2BC"/><stop offset="1" stop-color="#D6B374"/></linearGradient>
-  <radialGradient id="ccCoffee" cx="0.38" cy="0.28" r="0.84"><stop offset="0" stop-color="#8A5C2A"/><stop offset="0.45" stop-color="#5E3A16"/><stop offset="1" stop-color="#2A1608"/></radialGradient>
-  <linearGradient id="ccSaucer" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#FFF8E4"/><stop offset="0.6" stop-color="#E0C08A"/><stop offset="1" stop-color="#B98F52"/></linearGradient>
-  <linearGradient id="ccBean" x1="0.15" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#A5713A"/><stop offset="0.5" stop-color="#6E4322"/><stop offset="1" stop-color="#3E2410"/></linearGradient>
+  <linearGradient id="ccCup" x1="0.14" y1="0" x2="0.86" y2="1"><stop offset="0" stop-color="#FFFDF4"/><stop offset="0.46" stop-color="#F4E2BC"/><stop offset="1" stop-color="#E0C08A"/></linearGradient>
+  <radialGradient id="ccCoffee" cx="0.38" cy="0.28" r="0.86"><stop offset="0" stop-color="#5E3A16"/><stop offset="0.5" stop-color="#4A2A10"/><stop offset="1" stop-color="#4E3210"/></radialGradient>
+  <linearGradient id="ccSaucer" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#FFFDF4"/><stop offset="0.55" stop-color="#E0C08A"/><stop offset="1" stop-color="#B98F52"/></linearGradient>
 </defs>
-  <path d="M 7.55 9.35 L 8.55 16.55 C 8.65 17.36 9.32 17.94 10.14 17.94 L 13.66 17.94 C 14.48 17.94 15.15 17.36 15.25 16.55 L 16.25 9.35 Z" fill="url(#ccCup)" stroke="#8A5C2A" stroke-width="0.88" stroke-linejoin="round"/>
-  <path d="M 16.1 10.55 C 18.0 10.22 19.12 11.3 18.88 12.82 C 18.64 14.32 17.06 14.95 15.6 14.35" fill="none" stroke="#8A5C2A" stroke-width="0.8"/>
-  <path d="M 16.32 11.55 C 17.42 11.42 17.98 12.0 17.85 12.8 C 17.72 13.58 16.95 13.86 16.26 13.6" fill="none" stroke="#F4E2BC" stroke-width="0.38" opacity="0.8"/>
-  <ellipse cx="11.9" cy="9.35" rx="4.35" ry="0.96" fill="url(#ccCoffee)" stroke="#8A5C2A" stroke-width="0.62"/>
-  <ellipse cx="11.9" cy="9.3" rx="3.5" ry="0.66" fill="#3E2410" stroke="none" opacity="0.5"/>
-  <path d="M 9.28 9.82 C 9.8 10.1 10.52 10.18 11.16 10.14" fill="none" stroke="#C88A46" stroke-width="0.38" opacity="0.5"/>
-  <ellipse cx="11.87" cy="18.4" rx="7.05" ry="1.52" fill="url(#ccSaucer)" stroke="#8A5C2A" stroke-width="0.72"/>
-  <ellipse cx="11.87" cy="18.0" rx="3.9" ry="0.7" fill="#C9A46A" stroke="none" opacity="0.5"/>
-  <path d="M 9.55 7.45 C 8.75 6.6 9.55 6.05 9.02 5.18" fill="none" stroke="#B07C42" stroke-width="0.5" opacity="0.6"/>
-  <path d="M 11.95 7.05 C 11.12 6.15 11.98 5.55 11.45 4.65" fill="none" stroke="#B07C42" stroke-width="0.5" opacity="0.5"/>
-  <path d="M 14.28 7.52 C 13.55 6.75 14.25 6.15 13.85 5.42" fill="none" stroke="#B07C42" stroke-width="0.44" opacity="0.4"/>
-  <ellipse cx="5.95" cy="16.62" rx="2.05" ry="1.42" transform="rotate(-14 5.95 16.62)" fill="url(#ccBean)" stroke="#2E1A08" stroke-width="0.56"/>
-  <path d="M 4.28 16.38 C 5.42 16.02 6.62 16.42 7.62 17.0" fill="none" stroke="#3E2410" stroke-width="0.42"/>
-  <path d="M 4.62 16.62 C 5.6 16.3 6.55 16.55 7.32 16.98" fill="none" stroke="#C9A46A" stroke-width="0.22" opacity="0.55"/>
-  <circle cx="13.9" cy="16.95" r="0.24" fill="#C9A46A" opacity="0.55"/>
-  <circle cx="9.75" cy="17.05" r="0.2" fill="#C9A46A" opacity="0.45"/>
+  <path d="M 14.95 10.1 C 18.5 9.85 19.6 11.4 19.5 12.95 C 19.4 14.6 18.05 15.6 14.95 15.65 L 14.95 14.4 C 17.6 14.35 18.3 13.9 18.3 12.95 C 18.3 11.95 17.55 11.4 14.95 11.35 Z" fill="url(#ccCup)" stroke="#8A5C2A" stroke-width="0.72"/>
+  <path d="M 7.5 9.3 C 7.68 12.8 8.3 15.65 9.05 17.15 C 9.44 17.94 10.38 18.34 11.72 18.34 C 13.06 18.34 14.0 17.94 14.39 17.15 C 15.14 15.65 15.76 12.8 15.94 9.3 Z" fill="url(#ccCup)" stroke="#8A5C2A" stroke-width="0.88"/>
+  <path d="M 8.38 10.4 C 8.54 13.25 9.03 15.7 9.62 16.95" fill="none" stroke="#FFFDF4" stroke-width="0.56" opacity="0.82"/>
+  <path d="M 15.02 10.6 C 14.86 13.4 14.4 15.7 13.85 16.9" fill="none" stroke="#B98F52" stroke-width="0.28" opacity="0.5"/>
+  <ellipse cx="11.72" cy="9.3" rx="4.22" ry="1.18" fill="url(#ccCup)" stroke="#8A5C2A" stroke-width="0.78"/>
+  <ellipse cx="11.72" cy="9.52" rx="3.46" ry="0.82" fill="url(#ccCoffee)"/>
+  <path d="M 9.15 9.68 C 9.9 9.94 10.78 10.05 11.6 10.02" fill="none" stroke="#B07C42" stroke-width="0.26" opacity="0.6"/>
+  <ellipse cx="11.72" cy="19.15" rx="7.6" ry="1.5" fill="url(#ccSaucer)" stroke="#8A5C2A" stroke-width="0.72"/>
+  <ellipse cx="11.72" cy="18.88" rx="4.55" ry="0.86" fill="#F4E2BC" stroke="none" opacity="0.75"/>
+  <path d="M 9.55 7.75 C 8.95 6.9 10.15 6.3 9.55 5.35" fill="none" stroke="#8A5C2A" stroke-width="0.64" opacity="0.66"/>
+  <path d="M 13.1 7.75 C 12.5 6.9 13.7 6.3 13.1 5.35" fill="none" stroke="#8A5C2A" stroke-width="0.6" opacity="0.54"/>
 </svg>
