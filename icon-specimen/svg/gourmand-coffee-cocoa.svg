@@ -4,19 +4,20 @@
   <linearGradient id="ccSaucer" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#FFF8E4"/><stop offset="0.6" stop-color="#E0C08A"/><stop offset="1" stop-color="#B98F52"/></linearGradient>
   <linearGradient id="ccBean" x1="0.15" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#A5713A"/><stop offset="0.5" stop-color="#6E4322"/><stop offset="1" stop-color="#3E2410"/></linearGradient>
 </defs>
-  <ellipse cx="11.87" cy="18.4" rx="6.55" ry="1.5" fill="url(#ccSaucer)" stroke="#8A5C2A" stroke-width="0.8"/>
-  <ellipse cx="11.87" cy="18.02" rx="3.9" ry="0.68" fill="#C9A46A" stroke="none" opacity="0.42"/>
-  <path d="M 16.02 10.45 C 18.0 10.1 19.1 11.25 18.86 12.8 C 18.62 14.3 17.05 14.9 15.55 14.28" fill="none" stroke="#8A5C2A" stroke-width="0.78"/>
-  <path d="M 7.55 9.35 L 8.55 16.55 C 8.65 17.36 9.32 17.94 10.14 17.94 L 13.66 17.94 C 14.48 17.94 15.15 17.36 15.25 16.55 L 16.25 9.35 Z" fill="url(#ccCup)" stroke="#8A5C2A" stroke-width="0.84" stroke-linejoin="round"/>
-  <ellipse cx="11.9" cy="9.35" rx="4.35" ry="0.96" fill="url(#ccCoffee)" stroke="#8A5C2A" stroke-width="0.6"/>
-  <ellipse cx="11.9" cy="9.28" rx="3.42" ry="0.62" fill="#5E3A16" stroke="none" opacity="0.38"/>
-  <path d="M 9.28 9.84 C 9.8 10.1 10.52 10.18 11.16 10.14" fill="none" stroke="#C88A46" stroke-width="0.36" opacity="0.48"/>
-  <path d="M 9.55 7.45 C 8.75 6.6 9.55 6.05 9.02 5.18" fill="none" stroke="#B07C42" stroke-width="0.46" opacity="0.55"/>
-  <path d="M 12.0 7.05 C 11.2 6.15 12.05 5.55 11.5 4.65" fill="none" stroke="#B07C42" stroke-width="0.46" opacity="0.48"/>
-  <path d="M 14.3 7.55 C 13.6 6.78 14.3 6.18 13.9 5.45" fill="none" stroke="#B07C42" stroke-width="0.46" opacity="0.42"/>
-  <ellipse cx="5.95" cy="16.62" rx="2.05" ry="1.42" transform="rotate(-14 5.95 16.62)" fill="url(#ccBean)" stroke="#2E1A08" stroke-width="0.54"/>
-  <path d="M 4.55 16.42 C 5.55 16.05 6.55 16.45 7.35 16.92" fill="none" stroke="#3E2410" stroke-width="0.42"/>
-  <path d="M 4.85 16.6 C 5.7 16.3 6.5 16.55 7.1 16.9" fill="none" stroke="#C9A46A" stroke-width="0.22" opacity="0.5"/>
-  <circle cx="10.05" cy="9.32" r="0.2" fill="#C9A46A" opacity="0.42"/>
-  <circle cx="13.6" cy="9.2" r="0.18" fill="#C9A46A" opacity="0.36"/>
+  <path d="M 7.55 9.35 L 8.55 16.55 C 8.62 17.36 9.32 17.94 10.14 17.94 L 13.66 17.94 C 14.48 17.94 15.18 17.36 15.25 16.55 L 16.25 9.35 Z" fill="url(#ccCup)" stroke="#8A5C2A" stroke-width="0.88" stroke-linejoin="round"/>
+  <path d="M 16.08 10.55 C 17.99 10.22 19.11 11.3 18.87 12.82 C 18.63 14.32 17.05 14.95 15.58 14.35" fill="none" stroke="#8A5C2A" stroke-width="0.8"/>
+  <path d="M 16.36 11.55 C 17.45 11.42 18.0 12.0 17.87 12.8 C 17.74 13.58 16.97 13.86 16.29 13.6" fill="none" stroke="#F4E2BC" stroke-width="0.36" opacity="0.72"/>
+  <ellipse cx="11.9" cy="9.35" rx="4.35" ry="0.96" fill="url(#ccCoffee)" stroke="#8A5C2A" stroke-width="0.62"/>
+  <ellipse cx="11.9" cy="9.3" rx="3.5" ry="0.66" fill="#3E2410" stroke="none" opacity="0.5"/>
+  <path d="M 9.28 9.82 C 9.8 10.1 10.52 10.18 11.16 10.14" fill="none" stroke="#C88A46" stroke-width="0.38" opacity="0.5"/>
+  <ellipse cx="11.87" cy="18.4" rx="7.05" ry="1.52" fill="url(#ccSaucer)" stroke="#8A5C2A" stroke-width="0.72"/>
+  <ellipse cx="11.87" cy="18.0" rx="3.9" ry="0.7" fill="#C9A46A" stroke="none" opacity="0.5"/>
+  <path d="M 9.55 7.45 C 8.75 6.6 9.55 6.05 9.02 5.18" fill="none" stroke="#B07C42" stroke-width="0.48" opacity="0.58"/>
+  <path d="M 11.95 7.05 C 11.12 6.15 11.98 5.55 11.45 4.65" fill="none" stroke="#B07C42" stroke-width="0.48" opacity="0.52"/>
+  <path d="M 14.28 7.52 C 13.55 6.75 14.25 6.15 13.85 5.42" fill="none" stroke="#B07C42" stroke-width="0.48" opacity="0.44"/>
+  <ellipse cx="5.95" cy="16.62" rx="2.05" ry="1.42" transform="rotate(-14 5.95 16.62)" fill="url(#ccBean)" stroke="#2E1A08" stroke-width="0.56"/>
+  <path d="M 4.42 16.4 C 5.46 16.06 6.58 16.42 7.5 16.96" fill="none" stroke="#3E2410" stroke-width="0.42"/>
+  <path d="M 4.72 16.64 C 5.62 16.34 6.52 16.56 7.24 16.94" fill="none" stroke="#C9A46A" stroke-width="0.22" opacity="0.55"/>
+  <circle cx="13.9" cy="16.95" r="0.24" fill="#C9A46A" opacity="0.55"/>
+  <circle cx="9.75" cy="17.05" r="0.2" fill="#C9A46A" opacity="0.45"/>
 </svg>
