@@ -1066,13 +1066,68 @@ function buildWheel(cfg) {
       glintRaf = requestAnimationFrame(flushGlint);
     }
   };
+  /* ---- 轻按沉降：按下时整块盘往下沉，松开/落定平滑回位 ----
+     （2026-11-18 去回弹，Eddie 拍板。上一版是 520ms 带过冲的
+     `glassSettle`，点一下盘会先被"顶"起来 2.2% 再掉回去 —— 实物里
+     没有"按下去自己长回来"这回事，所以整条过冲段删掉。）
+
+     类挂在 `root`（.wheel）上，不挂在瓦片上：瓦片自己的 `.is-pressing`
+     由弧段那套逻辑管（缩到 .93 + 描边收紧，那是"这一段被按到"），
+     而这一层是"盘这个物件被按到"—— 两个层级各说各的事，叠在一起
+     才是完整的按压反馈，而不是把两个量都堆到同一个元素上。
+
+     `pointerdown` 挂在 root 上而不是逐个瓦片：大圈扇区、中圈弧段、
+     标签按钮、盘心两颗胶囊都是它的后代，一次能覆盖全部入口；
+     键盘 Enter 走 `keyPress` 那条路，也补一次（见下）。
+
+     这里**不写 pointerdown 的 preventDefault**；但必须用**捕获阶段**
+     （第三个参数 true），理由实测过：中圈弧段标签的 `pointerdown`
+     自己带 `ev.stopPropagation()`（见下面 `btn.addEventListener
+     ('pointerdown', …)`），冒泡到这里已经被掐断 —— 探针实测第二轮
+     ty 恒 0，盘在该沉的时候纹丝不动。捕获阶段从 window 往下走，
+     先于目标自己的监听器执行，stopPropagation 拦不到它（它只能拦
+     后续的冒泡段）。下沉是纯观察，不改变任何既有判定，捕获不夺权。 */
+  let pressTimer = 0;
+  const diskPress = () => {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = 0; }
+    root.classList.add('is-pressing');
+  };
+  const diskRelease = () => {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = 0; }
+    root.classList.remove('is-pressing');
+  };
+  /* 按下后指针移出圆盘（没松手就划走了）也要复位 —— 否则盘会一直
+     停在下沉态，直到下一次点别处才弹回。 */
+  root.addEventListener('pointerdown', diskPress, true);
+  root.addEventListener('pointerup', diskRelease, true);
+  root.addEventListener('pointercancel', diskRelease, true);
+  root.addEventListener('pointerleave', diskRelease, true);
+  if (typeof window !== 'undefined') {
+    /* 兜底与弧段的 releasePress 同源：指针在盘外抬起、窗口失焦。
+       这两条用冒泡即可（window 在最外层，不需要先于任何人）。 */
+    window.addEventListener('pointerup', diskRelease);
+    window.addEventListener('pointercancel', diskRelease);
+    window.addEventListener('blur', diskRelease);
+  }
+  /* 键盘路径：没有 pointer 事件，Enter / Space 触发 click 前挂一次，
+     220ms 后摘 —— 与回位时长（180ms）留一点余量，键盘用户也能看到
+     同一次沉降，而不是"键盘点了没反应"。 */
+  const diskKeyPress = (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    diskPress();
+    if (pressTimer) clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => { pressTimer = 0; diskRelease(); }, 220);
+  };
+  root.addEventListener('keydown', diskKeyPress, true);
+
   root.addEventListener('pointermove', onGlintMove);
   root.addEventListener('pointerleave', onGlintLeave);
   root.addEventListener('pointercancel', onGlintLeave);
 
   /* ---- 点击：涟漪从落点扩散 ----
-     与「弹性落定」（CSS 的 glassSettle）配套：涟漪给起点，落定给终点，
-     中间 520ms 是连续位移。二值切换没有起点，所以这两件事必须成对出现。 */
+     与「轻按沉降」（CSS 的 `.wheel.is-pressing` + `glassSettle`）配套：
+     涟漪给起点，沉降给"这一下被接住了"的力反馈。两者都不越过终点 ——
+     涟漪只淡出、不回缩；沉降只从下方贴合，不回弹。 */
   let rippleTimer = 0;
   const splash = (ev) => {
     if (typeof root.getBoundingClientRect !== 'function') return;

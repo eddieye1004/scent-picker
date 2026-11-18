@@ -736,12 +736,25 @@
 /* ============================================================
    Block 11 · 液态玻璃交互层（B 段）
    ------------------------------------------------------------
-   只加"反馈"，不动选择机制：指针移动 → 高光跟着流动；按下/选中 →
-   弹性落定（一次带过冲的位移，不是 0→1 的二值切换）。
+   只加"反馈"，不动选择机制：指针移动 → 高光跟着流动；按下 → 盘体
+   轻按沉降，松开平滑回位（ease-out，全程单调，无过冲）。
    为什么用 radial-gradient 而不是 filter: blur()：这层在盘上随指针
    每帧改两个自定义属性，blur 会让整块盘每帧重绘（实测 520px 盘上
    掉到 30fps 以下）；渐变只改 paint，不动布局也不动合成层。
-   降级：prefers-reduced-motion 下高光常驻、涟漪与落定全部关掉。
+   降级：prefers-reduced-motion 下高光常驻、涟漪与沉降全部关掉。
+
+   ---- 2026-11-18：去回弹，改轻按沉降（Eddie 拍板）----
+   上一版这里是「弹性落定」：`glassSettle` 520ms，曲线
+   `cubic-bezier(.22, 1.4, .36, 1)`，帧 0 .955 → 52% **1.022** → 100% 1。
+   看着是"先压后弹"，实际读出来是点一下盘就被"顶"了一下 —— 过冲那段
+   （1.022 > 1）在实物里不存在，任何真实按键都不会按下去之后自己长回来。
+   现在的规则只有两条，都不许越过终点：
+     ① 按下 → 盘体下沉 2px + scale(.995)，80ms 内到位（`--ease-press`，
+        y 控制点 0→1，单调）；
+     ② 松开/落定 → 回 0 / 1，180ms `--ease-out`（`cubic-bezier(.16,1,.3,1)`，
+        y 控制点双 1，单调逼近 1，**在数学上不可能超过 1**）。
+   两条曲线的控制点 y 全在 [0,1] 内，整条路径不可能出现大于目标值的反弹；
+   瓦片层的 `arcSettle` / 盘心的 `hubSettle` 同样从下方贴合（.99 / .985 → 1）。
 
    高光定位：--gx/--gy 是**相对盘面**的百分比，由 app.js 的 pointermove
    写进来。写百分比而不是 px，是因为盘径在四个断点上从 312 变到 520。
@@ -816,27 +829,67 @@
   100% { opacity: 0; transform: scale(11); border-color: var(--spec-rim); }
 }
 
-/* 弹性落定：选中那一刻，被选中的那块瓦片先压后弹（一次过冲），
-   盘心同时做一次 0.985 → 1 的回收。两者都只动 transform，
-   所以是合成层动画，不会带着文字重排。 */
+/* ---- 轻按沉降：盘体（不在瓦片上）----
+   按下时整块盘往下沉 2px，叠一层 scale(.995)（在 504px 盘上是 1.26px 的
+   半径收缩）。松开/落定回位。
+
+   为什么是 2px 而不是 6–8px：盘底 .wheel 的边是一条 1px 实线
+   （`0 0 0 1px var(--line)`），位移超过 4px 时盘沿会明显离开它自己的
+   落影，盘读成"被拎起来再放下去"，反而不像按键。2px 是任务书定的上限，
+   也是"看得出移动、又没脱离落影"的量。
+   参数写成自定义属性，改一处即可；`.995` 是上限（不许更小，
+   再小就与瓦片自己的 .93 抢注意力，两层缩放叠起来像整盘抖）。
+
+   注意 translateY 与 scale 在**盘顶**处方向相反：
+   顶沿净位移 = +2 − 504×.005/2 ≈ +0.74px（几乎看不出来），
+   底沿净位移 = +2 + 1.26 ≈ +3.26px（明显）。
+   所以看沉降要看下沿；这也正是量具（px-diff）量下沿的原因。
+
+   曲线：两条都**单调**，y 控制点全在 [0,1]：
+     按下 80ms  `--ease-press` cubic-bezier(.3, 0, .2, 1)  → 快起慢收，抓"立刻回应"
+     回位 180ms `--ease-out`  cubic-bezier(.16, 1, .3, 1)  → 近指数衰减逼近 1
+   cubic-bezier 的 y 是四个控制点值（0, y1, y2, 1）的 Bernstein 组合，
+   四个值都在 [0,1] 且非降时，整条曲线严格落在 [0,1] 且单调 ——
+   数学上不可能越过终点，也就不可能出现回弹。 */
+#app[data-step="family"] .wheel {
+  --press-sink: 2px;
+  --press-scale: .995;
+  /* 必须把 transform 并入这一条：底层 `.wheel` 的 transition 只写了
+     background / box-shadow，不补的话按下是硬跳（0ms）。 */
+  transition: transform 180ms var(--ease-out),
+              background var(--t-move) var(--ease-std),
+              box-shadow var(--t-move) var(--ease-std);
+  /* 刻意不写 will-change：`.wheel` 是常驻元素，写在这里等于整块盘从首帧
+     起永久独占合成层（D60 的结论，20-wheel-core 的 .disc-core 同样处理）。
+     一次 80ms 的位移，浏览器自己会临时提升。 */
+}
+#app[data-step="family"] .wheel.is-pressing {
+  transform: translateY(var(--press-sink)) scale(var(--press-scale));
+  transition: transform 80ms var(--ease-press),
+              background var(--t-move) var(--ease-std),
+              box-shadow var(--t-move) var(--ease-std);
+}
+
+/* 瓦片落定：从**下方**贴合到 1，全程单调。原来这里是
+   .955 → 1.022（过冲）→ .996 → 1，那 2.2% 的过冲就是 Eddie 看到的"顶"。
+   现在只留 "由略小长到正尺寸"，无中间峰。
+   用 keyframes 而不是 transition：`.sub-g.is-on` 是常驻类，类挂上时
+   没有"前一个值"可插值，必须靠动画给一次起点。 */
 #app[data-step="family"] .wheel .sub-g.is-on .sub-arc {
   transform-box: view-box;
   transform-origin: 240px 240px;
-  animation: glassSettle 520ms cubic-bezier(.22, 1.4, .36, 1) both;
+  animation: glassSettle 180ms var(--ease-out) both;
 }
 @keyframes glassSettle {
-  0%   { transform: scale(.955); }
-  52%  { transform: scale(1.022); }
-  78%  { transform: scale(.996); }
-  100% { transform: scale(1); }
+  from { transform: scale(.99); }
+  to   { transform: scale(1); }
 }
 #app[data-step="family"] .wheel .disc-hub.is-swap {
-  animation: hubSettle 460ms cubic-bezier(.22, 1.35, .36, 1) both;
+  animation: hubSettle 220ms var(--ease-out) both;
 }
 @keyframes hubSettle {
-  0%   { transform: translate(-50%, -50%) scale(.972); }
-  60%  { transform: translate(-50%, -50%) scale(1.006); }
-  100% { transform: translate(-50%, -50%) scale(1); }
+  from { transform: translate(-50%, -50%) scale(.985); }
+  to   { transform: translate(-50%, -50%) scale(1); }
 }
 
 /* 窄屏不显示盘心那颗主按钮（必须在 Block 10 之后写，见文件末尾的注）。
@@ -868,6 +921,14 @@
   }
   #app[data-step="family"] .wheel .disc-hub.is-swap {
     animation: none;
+  }
+  /* 沉降整条拿掉：位移与缩放都不做，按下只留颜色/描边那一路信号
+     （瓦片自己的 .is-pressing 描边在 20-wheel-core，不受本块影响）。 */
+  #app[data-step="family"] .wheel,
+  #app[data-step="family"] .wheel.is-pressing {
+    transform: none;
+    transition: background var(--t-move) var(--ease-std),
+                box-shadow var(--t-move) var(--ease-std);
   }
   #app[data-step="family"] .progress i,
   #app[data-step="family"] .actions .btn:not(.ghost) {

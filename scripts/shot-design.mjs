@@ -36,6 +36,28 @@ const FFPROBE = 'C:/Users/16256/bin/ffprobe.exe';
 const URL_ = process.env.SHOT_URL || 'http://127.0.0.1:8080/';
 const W = 1440;
 const H = 900;
+/* ---- 2026-11-18：录屏用 2× 设备像素 ----
+   起因（去回弹改轻按沉降那一腿）：下沉量是 2 CSS px + scale(.995)
+   （504px 盘上半径收 1.26px）。1× 下这 2px 在 25fps / VP9 crf34 的
+   录屏里会被量化掉 —— 实测 PNG 序列里盘沿的位移只剩下个位数灰度级的
+   抖动（和纸面噪声同量级），"轻按沉降"在录屏上等于没发生。
+   2× 之后同样的 2 CSS px 变成 4 设备像素，肉眼与像素判据都能读出来。
+
+   **为什么 2× 只能写在启动参数里**（这一条是实测出来的，别再改回去）：
+   `Page.startScreencast` 的帧分辨率跟的是**启动时的设备像素比**，不跟
+   `Emulation.setDeviceMetricsOverride` 的 deviceScaleFactor。实测三组：
+     ① launch=1 + Emulation DSF=2 → screencast 帧仍是 1440×900
+        （同一时序下 Page.captureScreenshot 却是 2880×1800，所以"看起来
+        override 生效了"，实际录屏那一半没生效 —— 假绿）
+     ② launch=2 + window 2880,1800 → 帧 2880×1722，但 innerWidth 变 2856，
+        布局与断点全变，盘从 504 变 520（不是同一个页面了）
+     ③ launch=2 + window 1440,900 + Emulation DSF=2 → 帧 2880×1800、
+        innerWidth 仍 1440、盘仍 504 ← 采用这一组
+   静态验收图那一段显式压回 DSF=1（见下），所以 04–07 四张 PNG 的
+   尺寸与旧版一致，只有录屏变成 2×。 */
+const DSF = 2;
+const PW = W * DSF;
+const PH = H * DSF;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 fs.mkdirSync(OUT, { recursive: true });
@@ -44,7 +66,9 @@ const proc = spawn(EDGE, [
   '--headless=new', `--remote-debugging-port=${PORT}`,
   `--user-data-dir=C:/Users/16256/work/.legs/edge-shot-design-${Date.now()}/`,
   '--no-first-run', '--disable-gpu', '--hide-scrollbars',
-  '--force-device-scale-factor=1',
+  /* 启动就按 2×：screencast 的帧分辨率只认启动时的 DPR（见上面 DSF 那段）。
+     window 仍给 W×H 的 CSS 尺寸，所以布局、断点、盘的 CSS 宽度都不变。 */
+  `--force-device-scale-factor=${DSF}`,
   `--window-size=${W},${H}`, 'about:blank',
 ], { stdio: 'ignore' });
 
@@ -287,11 +311,29 @@ const encodeFrames = () => {
      而这两者是同一件事的新旧写法 —— 老写法会让整条命令直接失败、
      帧序列留在地上、webm 一个字节都没有（实测踩过）。 */
   const list = path.join(FRAMES, 'list.txt');
-  const DUR = 0.04;   // 1/25 s
+  /* 逐帧真实时长，不再用固定的 1/25 s。
+     为什么必须改成真实时长（2× 之后才暴露出来的坑）：帧间隔在 2× 下
+     不再等于 1/25 —— 一帧 2880×1800 的 PNG 约 1MB，落盘要时间。原先按
+     固定 0.04s 计时，16.8 秒的真实交互被压成 5.6 秒、整段快放近 3 倍，
+     沉降那 80ms 在片子里只剩 30ms（实测：帧数 139、durationSec 5.6，
+     而同样的动线在 1× 下是 418 帧 / 16.76s —— 帧被落盘拖慢吞掉了）。
+     现在每帧用相邻帧的落盘时间戳之差，时长随真实节奏走。 */
+  const timesPath = path.join(FRAMES, 'times.json');
+  const times = fs.existsSync(timesPath) ? JSON.parse(fs.readFileSync(timesPath, 'utf8')) : [];
+  const tOf = new Map(times.map((x) => [x.f, x.t]));
+  const durOf = (f, i) => {
+    const a = tOf.get(f);
+    const b = tOf.get(frames[i + 1]);
+    let d = (typeof a === 'number' && typeof b === 'number') ? (b - a) / 1000 : 1 / 25;
+    if (!(d > 0)) d = 1 / 25;
+    /* 夹到 [10ms, 200ms]：低于 10ms 会让 concat 丢帧，高于 200ms 会把
+       一次卡顿放大成明显的定格。 */
+    return Math.min(0.2, Math.max(0.01, d));
+  };
   const lines = [];
-  frames.forEach((f) => {
+  frames.forEach((f, i) => {
     lines.push(`file '${path.join(FRAMES, f).replace(/\\/g, '/')}'`);
-    lines.push(`duration ${DUR}`);
+    lines.push(`duration ${durOf(f, i).toFixed(4)}`);
   });
   lines.push(`file '${path.join(FRAMES, frames[frames.length - 1]).replace(/\\/g, '/')}'`);
   fs.writeFileSync(list, lines.join('\n'));
@@ -299,7 +341,11 @@ const encodeFrames = () => {
     '-y', '-hide_banner', '-loglevel', 'error',
     '-f', 'concat', '-safe', '0', '-i', list,
     '-fps_mode', 'cfr', '-r', '25',
-    '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '34', '-pix_fmt', 'yuv420p',
+    /* crf 24（原 34）：这一版要让人在录屏里看清 2px 的沉降，
+       crf34 会把 1–2px 的边缘位移量化掉（实测：同一段动线在 crf34 下
+       盘沿位移被抹成 0.03px 级噪声，在 crf24 下保留）。代价是文件从
+       ~500KB 涨到 ~1MB 量级 —— 这是验收片，不是分发片，值得。 */
+    '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '24', '-pix_fmt', 'yuv420p',
     '-an', out,
   ], { encoding: 'utf8' });
   return {
@@ -323,16 +369,40 @@ if (process.argv.includes('--encode-only')) {
 if (wantRecord) {
   fs.rmSync(FRAMES, { recursive: true, force: true });
   fs.mkdirSync(FRAMES, { recursive: true });
+  /* 只在这一段把设备像素比提到 2：静态验收图仍按 1× 出（它们的判据是
+     几何与对比度，不需要额外分辨率，2× 只会让 PNG 大四倍）。
+     **必须在 nav() 之前设**：视口变化会触发重排，设晚了第一段动线会
+     带着旧视口跑。 */
+  await send('Emulation.setDeviceMetricsOverride',
+    { width: W, height: H, deviceScaleFactor: DSF, mobile: false });
   await nav();
   let seq = 0;
+  /* 帧的落盘改成**异步**并记录时间戳。
+     原先在帧回调里用 writeFileSync 写 1MB 的 PNG：这个回调跑在 WebSocket
+     的 message 事件里，同步写会把事件循环按住，screencastFrameAck 因此
+     迟到，浏览器以为消费端跟不上就少推帧 —— 实测 1× 是 418 帧，2× 只剩
+     139 帧（不是分辨率的问题，是写盘把 ack 拖住了）。
+     现在只把 buffer 排进队列，写盘交给 fs.writeFile 回调；时间戳用
+     收到帧的那一刻（p.metadata.timestamp 是本机单调毫秒，有就用它，
+     没有就退回 Date.now()），供 encodeFrames 算逐帧真实时长。 */
+  const times = [];
+  /* CDP 的 `metadata.timestamp` 是 TimeSinceEpoch（**秒**，浮点），不是毫秒。
+     归一成毫秒；字段缺失或数值异常时退回 Date.now()。归一放在这里，
+     encodeFrames 只管算差值，不用再猜单位。 */
+  const toMs = (v) => {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return Date.now();
+    if (v > 1e12) return v;          // 已经是毫秒
+    if (v > 1e9) return v * 1000;    // epoch 秒
+    return Date.now();               // 单调时钟或异常值，不可跨帧比较
+  };
   onFrame = (p) => {
-    /* 帧名带序号，编码时按名字排（screencast 的帧就是按推出的顺序来的） */
-    fs.writeFileSync(path.join(FRAMES, `f${String(seq++).padStart(5, '0')}.png`),
-      Buffer.from(p.data, 'base64'));
+    const name = `f${String(seq++).padStart(5, '0')}.png`;
+    times.push({ f: name, t: toMs(p.metadata?.timestamp) });
+    fs.writeFile(path.join(FRAMES, name), Buffer.from(p.data, 'base64'), () => {});
     send('Page.screencastFrameAck', { sessionId: p.sessionId }).catch(() => {});
   };
   await send('Page.startScreencast', {
-    format: 'png', maxWidth: W, maxHeight: H, everyNthFrame: 1,
+    format: 'png', maxWidth: PW, maxHeight: PH, everyNthFrame: 1,
   });
   await sleep(400);
 
@@ -347,7 +417,14 @@ if (wantRecord) {
   }
   await sleep(260);
 
-  /* ② 点中东方琥珀调：按下 → 停 120ms → 抬起（让"按下态"真的进画面） */
+  /* ② 点中东方琥珀调：按下 → 停 420ms → 抬起（让"按下态"真的进画面）
+     ---- 2026-11-18 去回弹改轻按沉降时把 150ms 加到 420ms ----
+     为什么必须加长：`Page.startScreencast` 是"合成帧之后推帧"，页面静止
+     时不推新帧。原来按住 150ms 在 25fps 下只落 1–2 帧，而"轻按沉降"的
+     位移只有 2px —— 1 帧约 2px 在 VP9 crf34 里会被量化掉，录屏上
+     看不出下沉。按住 420ms 后下沉态稳定占 8–10 帧，肉眼可辨，也让下面
+     edge-scan / px-diff 那两条像素判据有东西可量。
+     这不改变交互本身：420ms 只是"人按得久一点"，落点与视觉完全一致。 */
   const amber = await ev(`(() => {
     const g = [...document.querySelectorAll('.sector-g')].find((x) => x.getAttribute('data-fam') === 'amber');
     const b = g.querySelector('.sector-shape').getBoundingClientRect();
@@ -358,7 +435,7 @@ if (wantRecord) {
     await sleep(38);
   }
   await mouse('mousePressed', amber.x, amber.y);
-  await sleep(150);
+  await sleep(420);
   await mouse('mouseReleased', amber.x, amber.y);
   await sleep(1500);               // 入场动画 + 盘心标本落地
 
@@ -377,14 +454,28 @@ if (wantRecord) {
     await mouse('mouseMoved', arc.x, arc.y);
     await sleep(120);
     await mouse('mousePressed', arc.x, arc.y);
-    await sleep(140);
+    await sleep(360);              // 同上：让第二次点击的下沉也占满若干帧
     await mouse('mouseReleased', arc.x, arc.y);
   }
   await sleep(1400);
 
   await send('Page.stopScreencast');
   onFrame = null;
-  await sleep(200);
+  /* 等异步写盘全部落地再编码：不等的话 encodeFrames 会数到还在路上的
+     帧名、拿到半写的 PNG。轮询目录直到数量稳定两轮（最多 10 秒）。 */
+  {
+    const dead = Date.now() + 10000;
+    let last = -1;
+    for (;;) {
+      const n = fs.existsSync(FRAMES)
+        ? fs.readdirSync(FRAMES).filter((f) => f.endsWith('.png')).length : 0;
+      if (n === last && n > 0) break;
+      if (Date.now() > dead) break;
+      last = n;
+      await sleep(250);
+    }
+    fs.writeFileSync(path.join(FRAMES, 'times.json'), JSON.stringify(times));
+  }
 
   results.record = encodeFrames();
 }
