@@ -174,30 +174,35 @@ const el = (tag, attrs = {}, ...kids) => {
    其余七屏（budget / emotion / wanted / unwanted / occasion / season /
    concentration）与结果页一律不动 —— 后续步骤另行派工。
 
-   ==== 八屏的顺序（feat/quiz-v7-step2-avoid 起）====
+   ==== 七屏的顺序（feat/quiz-v7-step3-restructure 起）====
      1 family        香型圆盘 —— 定大方向，同时点燃背景底噪
      2 unwanted      动态避雷 —— 紧跟方向，只问这个方向最容易踩雷的几个
-                     （src/avoid.js 现算，封顶 6 张；算不出整屏跳过 → 共 7 步）
+                     （src/avoid.js 现算，封顶 6 张；算不出整屏跳过 → 共 6 步）
      3 budget        先圈池（范围）
-     4 emotion       大方向（v6 原屏，本步不动）
-     5 wanted        想要的味道（生活短语，多选）
-     6 occasion      场合 —— 决定浓淡与时段
-     7 season        季节 —— 温度光带（.temp-band），Eddie 定版范例之一
-     8 concentration 浓淡＋浓度（扩散场：同心环半径＝扩散距离）
+     4 wanted        想要的味道（生活短语，多选）
+     5 occasion      场合 —— 决定浓淡与时段
+     6 season        季节 —— 温度光带（.temp-band），Eddie 定版范例之一
+     7 concentration 浓淡＋浓度（扩散场：同心环半径＝扩散距离）
+
+   **大方向屏（emotion）已按 v7 定版删除**（本步起）。`answers.emotion` 键保留，
+   唯一写入点是圆盘屏底部的「按感觉选」segControl —— 它同时是 `finish()` 的
+   入口守卫、`navBar('family')` 的 disabled 判定与 `src/ambient.js` 底噪兜底
+   所认的键。删屏 ≠ 删键：删掉它会让"跳过圆盘的人无路可走"。
 
    为什么第 1 屏是圆盘：Eddie 2026-11-17 否决 v6 的第一条就是「删了开屏圆盘」。
    开屏那张盘是这个产品唯一一处"控件即内容"—— 外圈六族、中圈 24 个小类，
-   父子关系画在同一张图上。预算退到第 2 屏不破坏 v6 的"先圈池再问偏好"：
+   父子关系画在同一张图上。预算退到第 3 屏不破坏 v6 的"先圈池再问偏好"：
    它仍在除大方向之外的所有偏好题之前。
 
    为什么底噪的方向来源可以是圆盘：src/ambient.js 的第 1 条纪律要求
    "来源只能是第一个大方向"。圆盘选出来的家族就是第一个大方向，
    换算表见 AXIS_OF_FAMILY（六族 ↔ 六轴的最优匹配，720 种配法里最高那组）。
-   第 3 屏的大方向屏仍然在，它只在圆盘没给方向时才充当来源 ——
-   两个来源都写进 answers（direction / emotion），谁先给谁算数。
+   圆盘没给方向时，盘下「按感觉选」仍可补上 —— 两个来源都写进 answers
+   （direction / emotion），谁先给谁算数。
 
    为什么「气质」不在这一版出现：它与「大方向」是同一件事的两种问法。
-   v6 里气质原型由大方向反推填充，见 applyDirectionToCharacter()，信息没丢。
+   v6 里气质原型由大方向反推填充，见 applyDirectionToCharacter()，信息没丢
+   —— 但本步删屏后它失去了唯一调用点（见该函数的注释）。
    */
 const STEPS = [
   {
@@ -227,13 +232,6 @@ const STEPS = [
     title: '你打算花多少钱？',
     help: '先圈个范围，后面几屏只在这个范围里挑。不限也行，只是候选会多很多',
     render: renderBudget,
-  },
-  {
-    id: 'emotion',
-    short: '大方向',
-    title: '你希望它给人什么感觉？',
-    help: '这一题定的是整程的调子 —— 后面每一屏的光、温度、底色都会跟着它走。不确定就选最像的那个，不选也能继续',
-    render: renderDirection,
   },
   {
     id: 'wanted',
@@ -488,7 +486,15 @@ function poolForBudget(perfumes, budgetId) {
 /* ---------- 大方向 → 气质原型（引擎的 character 因子仍按原样工作） ----------
    为什么需要这一步：v6 第 2 屏就是大方向，而 v5 的「气质」屏已退场。
    character 是引擎里权重不低的一维（16 分），缺了它等于白丢一维证据。
-   这不是新信息，是把用户刚答的那句话翻译成引擎认识的字段。 */
+   这不是新信息，是把用户刚答的那句话翻译成引擎认识的字段。
+
+   ⚠ v7 第 3 步起：**本函数与上面的 EMOTION_TAGS 已无任何调用点**。
+   大方向屏删除后，它失去了唯一写入点，四个引擎字段（characterTags /
+   characterNeg / temperature / sweetness）从此恒空 —— 引擎在取不到值时
+   整条跳过、不加不减（src/scoring.js 的空值语义），与"用户当年跳过那一屏"
+   逐位一致。**保留不删**，照 anchor 三键的先例（见 state.answers 上方注释）：
+   将来若恢复大方向入口（或把方向接回圆盘 onChange），这张表是现成的，
+   删掉它等于把口径写死。 */
 const EMOTION_TAGS = {
   cold: { tags: ['clean', 'green', 'herbal'], neg: ['sweet', 'creamy'] },
   warm: { tags: ['warm', 'amber', 'resinous'], neg: ['green', 'salty'] },
@@ -2466,98 +2472,6 @@ function renderBudget() {
   return wrap;
 }
 
-/* ============================================================
-   第 2 屏：大方向（昼夜光景）
-   ------------------------------------------------------------
-   ==== 内容隐喻 ====
-   这一题问的不是味道，是"什么时候、什么光线下你希望被闻到"。
-   所以控件是一片**天色**：六个方向各占一条地平线，从左到右是
-   天光从冷到暖、从暗到亮的连续过渡 —— 位置本身在教用户"这些不是并列的六样东西，
-   是同一天里的六个时刻"。
-
-   ==== 为什么它是背景层的源头 ====
-   规格 3：底噪由**第一个大方向**定调。所以这一屏在被选中的那一刻，
-   要让人看见"天色定了"：选中扇区的天色向上漫开一格，成为后续所有屏的底色起点。
-   这个"漫开"只做一次、只在这一屏 —— 后面各屏的底噪只加不减，不再重演。
-
-   ==== 反馈是内容本身的变化 ====
-   选中后不再新增任何控件：地平线本身抬高一档、下方那行译文换成这个方向的
-   "一天里的哪一刻"。不弹层、不换容器。
-   ============================================================ */
-function renderDirection() {
-  const wrap = el('div', { class: 'fade-in' });
-  const head = stepHead('emotion');
-  wrap.appendChild(el('div', { class: 'stage-lead' },
-    el('div', { class: 'q-kicker' }, head.kicker),
-    el('h2', { class: 'q-title' }, head.title),
-    el('p', { class: 'q-help' }, head.help)
-  ));
-
-  const items = TAX && TAX.emotionMap ? TAX.emotionMap : [];
-  const sky = el('div', { class: 'sky', role: 'radiogroup', 'aria-label': '整体方向' });
-  const gloss = el('p', { class: 'sky-gloss is-idle' });
-
-  /* 每个方向配一句"一天里的哪一刻"。这不是新内容：
-     taxonomy 的 desc 是气味层面的（「像晒太阳、像羊绒衫」），
-     这里补的是**时间层面**的对应，用于让"底噪定调"这件事可被感知。 */
-  const MOMENT = {
-    cold: '清晨六点，窗还没开',
-    warm: '下午三点，阳光斜进屋里',
-    clean: '刚洗完澡的浴室，灯是白的',
-    mysterious: '入夜后，只开了一盏台灯',
-    bright: '正午，所有东西都是清楚的',
-    lazy: '周末上午，赖着没起床',
-  };
-
-  const paint = (cur) => {
-    [...sky.children].forEach((c) => {
-      const on = c.getAttribute('data-dir') === cur;
-      c.classList.toggle('is-on', on);
-      c.setAttribute('aria-checked', String(on));
-    });
-    const it = items.find((x) => x.id === cur);
-    gloss.classList.toggle('is-idle', !it);
-    gloss.textContent = it
-      ? `${MOMENT[it.id] || ''} —— ${it.desc}`
-      : '选一个最接近的。这一题定的是整程的调子，后面每一屏都会沿它走';
-  };
-
-  items.forEach((it) => {
-    const on = state.answers.emotion === it.id;
-    sky.appendChild(el('button', {
-      class: 'sky-band' + (on ? ' is-on' : ''),
-      type: 'button',
-      role: 'radio',
-      'aria-checked': String(on),
-      'data-dir': it.id,
-      onclick: () => {
-        state.answers.emotion = it.id;
-        /* 气质/冷暖/甜度由方向反推（v6 的气质屏已退场，这一维不能白丢）。 */
-        applyDirectionToCharacter(it.id);
-        paint(it.id);
-        applyAmbient();
-      },
-    },
-      el('span', { class: 'sky-line', 'aria-hidden': 'true' }),
-      el('span', { class: 'sky-zh' }, it.zh),
-      el('span', { class: 'sky-moment' }, MOMENT[it.id] || '')
-    ));
-  });
-
-  paint(state.answers.emotion);
-  wrap.appendChild(sky);
-  wrap.appendChild(gloss);
-
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '为什么先问这一题：'),
-    ' 它决定后面每一屏的光线与温度 —— 选「清冷」整程会越走越凉，选「温暖」会越走越暖。'
-    + ' 这不是装饰：同一瓶香水在不同光线下读起来是两种东西。'
-  ));
-
-  wrap.appendChild(navBar('emotion'));
-  return wrap;
-}
-
 
 /* ============================================================
    第 3 / 4 屏：想要的味道 / 受不了的味道（生活短语）
@@ -3377,10 +3291,9 @@ function navBar(stepId) {
        两条入口都算「答过了」：轮盘选家族，或下面那排「按感觉选」。
        只认 family 时，用情绪入口的人会被这个 disabled 卡在第 1 步 ——
        而那恰好是不认识香型词汇的用户，等于把兜底路也堵死。
-     这也正是本步不改盘下那排「按感觉选」的原因：它是盘的兜底入口，
-     与第 3 屏的大方向屏在**当前**这一步确实问的是同一件事 —— 那一屏是
-     定版要删的（v7 定版「想要什么感觉」整屏删），留给第 2 步处理。
-     现在把它删掉就等于替第 2 步做决定，而且会让"跳过圆盘的人无路可走"。 */
+     这也正是本步不改盘下那排「按感觉选」的原因：它是盘的兜底入口。
+     大方向屏已于 v7 第 3 步删除，这排「按感觉选」现在是 `answers.emotion`
+     的唯一写入点 —— 删掉它就等于把 emotion 入口整条掐断。 */
   if (stepId === 'family') {
     const byFamily = !!state.answers.family;
     const byEmotion = !!state.answers.emotion;
@@ -3409,7 +3322,7 @@ function navBar(stepId) {
     return bar;
   }
 
-  /* 预算 / 大方向 / 场合 / 季节 / 浓淡：都可跳过，所以按钮永远可点。
+  /* 预算 / 场合 / 季节 / 浓淡：都可跳过，所以按钮永远可点。
      要求"必须答完才能走"会把可跳过的问题变成门槛。
 
      为什么仍画一个显式的「下一步」而不是点选即自动前进：
@@ -3427,8 +3340,7 @@ function navBar(stepId) {
     }, '看推荐 →'));
     return bar;
   }
-  if (stepId === 'budget' || stepId === 'emotion' || stepId === 'season'
-      || stepId === 'occasion') {
+  if (stepId === 'budget' || stepId === 'season' || stepId === 'occasion') {
     bar.appendChild(el('span', { class: 'hint' }, '不选也能继续'));
     bar.appendChild(el('button', { class: 'btn', type: 'button', onclick: next }, '下一步 →'));
     return bar;
@@ -5133,7 +5045,6 @@ function render() {
        family   → settle  首屏，自己就是"进门"，下沉最有"推门"感；
                           **同时是底噪开灯的那一屏**（圆盘点中即点燃）
        budget   → settle  换轴：从"味道"进"范围"。仍是同一段路里的换挡
-       emotion  → settle  换轴：从钱进感觉。底噪此时已在走，这一屏只加不减
        wanted   → cut     与上一屏同属"味道偏好"这段路，连续
        unwanted → cut     同一段路的另一面
        occasion → settle  换轴：从"味道"进"什么时候"
@@ -5143,7 +5054,6 @@ function render() {
   const SCENE = {
     family: 'settle',
     budget: 'settle',
-    emotion: 'settle',
     wanted: 'cut',
     unwanted: 'cut',
     occasion: 'settle',

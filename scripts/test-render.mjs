@@ -1070,29 +1070,39 @@ ok('预算屏说明了「价位未知的不参与」', /价位未知/.test(getSt
     appRoot.querySelectorAll('.price-note')[0].textContent.slice(0, 80));
 }
 
-/* ---------- ③ 大方向（v6 原屏，本步不动；底噪此时已由圆盘点燃） ---------- */
-await advance();
-ok('第 4 屏是大方向（data-step=emotion）', stepId() === 'emotion', stepId());
-ok('大方向屏标题是「什么感觉」', getStepText().includes('什么感觉'), getStepText().slice(0, 80));
-ok('六个大方向都在屏上', appRoot.querySelectorAll('.sky-band').length === 6,
-  `实际 ${appRoot.querySelectorAll('.sky-band').length}`);
-ok('每条天际线都有天光层', appRoot.querySelectorAll('.sky-line').length === 6,
-  `实际 ${appRoot.querySelectorAll('.sky-line').length}`);
-/* 没选大方向之前，底噪必须是"诚实地没有" —— 不是强度 0 的底噪。
-   这一条守的是 src/ambient.js 的第一条纪律：来源只能是用户自己给的第一个大方向。 */
-{
-  const amb = appMod.__ambient({ }, 1, 8);
-  ok('未选大方向时底噪不激活', amb.active === false, String(amb.active));
-}
-{
-  const band = appRoot.querySelectorAll('.sky-band')[0];
-  band.dispatch('click');
-  await new Promise((r) => setTimeout(r, 60));
-  ok('点方向后天际线变选中态', band.attrs['aria-checked'] === 'true', String(band.attrs['aria-checked']));
-  /* 译文行必须换成「一天里的哪一刻」—— 这是这一屏的译文责任。 */
-  const gloss = appRoot.querySelectorAll('.sky-gloss')[0];
-  ok('方向屏的译文行换成了具体时刻', /——/.test(gloss.textContent), gloss.textContent.slice(0, 60));
-}
+// /* ---------- ③ 大方向（v6 原屏）——【v7 第 3 步① 已整段跳过】 ----------
+//    大方向屏（data-step=emotion）已按 v7 定版从流程删除，本段第 1 条
+//    `await advance()` 会落到下一屏，且 1089 的 `.sky-band` 取不到元素后
+//    直接 `.dispatch('click')` → 抛 TypeError、脚本 exit 1（一条红都拿不到）。
+//    所以整段按行注释跳过，不删：L4 才逐条改断言，L1 只负责让删屏后的
+//    其余断言仍能跑出来。被跳过的断言名（7 条）逐条抄进了 L1 commit message。
+//    其中「未选大方向时底噪不激活」是纯 __ambient({}) 断言（与屏无关），
+//    L4 要把它挪到 K1/K2 那组保留。
+//
+// ---------- ③ 大方向（v6 原屏，本步不动；底噪此时已由圆盘点燃） ----------
+// await advance();
+// ok('第 4 屏是大方向（data-step=emotion）', stepId() === 'emotion', stepId());
+// ok('大方向屏标题是「什么感觉」', getStepText().includes('什么感觉'), getStepText().slice(0, 80));
+// ok('六个大方向都在屏上', appRoot.querySelectorAll('.sky-band').length === 6,
+//   `实际 ${appRoot.querySelectorAll('.sky-band').length}`);
+// ok('每条天际线都有天光层', appRoot.querySelectorAll('.sky-line').length === 6,
+//   `实际 ${appRoot.querySelectorAll('.sky-line').length}`);
+// /* 没选大方向之前，底噪必须是"诚实地没有" —— 不是强度 0 的底噪。
+//    这一条守的是 src/ambient.js 的第一条纪律：来源只能是用户自己给的第一个大方向。 */
+// {
+//   const amb = appMod.__ambient({ }, 1, 8);
+//   ok('未选大方向时底噪不激活', amb.active === false, String(amb.active));
+// }
+// {
+//   const band = appRoot.querySelectorAll('.sky-band')[0];
+//   band.dispatch('click');
+//   await new Promise((r) => setTimeout(r, 60));
+//   ok('点方向后天际线变选中态', band.attrs['aria-checked'] === 'true', String(band.attrs['aria-checked']));
+//   /* 译文行必须换成「一天里的哪一刻」—— 这是这一屏的译文责任。 */
+//   const gloss = appRoot.querySelectorAll('.sky-gloss')[0];
+//   ok('方向屏的译文行换成了具体时刻', /——/.test(gloss.textContent), gloss.textContent.slice(0, 60));
+// }
+// --------------------------------------------------------------------------- */
 
 /* ---------- ④ 想要的味道（生活短语，无术语） ---------- */
 await advance();
