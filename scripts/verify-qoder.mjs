@@ -109,8 +109,13 @@ const clickText = async (re) => ev(`(() => {
 })()`);
 
 const next = async () => ev(`(() => {
-  const b = [...document.querySelectorAll('.actions button, actions button, button')]
-    .find((x) => !x.disabled && /下一步|看推荐/.test(x.textContent || ''));
+  /* 只认底部动作条里的主按钮。圆盘盘心还有一颗「直接下一步」(.hub-go)，
+     文案也含"下一步"，但它的语义是"中圈不选了"——会 onChange(f, null)
+     清掉 subfamily。早先按全文档 button 顺序找，先命中它（hidden 也接合成
+     click），于是避雷屏拿不到小类、规则①失效。这里限定 .actions 并跳过 hidden。 */
+  const pool = [...document.querySelectorAll('.actions button')];
+  const b = (pool.length ? pool : [...document.querySelectorAll('button')])
+    .find((x) => !x.disabled && !x.hidden && /下一步|看推荐/.test(x.textContent || ''));
   if (!b) return false;
   b.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   return true;
@@ -347,6 +352,14 @@ check('桌面避雷屏一屏看完（末卡完整在导航之上）',
    防"源 SVG 解析失败 → 空图/破图"这类静默缺陷（woody-vetiver 曾踩中）。 */
 const specOk = await ev(`[...document.querySelectorAll('.avoid-spec')].every((s) => s.querySelectorAll('path').length > 0)`);
 check('避雷屏每张标本小图都真实渲染（无空图/破图）', specOk);
+/* 三条硬规则在真实上屏清单上再核一遍（走的是柑橘·古龙水型）：
+   ① 自己的核心元素不问 → citrus-peel（bergamot/lemon）不许在；
+   ③ 模糊带候选在 → after-rain / rose-garden 必须在。 */
+const avoidIds = await ev(`[...document.querySelectorAll('.avoid-card')].map((c) => c.dataset.phrase)`);
+check('规则①上屏：古龙水型屏不问自己的核心元素（citrus-peel 不在）',
+  !avoidIds.includes('citrus-peel'), avoidIds.join(','));
+check('规则③上屏：模糊带候选在屏上（after-rain / rose-garden）',
+  avoidIds.includes('after-rain') && avoidIds.includes('rose-garden'), avoidIds.join(','));
 await shot('avoid-desktop.png');
 
 /* ================= 窄屏 ================= */

@@ -18,9 +18,10 @@ const FILES = [
   'app.js', 'styles.css', 'manifest.json', 'sw.js', 'pwa.js',
 ];
 const DIRS = [
-  ['src', ['scoring.js', 'notes.js', 'ambient.js', 'history.js', 'share-card.js']],
+  ['src', ['scoring.js', 'notes.js', 'ambient.js', 'history.js', 'share-card.js',
+    'avoid.js', 'avoid-map.js']],
   ['data', ['perfumes.json', 'taxonomy.json', 'price-bands.json', 'photos.json',
-    'affiliate-links.json', 'tmall-shops.json']],
+    'affiliate-links.json', 'tmall-shops.json', 'avoid-scenarios.json']],
   ['fonts', null],
   ['icons', null],
   ['images', null],
@@ -57,7 +58,8 @@ const bytes = files.reduce((s, f) => s + fs.statSync(f).size, 0);
 const missing = FILES.filter((f) => !fs.existsSync(path.join(DIST, f)));
 
 for (const f of ['index.html', 'app.js', 'styles.css', 'manifest.json', 'sw.js',
-  'data/perfumes.json', 'icons/icon-192.png', 'icon-specimen/svg']) {
+  'data/perfumes.json', 'icons/icon-192.png', 'icon-specimen/svg',
+  'src/avoid.js', 'src/avoid-map.js', 'data/avoid-scenarios.json']) {
   if (!fs.existsSync(path.join(DIST, f))) missing.push(f);
 }
 
