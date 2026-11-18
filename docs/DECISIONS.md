@@ -3322,3 +3322,73 @@ notes 维度另立一套 notes-first 专属小集，草案 `docs/reviews/GOLD-NO
 ### 顺带：G5 正式关闭
 
 `docs/TODO-REMAINING.md` 的 G5「三份清单」状态为「材料从未出现」，按审计表口径**无材料**，Eddie 2026-11-11 批准**正式关闭**，不留悬空条目。
+
+---
+
+## D71 · 引擎池门 v2：第 3 席改为「探索位」（2026-11-18）
+
+### 问题
+
+第一轮多样性过滤（`src/scoring.js:1102-1113`）要求「源家族互异 且 品牌互异」，注释自己写着
+「同一源家族、同一品牌都不许占满前三」。但 citrus / gourmand / woody 三族的 strict 池里
+`familySource` 几乎单值（117 瓶全是 Sunlit Citrus / 142 瓶全是 Velvet Sweet / 243 瓶里 Wood & Root 占 98%），
+**第一轮永远填不满 3 席** —— 第 3 席本来就是「同源家族重复的妥协位」。P11 基线三张卡全是 Sunlit Citrus，
+违反该段注释自己的判据。
+
+### 选项与结果
+
+| 选项 | 实测 | 判定 |
+|---|---|---|
+| 放宽准入（T1 relaxed / T2 any，即 D 系列前面那份实验） | MAJORITY **1/12** | 已弃用（`docs/EXPERIMENT-DOMINANCE.md`） |
+| 位次放宽 v1：pass1/2/3 都走 strict∪relaxed | MAJORITY **1/12**、E8 红 | 证伪 |
+| 位次放宽 v1'：strict 排完再排 relaxed | MAJORITY **1/12** | 证伪 |
+| 变体 B：pass1 只 strict，pass2/3 合并分数序 | 42 用例变化 **0**、relaxed 进第 2/3 位 **0/12** | **假功能**，排除 |
+| v2g2：第 3 席永远给 relaxed（无闸门） | 42 用例变 12、2/12·4/12、E8 PASS | 备选，不采用 |
+| **v2g1：第 3 席保留给 relaxed + 多样性缺口闸门** | 42 用例变 5（全在位次 3）、**2/12 · 4/12**、`test-scoring` **157/0** | **采用** |
+
+### 决定
+
+采用 v2g1。规则：第一轮多样性过滤没填满 3 席（`pass1Filled < 3`）时，把第 3 席（`EXPLORE=2`，
+0-based）换成一瓶 relaxed 池里的强次族瓶；前两席保持由 strict 池决定，不动。
+
+三条边界：`topN < 3` 不生效；池降级支（L2 / 全库）不生效；显式 `dominanceMode: 'relaxed' | 'any'`
+不生效（该档池子本就含 relaxed 瓶）。`dominanceMode` 拼错按 `strict` 处理，与 `entersFamilyPool` 同口径。
+
+### 为什么只能用「位次保留」，不能用「分数竞争」
+
+strict 瓶带满家族项（`familyPick 34 + subfamilyHits 18`），relaxed 瓶（所选族权重 0.5 vs 1.0）
+在这一项先天落后约 21 分 —— 实测探索位候选比它要替换的 strict 瓶低 **11.2–29.6 分**。
+所以任何「让 relaxed 与 strict 在补位轮按分数公平竞争」的写法都**不会触发**（变体 B 实测 0 生效）。
+
+### 命中率（CONTROL.md §4 硬要求）
+
+`GOLD MAJORITY 2/12 · STRICT 4/12` → **2/12 · 4/12，delta MAJORITY ±0 · STRICT ±0**。
+正序与逆序均如此。42 用例逐位：第 1 位变 **0** 例、第 2 位变 **0** 例、第 3 位变 **5** 例。
+
+**本决定不提升命中率。** 12 画像金标对本功能是盲的（MAJORITY 只读 top3 命中、STRICT 只读 top1，
+被换掉的第 3 席在 P09/P11 恰好都不是 gold），±0 是结构性结果，不是「功能有效」的证据。
+
+### 代价（实测，不美化）
+
+生效的 5 个用例里，第 3 张卡的显示匹配度下降 **15–19 个百分点**（96→79 / 97→80 / 96→77 / 96→81）。
+换来的是 top3 的源家族种类数 +1（5/5 例）。UI 侧无风险：`app.js:3948-3961` 的 `isTop`/`tied`
+只比 `results[0].score` 与 `results[1].score`，前两席不变 → 徽标与并列提示逐位不变。
+
+覆盖率只有 **3/6 族**（citrus / woody / gourmand 各 15/15，floral / amber / fresh 0/15），
+原因是后三族 `familySource` 有 3–4 种、第一轮填得满 → 无缺口可补。这是正确行为，不是缺陷。
+
+### 未改动
+
+`WEIGHTS`、`data/taxonomy.json`、`app.js`、多样性三轮既有逻辑一行未动；**E8/E9 断言文案一字未改**
+（v1 让默认档与显式 relaxed 档逐位相同才导致 E8 红，那是 v1 的形态缺陷）。
+
+### 未决（不阻塞本决定）
+
+Q1 匹配度 −15~−19pp 的交换要不要做 · Q2 覆盖率 3/6 族够不够 · Q3 是否建 notes 小金标以真正验收
+本功能 · Q4「换一批」路径（`app.js:4276-4301`）第二批起没有探索位，要不要每批都给一个（改则动 `app.js`，
+超出本次红线）。四条详见 `docs/EXPERIMENT-POOL-GATE-V2.md` §9。
+
+### 完整记录
+
+`docs/EXPERIMENT-POOL-GATE-V2.md`（结构表 / 规则伪代码 / 变体证伪 / 五例明细 / 覆盖率 / 代价 / 逆序稳健性）。
+

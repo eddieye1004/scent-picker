@@ -1031,10 +1031,69 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
   const inPool = (s) => entersFamilyPool(s.perfume, profile.family.id, domMode);
 
   let ranked = scored;
+  let strictPool = null;
   if (profile.family) {
     const L1 = scored.filter(inPool);
     const L2 = scored.filter((s) => wOf(s) >= 0.5);
-    ranked = L1.length >= topN ? L1 : (L2.length >= topN ? L2 : scored);
+    if (L1.length >= topN) {
+      ranked = L1;
+      /* 只有"池子够用、没有降级"这一支才记下 strict 池 —— 降级支（L2 / 全部）
+         本来就是兜底语义，那里的顺序不许被下面的探索位再动一次。 */
+      strictPool = L1;
+    } else {
+      ranked = L2.length >= topN ? L2 : scored;
+    }
+  }
+
+  /* ---------- 引擎池门 v2：探索位（EXPLORE slot）+ 多样性缺口闸门 ----------
+
+     要解决的问题不是"分数排序错了"，而是**多样性承诺没被兑现**：第一轮
+     多样性过滤（见下方"同一源家族、同一品牌都不许占满前三"）的判据是
+     「源家族互异 且 品牌互异」，但 citrus / gourmand / woody 三族的
+     familySource 几乎是单值（实测 citrus 117 瓶全是 Sunlit Citrus，
+     gourmand 142 瓶全是 Velvet Sweet，woody 243 瓶里 Wood & Root 占 98%），
+     所以第一轮**永远填不满 3 席**，第 3 席本来就是"同源家族重复的妥协位"
+     （P11 基线三张卡全是 Sunlit Citrus，违反那段注释自己写的判据）。
+
+     本规则只改这一件事：**第 3 席（EXPLORE=2，0-based）留给强次族瓶**，
+     第 1、2 席仍全部由 strict 池决定。EXPLORE=2 来自生产口径 topN=3
+     （app.js:3109/3113/4300），不是新阈值。
+
+     为什么 relaxed 瓶不参与第一轮、也不参与"按分数公平竞争"（v2 的形态由
+     v1 的证伪决定）：v1 让 relaxed 瓶与 strict 瓶在 pass1/2/3 里按分数合并，
+     而 relaxed 瓶恰好带着**不同的 familySource**，于是在第一轮就抢到第 2 席
+     → 42 个用例里 5 例变化、MAJORITY 掉到 1/12、E8 断言的"默认档与显式
+     relaxed 档必须不同"直接红。"strict 排完再排 relaxed"同样只有 1/12。
+     更根本的是：strict 瓶带满家族项（familyPick 34 + subfamilyHits 18），
+     relaxed 瓶（所选族权重 0.5 vs 1.0）在这一项先天落后，实测探索位候选
+     比它要替换的 strict 瓶低 11.2–29.6 分——**任何"按分数竞争"的写法都
+     不会触发**，功能形同不存在（变体 B 实测 0/12 画像生效）。
+     所以只能靠**位次保留**：不放开准入，只在引擎自己没兑现多样性时补一位。
+
+     代价（实测，不美化）：生效的 5 个用例里第 3 张卡的显示匹配度下降
+     15–19 个百分点（96→79 / 97→80 / 96→77 / 96→81）。换来的是 top3 的
+     源家族种类数 +1（实测 5/5 例：P02/P05/P11 1→2，P01/P08 2→3）。
+     UI 侧无风险：isTop/tied 只比 results[0].score 与 results[1].score，
+     前两席不动 → 徽标与"与后两瓶并列"逐位不变。
+
+     生效条件四个，缺一不生效：
+       · strictPool 非空（走的是没降级的 L1 支）
+       · strictPool 非空集
+       · topN > EXPLORE（topN<3 时没有第 3 席可留）
+       · 有效档位是 strict —— 显式 'relaxed' / 'any' 档的池子本来就含
+         relaxed 瓶，再插一位是空操作；未知取值按 strict 处理，与
+         entersFamilyPool 的"拼错参数不能变成放行一切"保持同一口径。
+     relaxed 的判据**不在这里另写一份**：直接调 entersFamilyPool(...,'relaxed')，
+     即「所选族权重 ≥ 0.5 且 ≥ 主导权重的一半」。 */
+  const EXPLORE = 2;
+  const KNOWN_MODES = ['strict', 'relaxed', 'any'];
+  const effMode = KNOWN_MODES.includes(domMode) ? domMode : 'strict';
+  let relaxedTail = [];
+  if (strictPool && strictPool.length && topN > EXPLORE && effMode === 'strict') {
+    const inStrict = new Set(strictPool);
+    relaxedTail = scored.filter(
+      (s) => !inStrict.has(s) && entersFamilyPool(s.perfume, profile.family.id, 'relaxed'),
+    );
   }
 
   // 多样性：同一源家族、同一品牌都不许占满前三。
@@ -1052,6 +1111,10 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
     seenBrand.add(brand);
     picked.push(s);
   }
+  /* 第一轮（源家族互异 + 品牌互异）实际填了几席 —— 这就是"多样性缺口"的
+     唯一判据来源，不另算一遍。填满 3 席说明引擎已经兑现了多样性承诺，
+     探索位不该再动；填不满才说明第 3 席是妥协位。 */
+  const pass1Filled = picked.length;
   // 第一轮放宽：允许同家族，但仍不许同品牌
   if (picked.length < topN) {
     const brandsNow = new Set(picked.map((s) => s.perfume.brand));
@@ -1067,6 +1130,30 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
   for (const s of ranked) {
     if (picked.length >= topN) break;
     if (!picked.includes(s)) picked.push(s);
+  }
+
+  /* 探索位插入：本规则唯一的新增行为，插在 index EXPLORE（=2）。
+     前两席不进这个分支 —— splice 在 2 之前不动 [0]、[1]，所以"前两席逐位
+     不变"是结构性成立，不依赖数据（实测正序/逆序各 0/42 例第 1 位变化）。
+
+     闸门用 pass1Filled <= EXPLORE 而不是"分数差 ≤ X"：pass1 的判据就是
+     「源家族与品牌都互异」，它填不满 3 席，意味着前三席里必有源家族或品牌
+     重复 —— 这就是多样性缺口本身。候选的 familySource 还不许落在前两席已
+     用过的集合里，于是插进去时 top3 的源家族种类数**必然 +1**（实测 5/5）。
+     不引入新阈值：没有"分差 ≤ X 才插"这类魔数（计划 §7 红线）。
+
+     末位截断：原第 3 席及其后顺延一位，picked 回到 topN —— 集合形态与
+     "topN 条"契约不变，只是最后一席换人。 */
+  if (relaxedTail.length && pass1Filled <= EXPLORE && picked.length > EXPLORE) {
+    const usedBrand = new Set(picked.slice(0, EXPLORE).map((s) => s.perfume.brand));
+    const usedFam = new Set(picked.slice(0, EXPLORE).map((s) => s.perfume.familySource));
+    const cand = relaxedTail.find(
+      (s) => !usedBrand.has(s.perfume.brand) && !usedFam.has(s.perfume.familySource),
+    );
+    if (cand) {
+      picked.splice(EXPLORE, 0, cand);
+      picked.length = Math.min(picked.length, topN);
+    }
   }
 
   /* ---------- 匹配度归一化（G6，v28 重做）----------

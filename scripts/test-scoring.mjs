@@ -15,6 +15,7 @@ const ROOT = path.resolve(__dirname, '..');
 const DATA = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'perfumes.json'), 'utf8'));
 const TAX = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'taxonomy.json'), 'utf8'));
 const perfumes = DATA.perfumes;
+const byId = new Map(perfumes.map((p) => [p.id, p]));
 
 let pass = 0;
 const failures = [];
@@ -412,6 +413,39 @@ for (const [k, v] of Object.entries(WEIGHTS)) {
       top3Of({ dominanceMode: 'relax' }) === s && top3Of({ dominanceMode: 'ANY' }) === s,
       `relax=${top3Of({ dominanceMode: 'relax' })}`);
   }
+}
+
+/* v2 引擎池门（探索位）：第 3 席在 strict 池有多样性缺口时给强次族瓶。
+   四条各守一件事 —— 前两席的准入档位、功能真的存在、topN<3 不生效、无缺口不生效。
+   答案用 P11（citrus 池 117 瓶全是 Sunlit Citrus，缺口必然出现）与 P09（fresh 池
+   源家族 3 种，缺口不出现），实测数据见 docs/EXPERIMENT-POOL-GATE-V2.md。 */
+{
+  const PERFS = perfumes;
+  const P11A = { family: 'citrus', season: 'summer', occasion: 'daily', intensity: 2,
+    temperature: 'cool', sweetness: 0, dislikedFamilies: ['amber'],
+    characterTags: ['citrusy', 'fresh'], characterNeg: ['warm', 'resinous'] };
+  const P09A = { family: 'fresh', season: 'spring', occasion: 'commute', intensity: 2,
+    temperature: 'cool', sweetness: 0, dislikedFamilies: ['gourmand'],
+    characterTags: ['herbal', 'green'], characterNeg: ['sweet', 'creamy'] };
+  const top3 = (a, n = 3) => recommend(a, PERFS, TAX, { topN: n }).results.map((x) => x.perfume.id);
+
+  check('E10 探索位不动前两席：P11 的第 1/2 位仍是 strict 瓶',
+    top3(P11A).slice(0, 2).every((id) => entersFamilyPool(byId.get(id), 'citrus', 'strict')),
+    top3(P11A).join(','));
+
+  check('E11 探索位真的生效：P11 第 3 位是 relaxed 瓶，且 top3 源家族 ≥2 种',
+    !entersFamilyPool(byId.get(top3(P11A)[2]), 'citrus', 'strict')
+      && entersFamilyPool(byId.get(top3(P11A)[2]), 'citrus', 'relaxed')
+      && new Set(top3(P11A).map((id) => byId.get(id).familySource)).size >= 2,
+    top3(P11A).map((id) => `${id}/${byId.get(id).familySource}`).join(','));
+
+  check('E11b topN<3 时探索位不生效（与 topN=3 的前两位逐位相同）',
+    JSON.stringify(top3(P11A, 2)) === JSON.stringify(top3(P11A).slice(0, 2)),
+    top3(P11A, 2).join(','));
+
+  check('E12 无多样性缺口时不放宽：P09 三位全是 strict 瓶',
+    top3(P09A).every((id) => entersFamilyPool(byId.get(id), 'fresh', 'strict')),
+    top3(P09A).join(','));
 }
 
 /* 输出 */
