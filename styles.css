@@ -10694,3 +10694,449 @@ footer.foot {
     transition: none;
   }
 }
+
+/* ============================================================
+   Block 12 · 胶囊文字（证据任务 ①，2026-11-18）
+   ------------------------------------------------------------
+   本屏原本有三处编号/读数还是裸文字：kicker、progress-meta 的步骤名、
+   页眉右上的底噪刻度「沉·起」。这里只给这三处加一层细线胶囊 ——
+   文字内容、DOM 结构、其余元素一律不动。
+   胶囊用 --spec-hair（暖发丝，1.31:1）做 1px 描边：它是装饰边界，
+   不承载文字，所以不进 test-contrast 的控件边界清单（--stroke-ui 那条）。
+   高度由 padding 撑起、再用 margin 抵回去，标题与后续内容的落点不动：
+     kicker 原高 12×1.6+14 ≈ 33.2 → 13.2+8+2+10 = 33.2
+     meta   原高 12×1.6 ≈ 19.2     → 13.2+6+2-1×2 = 19.2 */
+#app[data-step="family"] .stage-lead .q-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 11px;
+  border: 1px solid var(--spec-hair);
+  border-radius: 999px;
+  line-height: 1.1;
+  margin-bottom: 10px;
+}
+#app[data-step="family"] .progress-meta > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border: 1px solid var(--spec-hair);
+  border-radius: 999px;
+  line-height: 1.1;
+  margin: -1px 0;
+}
+@media (max-width: 620px) {
+  /* 窄屏标题前的呼吸原本只有 6px，同上把它抵平 */
+  #app[data-step="family"] .stage-lead .q-kicker { margin-bottom: 2px; }
+}
+/* 桌面端：底噪刻度包一层极淡的细线胶囊。原短横线缩到 10px 留在胶囊内，
+   它仍是"仪表刻度"而不是一个词。文字基线保持原 8–20px 不动（top 8→3，
+   由新增的 border 1 + padding 4 抵回）。 */
+@media (min-width: 621px) {
+  #app[data-step="family"] .masthead .amb-tick {
+    top: 3px;
+    padding: 4px 10px 4px 22px;
+    border: 1px solid var(--spec-hair);
+    border-radius: 999px;
+    background:
+      linear-gradient(var(--spec-rim), var(--spec-rim)) 10px center / 10px 1px no-repeat;
+  }
+}
+
+/* ============================================================
+   Block 13 · 窄屏页头刻度 + 六条注脚完整落区（证据任务 ②，2026-11-18）
+   ------------------------------------------------------------
+   ① 窄屏原本把底噪刻度整条 display:none（90-quiz-v6 ≤620），页头读不到
+      "这一刻的方向"。现在放回页眉底缘、绝对定位在下边距里：它不参与
+      文档流，上下各留 8px（刻度高 12px，masthead 下边距 28px 刚好容下），
+      页头到进度条的距离、整页节奏都不动。
+   ② 斜向四个扇区的注脚按「·」拆成两行（见 app.js 的 .notes-part）：
+      半径 200、y=±100 处的外沿弦宽约 81px，最长注脚 89px，横排必越界；
+      拆行后每行 ≤51px，整体落回扇区带内。顶/底两个扇区的弦宽 218px，
+      保持一行 + 点号。 */
+@media (max-width: 620px) {
+  #app[data-step="family"] .masthead .amb-tick {
+    display: block;
+    top: auto;
+    bottom: -20px;
+    right: 0;
+  }
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
+    max-width: none;
+    padding: 4px 6px;
+  }
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .zh,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes {
+    white-space: nowrap;
+  }
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="floral"] .notes-part,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="woody"] .notes-part,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="fresh"] .notes-part,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="gourmand"] .notes-part {
+    display: block;
+  }
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="floral"] .notes-dot,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="woody"] .notes-dot,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="fresh"] .notes-dot,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="gourmand"] .notes-dot {
+    display: none;
+  }
+}
+
+/* ============================================================
+   97-qoder-work.css — Qoder 改造层（2026-11-18）
+   ------------------------------------------------------------
+   只服务结果页新增的两块：分享卡片下载行、我的香水档案。
+   不碰圆盘、问卷八屏、深色主题 token —— 所有颜色都取既有变量，
+   所以 test-contrast 的 48 条断言不需要为新组件放宽任何一条。
+
+   为什么另开一层：styles.css 是 95 层按顺序拼出来的产物，
+   直接改产物会在下一次 build-css 时静默丢失。新功能独立成层，
+   与「哪一层负责什么」的既有约定一致。
+   ============================================================ */
+
+/* ---------- 分享卡片：下载 PNG ---------- */
+.qw-share-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  max-width: 560px;
+}
+
+/* 主按钮的字号/触控高度继承 .btn；这里只收窄横向留白，
+   让它和摘要卡同宽，而不是把整行撑成第二个主操作。 */
+.qw-share-row .btn {
+  padding: 12px 18px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* ---------- 我的香水档案 ---------- */
+.qw-history {
+  margin-top: 34px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  max-width: 560px;
+}
+
+.qw-history-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.qw-history-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+  line-height: 1.3;
+}
+
+/* 与 .chips-label 同一条引出线，保证新块不是"另一个设计语言"。 */
+.qw-history-label::before {
+  content: "";
+  flex: none;
+  width: 12px;
+  height: 1px;
+  background: var(--ink);
+}
+
+.qw-history-sub {
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+
+.qw-history-toggle {
+  flex: none;
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.qw-history-panel {
+  margin-top: 16px;
+  padding: 2px 18px 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--stroke-l1);
+  border-radius: var(--radius, 4px);
+}
+
+/* hidden 必须显式压回 none：面板自己的 display 一旦被写成 block，
+   浏览器默认的 [hidden]{display:none} 就会被层叠掉。 */
+.qw-history-panel[hidden] {
+  display: none;
+}
+
+.qw-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.qw-history-item {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.qw-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.qw-history-time {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+.qw-history-entry {
+  padding: 1px 8px;
+  border: 1px solid var(--stroke-l1);
+  border-radius: 999px;
+  color: var(--ink-2);
+  letter-spacing: 0.02em;
+}
+
+.qw-history-names {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.qw-history-brand {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.qw-history-empty {
+  margin: 0;
+  padding: 16px 0 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+
+.qw-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+/* 清空按钮沿用 .link-btn 的 44px 触达与焦点环，只把颜色换成危险色。
+   危险色对 --bg-2 的对比仍高于 4.5（与 test-contrast 的 --danger 同一档）。 */
+.qw-history-clear {
+  color: var(--danger);
+}
+
+.qw-history-clear:focus-visible {
+  outline-color: var(--danger);
+}
+
+@media (max-width: 520px) {
+  .qw-history-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .qw-history-toggle {
+    align-self: flex-start;
+  }
+}
+/* ============================================================
+   98 · 动态避雷屏（feat/quiz-v7-step2-avoid）
+   ------------------------------------------------------------
+   第 2 屏「只问最容易踩雷的几个」。候选由 src/avoid.js 现算，
+   封顶 6 张，所以这一屏是**一列大卡片、一屏看完**，不是网格抽屉。
+
+   视觉沿用 80-specimen 的暖纸标本语言：卡面 --spec-plate、
+   发丝线 --spec-hair、控件边界 --stroke-ui、划掉用 --danger。
+   文字色只取已纳入 test-contrast 审计的 token（ink / ink-2 / ink-3 /
+   danger / spec-ink），不引入新文字色。
+
+   交互只有一种：点卡＝「这个不要」（.is-on），不点＝接受。
+   所以没有"想要"态，右侧那枚 .avoid-mark 印章只在 .is-on 时落下来。
+   围栏：所有选择器都带 .avoid- 前缀，不命中圆盘、其余问卷屏与结果页。
+   ============================================================ */
+
+/* 一列大卡片。限宽让桌面端不至于把一张卡拉成一条横幅；
+   窄屏自然撑满。z-index:1 与 life-grid 同理，压在底噪之上。 */
+.avoid-wall {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+.avoid-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 84px;               /* 触控目标远超 44px 下限 */
+  padding: 14px 18px;
+  text-align: left;
+  background: var(--spec-plate);
+  border: 1px solid var(--stroke-ui);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color var(--t-hover) var(--ease),
+              border-color var(--t-hover) var(--ease),
+              box-shadow var(--t-hover) var(--ease);
+}
+
+.avoid-card:hover {
+  background: var(--spec-tint-hot);
+  border-color: var(--ink-3);
+}
+
+/* 键盘焦点：与 .btn 同一套可见环，不去默认 outline 也不裸奔。 */
+.avoid-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 标本风小图：复用圆盘那 24 枚上色 SVG，不新造图标。
+   viewBox 24×24、透明底，放大到 56px 仍是清晰线稿。 */
+.avoid-spec {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.avoid-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;                    /* 让长句能缩行而不撑破卡片 */
+  flex: 1 1 auto;
+}
+
+/* 场景句是这一屏的主角：衬线、大一档，读起来像标本签上的名字。 */
+.avoid-zh {
+  font: 500 18px/1.35 var(--font-serif);
+  color: var(--ink);
+}
+
+.avoid-hint {
+  font: 400 13px/1.5 var(--font-ui, system-ui);
+  color: var(--ink-3);
+}
+
+/* 「这个不要」印章：平时隐去，点下去才落下。
+   做成一枚描边小章（危险色），不是红底警告块 —— 它是"划掉"，不是"报错"。 */
+.avoid-mark {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  font: 600 12px/1 var(--font-ui, system-ui);
+  letter-spacing: .06em;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 3px;
+  opacity: 0;
+  transform: scale(.9);
+  transition: opacity var(--t-hover) var(--ease), transform var(--t-hover) var(--ease);
+}
+
+/* 选中＝这个不要：左缘一道危险色横杠 + 场景句划掉 + 印章落下。
+   与 life-grid.is-neg 的"划掉"语义一致，但这里整卡都是开关。 */
+.avoid-card.is-on {
+  border-color: var(--danger);
+  box-shadow: inset 3px 0 0 var(--danger);
+  background: var(--bg);
+}
+
+.avoid-card.is-on .avoid-zh {
+  color: var(--danger);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.avoid-card.is-on .avoid-mark {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* 计数行：常驻。没点时明说"都接受"，点了报数。 */
+.avoid-count {
+  margin: 16px auto 0;
+  max-width: 640px;
+  font: 500 13px/1.4 var(--font-ui, system-ui);
+  letter-spacing: .04em;
+  color: var(--ink-2);
+}
+
+/* 译文行：与 life-gloss 同一职责（规格 5 常驻），选了什么说什么。 */
+.avoid-gloss {
+  margin: 8px auto 0;
+  max-width: 640px;
+  min-height: 40px;
+  font: 400 14px/1.65 var(--font-ui, system-ui);
+  color: var(--ink-2);
+}
+
+.avoid-gloss.is-idle { color: var(--ink-3); }
+
+/* 数据未到 / 方向未定时的占位句。 */
+.avoid-empty {
+  margin: 24px auto;
+  max-width: 640px;
+  font: 400 14px/1.7 var(--font-ui, system-ui);
+  color: var(--ink-3);
+}
+
+/* 窄屏：小图收一档、印章不挤占场景句。卡片仍是一列纵排（不分页、不横滑）；
+   390×844 放不下六张大卡＋页眉，允许纵向滚动 —— "一屏看完"在桌面档保证。 */
+@media (max-width: 620px) {
+  .avoid-card { gap: 12px; padding: 12px 14px; min-height: 76px; }
+  .avoid-spec { width: 46px; height: 46px; }
+  .avoid-zh { font-size: 16px; }
+  .avoid-mark { padding: 4px 8px; }
+}
+
+/* 桌面「一屏看完」：避雷屏把页眉的封面 chrome 收起（标题缩一档、lede 隐藏），
+   并收紧墙与计数/译文行的间距，让六张大卡＋导航在 900px 高内完整可见。
+   进度条与方向刻度不在收起之列 —— 步数/进度是这一屏的契约。
+   只作用于 unwanted 一屏，其它屏的页眉保持原样。 */
+@media (min-width: 621px) {
+  #app[data-step="unwanted"] .masthead { padding-top: 12px; margin-bottom: 14px; }
+  #app[data-step="unwanted"] .masthead h1 { font-size: 26px; }
+  #app[data-step="unwanted"] .masthead .lede { display: none; }
+  /* 说明句放宽到一行，省出纵向空间给卡片 */
+  #app[data-step="unwanted"] .stage-lead .q-help { max-width: 46em; }
+  #app[data-step="unwanted"] .avoid-wall { gap: 8px; }
+  /* 卡片收一档密度（仍是大卡：整宽 640、70px 高），保证第六张完整落在
+     sticky 导航条之上 —— 导航贴底时会盖住超出的内容。 */
+  #app[data-step="unwanted"] .avoid-card { min-height: 70px; padding: 10px 18px; }
+  #app[data-step="unwanted"] .avoid-spec { width: 48px; height: 48px; }
+  #app[data-step="unwanted"] .avoid-count { margin-top: 10px; }
+  #app[data-step="unwanted"] .avoid-gloss { margin-top: 4px; min-height: 24px; }
+}

@@ -22,6 +22,10 @@ export const SCHEMA_VERSION = '1.1.0';
    像虚假承诺）。门槛设在百分比开始"虚高"的位置，宁可说「初步匹配」。 */
 export const MATCH_PCT_MIN_DIMS = 8;
 
+/* 避雷屏软降权系数（见 recommend 里 avoidSoftHit 的注释）。
+   导出是为了让 test-avoid 能断言"软降权确实发生了、且幅度就是这个数"。 */
+export const AVOID_SOFT_MUL = 0.94;
+
 /* ---------- 权重配置（集中于此，便于调参与写测试） ---------- */
 export const WEIGHTS = {
   familyPick: 34,      // 用户在第 1 步直接点的香型家族（v42 起并入 family，不再单独加）
@@ -975,11 +979,32 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
     return 0.82;
   };
 
+  /* 避雷屏的软降权（feat/quiz-v7-step2-avoid）：没上屏的低频模糊元素
+     由调用方经 opts.avoidSoftNotes 传进来，命中的瓶子乘 AVOID_SOFT_MUL。
+     与 dislikedNotes（-40 硬惩罚）是两档：点过卡的走硬惩罚，
+     没点但落在模糊带里的只轻轻压一下 —— 不硬排除，结果池门一行不动。
+     0.94 与 boundaryPenalty 的 0.82 同一量级思路：压排序不翻盘。
+     只对正分生效：负分本已在受罚，再乘小于 1 的数反而把它抬上来。 */
+  const avoidSoftNotes = opts.avoidSoftNotes || [];
+  const avoidSoftHit = avoidSoftNotes.length ? (perfume) => {
+    const toks = (perfume.notesAll || []).map((x) => tokenize(x));
+    return avoidSoftNotes.some((key) => {
+      const entry = profile.noteEntryOf?.get(normNote(key));
+      if (entry) return toks.some((t) => matchesNote(entry, null, t));
+      const needle = tokenize(key);
+      return needle.length > 0 && toks.some((t) => hasTokenSubsequence(t, needle));
+    });
+  } : () => false;
+
   const scored = perfumes.map((p) => {
     const r = scorePerfume(p, profile, taxonomy, opts);
     /* opts.boundary === false 时关闭惩罚，仅供 scripts/probe-boundary.mjs 做 A/B。 */
     const mul = opts.boundary === false ? 1 : boundaryPenalty(p);
-    return { perfume: p, ...r, score: r.score * mul, boundaryMul: mul };
+    const softMul = r.score > 0 && avoidSoftHit(p) ? AVOID_SOFT_MUL : 1;
+    const row = { perfume: p, ...r, score: r.score * mul * softMul, boundaryMul: mul };
+    /* 不传 avoidSoftNotes 时对象形状与旧版逐位一致（老测试不受扰）。 */
+    if (softMul !== 1) row.avoidSoftMul = softMul;
+    return row;
   }).sort((a, b) => b.score - a.score);
 
   // 香型轮盘入口：优先只从"真的是这一族"的瓶里挑。

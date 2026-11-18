@@ -998,9 +998,48 @@ ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textCon
     ambEmo.active === true && ambEmo.axis === 'cold', `${ambEmo.active} / ${ambEmo.axis}`);
 }
 
-/* ---------- ① 首屏之后：预算 ---------- */
+/* ---------- ① 首屏之后：动态避雷（v7 第 2 步，移到第 2 位） ----------
+   旧「受不了的味道」是固定 18 张 life-grid.is-neg；本步改成按方向算候选的
+   场景卡片墙 .avoid-wall，并紧跟圆盘。圆盘已选「柑橘·古龙水型」，必有模糊带，
+   所以这一屏一定出现（不会被跳过）。断言改的是"屏的结构与交互"，不是放宽门槛。 */
 await advance();
-ok('第 2 屏是预算屏（data-step=budget）', stepId() === 'budget', stepId());
+ok('第 2 屏是动态避雷（data-step=unwanted）', stepId() === 'unwanted', stepId());
+ok('避雷屏标题是「只问最容易踩雷的几个」',
+  getStepText().includes('只问最容易踩雷的几个'), getStepText().slice(0, 90));
+{
+  const cards = appRoot.querySelectorAll('.avoid-card');
+  ok('避雷屏是场景卡片墙（.avoid-wall），不是旧 life-grid',
+    appRoot.querySelectorAll('.avoid-wall').length === 1
+    && appRoot.querySelectorAll('.life-grid').length === 0,
+    `wall ${appRoot.querySelectorAll('.avoid-wall').length} / life-grid ${appRoot.querySelectorAll('.life-grid').length}`);
+  ok('候选封顶 6 张且至少 1 张', cards.length >= 1 && cards.length <= 6, `实际 ${cards.length}`);
+  ok('每张卡配标本风小图（复用 24 图标，不新造）',
+    appRoot.querySelectorAll('.avoid-spec').length === cards.length,
+    `图 ${appRoot.querySelectorAll('.avoid-spec').length} / 卡 ${cards.length}`);
+  ok('每张卡写场景句＋气味提示（不是成分名）',
+    appRoot.querySelectorAll('.avoid-zh').length === cards.length
+    && appRoot.querySelectorAll('.avoid-hint').length === cards.length,
+    `zh ${appRoot.querySelectorAll('.avoid-zh').length} / hint ${appRoot.querySelectorAll('.avoid-hint').length}`);
+  /* 无术语题底线同样适用于避雷屏：不许出现族名与香材英文原名。 */
+  const txt = getStepText();
+  ok('避雷屏不出现任何香调族名', !/柑橘调|花香调|木质调|东方琥珀调|清新调|美食调/.test(txt), txt.slice(0, 80));
+  ok('避雷屏不出现香材英文原名', !/\b(bergamot|lemon|jasmine|sandalwood|vanilla|vetiver|oud)\b/i.test(txt), txt.slice(0, 80));
+  ok('顶部说明写「不点就是接受」', /不点就是接受/.test(txt), txt.slice(0, 120));
+  /* 交互只有点卡＝「这个不要」：点第一张，aria-pressed 翻 true、挂 is-on、出现标记。 */
+  const first = cards[0];
+  ok('未点时 aria-pressed=false', first.attrs['aria-pressed'] === 'false', String(first.attrs['aria-pressed']));
+  first.dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  ok('点卡＝这个不要（aria-pressed 翻 true 且挂 is-on）',
+    first.attrs['aria-pressed'] === 'true' && first.classList.contains('is-on'),
+    `${first.attrs['aria-pressed']} / ${first.className}`);
+  ok('点卡后计数变成「已标 1 个」', /已标 1 个/.test(getStepText()),
+    (appRoot.querySelectorAll('.avoid-count')[0] || {}).textContent);
+}
+
+/* ---------- ② 预算（v7 第 2 步：从第 2 位挪到第 3 位，屏本身不动） ---------- */
+await advance();
+ok('第 3 屏是预算屏（data-step=budget）', stepId() === 'budget', stepId());
 ok('预算屏标题是「你打算花多少钱」', getStepText().includes('你打算花多少钱'), getStepText().slice(0, 90));
 ok('预算屏是四档 + 不限，共 5 枚价签',
   appRoot.querySelectorAll('.price-tab').length === 5,
@@ -1031,9 +1070,9 @@ ok('预算屏说明了「价位未知的不参与」', /价位未知/.test(getSt
     appRoot.querySelectorAll('.price-note')[0].textContent.slice(0, 80));
 }
 
-/* ---------- ② 大方向（v6 原屏，本步不动；底噪此时已由圆盘点燃） ---------- */
+/* ---------- ③ 大方向（v6 原屏，本步不动；底噪此时已由圆盘点燃） ---------- */
 await advance();
-ok('第 3 屏是大方向（data-step=emotion）', stepId() === 'emotion', stepId());
+ok('第 4 屏是大方向（data-step=emotion）', stepId() === 'emotion', stepId());
 ok('大方向屏标题是「什么感觉」', getStepText().includes('什么感觉'), getStepText().slice(0, 80));
 ok('六个大方向都在屏上', appRoot.querySelectorAll('.sky-band').length === 6,
   `实际 ${appRoot.querySelectorAll('.sky-band').length}`);
@@ -1055,9 +1094,9 @@ ok('每条天际线都有天光层', appRoot.querySelectorAll('.sky-line').lengt
   ok('方向屏的译文行换成了具体时刻', /——/.test(gloss.textContent), gloss.textContent.slice(0, 60));
 }
 
-/* ---------- ③ 想要的味道（生活短语，无术语） ---------- */
+/* ---------- ④ 想要的味道（生活短语，无术语） ---------- */
 await advance();
-ok('第 4 屏是「想要的味道」（data-step=wanted）', stepId() === 'wanted', stepId());
+ok('第 5 屏是「想要的味道」（data-step=wanted）', stepId() === 'wanted', stepId());
 {
   const cards = appRoot.querySelectorAll('.life-card');
   ok('生活短语卡已渲染', cards.length >= 12, `实际 ${cards.length}`);
@@ -1098,16 +1137,9 @@ ok('第 4 屏是「想要的味道」（data-step=wanted）', stepId() === 'want
     `小签 ${appRoot.querySelectorAll('.life-tag').length} 个`);
 }
 
-/* ---------- ④ 受不了的味道（同结构，另一套状态色） ---------- */
-await advance();
-ok('第 5 屏是「受不了的味道」（data-step=unwanted）', stepId() === 'unwanted', stepId());
-ok('受不了屏的网格带 is-neg（划掉语汇）',
-  appRoot.querySelectorAll('.life-grid')[0].classList.contains('is-neg'),
-  appRoot.querySelectorAll('.life-grid')[0].className);
-ok('受不了屏也不出现族名', !/柑橘调|花香调|木质调|东方琥珀调|清新调|美食调/.test(getStepText()),
-  getStepText().slice(0, 80));
-
-/* ---------- ⑤ 场合（昼夜光景，定版范例之一） ---------- */
+/* ---------- ⑤ 场合（昼夜光景，定版范例之一） ----------
+   v7 第 2 步：旧第 5 屏「受不了的味道」已移到第 2 位并改成避雷墙（见 ①），
+   所以 wanted 之后直接 advance 到场合，这里不再有一屏 unwanted。 */
 await advance();
 ok('第 6 屏是场合（data-step=occasion）', stepId() === 'occasion', stepId());
 {
@@ -2129,18 +2161,21 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
   const S = appMod.__steps;
   const ids = S.all.map((x) => x.id);
   ok('步骤全集是 8 步（v7）', S.all.length === 8, `实际 ${S.all.length}`);
-  /* 顺序即内容：圆盘第 1、预算第 2、大方向第 3、浓淡收尾（末屏出结果）。
-     写成整串比对而不是逐项 includes —— 逐项判不出顺序错。 */
-  ok('八屏顺序与 v7 定版一致（圆盘第 1、已知款已撤）',
-    ids.join(',') === 'family,budget,emotion,wanted,unwanted,occasion,season,concentration',
+  /* 顺序即内容：圆盘第 1、避雷第 2、预算第 3、大方向第 4、浓淡收尾（末屏出结果）。
+     写成整串比对而不是逐项 includes —— 逐项判不出顺序错。
+     v7 第 2 步把 unwanted 从第 5 位提到第 2 位（紧跟圆盘选完方向）。 */
+  ok('八屏顺序与 v7 定版一致（圆盘第 1、避雷第 2、已知款已撤）',
+    ids.join(',') === 'family,unwanted,budget,emotion,wanted,occasion,season,concentration',
     ids.join(','));
   ok('8 个步骤的 id 两两不同', new Set(ids).size === ids.length, ids.join(','));
 
   /* 圆盘必须第 1 屏：v7 定版第一条就是"圆盘是第一屏"，
      而且它同时是底噪的方向来源（见 src/ambient.js 与 AXIS_OF_FAMILY）。 */
   ok('圆盘是第 1 屏', ids[0] === 'family', ids[0]);
-  /* 预算仍是"圈池"那一刀，必须排在除大方向外的偏好题之前。 */
-  ok('预算是第 2 屏（先圈池再问偏好）', ids[1] === 'budget', ids[1]);
+  /* 避雷紧跟圆盘：方向一定下来就问最容易踩雷的几个（v7 第 2 步）。 */
+  ok('避雷是第 2 屏（紧跟圆盘选完方向）', ids[1] === 'unwanted', ids[1]);
+  /* 预算仍是"圈池"那一刀，排在偏好题之前；本步从第 2 位顺延到第 3 位。 */
+  ok('预算是第 3 屏（先圈池再问偏好）', ids[2] === 'budget', ids[2]);
   /* 已知款不许复活：它是 v7 定版明确删掉的一屏，且要求用户认得瓶子。 */
   ok('已知款（anchor）不得复活', !ids.includes('anchor'), ids.join(','));
 
@@ -2180,9 +2215,12 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
        · budget：可跳过，但它用的是"不限也行"这种说法（比"跳过"更贴这一题：
          不是跳过，是选「不限」这一档）。关键词表不认它，所以按屏号排除 ——
          这条排除是 v6 就有的，本步不动那一屏文案。
+       · unwanted（避雷，v7 第 2 步）：可跳过，措辞是"不点就是接受"。
+         这不是放宽门槛 —— 它确实写明了可跳过，只是换了说法，所以把这句
+         加进关键词表，让这一屏仍被同一道门守着（而不是排除掉）。
      只查关键词，不查整句（措辞会改）。 */
   const noSkipWord = S.all.filter((x) => x.id !== 'family' && x.id !== 'budget'
-    && !/跳过|不选也能|不答/.test(x.help || ''));
+    && !/跳过|不选也能|不答|不点就是接受/.test(x.help || ''));
   ok('除圆盘外每屏都写明了可跳过（不逼答）', noSkipWord.length === 0,
     noSkipWord.map((x) => x.id).join(','));
   ok('圆盘的 help 不写「跳过」而写怎么选（它是必答题）',

@@ -15,6 +15,20 @@ import { usableEntries, normNote } from './src/notes.js';
    这两条性质能被 test-render 直接调用验证 —— 截图只能证明"看起来有变化"，
    证明不了"每个方向都沿同一方向增强"。见 src/ambient.js 顶部三条纪律。 */
 import { ambientOf, ambientVars } from './src/ambient.js';
+/* 本次 Qoder 改造的两块新逻辑都放在独立模块里：
+   history.js 只碰传入的 storage，share-card.js 只碰 canvas 2D ——
+   两者都不读 DOM/state，所以能在 node 里直接测，也方便以后单独替换存储层。 */
+import {
+  addHistory, readHistory, clearHistory, makeHistoryRecord, entryLabel,
+} from './src/history.js';
+import {
+  buildShareModel, drawShareCard, SHARE_W, SHARE_H,
+} from './src/share-card.js';
+/* 第 2 步动态避雷屏（feat/quiz-v7-step2-avoid）：
+   avoid-map.js 是「元素 → 场景句 → 所属香型」映射表（原 LIFE_NOTES 抽出来的），
+   avoid.js 是按 perfumes.json 频次现算候选的三条硬规则。两者都不碰 DOM。 */
+import { AVOID_SCENARIOS } from './src/avoid-map.js';
+import { buildAvoidIndex, avoidPlan } from './src/avoid.js';
 
 const state = {
   step: 0,
@@ -107,6 +121,9 @@ const state = {
     round: 0,           // 第几批（0 = 第一批）
     soldOut: [],        // 前几批已展示过的 perfume id，换一批时跳过
   },
+  /* 避雷屏当前候选的方向键（family|subfamily）。方向变了就清掉
+     不在新清单里的旧「不要」，见 pruneAvoid。不进 answers：它是视图状态。 */
+  avoidKey: null,
 };
 
 let DATA = null;
@@ -157,12 +174,13 @@ const el = (tag, attrs = {}, ...kids) => {
    其余七屏（budget / emotion / wanted / unwanted / occasion / season /
    concentration）与结果页一律不动 —— 后续步骤另行派工。
 
-   ==== 八屏的顺序 ====
+   ==== 八屏的顺序（feat/quiz-v7-step2-avoid 起）====
      1 family        香型圆盘 —— 定大方向，同时点燃背景底噪
-     2 budget        先圈池（范围）
-     3 emotion       大方向（v6 原屏，本步不动）
-     4 wanted        想要的味道（生活短语，多选）
-     5 unwanted      受不了的味道（同上，强惩罚 -40）
+     2 unwanted      动态避雷 —— 紧跟方向，只问这个方向最容易踩雷的几个
+                     （src/avoid.js 现算，封顶 6 张；算不出整屏跳过 → 共 7 步）
+     3 budget        先圈池（范围）
+     4 emotion       大方向（v6 原屏，本步不动）
+     5 wanted        想要的味道（生活短语，多选）
      6 occasion      场合 —— 决定浓淡与时段
      7 season        季节 —— 温度光带（.temp-band），Eddie 定版范例之一
      8 concentration 浓淡＋浓度（扩散场：同心环半径＝扩散距离）
@@ -190,6 +208,20 @@ const STEPS = [
     render: renderFamily,
   },
   {
+    /* ==== 第 2 步：动态避雷屏（feat/quiz-v7-step2-avoid）====
+       旧屏是固定 18 张「不想要的元素」，排在第 5 位、与方向无关。
+       现在紧跟圆盘之后：刚选完方向，立刻问这个方向里最容易踩雷的几个。
+       候选由 src/avoid.js 按三条硬规则现算（本类核心不问 / 最对立不问 /
+       只问相邻易混香型的模糊带），封顶 6 张，算不出整屏跳过（见 curSteps）。
+       id 沿用 'unwanted'：answers.unwanted / dislikedNotes / CSS 认屏
+       （#app[data-step="unwanted"]）都认这个键，换新 id 等于三处一起改。 */
+    id: 'unwanted',
+    short: '避雷',
+    title: '只问最容易踩雷的几个',
+    help: '都是你选的方向里最容易混进来的味道。点一下＝这个不要；不点就是接受',
+    render: renderAvoid,
+  },
+  {
     id: 'budget',
     short: '预算',
     title: '你打算花多少钱？',
@@ -209,13 +241,6 @@ const STEPS = [
     title: '有没有特别想闻到的味道？',
     help: '不用记术语，照生活里记得的那个东西点就行。想不起来就跳过，后面还有别的维度',
     render: renderWanted,
-  },
-  {
-    id: 'unwanted',
-    short: '受不了',
-    title: '有没有完全受不了的味道？',
-    help: '这一题比上一题更有效：讨厌的东西没有替代品，喜欢的往往有好几个替代。想不起来就跳过',
-    render: renderUnwanted,
   },
   {
     id: 'occasion',
@@ -251,19 +276,53 @@ const STEPS = [
   },
 ];
 
+/* ---- 动态避雷屏的候选（feat/quiz-v7-step2-avoid）----
+   索引只依赖数据，一次构建；plan 依赖答案，每次现算（18 条场景，开销可忽略）。
+   数据没到齐时返回 null —— 屏先占位、步骤表先按 8 屏算，
+   与 livePhrases() 的「库未到先给全表」是同一种降级。 */
+let avoidIndex = null;
+function avoidPlanNow(answers = state.answers) {
+  if (!DATA?.perfumes?.length || !TAX) return null;
+  if (!avoidIndex) avoidIndex = buildAvoidIndex(DATA.perfumes, TAX);
+  return avoidPlan(answers, avoidIndex, TAX);
+}
+
+/* 交给引擎的软降权名单：没上屏的低频模糊元素。数据没到 / 没方向时为空，
+   recommend 收到空名单就逐位回到旧行为。 */
+function avoidSoftNow() {
+  return avoidPlanNow()?.softNotes || [];
+}
+
+/* 方向变了（回第 1 屏重选圆盘），上一屏点过的「不要」可能已不在新清单里。
+   不清的话，引擎会带着一个界面上看不见的排除项继续打分 ——
+   与 characterNeg 当年漏清是同一类事故。只在 key 真的变化时动 answers。 */
+function pruneAvoid(plan) {
+  if (!plan || state.avoidKey === plan.key) return;
+  state.avoidKey = plan.key;
+  const keep = new Set(plan.cards.map((c) => c.id));
+  const before = state.answers.unwanted || [];
+  const after = before.filter((id) => keep.has(id));
+  if (after.length !== before.length) {
+    state.answers.unwanted = after;
+    syncPhrasesToNotes();
+  }
+}
+
 /* 当前生效的步骤表。
 
-   八屏固定，没有 when 条件（v5 的「整族排除」只在情绪入口出现，
-   而 v7 起第 1 屏就是圆盘，等于所有用户都走那条路，那屏已无意义 —— 见 STEPS 注释）。
+   所有「第 N 步 / 共 M 步」与进度段数都必须走它，不许读 STEPS.length。
+   两套数字一旦分叉，界面会显示「共 8 步」但只有 7 屏，
+   用户翻到第 7 屏就出结果，会以为漏了一屏。
 
-   函数保留而不删：所有「第 N 步 / 共 M 步」与进度段数都必须走它，
-   不许读 STEPS.length。两套数字一旦分叉，界面会显示「共 8 步」但只有 7 屏，
-   用户翻到第 7 屏就出结果，会以为漏了一屏。 */
+   唯一的条件屏是第 2 步避雷：三条硬规则算不出模糊带（cards 为空）时整屏跳过，
+   此时共 7 步。还没有方向（第 1 屏没点完）或数据没到时不跳 ——
+   屏先占位，等方向定了再算。 */
 function curSteps(answers = state.answers) {
-  /* answers 参数保留（调用点都在传），但无 when —— 步骤数与答案无关。
-     void 掉是为了提醒下一个想加 when 的人：一旦重新引入条件，
-     所有靠 S.cur({}) 断言步数的测试会一起变。 */
-  void answers;
+  const plan = avoidPlanNow(answers);
+  if (plan && plan.cards.length === 0) {
+    if (answers === state.answers) pruneAvoid(plan);
+    return STEPS.filter((s) => s.id !== 'unwanted');
+  }
   return STEPS;
 }
 
@@ -317,50 +376,12 @@ function stepHead(id, answers = state.answers) {
    命中口径 = notesAll 归一化后精确匹配）。低于 LIVE_NOTE_MIN 的短语
    直接不上屏 —— 与 v5 挡住「可可」是同一条规则：勾了永远推荐不出东西的
    选择，等于骗用户一次点击。 */
-const LIFE_NOTES = [
-  /* ---- 果皮 / 明亮的开场 ---- */
-  { id: 'citrus-peel', zh: '刚剥开的橘子皮', hint: '手上那一下清亮的油', family: 'citrus',
-    notes: ['bergamot', 'lemon', 'grapefruit'] },          // 661 瓶
-  { id: 'green-twig', zh: '掐断的绿枝', hint: '断口的涩味，不是花的香', family: 'fresh',
-    notes: ['violet leaf', 'galbanum', 'petitgrain'] },    // 100 瓶
-  { id: 'cold-tea', zh: '一杯放凉的茶', hint: '不甜、有一点涩', family: 'fresh',
-    notes: ['green tea'] },                                // 39 瓶
-  { id: 'sea-wind', zh: '湿润的海风', hint: '空气里的水汽和一点咸', family: 'fresh',
-    notes: ['marine notes'] },                             // 58 瓶
-  /* ---- 花 ---- */
-  { id: 'rose-garden', zh: '花园里的玫瑰', hint: '花心深处那点甜', family: 'floral',
-    notes: ['rose', 'peony'] },                            // 425 瓶
-  { id: 'night-white', zh: '夜里开的白花', hint: '走近才有，很远也压不住', family: 'floral',
-    notes: ['jasmine', 'tuberose', 'ylang-ylang'] },       // 455 瓶
-  { id: 'osmanthus', zh: '桂花糖', hint: '秋天路边那种甜', family: 'floral',
-    notes: ['osmanthus'] },                                // 34 瓶
-  { id: 'lotiony-powder', zh: '奶油味的粉', hint: '爽身粉、化妆盒', family: 'floral',
-    notes: ['iris', 'violet'] },                           // 244 瓶
-  /* ---- 甜 / 果实 ---- */
-  { id: 'ripe-peach', zh: '熟透的桃子', hint: '汁水、果皮、一点酒味', family: 'gourmand',
-    notes: ['peach', 'pear', 'apple'] },                   // 252 瓶
-  { id: 'vanilla-ice', zh: '香草冰淇淋', hint: '冷的时候也能闻到的甜', family: 'gourmand',
-    notes: ['vanilla', 'tonka bean'] },                    // 616 瓶
-  /* ---- 木 / 地 ---- */
-  { id: 'sunlit-wood', zh: '晒过的旧木头', hint: '干、暖、不甜', family: 'woody',
-    notes: ['sandalwood', 'cedar'] },                      // 624 瓶
-  { id: 'pine-wind', zh: '松林里的风', hint: '针叶、树脂、清苦', family: 'woody',
-    notes: ['juniper', 'cypress'] },                       // 84 瓶
-  { id: 'after-rain', zh: '雨后的土地', hint: '湿土、苔藓、树根', family: 'woody',
-    notes: ['vetiver', 'patchouli', 'oakmoss'] },          // 673 瓶
-  { id: 'old-medicine', zh: '古老的药木', hint: '深色木头 + 一点药味', family: 'woody',
-    notes: ['oud', 'saffron'] },                           // 183 瓶
-  /* ---- 树脂 / 烟 ---- */
-  { id: 'incense-ash', zh: '寺庙的香灰', hint: '烟散了以后留在空气里的那层', family: 'amber',
-    notes: ['incense', 'myrrh', 'frankincense'] },         // 162 瓶
-  { id: 'amber-resin', zh: '琥珀色的树脂', hint: '温、稠、贴皮肤', family: 'amber',
-    notes: ['amber', 'benzoin'] },                         // 606 瓶
-  { id: 'leather-sofa', zh: '皮沙发', hint: '坐久了有体温的那种皮', family: 'amber',
-    notes: ['leather'] },                                  // 136 瓶
-  /* ---- 草本 ---- */
-  { id: 'lavender-field', zh: '薰衣草田', hint: '干净、微苦、不甜', family: 'fresh',
-    notes: ['lavender', 'sage'] },                         // 217 瓶
-];
+/* 表本身搬去了 src/avoid-map.js（避雷屏与「想要」屏共用同一套场景句，
+   映射表要作为交付物单独生成，见 scripts/build-avoid-map.mjs）。
+   每条的 zh / hint / family / notes 与搬走之前逐字相同，只多了 specimen 小图。
+   这里留一个别名，下面所有读取点（livePhrases / notesOfPhrases / zhOfPhrases）
+   一行不用改。 */
+const LIFE_NOTES = AVOID_SCENARIOS;
 
 /* 一条短语至少要在多少瓶里出现才上屏。
    取 12：本表最低是「桂花糖」34 瓶，圈过预算之后仍能剩十来个；
@@ -578,6 +599,23 @@ function artNs(inner, ns) {
 function artSvgReady(subId) {
   const inner = ART_READY.get(artPath(subId));
   return inner ? artNs(inner, 'a' + (++artSeq)) : '';
+}
+/* 避雷墙的标本小图复用同一套彩图缓存（ART_FILE 的反向：文件名 → 子家族 id）。
+   走 innerHTML 注入而不是 <img src>：个别源 SVG 带有重复的 </defs>，
+   <img> 的严格 XML 解析会整张判废（破图），而注入路径与圆盘同源、实测不受影响。
+   这样既不必改那 24 枚图标文件，也不会让任何一张卡露出破图占位符。 */
+const ART_SUB_OF_FILE = new Map(Object.entries(ART_FILE).map(([id, f]) => [f, id]));
+function avoidSpecimen(specimenPath) {
+  const file = String(specimenPath).replace(/^.*\//, '').replace(/\.svg$/, '');
+  const sub = ART_SUB_OF_FILE.get(file);
+  const box = svgEl('svg', {
+    class: 'avoid-spec', viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false',
+  });
+  if (!sub) return box;
+  const ready = artSvgReady(sub);
+  if (ready) box.innerHTML = ready;
+  else artInner(sub).then((inner) => { if (inner) box.innerHTML = artNs(inner, 'a' + (++artSeq)); });
+  return box;
 }
 /* 尽早开始预热：不等 taxonomy、不等 DOMContentLoaded。 */
 if (typeof window !== 'undefined') artWarmAll();
@@ -1291,7 +1329,18 @@ function buildWheel(cfg) {
       style: '--l:' + px(p, 0) + '%;--t:' + px(p, 1) + '%;--nl:' + px(pn, 0) + '%;--nt:' + px(pn, 1) + '%;--i:' + i,
     },
       el('span', { class: 'zh' }, f.zh),
-      el('span', { class: 'notes' }, (f.representativeNotes || []).slice(0, 2).map((e) => noteZhOf(e)).join('·'))
+      /* 注脚按「·」拆成三段（前 / 点 / 后）：窄屏斜向扇区把它排成两行，
+         横排一行会越过扇区外沿（半径 200 处弦宽约 81px，最长注脚 89px）。
+         拆开后 textContent 与原来逐字相同，桌面端仍由 CSS 排成一行。 */
+      (() => {
+        const noteText = (f.representativeNotes || []).slice(0, 2).map((e) => noteZhOf(e)).join('·');
+        const dotAt = noteText.indexOf('·');
+        return el('span', { class: 'notes' },
+          el('span', { class: 'notes-part' }, dotAt > 0 ? noteText.slice(0, dotAt) : noteText),
+          dotAt > 0 ? el('span', { class: 'notes-dot' }, '·') : null,
+          dotAt > 0 ? el('span', { class: 'notes-part' }, noteText.slice(dotAt + 1)) : null
+        );
+      })()
     );
     /* **中圈一旦选定小项，大圈 hover 也必须失效**。
        用户报的第二个 case：选定「香草甜」后指针移到大圈家族环，
@@ -2697,7 +2746,107 @@ function syncPhrasesToNotes() {
 }
 
 function renderWanted() { return renderLifePicker('wanted'); }
-function renderUnwanted() { return renderLifePicker('unwanted'); }
+
+/* ============================================================
+   第 2 屏：动态避雷（feat/quiz-v7-step2-avoid）
+   ------------------------------------------------------------
+   与「想要」屏共用同一套场景句（LIFE_NOTES = AVOID_SCENARIOS），
+   但问法相反、候选也相反：
+
+     · 候选不是固定 18 张，而是 src/avoid.js 按当前方向现算的模糊带，
+       封顶 6 张；算不出时 curSteps() 已把整屏抽掉，走不到这里。
+     · 交互只有一种：点卡＝「这个不要」，不点＝接受。没有"想要"态，
+       所以不复用 renderLifePicker 的双态网格，另画一面纵列卡片墙。
+     · 写回的仍是 answers.unwanted → dislikedNotes（-40 硬惩罚），
+       映射层的唯一写入口 syncPhrasesToNotes 不变。
+
+   没上屏的低频模糊元素不硬排除：finish() 把 plan.softNotes 交给
+   recommend 的 opts.avoidSoftNotes，引擎乘 0.94 软降权（结果池门不动）。
+   ============================================================ */
+function renderAvoid() {
+  const wrap = el('div', { class: 'fade-in' });
+  const head = stepHead('unwanted');
+  wrap.appendChild(el('div', { class: 'stage-lead' },
+    el('div', { class: 'q-kicker' }, head.kicker),
+    el('h2', { class: 'q-title' }, head.title),
+    el('p', { class: 'q-help' }, head.help)
+  ));
+
+  const plan = avoidPlanNow();
+  /* 数据没到齐（或方向还没定）：先占位。库到了 render 会重画；
+     方向没定时这一屏本就不该有候选，占位句如实说。 */
+  if (!plan) {
+    wrap.appendChild(el('p', { class: 'avoid-empty' }, '正在按你选的方向，算最容易踩雷的几个…'));
+    wrap.appendChild(navBar('unwanted'));
+    return wrap;
+  }
+  pruneAvoid(plan);
+
+  const wall = el('div', { class: 'avoid-wall', role: 'group', 'aria-label': '最容易踩雷的几个' });
+  const count = el('p', { class: 'avoid-count' });
+  const gloss = el('p', { class: 'avoid-gloss is-idle' });
+
+  const paintMeta = () => {
+    const sel = state.answers.unwanted || [];
+    count.textContent = sel.length
+      ? `已标 ${sel.length} 个「这个不要」`
+      : '一个都没点＝这几个都接受';
+    const last = sel.length ? LIFE_NOTES.find((x) => x.id === sel[sel.length - 1]) : null;
+    gloss.classList.toggle('is-idle', !last);
+    gloss.textContent = last
+      ? `${last.zh} —— ${last.hint}`
+      : '点一下＝这个不要，再点一下收回。不点就是接受';
+  };
+
+  /* 与 renderLifePicker 的 togglePhrase 同一条纪律：
+     同一条短语不能既「想要」又「不要」，点这边就从对面移除。 */
+  const toggle = (id) => {
+    const sel = state.answers.unwanted || (state.answers.unwanted = []);
+    const i = sel.indexOf(id);
+    if (i >= 0) {
+      sel.splice(i, 1);
+    } else {
+      sel.push(id);
+      const o = state.answers.wanted || [];
+      const oi = o.indexOf(id);
+      if (oi >= 0) o.splice(oi, 1);
+    }
+    syncPhrasesToNotes();
+  };
+
+  for (const c of plan.cards) {
+    const on = (state.answers.unwanted || []).includes(c.id);
+    /* 就地改状态，不重建整墙 —— 与 life-card 同一理由：
+       重建会让被点的节点消失、焦点掉回 body。 */
+    const card = el('button', {
+      class: 'avoid-card' + (on ? ' is-on' : ''),
+      type: 'button',
+      'data-phrase': c.id,
+      'aria-pressed': String(on),
+      onclick: () => {
+        toggle(c.id);
+        const nowOn = (state.answers.unwanted || []).includes(c.id);
+        card.classList.toggle('is-on', nowOn);
+        card.setAttribute('aria-pressed', String(nowOn));
+        paintMeta();
+      },
+    },
+      /* 标本风小图：复用圆盘那 24 枚上色 SVG，不新造图标。
+         aria-hidden：句意已由 zh/hint 文本完整表达。 */
+      avoidSpecimen(c.specimen),
+      el('span', { class: 'avoid-text' },
+        el('span', { class: 'avoid-zh' }, c.zh),
+        el('span', { class: 'avoid-hint' }, c.hint)
+      ),
+      el('span', { class: 'avoid-mark', 'aria-hidden': 'true' }, '这个不要')
+    );
+    wall.appendChild(card);
+  }
+
+  wrap.append(wall, count, gloss);
+  wrap.appendChild(navBar('unwanted'));
+  return wrap;
+}
 
 
 /* ============================================================
@@ -3255,7 +3404,7 @@ function navBar(stepId) {
     return bar;
   }
   if (stepId === 'unwanted') {
-    bar.appendChild(el('span', { class: 'hint' }, '这一题最值得花时间，但也可以跳过'));
+    bar.appendChild(el('span', { class: 'hint' }, '不点就是接受；点一下＝这个不要'));
     bar.appendChild(el('button', { class: 'btn', type: 'button', onclick: next }, '下一步 →'));
     return bar;
   }
@@ -3340,15 +3489,22 @@ async function finish(btn) {
        三条降级见 poolForBudget() 的注释 —— 档太窄或凑不满时退回全库，
        绝不给一个空结果。 */
     const pool = poolForBudget(d.perfumes, state.answers.budget);
-    let res = recommend(state.answers, pool, TAX, { topN: 3 });
+    /* 避雷屏没上屏的低频模糊元素在这里软降权（0.94），不硬排除。 */
+    const avoidSoftNotes = avoidSoftNow();
+    let res = recommend(state.answers, pool, TAX, { topN: 3, avoidSoftNotes });
     if (!res.results || res.results.length < 3) {
       /* ② 级的兜底：圈过的池凑不满 3 瓶时用全库重算。
          宁可给一瓶价位外的，也不给"只找到 1 瓶"。 */
-      res = recommend(state.answers, d.perfumes, TAX, { topN: 3 });
+      res = recommend(state.answers, d.perfumes, TAX, { topN: 3, avoidSoftNotes });
       res.poolFellBack = true;
     }
     state.result = res;
     state.resultView = { round: 0, soldOut: [] };
+    /* 本地档案只在「一次测试真正出结果」时写一条；换一批不写第二遍 ——
+       它换的是同一份答案下的瓶子，不是一次新的测试。 */
+    try {
+      addHistory(localStorageSafe(), makeHistoryRecord(res, state.answers));
+    } catch { /* 隐私模式/配额满：历史不可用，但结果页照常 */ }
     state.step = curSteps().length;
     render();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3403,6 +3559,9 @@ function restart() {
   /* 结果页视图状态：不清的话"换一批"会从上一局的第二批开始数。 */
   state.resultView = { round: 0, soldOut: [] };
   state.result = null;
+  /* 避雷屏的方向键也要清：不清的话新一局第一次 pruneAvoid 会误以为
+     方向没变，带着上一局的 unwanted 键往下走。 */
+  state.avoidKey = null;
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -4134,6 +4293,214 @@ function pickArt(p) {
     }));
 }
 
+/* ============================================================
+   结果页的三样新增能力（Qoder 改造，2026-11-18）
+   ------------------------------------------------------------
+   ① 我的香水档案：最近 5 次结果只落 localStorage，回看/清空都在本页完成；
+   ② 分享卡片 PNG：纯 canvas 画一张竖版卡，浏览器直接下载；
+   ③ 两者都不联网：档案不上传，卡片不加载任何外部图。
+   ============================================================ */
+
+/** 取 localStorage 的安全入口：隐私模式/嵌入 WebView 里它可能直接抛错。 */
+function localStorageSafe() {
+  try {
+    /* 走 window 而不是裸 localStorage：Node 24 的全局 localStorage
+       在未加 --localstorage-file 时会打一条实验性警告，测试输出会被它污染。 */
+    return typeof window !== 'undefined' && window.localStorage ? window.localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+/* 结果页摘要卡与分享 PNG 共用这一份价格档文案：
+   两处必须一字不差，否则用户会以为自己下载错了卡片。 */
+function currentBudgetZh() {
+  const idx = priceIndex();
+  const cur = state.answers.budget || 'any';
+  if (!idx || cur === (idx.anyId || 'any')) return null;
+  const b = (idx.bands || []).find((x) => x.id === cur);
+  return b ? b.zh : null;
+}
+
+function formatHistoryTime(t) {
+  const d = new Date(t);
+  if (!Number.isFinite(d.getTime())) return '时间未知';
+  try {
+    return d.toLocaleString('zh-CN', {
+      month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+  } catch {
+    return d.toISOString().slice(5, 16).replace('T', ' ');
+  }
+}
+
+/** 历史面板的空态/列表/清空都在这一个函数里重画，保证计数与列表同源。 */
+function paintHistoryPanel(panel, toggle) {
+  panel.innerHTML = '';
+  const list = readHistory(localStorageSafe());
+  const setToggle = (n, open) => {
+    toggle.textContent = open
+      ? (n ? `收起（${n}）` : '收起')
+      : (n ? `查看（${n}）` : '查看');
+  };
+  setToggle(list.length, true);
+
+  if (!list.length) {
+    panel.appendChild(el('p', { class: 'qw-history-empty' },
+      '还没有记录。完成一次测试后，三瓶结果会出现在这里。'));
+    return;
+  }
+
+  const ol = el('ol', { class: 'qw-history-list' });
+  list.forEach((h) => {
+    const when = new Date(h.t);
+    const meta = el('div', { class: 'qw-history-meta' },
+      el('time', {
+        class: 'qw-history-time',
+        datetime: Number.isFinite(when.getTime()) ? when.toISOString() : '',
+      }, formatHistoryTime(h.t)),
+      el('span', { class: 'qw-history-entry' }, entryLabel(h.entry))
+    );
+    const names = el('ul', { class: 'qw-history-names' },
+      ...h.results.map((p) => el('li', {},
+        p.name,
+        p.brand ? el('span', { class: 'qw-history-brand' }, p.brand) : null
+      ))
+    );
+    ol.appendChild(el('li', { class: 'qw-history-item' }, meta, names));
+  });
+  panel.appendChild(ol);
+
+  /* 清空做成两段式：第一次点只把按钮改成「再点一次确认清空」，4 秒后自动复位。
+     不用 window.confirm —— 它在部分 WebView 里会阻塞整页，也和本页的视觉语言
+     完全不是一套。 */
+  const clear = el('button', { class: 'link-btn qw-history-clear', type: 'button' }, '清空历史');
+  let armed = false;
+  let timer = 0;
+  clear.addEventListener('click', () => {
+    if (!armed) {
+      armed = true;
+      clear.textContent = '再点一次确认清空';
+      timer = setTimeout(() => {
+        armed = false;
+        clear.textContent = '清空历史';
+      }, 4000);
+      return;
+    }
+    clearTimeout(timer);
+    armed = false;
+    clearHistory(localStorageSafe());
+    paintHistoryPanel(panel, toggle);
+  });
+  panel.appendChild(el('div', { class: 'qw-history-actions' },
+    clear,
+    el('span', { class: 'hint' }, '只存本机，清空后无法恢复')
+  ));
+}
+
+function renderHistoryBlock() {
+  const box = el('section', { class: 'qw-history', 'aria-label': '我的香水档案' });
+  const savedCount = readHistory(localStorageSafe()).length;
+  const toggle = el('button', {
+    class: 'btn ghost qw-history-toggle',
+    type: 'button',
+    'aria-expanded': 'false',
+  }, savedCount ? `查看（${savedCount}）` : '查看');
+  const panel = el('div', { class: 'qw-history-panel', hidden: '' });
+
+  toggle.addEventListener('click', () => {
+    const open = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+    if (open) {
+      panel.setAttribute('hidden', '');
+      const n = readHistory(localStorageSafe()).length;
+      toggle.textContent = n ? `查看（${n}）` : '查看';
+      return;
+    }
+    panel.removeAttribute('hidden');
+    paintHistoryPanel(panel, toggle);
+  });
+
+  box.appendChild(el('div', { class: 'qw-history-head' },
+    el('div', {},
+      el('p', { class: 'qw-history-label' }, '我的香水档案'),
+      el('p', { class: 'qw-history-sub' }, '最近 5 次结果只保存在这台设备，不上传')
+    ),
+    toggle
+  ));
+  box.appendChild(panel);
+  return box;
+}
+
+async function waitForShareFonts() {
+  if (!document.fonts || !document.fonts.ready) return;
+  await Promise.race([
+    document.fonts.ready,
+    new Promise((r) => setTimeout(r, 1500)),
+  ]);
+}
+
+function canvasToBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    if (typeof canvas.toBlob === 'function') {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('empty canvas blob'))), 'image/png');
+      return;
+    }
+    try {
+      const b64 = canvas.toDataURL('image/png').split(',')[1];
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      resolve(new Blob([bytes], { type: 'image/png' }));
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+function shareFileStamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+async function exportSharePng(btn) {
+  const res = state.result;
+  if (!res || !res.profile) return;
+  const restore = setBusy(btn, '正在生成…');
+  try {
+    await waitForShareFonts();
+    const canvas = document.createElement('canvas');
+    canvas.width = SHARE_W;
+    canvas.height = SHARE_H;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('canvas 2d unavailable');
+    drawShareCard(ctx, buildShareModel({
+      profile: res.profile,
+      results: res.results,
+      budgetZh: currentBudgetZh(),
+    }), SHARE_W, SHARE_H);
+    const blob = await canvasToBlob(canvas);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `scent-picker-${shareFileStamp()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => {
+      try { URL.revokeObjectURL(url); } catch { /* 页面已卸载 */ }
+    }, 2000);
+  } catch {
+    restore();
+    const old = btn.textContent;
+    btn.textContent = '生成失败，请重试';
+    setTimeout(() => { btn.textContent = old; }, 2400);
+    return;
+  }
+  restore();
+}
+
 function renderResult() {
   const { profile, results } = state.result;
   const wrap = el('div', { class: 'fade-in' });
@@ -4442,19 +4809,13 @@ function renderResult() {
 
        **放在卡片外面、贴着卡片上沿**，不塞进卡里：这张卡的用途就是被整张截下来，
        把「这张可以整张截下来」印进卡里，截图本身会带上这句自我指涉的话。 */
-    wrap.appendChild(el('p', { class: 'chips-label share-hint' }, '想发出去？这张可以整张截下来'));
+    wrap.appendChild(el('p', { class: 'chips-label share-hint' }, '想发出去？下载成 PNG，或直接截这张卡'));
     card.appendChild(el('div', { class: 'share-kicker' }, 'SCENT PROFILE'));
     card.appendChild(el('h3', { class: 'share-title' }, '我的三瓶候选'));
     /* 答案摘要：只列用户真的答过的项，空值滤掉（与 result-head 同一套过滤）。
        v6 起季节屏已退场，season 永远是 null —— 那两项整段删掉，
        而不是留个恒为 null 的分支（恒 null 的代码会在下一次重构时误导人）。 */
-    const budgetZh = (() => {
-      const idx = priceIndex();
-      const cur = state.answers.budget || 'any';
-      if (!idx || cur === (idx.anyId || 'any')) return null;
-      const b = (idx.bands || []).find((x) => x.id === cur);
-      return b ? b.zh : null;
-    })();
+    const budgetZh = currentBudgetZh();
     const answerBits = [
       profile.emotionZh,
       budgetZh,
@@ -4482,7 +4843,20 @@ function renderResult() {
       '从 1388 瓶里按规则打分选出，选品不调用大模型'
     ));
     wrap.appendChild(card);
+
+    /* 摘要卡下方的两个本地动作：下载 PNG、翻本地档案。
+       它们都只在本机完成，所以放在同一段，不混进下面的「换一批/改一题」主流程。 */
+    wrap.appendChild(el('div', { class: 'qw-share-row' },
+      el('button', {
+        class: 'btn ghost qw-share-btn',
+        type: 'button',
+        onclick: (ev) => exportSharePng(ev.currentTarget),
+      }, '下载分享卡片 PNG'),
+      el('span', { class: 'hint' }, '在本机生成，不上传')
+    ));
   }
+
+  wrap.appendChild(renderHistoryBlock());
 
   /* ==== 结果页的三个出路（规格底线：保留「换一批 / 改一题重推」）====
      为什么要三个而不是一个「重新来一次」：
@@ -4530,18 +4904,20 @@ async function reshuffle(btn) {
     }
     const pool = poolForBudget(d.perfumes, state.answers.budget);
     const want = 3 + view.soldOut.length;
-    let res = recommend(state.answers, pool, TAX, { topN: want });
+    /* 与 finish() 同一份软降权名单 —— 换一批不能把避雷屏的软降权弄丢。 */
+    const avoidSoftNotes = avoidSoftNow();
+    let res = recommend(state.answers, pool, TAX, { topN: want, avoidSoftNotes });
     /* 先按已出过的滤，滤完不足 3 瓶就退回全库再滤一次 */
     let picked = (res.results || []).filter((r) => !view.soldOut.includes(r.perfume.id)).slice(0, 3);
     if (picked.length < 3) {
-      res = recommend(state.answers, d.perfumes, TAX, { topN: want });
+      res = recommend(state.answers, d.perfumes, TAX, { topN: want, avoidSoftNotes });
       picked = (res.results || []).filter((r) => !view.soldOut.includes(r.perfume.id)).slice(0, 3);
     }
     /* 真的换不出新的了（库就这么大）：如实说，不假装换过。
        重置 soldOut 让用户可以重新开始一轮 —— 但按钮文案要说明这件事。 */
     if (picked.length < 3) {
       view.soldOut = [];
-      res = recommend(state.answers, pool, TAX, { topN: 3 });
+      res = recommend(state.answers, pool, TAX, { topN: 3, avoidSoftNotes });
       picked = res.results || [];
       view.round = 0;
     } else {
@@ -5041,6 +5417,18 @@ export const __life = {
   notesOf: notesOfPhrases,
   zhOf: zhOfPhrases,
   min: LIVE_NOTE_MIN,
+};
+
+/* 动态避雷层。三条硬规则（本类核心不问 / 最对立不问 / 只问模糊带）
+   都只有这里取得到 —— 界面上只能看到"上了哪几张卡"，看不到"为什么没上"。
+   plan 直接透传 src/avoid.js 的纯函数，测试注入 DATA/TAX 后即可复算。 */
+export const __avoid = {
+  scenarios: AVOID_SCENARIOS,
+  plan: avoidPlanNow,
+  soft: avoidSoftNow,
+  /* 让测试把香水库/分类表塞进来，不必真 fetch（与 __art.set 同一手法）。 */
+  setData: (d) => { DATA = d; avoidIndex = null; },
+  setTax: (t) => { TAX = t; avoidIndex = null; },
 };
 
 /* 预算映射层。测试要验"档太窄时退回全库"这条降级，而它只在池子上生效，

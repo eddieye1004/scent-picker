@@ -5,9 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>零基础香水选择器 — 从感觉出发，找到具体那一瓶</title>
 <meta name="description" content="不用懂香调。答完一次问卷（8 屏），从 1388 瓶库里得到三个具体香水候选，每一瓶都给出可反推的理由与完整前中后调。">
-<meta name="theme-color" content="#f6f2ea">
-<link rel="stylesheet" href="./styles.css?v=20261110a">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23a86b32'/><circle cx='16' cy='16' r='6' fill='%23f6f2ea'/></svg>">
+<meta name="theme-color" content="#FAF7F1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="香水选择器">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<link rel="stylesheet" href="./styles.css?v=20261118a">
 </head>
 <body>
   <main id="app" aria-live="polite">
@@ -29,6 +34,7 @@
       <p class="skeleton-note">首次打开要下 500KB 左右的数据，之后浏览器会缓存。</p>
     </div>
   </main>
-  <script type="module" src="./app.js?v=20261108c"></script>
+  <script type="module" src="./app.js?v=20261118a"></script>
+  <script src="./pwa.js?v=20261118a" defer></script>
 </body>
 </html>

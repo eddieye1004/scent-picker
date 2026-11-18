@@ -935,3 +935,91 @@
     transition: none;
   }
 }
+
+/* ============================================================
+   Block 12 · 胶囊文字（证据任务 ①，2026-11-18）
+   ------------------------------------------------------------
+   本屏原本有三处编号/读数还是裸文字：kicker、progress-meta 的步骤名、
+   页眉右上的底噪刻度「沉·起」。这里只给这三处加一层细线胶囊 ——
+   文字内容、DOM 结构、其余元素一律不动。
+   胶囊用 --spec-hair（暖发丝，1.31:1）做 1px 描边：它是装饰边界，
+   不承载文字，所以不进 test-contrast 的控件边界清单（--stroke-ui 那条）。
+   高度由 padding 撑起、再用 margin 抵回去，标题与后续内容的落点不动：
+     kicker 原高 12×1.6+14 ≈ 33.2 → 13.2+8+2+10 = 33.2
+     meta   原高 12×1.6 ≈ 19.2     → 13.2+6+2-1×2 = 19.2 */
+#app[data-step="family"] .stage-lead .q-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 11px;
+  border: 1px solid var(--spec-hair);
+  border-radius: 999px;
+  line-height: 1.1;
+  margin-bottom: 10px;
+}
+#app[data-step="family"] .progress-meta > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border: 1px solid var(--spec-hair);
+  border-radius: 999px;
+  line-height: 1.1;
+  margin: -1px 0;
+}
+@media (max-width: 620px) {
+  /* 窄屏标题前的呼吸原本只有 6px，同上把它抵平 */
+  #app[data-step="family"] .stage-lead .q-kicker { margin-bottom: 2px; }
+}
+/* 桌面端：底噪刻度包一层极淡的细线胶囊。原短横线缩到 10px 留在胶囊内，
+   它仍是"仪表刻度"而不是一个词。文字基线保持原 8–20px 不动（top 8→3，
+   由新增的 border 1 + padding 4 抵回）。 */
+@media (min-width: 621px) {
+  #app[data-step="family"] .masthead .amb-tick {
+    top: 3px;
+    padding: 4px 10px 4px 22px;
+    border: 1px solid var(--spec-hair);
+    border-radius: 999px;
+    background:
+      linear-gradient(var(--spec-rim), var(--spec-rim)) 10px center / 10px 1px no-repeat;
+  }
+}
+
+/* ============================================================
+   Block 13 · 窄屏页头刻度 + 六条注脚完整落区（证据任务 ②，2026-11-18）
+   ------------------------------------------------------------
+   ① 窄屏原本把底噪刻度整条 display:none（90-quiz-v6 ≤620），页头读不到
+      "这一刻的方向"。现在放回页眉底缘、绝对定位在下边距里：它不参与
+      文档流，上下各留 8px（刻度高 12px，masthead 下边距 28px 刚好容下），
+      页头到进度条的距离、整页节奏都不动。
+   ② 斜向四个扇区的注脚按「·」拆成两行（见 app.js 的 .notes-part）：
+      半径 200、y=±100 处的外沿弦宽约 81px，最长注脚 89px，横排必越界；
+      拆行后每行 ≤51px，整体落回扇区带内。顶/底两个扇区的弦宽 218px，
+      保持一行 + 点号。 */
+@media (max-width: 620px) {
+  #app[data-step="family"] .masthead .amb-tick {
+    display: block;
+    top: auto;
+    bottom: -20px;
+    right: 0;
+  }
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
+    max-width: none;
+    padding: 4px 6px;
+  }
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .zh,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes {
+    white-space: nowrap;
+  }
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="floral"] .notes-part,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="woody"] .notes-part,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="fresh"] .notes-part,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="gourmand"] .notes-part {
+    display: block;
+  }
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="floral"] .notes-dot,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="woody"] .notes-dot,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="fresh"] .notes-dot,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1[data-fam="gourmand"] .notes-dot {
+    display: none;
+  }
+}
+

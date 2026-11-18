@@ -1,0 +1,570 @@
+{
+  "version": "1.0.0",
+  "generatedFrom": "src/avoid-map.js",
+  "note": "元素→场景句→所属香型。屏上只有场景句（scenario），元素 en 名只活在映射里交给引擎。",
+  "rules": {
+    "ownCore": "所选小类自己的核心元素不问",
+    "opposite": "与所选方向最对立香型的元素不问",
+    "fuzzy": "只问同时高频出现在相邻易混香型的模糊带元素",
+    "minSide": 8,
+    "maxCards": 6,
+    "oppositeFamily": {
+      "citrus": "gourmand",
+      "gourmand": "citrus",
+      "fresh": "amber",
+      "amber": "fresh",
+      "floral": "woody",
+      "woody": "floral"
+    },
+    "confusableFamily": {
+      "citrus": [
+        "fresh"
+      ],
+      "fresh": [
+        "citrus",
+        "floral"
+      ],
+      "floral": [
+        "fresh",
+        "gourmand"
+      ],
+      "gourmand": [
+        "floral",
+        "amber"
+      ],
+      "amber": [
+        "gourmand",
+        "woody"
+      ],
+      "woody": [
+        "amber"
+      ]
+    }
+  },
+  "scenarios": [
+    {
+      "id": "citrus-peel",
+      "scenario": "刚剥开的橘子皮",
+      "hint": "手上那一下清亮的油",
+      "family": "citrus",
+      "familyZh": "柑橘调",
+      "notes": [
+        "bergamot",
+        "lemon",
+        "grapefruit"
+      ],
+      "specimen": "icon-specimen/svg/citrus-cologne.svg"
+    },
+    {
+      "id": "green-twig",
+      "scenario": "掐断的绿枝",
+      "hint": "断口的涩味，不是花的香",
+      "family": "fresh",
+      "familyZh": "清新调",
+      "notes": [
+        "violet leaf",
+        "galbanum",
+        "petitgrain"
+      ],
+      "specimen": "icon-specimen/svg/fresh-green.svg"
+    },
+    {
+      "id": "cold-tea",
+      "scenario": "一杯放凉的茶",
+      "hint": "不甜、有一点涩",
+      "family": "fresh",
+      "familyZh": "清新调",
+      "notes": [
+        "green tea"
+      ],
+      "specimen": "icon-specimen/svg/fresh-tea.svg"
+    },
+    {
+      "id": "sea-wind",
+      "scenario": "湿润的海风",
+      "hint": "空气里的水汽和一点咸",
+      "family": "fresh",
+      "familyZh": "清新调",
+      "notes": [
+        "marine notes"
+      ],
+      "specimen": "icon-specimen/svg/fresh-aquatic.svg"
+    },
+    {
+      "id": "rose-garden",
+      "scenario": "花园里的玫瑰",
+      "hint": "花心深处那点甜",
+      "family": "floral",
+      "familyZh": "花香调",
+      "notes": [
+        "rose",
+        "peony"
+      ],
+      "specimen": "icon-specimen/svg/floral-rose.svg"
+    },
+    {
+      "id": "night-white",
+      "scenario": "夜里开的白花",
+      "hint": "走近才有，很远也压不住",
+      "family": "floral",
+      "familyZh": "花香调",
+      "notes": [
+        "jasmine",
+        "tuberose",
+        "ylang-ylang"
+      ],
+      "specimen": "icon-specimen/svg/white-floral-a.svg"
+    },
+    {
+      "id": "osmanthus",
+      "scenario": "桂花糖",
+      "hint": "秋天路边那种甜",
+      "family": "floral",
+      "familyZh": "花香调",
+      "notes": [
+        "osmanthus"
+      ],
+      "specimen": "icon-specimen/svg/floral-fruity-floral.svg"
+    },
+    {
+      "id": "lotiony-powder",
+      "scenario": "奶油味的粉",
+      "hint": "爽身粉、化妆盒",
+      "family": "floral",
+      "familyZh": "花香调",
+      "notes": [
+        "iris",
+        "violet"
+      ],
+      "specimen": "icon-specimen/svg/floral-powdery-floral.svg"
+    },
+    {
+      "id": "ripe-peach",
+      "scenario": "熟透的桃子",
+      "hint": "汁水、果皮、一点酒味",
+      "family": "gourmand",
+      "familyZh": "美食调",
+      "notes": [
+        "peach",
+        "pear",
+        "apple"
+      ],
+      "specimen": "icon-specimen/svg/gourmand-fruity-gourmand.svg"
+    },
+    {
+      "id": "vanilla-ice",
+      "scenario": "香草冰淇淋",
+      "hint": "冷的时候也能闻到的甜",
+      "family": "gourmand",
+      "familyZh": "美食调",
+      "notes": [
+        "vanilla",
+        "tonka bean"
+      ],
+      "specimen": "icon-specimen/svg/gourmand-vanilla-gourmand.svg"
+    },
+    {
+      "id": "sunlit-wood",
+      "scenario": "晒过的旧木头",
+      "hint": "干、暖、不甜",
+      "family": "woody",
+      "familyZh": "木质调",
+      "notes": [
+        "sandalwood",
+        "cedar"
+      ],
+      "specimen": "icon-specimen/svg/woody-sandalwood.svg"
+    },
+    {
+      "id": "pine-wind",
+      "scenario": "松林里的风",
+      "hint": "针叶、树脂、清苦",
+      "family": "woody",
+      "familyZh": "木质调",
+      "notes": [
+        "juniper",
+        "cypress"
+      ],
+      "specimen": "icon-specimen/svg/woody-woody.svg"
+    },
+    {
+      "id": "after-rain",
+      "scenario": "雨后的土地",
+      "hint": "湿土、苔藓、树根",
+      "family": "woody",
+      "familyZh": "木质调",
+      "notes": [
+        "vetiver",
+        "patchouli",
+        "oakmoss"
+      ],
+      "specimen": "icon-specimen/svg/woody-vetiver.svg"
+    },
+    {
+      "id": "old-medicine",
+      "scenario": "古老的药木",
+      "hint": "深色木头 + 一点药味",
+      "family": "woody",
+      "familyZh": "木质调",
+      "notes": [
+        "oud",
+        "saffron"
+      ],
+      "specimen": "icon-specimen/svg/oud-a.svg"
+    },
+    {
+      "id": "incense-ash",
+      "scenario": "寺庙的香灰",
+      "hint": "烟散了以后留在空气里的那层",
+      "family": "amber",
+      "familyZh": "东方琥珀调",
+      "notes": [
+        "incense",
+        "myrrh",
+        "frankincense"
+      ],
+      "specimen": "icon-specimen/svg/amber-incense.svg"
+    },
+    {
+      "id": "amber-resin",
+      "scenario": "琥珀色的树脂",
+      "hint": "温、稠、贴皮肤",
+      "family": "amber",
+      "familyZh": "东方琥珀调",
+      "notes": [
+        "amber",
+        "benzoin"
+      ],
+      "specimen": "icon-specimen/svg/amber-resinous.svg"
+    },
+    {
+      "id": "leather-sofa",
+      "scenario": "皮沙发",
+      "hint": "坐久了有体温的那种皮",
+      "family": "amber",
+      "familyZh": "东方琥珀调",
+      "notes": [
+        "leather"
+      ],
+      "specimen": "icon-specimen/svg/amber-leather.svg"
+    },
+    {
+      "id": "lavender-field",
+      "scenario": "薰衣草田",
+      "hint": "干净、微苦、不甜",
+      "family": "fresh",
+      "familyZh": "清新调",
+      "notes": [
+        "lavender",
+        "sage"
+      ],
+      "specimen": "icon-specimen/svg/fresh-fougere.svg"
+    }
+  ],
+  "elements": [
+    {
+      "note": "bergamot",
+      "noteZh": "佛手柑",
+      "scenario": "刚剥开的橘子皮",
+      "scenarioId": "citrus-peel",
+      "family": "citrus",
+      "familyZh": "柑橘调"
+    },
+    {
+      "note": "lemon",
+      "noteZh": "柠檬",
+      "scenario": "刚剥开的橘子皮",
+      "scenarioId": "citrus-peel",
+      "family": "citrus",
+      "familyZh": "柑橘调"
+    },
+    {
+      "note": "grapefruit",
+      "noteZh": "葡萄柚",
+      "scenario": "刚剥开的橘子皮",
+      "scenarioId": "citrus-peel",
+      "family": "citrus",
+      "familyZh": "柑橘调"
+    },
+    {
+      "note": "violet leaf",
+      "noteZh": "紫罗兰叶",
+      "scenario": "掐断的绿枝",
+      "scenarioId": "green-twig",
+      "family": "fresh",
+      "familyZh": "清新调"
+    },
+    {
+      "note": "galbanum",
+      "noteZh": "白松香",
+      "scenario": "掐断的绿枝",
+      "scenarioId": "green-twig",
+      "family": "fresh",
+      "familyZh": "清新调"
+    },
+    {
+      "note": "petitgrain",
+      "noteZh": "苦橙叶",
+      "scenario": "掐断的绿枝",
+      "scenarioId": "green-twig",
+      "family": "fresh",
+      "familyZh": "清新调"
+    },
+    {
+      "note": "green tea",
+      "noteZh": "绿茶",
+      "scenario": "一杯放凉的茶",
+      "scenarioId": "cold-tea",
+      "family": "fresh",
+      "familyZh": "清新调"
+    },
+    {
+      "note": "marine notes",
+      "noteZh": "海水",
+      "scenario": "湿润的海风",
+      "scenarioId": "sea-wind",
+      "family": "fresh",
+      "familyZh": "清新调"
+    },
+    {
+      "note": "rose",
+      "noteZh": "玫瑰",
+      "scenario": "花园里的玫瑰",
+      "scenarioId": "rose-garden",
+      "family": "floral",
+      "familyZh": "花香调"
+    },
+    {
+      "note": "peony",
+      "noteZh": "牡丹",
+      "scenario": "花园里的玫瑰",
+      "scenarioId": "rose-garden",
+      "family": "floral",
+      "familyZh": "花香调"
+    },
+    {
+      "note": "jasmine",
+      "noteZh": "茉莉",
+      "scenario": "夜里开的白花",
+      "scenarioId": "night-white",
+      "family": "floral",
+      "familyZh": "花香调"
+    },
+    {
+      "note": "tuberose",
+      "noteZh": "晚香玉",
+      "scenario": "夜里开的白花",
+      "scenarioId": "night-white",
+      "family": "floral",
+      "familyZh": "花香调"
+    },
+    {
+      "note": "ylang-ylang",
+      "noteZh": "依兰",
+      "scenario": "夜里开的白花",
+      "scenarioId": "night-white",
+      "family": "floral",
+      "familyZh": "花香调"
+    },
+    {
+      "note": "osmanthus",
+      "noteZh": "桂花",
+      "scenario": "桂花糖",
+      "scenarioId": "osmanthus",
+      "family": "floral",
+      "familyZh": "花香调"
+    },
+    {
+      "note": "iris",
+      "noteZh": "鸢尾",
+      "scenario": "奶油味的粉",
+      "scenarioId": "lotiony-powder",
+      "family": "floral",
+      "familyZh": "花香调"
+    },
+    {
+      "note": "violet",
+      "noteZh": "紫罗兰",
+      "scenario": "奶油味的粉",
+      "scenarioId": "lotiony-powder",
+      "family": "floral",
+      "familyZh": "花香调"
+    },
+    {
+      "note": "peach",
+      "noteZh": "桃子",
+      "scenario": "熟透的桃子",
+      "scenarioId": "ripe-peach",
+      "family": "gourmand",
+      "familyZh": "美食调"
+    },
+    {
+      "note": "pear",
+      "noteZh": "梨",
+      "scenario": "熟透的桃子",
+      "scenarioId": "ripe-peach",
+      "family": "gourmand",
+      "familyZh": "美食调"
+    },
+    {
+      "note": "apple",
+      "noteZh": "苹果",
+      "scenario": "熟透的桃子",
+      "scenarioId": "ripe-peach",
+      "family": "gourmand",
+      "familyZh": "美食调"
+    },
+    {
+      "note": "vanilla",
+      "noteZh": "香草",
+      "scenario": "香草冰淇淋",
+      "scenarioId": "vanilla-ice",
+      "family": "gourmand",
+      "familyZh": "美食调"
+    },
+    {
+      "note": "tonka bean",
+      "noteZh": "零陵香豆",
+      "scenario": "香草冰淇淋",
+      "scenarioId": "vanilla-ice",
+      "family": "gourmand",
+      "familyZh": "美食调"
+    },
+    {
+      "note": "sandalwood",
+      "noteZh": "檀木",
+      "scenario": "晒过的旧木头",
+      "scenarioId": "sunlit-wood",
+      "family": "woody",
+      "familyZh": "木质调"
+    },
+    {
+      "note": "cedar",
+      "noteZh": "雪松",
+      "scenario": "晒过的旧木头",
+      "scenarioId": "sunlit-wood",
+      "family": "woody",
+      "familyZh": "木质调"
+    },
+    {
+      "note": "juniper",
+      "noteZh": "杜松",
+      "scenario": "松林里的风",
+      "scenarioId": "pine-wind",
+      "family": "woody",
+      "familyZh": "木质调"
+    },
+    {
+      "note": "cypress",
+      "noteZh": "柏树",
+      "scenario": "松林里的风",
+      "scenarioId": "pine-wind",
+      "family": "woody",
+      "familyZh": "木质调"
+    },
+    {
+      "note": "vetiver",
+      "noteZh": "香根草",
+      "scenario": "雨后的土地",
+      "scenarioId": "after-rain",
+      "family": "woody",
+      "familyZh": "木质调"
+    },
+    {
+      "note": "patchouli",
+      "noteZh": "广藿香",
+      "scenario": "雨后的土地",
+      "scenarioId": "after-rain",
+      "family": "woody",
+      "familyZh": "木质调"
+    },
+    {
+      "note": "oakmoss",
+      "noteZh": "橡苔",
+      "scenario": "雨后的土地",
+      "scenarioId": "after-rain",
+      "family": "woody",
+      "familyZh": "木质调"
+    },
+    {
+      "note": "oud",
+      "noteZh": "乌木",
+      "scenario": "古老的药木",
+      "scenarioId": "old-medicine",
+      "family": "woody",
+      "familyZh": "木质调"
+    },
+    {
+      "note": "saffron",
+      "noteZh": "藏红花",
+      "scenario": "古老的药木",
+      "scenarioId": "old-medicine",
+      "family": "woody",
+      "familyZh": "木质调"
+    },
+    {
+      "note": "incense",
+      "noteZh": "焚香",
+      "scenario": "寺庙的香灰",
+      "scenarioId": "incense-ash",
+      "family": "amber",
+      "familyZh": "东方琥珀调"
+    },
+    {
+      "note": "myrrh",
+      "noteZh": "没药",
+      "scenario": "寺庙的香灰",
+      "scenarioId": "incense-ash",
+      "family": "amber",
+      "familyZh": "东方琥珀调"
+    },
+    {
+      "note": "frankincense",
+      "noteZh": "乳香",
+      "scenario": "寺庙的香灰",
+      "scenarioId": "incense-ash",
+      "family": "amber",
+      "familyZh": "东方琥珀调"
+    },
+    {
+      "note": "amber",
+      "noteZh": "琥珀",
+      "scenario": "琥珀色的树脂",
+      "scenarioId": "amber-resin",
+      "family": "amber",
+      "familyZh": "东方琥珀调"
+    },
+    {
+      "note": "benzoin",
+      "noteZh": "安息香",
+      "scenario": "琥珀色的树脂",
+      "scenarioId": "amber-resin",
+      "family": "amber",
+      "familyZh": "东方琥珀调"
+    },
+    {
+      "note": "leather",
+      "noteZh": "皮革",
+      "scenario": "皮沙发",
+      "scenarioId": "leather-sofa",
+      "family": "amber",
+      "familyZh": "东方琥珀调"
+    },
+    {
+      "note": "lavender",
+      "noteZh": "薰衣草",
+      "scenario": "薰衣草田",
+      "scenarioId": "lavender-field",
+      "family": "fresh",
+      "familyZh": "清新调"
+    },
+    {
+      "note": "sage",
+      "noteZh": "鼠尾草",
+      "scenario": "薰衣草田",
+      "scenarioId": "lavender-field",
+      "family": "fresh",
+      "familyZh": "清新调"
+    }
+  ]
+}

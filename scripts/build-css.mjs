@@ -67,6 +67,14 @@ const PARTS = [
      70-final 与 20/30 层在圆盘上的取值，且只挂在第 1 屏之下 ——
      其余七屏与结果页不受影响（那是本层唯一的围栏）。 */
   '95-quiz-v7-design.css',
+  /* Qoder 改造层（2026-11-18）：结果页的历史档案与分享 PNG 下载行。
+     放在最后，避免与既有层抢结果页的样式；两条选择器都带 .qw- 前缀，
+     不会命中问卷各屏与圆盘。 */
+  '97-qoder-work.css',
+  /* 动态避雷屏（feat/quiz-v7-step2-avoid）：第 2 屏的场景卡片墙。
+     放在最后；所有选择器带 .avoid- 前缀，不命中圆盘、其余问卷屏与结果页。
+     文字色只取已审计 token，不引入新文字色。 */
+  '98-avoid-wall.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');
