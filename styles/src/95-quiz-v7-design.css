@@ -66,6 +66,35 @@
 
   /* 盘心圆环底纹（.plate-bg）的环距。写成变量是为了改密度只改一处。 */
   --spec-ring-pitch: 38px;
+
+  /* ---- 液态玻璃（Block 11）：一组 alpha，改强度只改这里 ----
+     全部是 rgba()，不写十六进制：test-contrast 的 token 表只收 hex 色值，
+     这几个数一旦写成 hex 就会被当成"待审计的颜色"扫进 PAIRS 对照，
+     而它们一条都不承载文字（只出现在 background / mask 里）。
+     分组的依据是"这一层在实物上是什么"：
+       core/shoulder/halo  斜向光泽带的窄芯、宽肩、环境罩
+       shade               亮芯背光侧贴身的一道暗线 —— 亮带之所以是"一条带"
+                           而不是"一片雾"，靠的是它旁边那道更暗的边
+       edge/edge-soft      盘缘那道镜面亮线（最亮一档 + 两侧衰减）
+       vignette            亮线内侧的收边晕（盘面走向边缘时自己暗下去）
+       refract             亮线与盘的轮廓之间的一缕折射暗影
+                           —— 只有亮线没有这缕暗，读起来是"描了个边"，
+                              不是"一块玻璃的断面"
+       collar              盘心外沿（透镜口）的一圈亮线
+       glint-*             指针高光（B 段） */
+  --glass-core: rgba(255, 255, 255, .58);
+  --glass-shoulder: rgba(255, 255, 255, .20);
+  --glass-halo: rgba(255, 255, 255, .06);
+  --glass-shade: rgba(120, 94, 54, .26);
+  --glass-edge: rgba(255, 255, 255, 1);
+  --glass-edge-soft: rgba(255, 255, 255, .55);
+  --glass-vignette: rgba(120, 94, 54, .17);
+  --glass-refract: rgba(120, 94, 54, .26);
+  --glass-collar: rgba(255, 255, 255, .85);
+  --glass-collar-shade: rgba(120, 94, 54, .13);
+  --glass-glint-core: rgba(255, 255, 255, .96);
+  --glass-glint-mid: rgba(255, 255, 255, .58);
+  --glass-glint-far: rgba(255, 255, 255, .22);
 }
 
 /* ============================================================
@@ -734,14 +763,41 @@
 }
 
 /* ============================================================
-   Block 11 · 液态玻璃交互层（B 段）
+   Block 11 · 液态玻璃：A 静态可读层 + B 指针跟随层
    ------------------------------------------------------------
-   只加"反馈"，不动选择机制：指针移动 → 高光跟着流动；按下 → 盘体
-   轻按沉降，松开平滑回位（ease-out，全程单调，无过冲）。
+   Eddie 2026-11-18 点名：上一版只有 B 段（指针高光 + 涟漪），而 B 段的
+   `opacity` 由 `.is-glint` 控制 —— 指针不在盘上时整层是 0，静态截图里
+   "玻璃"一个像素都没有；就算指针在盘上，soft-light 在 L* 92–95 的浅底上
+   增益近乎为 0（它的曲线在亮端是平的），录屏里也量不出来。
+   本块因此分两段，**A 段不依赖任何输入**：
+
+     A 静态层（常驻：`.glass` 本体 + `.glass::before`）
+        ① 斜向镜面光泽带：窄芯 + 宽肩的一道主反光，另在右下加一道
+           弱一半的副反光
+        ② 环境罩：左上亮、右下收的整面柔光 —— 它定光源方向，
+           ①④⑥ 的明暗才都有依据，否则各道反光互相矛盾
+        ③ 透镜口亮线：盘心外沿外 6px 处一道亮线（"中间鼓起一块透镜"）
+        ④ 盘缘镜面线 + 折射暗影：最外沿一圈亮线，紧贴在它外面一缕暗影
+           —— 只有亮线没有那缕暗，读起来是"描了个边"；两笔并置才是
+              玻璃断面的反光。这两笔是"一眼可见"的主要载体。
+     B 跟随层（`.glass::after`，随指针移动）
+        双圈光斑（紧芯 + 大 halo），纯 alpha 白，半径按盘径比例给。
+
+   为什么画在 `.glass` 的伪元素上而不是新增 DOM 节点：app.js 只造
+   `.glass` / `.glass-ripple` 两枚节点，盘结构与两层机制的节点树不该
+   因为一层材质被改动；DOM 少一棵，test-render 的节点计数与 shot
+   probe 的 `glass` 字段也就不用跟着动。
+
+   为什么是纯 alpha 白而不是 mix-blend-mode：soft-light / screen 在接近
+   纯白的底色上都加不出东西（底色 L* 已 92–95），叠 alpha 白是唯一能被
+   像素量出来的做法。而且它只会让背景更亮 —— 盘上是暖墨字，背景变亮
+   对比度只往高处走，这就是"不许盖住扇区文字与图标"能成立的前提。
+
    为什么用 radial-gradient 而不是 filter: blur()：这层在盘上随指针
    每帧改两个自定义属性，blur 会让整块盘每帧重绘（实测 520px 盘上
    掉到 30fps 以下）；渐变只改 paint，不动布局也不动合成层。
-   降级：prefers-reduced-motion 下高光常驻、涟漪与沉降全部关掉。
+   降级：prefers-reduced-motion 下 B 段关掉、**A 段保留** ——
+   材质不是动效，拿掉时间维度不该拿掉材质。
 
    ---- 2026-11-18：去回弹，改轻按沉降（Eddie 拍板）----
    上一版这里是「弹性落定」：`glassSettle` 520ms，曲线
@@ -756,51 +812,254 @@
    两条曲线的控制点 y 全在 [0,1] 内，整条路径不可能出现大于目标值的反弹；
    瓦片层的 `arcSettle` / 盘心的 `hubSettle` 同样从下方贴合（.99 / .985 → 1）。
 
+   ==== 盘面几何（W = .wheel 盒边长；viewBox 480 单位 ↔ W）====
+     盘心外沿   66% 宽 → 0.330W（= 158.4 单位，与扇区内沿 r1i=158 相切）
+     扇区外沿   r1o 228 → 0.475W
+     盘的轮廓   `.wheel::after` inset 1.75% → 0.4825W
+     所以"盘缘"这一带是 0.469W–0.482W：镜面线落在 0.437–0.476（扇区面的
+     最外一圈，也是它被磨亮的一圈），折射暗影落在 0.476–0.484（扇区面与
+     轮廓线之间那 4px 的空带）。全部按 W 的百分比写，四个断点同比例。
+
    高光定位：--gx/--gy 是**相对盘面**的百分比，由 app.js 的 pointermove
    写进来。写百分比而不是 px，是因为盘径在四个断点上从 312 变到 520。
    ============================================================ */
+
+/* ---- A 段 ①②③：画在 .glass 本体上，常驻 ---- */
 #app[data-step="family"] .wheel .glass {
   position: absolute;
   inset: 0;
   z-index: 2;
   border-radius: 50%;
   pointer-events: none;
-  opacity: 0;
-  /* 只在**环带**上出现，不盖盘心：34%–97% 是家族环（r1i 158/240 = 65.8%
-     是盘心外沿的一半……这里取的是半径百分比，不是半径，所以 34% 对应
-     直径的 34%）。盘心是文字区，任何一层白光压上去都会让 contrast 从
-     14.7 掉下来；而"玻璃反光"本来就该出现在器物的外沿，不该出现在
-     印着字的心口。 */
+  /* 只在**环带**上出现，并且**不许越过盘的轮廓线**：
+       内沿 34%→44%（0.240W→0.311W）淡出，盖住的是家族环，不是盘心；
+       外沿 68%→71%（0.481W→0.502W）淡出，正好压在 `.wheel::after`
+       那条 0.4825W 的轮廓线上。
+     为什么外沿这一刀必须存在：.glass 是 inset:0 + border-radius:50%，
+     它的画布半径是 0.500W，而盘的可见轮廓只有 0.4825W —— 不遮的话
+     斜向光泽带会在盘外多刷出约 9px 的一圈白，纸底被抬起，
+     直接违反「玻璃只落在盘体上，不许漫到页面背景」。
+     盘心是文字区，任何一层白光压上去都会让 contrast 从 14.7 掉下来；
+     而"玻璃反光"本来就该出现在器物的外沿，不该出现在印着字的心口。
+     盘心那一块的质感由 Block 12 负责：它画在盘心的**底色**里，
+     文字压在底色之上，所以既看得见又不改对比度。 */
   mask-image: radial-gradient(
     circle at 50% 50%,
     transparent 0 34%,
-    #000 44% 96%,
-    transparent 100%
+    #000 44% 68%,
+    transparent 71%
   );
   -webkit-mask-image: radial-gradient(
     circle at 50% 50%,
     transparent 0 34%,
-    #000 44% 96%,
-    transparent 100%
+    #000 44% 68%,
+    transparent 71%
   );
   background:
-    radial-gradient(
-      circle 210px at var(--gx, 50%) var(--gy, 34%),
-      rgba(255, 255, 255, .9) 0%,
-      rgba(255, 255, 255, .42) 38%,
-      rgba(255, 255, 255, 0) 72%
-    );
-  mix-blend-mode: soft-light;
-  transition: opacity 420ms var(--ease-std);
+    /* ① 斜向镜面光泽带。渐变轴 118°，反光条本身因此垂直于它、从左下走到
+          右上；芯只占渐变线 2%（504 盘上约 14px 宽）—— 芯一宽就成了
+          "蒙了层雾"而不是反光（第一版就是肩太宽，把左上角洗成一片白）。
+          副反光压在右下，与主反光同形、弱一档。 */
+    linear-gradient(118deg,
+      transparent 0 9%,
+      var(--glass-shoulder) 15%,
+      var(--glass-core) 19%,
+      var(--glass-core) 21%,
+      var(--glass-shoulder) 25%,
+      transparent 30% 58%,
+      var(--glass-shoulder) 65%,
+      transparent 70% 100%),
+    /* ①b 亮芯两侧各贴一道暗岸。实测：盘面底色已经在 L*92–95（瓦面 230–250），
+          往上加白只剩 5–25 级余量 —— 只靠亮带，A/B 差做到 +9 就顶天了，
+          人眼读不出来（前两版都是这么废的）。而一条"带"之所以看得见，
+          靠的是它两边更暗：亮芯相对两岸的局部反差能做到 40 级以上。
+          实物也对得上：玻璃体本身会吸掉一点光，只有把光线镜面反射进来的
+          那条走亮，其余部分整体略沉。 */
+    linear-gradient(118deg,
+      transparent 0 8%,
+      var(--glass-shade) 12.5%,
+      transparent 17% 28%,
+      var(--glass-shade) 32%,
+      transparent 40% 100%),
+    /* ② 环境罩：光源在左上，与扇区渐变 gFam* 的 40,30 → 440,450 同向。
+          收到 48% 且只有 .10：这层的作用是给 ①④ 定一个方向，
+          不是把半个盘提亮 —— 底色已经 L*92+，提亮的余量本就所剩无几。 */
+    radial-gradient(ellipse 48% 48% at 30% 26%,
+      var(--glass-halo),
+      transparent 74%),
+    /* ③ 透镜口：亮线在 0.342W（盘心外沿外约 6px），紧外面一道厚度暗边。
+          没有暗边时这条亮线只是"描了一圈白"，有了它就是玻璃透镜口
+          那一圈真实的厚度转折。 */
+    radial-gradient(ellipse 34.6% 34.6% at 50% 50%,
+      transparent 0 95%,
+      var(--glass-collar) 99%,
+      transparent 100%),
+    radial-gradient(ellipse 36% 36% at 50% 50%,
+      transparent 0 95%,
+      var(--glass-collar-shade) 97.5%,
+      transparent 100%);
+}
+
+/* ---- A 段 ④：盘缘三笔 —— 收边晕 / 镜面线 / 折射暗影 ----
+   为什么必须带那层"收边晕"：盘面底色在 L*92–95（实测瓦面 230–250），
+   再加白最多加到 255 —— 只有 5–25 级余量，第一版实测镜面线峰相对基线
+   Δ+9～+17，人眼读不出来。实物上玻璃边缘之所以一眼可见，是因为
+   **边缘本身会收暗**（光在断面被折走、玻璃在这里最厚），亮线是
+   贴在一片略暗的边上才成为亮线。所以这里先压 7% 的暖晕（0.40→0.469W），
+   再在 0.471W 给一条满亮镜面线，最后在最外那道 4px 空带（扇区面 0.475W
+   与盘的轮廓线 0.4825W 之间）落一缕折射暗影。三笔的半径都按 W 的
+   百分比给，四个断点同比例。
+
+   角向衰减仍由 conic 做：315°（左上，光源方向）满强度，104°–140°
+   （右下）收到 .30 —— 玻璃的边缘反光随视角变，均匀一圈会读成一根线。
+   conic 在这里是 mask 而不是 paint，所以它与父层 .glass 的环带 mask
+   相乘（父层管径向、这层管角向），三笔都只在环带内出现，既不会漫到
+   盘外的纸上，也不会漫到盘心的文字上。 */
+#app[data-step="family"] .wheel .glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    /* 镜面线（压在晕之上，最亮一档，外侧 0.476W 硬收到透明 = 扇区面外沿） */
+    radial-gradient(ellipse 47.6% 47.6% at 50% 50%,
+      transparent 0 95.5%,
+      var(--glass-edge-soft) 97.6%,
+      var(--glass-edge) 99%,
+      transparent 100%),
+    /* 折射暗影：只落在 0.472–0.482W 那道空带里，不越过盘的轮廓线 */
+    radial-gradient(ellipse 48.2% 48.2% at 50% 50%,
+      transparent 0 96.4%,
+      var(--glass-refract) 99%,
+      transparent 100%),
+    /* 收边晕：0.400→0.469W 从 0 压到 .07，给上面两笔留出可亮的余量 */
+    radial-gradient(ellipse 47.6% 47.6% at 50% 50%,
+      transparent 0 84%,
+      var(--glass-vignette) 95%,
+      var(--glass-vignette) 98.5%,
+      transparent 100%);
+  mask-image: conic-gradient(from 0deg at 50% 50%,
+    rgba(255, 255, 255, .80) 0deg,
+    rgba(255, 255, 255, .52) 46deg,
+    rgba(255, 255, 255, .30) 104deg,
+    rgba(255, 255, 255, .34) 140deg,
+    rgba(255, 255, 255, .56) 200deg,
+    rgba(255, 255, 255, 1) 315deg,
+    rgba(255, 255, 255, .80) 360deg);
+  -webkit-mask-image: conic-gradient(from 0deg at 50% 50%,
+    rgba(255, 255, 255, .80) 0deg,
+    rgba(255, 255, 255, .52) 46deg,
+    rgba(255, 255, 255, .30) 104deg,
+    rgba(255, 255, 255, .34) 140deg,
+    rgba(255, 255, 255, .56) 200deg,
+    rgba(255, 255, 255, 1) 315deg,
+    rgba(255, 255, 255, .80) 360deg);
+}
+
+/* ---- B 段：指针高光（紧芯 + halo，位置仍由 app.js 每帧写 --gx/--gy）----
+   芯 0.20W、halo 0.44W。上一版是固定 210px：在 312px 的窄盘上等于整盘
+   洗白，在 520px 的盘上又小到看不出在移动 —— 两个断点都不对，比例才对。
+   跟着指针走时不给 transition（会拖影），只在进出时缓动；
+   位移本身每帧重算，等价于连续运动。 */
+#app[data-step="family"] .wheel .glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse 20% 20% at var(--gx, 50%) var(--gy, 34%),
+      var(--glass-glint-core) 0%,
+      var(--glass-glint-mid) 36%,
+      transparent 76%),
+    radial-gradient(ellipse 44% 44% at var(--gx, 50%) var(--gy, 34%),
+      var(--glass-glint-mid) 0%,
+      var(--glass-glint-far) 42%,
+      transparent 74%);
+  opacity: 0;
+  transition: opacity 320ms var(--ease-std);
 }
 /* 盘心必须压在玻璃之上：它承载文字。z-index 只在同为定位元素之间比较，
    而 .disc-hub 本来就是 position:absolute，所以这里补一个数即可。 */
 #app[data-step="family"] .wheel .disc-hub {
   z-index: 3;
 }
-#app[data-step="family"] .wheel.is-glint .glass {
+/* 扇区标签同理，而且这一条是实测逼出来的：.label-layer 原本没有 z-index
+   （position:absolute + auto），于是 .glass（z-index:2）整层压在它上面，
+   A/B 探针量到标签那圈的像素被白光最多抬起 **128 级** —— 暖墨字糊成浅灰，
+   正撞在任务书"不许盖住扇区文字对比度"那条红线上。
+   层级关系本来也该这样：色块是封在玻璃**里面**的印刷，字是刻在玻璃**面上**的，
+   所以光泽带从字下面走过去，不盖字。 */
+#app[data-step="family"] .wheel .label-layer {
+  z-index: 3;
+}
+#app[data-step="family"] .wheel.is-glint .glass::after {
   opacity: 1;
 }
+
+/* ============================================================
+   Block 12 · 盘心也是一块玻璃（透镜口），以及深色档的强度
+   ------------------------------------------------------------
+   盘心压在玻璃层之上（z-index 3），所以 A 段那几笔反光到盘心边缘就停了。
+   盘心要读成"同一块玻璃鼓起来的一个镜面透镜"，只能画在它自己的**底色**里：
+   背景永远在文字之下，于是不管怎么调，暖墨字与标本的对比度只升不降
+   （本块唯一一处会碰背景的地方是外圈那缕收暗，实算 #E9E3D8，
+   --spec-ink 在其上仍有 11.8:1，见回执）。
+
+   为什么盘心没有"亮"的反光带：盘心底色 --spec-plate #FFFCF6 已经在
+   白端，任何 alpha 白叠上去都落在同一个像素值上，量不出来 ——
+   凸透镜在近白底上的可读形态本来就不是高光，而是**边缘那一圈收暗**
+   （玻璃变厚、光程变长的那一圈）。所以盘心给厚度，不给高光。
+   ============================================================ */
+#app[data-step="family"] .wheel .disc-hub {
+  background-image:
+    /* 与 A 段同一光源：左上扫来的一层柔光（在近白底上几乎不显，
+       但盘心外沿收到 84% 以下时它会显出方向性） */
+    linear-gradient(131deg,
+      rgba(255, 255, 255, .9) 0 18%,
+      rgba(255, 255, 255, 0) 54%),
+    /* 透镜厚度：0.36R 起收，0.5R（盘心边）收到最深 —— 只碰外圈 28%，
+       主词、注脚、标本图都在 0.36R 之内。 */
+    radial-gradient(ellipse 50% 50% at 47% 44%,
+      transparent 0 72%,
+      rgba(122, 96, 58, .07) 88%,
+      rgba(122, 96, 58, .16) 100%);
+}
+
+/* ---- 深色档：同一套玻璃，另一组强度 ----
+   浅底靠"加白"显形，深底靠"加白"会变成一团糊光。深色盘的扇区在
+   L* 12–16，所以芯与肩都压掉一档，边缘亮线保留（它是断面反光的
+   主体），而"折射"那一缕在近黑底上没有意义 —— 换成更黑的一缕，
+   让镜面线与盘的轮廓之间仍有一道缝，不至于读成一根 2px 白边。 */
+@media (prefers-color-scheme: dark) {
+  #app[data-step="family"] {
+    --glass-core: rgba(255, 255, 255, .30);
+    --glass-shoulder: rgba(255, 255, 255, .12);
+    --glass-halo: rgba(255, 255, 255, .10);
+    --glass-shade: rgba(0, 0, 0, .34);
+    --glass-edge: rgba(255, 255, 255, .82);
+    --glass-edge-soft: rgba(255, 255, 255, .30);
+    --glass-vignette: rgba(0, 0, 0, .28);
+    --glass-refract: rgba(0, 0, 0, .55);
+    --glass-collar: rgba(255, 255, 255, .52);
+    --glass-collar-shade: rgba(0, 0, 0, .30);
+    --glass-glint-core: rgba(255, 255, 255, .72);
+    --glass-glint-mid: rgba(255, 255, 255, .34);
+    --glass-glint-far: rgba(255, 255, 255, .14);
+  }
+  #app[data-step="family"] .wheel .disc-hub {
+    background-image:
+      linear-gradient(131deg,
+        rgba(255, 255, 255, .10) 0 18%,
+        rgba(255, 255, 255, 0) 54%),
+      radial-gradient(ellipse 50% 50% at 47% 44%,
+        transparent 0 72%,
+        rgba(0, 0, 0, .22) 88%,
+        rgba(0, 0, 0, .40) 100%);
+  }
+}
+
+/* 降级见文件末尾的 prefers-reduced-motion 块：那里只拿掉 B 段，
+   A 段的材质保留。 */
 /* 高光跟着指针走时不能有 transition（会拖影），只在进出时缓动。
    位移本身每帧重算，等价于连续运动。 */
 
@@ -906,10 +1165,16 @@
 }
 
 /* 降级：动效全关，状态仍靠颜色/描边表达（不是"关掉反馈"，
-   而是把时间维度拿掉，静态差异一个不少）。 */
+   而是把时间维度拿掉，静态差异一个不少）。
+   ---- 2026-11-18 玻璃层拆成 A/B 两段后改了这条 ----
+   原来这里写的是 `.glass { opacity: 0 }`：那时整层只有跟随高光，
+   关掉等于关掉动效，成立。现在 `.glass` 与 `::before` 是**材质**
+   （斜向反光带 + 盘缘镜面线），不随时间变化，拿掉它们不是降级而是
+   换了一套观感；所以这里只拿掉 B 段（`::after`，唯一跟指针走的那笔）。 */
 @media (prefers-reduced-motion: reduce) {
-  #app[data-step="family"] .wheel .glass {
-    opacity: .0;
+  #app[data-step="family"] .wheel .glass::after,
+  #app[data-step="family"] .wheel.is-glint .glass::after {
+    opacity: 0;
     transition: none;
   }
   #app[data-step="family"] .wheel .glass-ripple.is-on {
