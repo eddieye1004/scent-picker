@@ -71,9 +71,21 @@ const state = {
     budget: 'any',
     occasion: null,
     intensity: 3,
-    /* 第 3 / 4 屏：存的是生活短语 id（如 'citrus-peel'），不是香材名。
-       短语在 LIFE_NOTES 里定义成"一句人话 + 它对应的香材 en 列表"，
-       写进引擎的仍是那批香材 —— 术语只活在映射表里，不上屏。 */
+    /* 「想要的味道 / 受不了的味道」两屏：存的是生活短语 id（如 'citrus-peel'），
+       不是香材名。短语在 LIFE_NOTES 里定义成"一句人话 + 它对应的香材 en 列表"，
+       写进引擎的仍是那批香材 —— 术语只活在映射表里，不上屏。
+
+       ==== wanted：屏已撤、键保留（v7 第 3 步②）====
+       「想要的味道」这一屏已按 v7 定版从流程删除，入口（STEPS / renderWanted /
+       renderLifePicker / navBar / SCENE）整块清掉。但**这个键不能删**：
+       ① `renderAvoid.toggle` 的互斥摘除读它（点避雷卡时从那一边摘同一条短语），
+          删键会让那处从「空集」变成「undefined」；
+       ② `restart()` 的键表要与 state.answers 一致（历史上漏过一次）；
+       ③ `syncPhrasesToNotes` 要能把它展开成 likedNotes（恒为空集）。
+       行为上删键与留空集等价（likedNotes 因子整条跳过、不加分不扣分），
+       但键表分叉会埋下"重开一局带着上一轮答案"的同类事故。
+       所以留键、不写入：`answers.wanted` 恒为 `[]`，`likedNotes / likedZh` 恒为空
+       —— 与"用户当年跳过那一屏"逐位一致。将来若恢复这一屏，写入口接回去即可。 */
     wanted: [],
     unwanted: [],
     likedNotes: [],
@@ -174,20 +186,22 @@ const el = (tag, attrs = {}, ...kids) => {
    其余七屏（budget / emotion / wanted / unwanted / occasion / season /
    concentration）与结果页一律不动 —— 后续步骤另行派工。
 
-   ==== 七屏的顺序（feat/quiz-v7-step3-restructure 起）====
+   ==== 六屏的顺序（feat/quiz-v7-step3-restructure 起）====
      1 family        香型圆盘 —— 定大方向，同时点燃背景底噪
      2 unwanted      动态避雷 —— 紧跟方向，只问这个方向最容易踩雷的几个
-                     （src/avoid.js 现算，封顶 6 张；算不出整屏跳过 → 共 6 步）
+                     （src/avoid.js 现算，封顶 6 张；算不出整屏跳过 → 共 5 步）
      3 budget        先圈池（范围）
-     4 wanted        想要的味道（生活短语，多选）
-     5 occasion      场合 —— 决定浓淡与时段
-     6 season        季节 —— 温度光带（.temp-band），Eddie 定版范例之一
-     7 concentration 浓淡＋浓度（扩散场：同心环半径＝扩散距离）
+     4 occasion      场合 —— 决定浓淡与时段
+     5 season        季节 —— 温度光带（.temp-band），Eddie 定版范例之一
+     6 concentration 浓淡＋浓度（扩散场：同心环半径＝扩散距离）
 
-   **大方向屏（emotion）已按 v7 定版删除**（本步起）。`answers.emotion` 键保留，
+   **大方向屏（emotion）已按 v7 定版删除**（第 ① 步）。`answers.emotion` 键保留，
    唯一写入点是圆盘屏底部的「按感觉选」segControl —— 它同时是 `finish()` 的
    入口守卫、`navBar('family')` 的 disabled 判定与 `src/ambient.js` 底噪兜底
    所认的键。删屏 ≠ 删键：删掉它会让"跳过圆盘的人无路可走"。
+
+   **「想要的味道」屏（wanted）也已删除**（第 ② 步）。`answers.wanted` 键同样保留
+   且恒为 `[]` —— 见 state.answers 里那段「屏已撤、键保留」的说明。
 
    为什么第 1 屏是圆盘：Eddie 2026-11-17 否决 v6 的第一条就是「删了开屏圆盘」。
    开屏那张盘是这个产品唯一一处"控件即内容"—— 外圈六族、中圈 24 个小类，
@@ -234,13 +248,6 @@ const STEPS = [
     render: renderBudget,
   },
   {
-    id: 'wanted',
-    short: '想要',
-    title: '有没有特别想闻到的味道？',
-    help: '不用记术语，照生活里记得的那个东西点就行。想不起来就跳过，后面还有别的维度',
-    render: renderWanted,
-  },
-  {
     id: 'occasion',
     short: '场合',
     title: '主要什么时候用？',
@@ -276,7 +283,7 @@ const STEPS = [
 
 /* ---- 动态避雷屏的候选（feat/quiz-v7-step2-avoid）----
    索引只依赖数据，一次构建；plan 依赖答案，每次现算（18 条场景，开销可忽略）。
-   数据没到齐时返回 null —— 屏先占位、步骤表先按 8 屏算，
+   数据没到齐时返回 null —— 屏先占位、步骤表先按 6 屏算，
    与 livePhrases() 的「库未到先给全表」是同一种降级。 */
 let avoidIndex = null;
 function avoidPlanNow(answers = state.answers) {
@@ -309,11 +316,11 @@ function pruneAvoid(plan) {
 /* 当前生效的步骤表。
 
    所有「第 N 步 / 共 M 步」与进度段数都必须走它，不许读 STEPS.length。
-   两套数字一旦分叉，界面会显示「共 8 步」但只有 7 屏，
-   用户翻到第 7 屏就出结果，会以为漏了一屏。
+   两套数字一旦分叉，界面会显示「共 6 步」但只有 5 屏，
+   用户翻到第 5 屏就出结果，会以为漏了一屏。
 
    唯一的条件屏是第 2 步避雷：三条硬规则算不出模糊带（cards 为空）时整屏跳过，
-   此时共 7 步。还没有方向（第 1 屏没点完）或数据没到时不跳 ——
+   此时共 5 步。还没有方向（第 1 屏没点完）或数据没到时不跳 ——
    屏先占位，等方向定了再算。 */
 function curSteps(answers = state.answers) {
   const plan = avoidPlanNow(answers);
@@ -2474,10 +2481,19 @@ function renderBudget() {
 
 
 /* ============================================================
-   第 3 / 4 屏：想要的味道 / 受不了的味道（生活短语）
+   生活短语（「想要的味道 / 受不了的味道」两屏的题面口径）
    ------------------------------------------------------------
+   **渲染器已按 v7 定版删除**（feat/quiz-v7-step3-restructure 第 ② 步）：
+   「想要的味道」屏的薄壳与两屏共用的生活短语渲染器一并退场，屏上不再有
+   那套「已收下 / 未收下」双态卡片网格。
+   剩下的避雷屏（`renderAvoid`）自绘卡片墙，读的是同一张场景句表。
+
+   这一段规格注释放这里不删，因为它约束的是**避雷屏的题面**：
+   `renderAvoid` 仍在用 `LIFE_NOTES`（= AVOID_SCENARIOS）里那批
+   zh / hint，只是问法从"想要"翻成"不要"。
+
    ==== 为什么不用香材名 ====
-   规格底线：全程无香调术语题。上一版这两屏列的是「佛手柑 / 零陵香豆 /
+   规格底线：全程无香调术语题。上一版列的是「佛手柑 / 零陵香豆 /
    橡苔」—— 一个零基础用户既不认识这些词，也无法判断自己喜不喜欢。
    它们不是"选项"，是考卷。
 
@@ -2486,180 +2502,23 @@ function renderBudget() {
    恰恰因为它们是具体的：点「香草」只命中含香草的瓶，点「甜的」等于没点。
    所以术语必须消失，**具体性不能消失** —— 生活短语就是这两件事的交点：
    「刚剥开的橘子皮」任何一个人都能判断，同时精确对应 bergamot/lemon/grapefruit。
-
-   ==== 交互 ====
-   多选。点一张卡，它自己翻成"已收下"的样子并移到队首（已选置顶），
-   下方那一行译文换成这个短语的身体经验（规格 5：选项区常驻一句生活化译文行）。
-   不弹层、不换控件 —— 反馈是内容本身的变化。
-
-   ==== 两屏共用一个渲染器 ====
-   差别只有 key / 标题 / 语气 / 色调。写两个几乎相同的函数，
-   下次改交互要改两遍且必然漏一处。
    ============================================================ */
-function renderLifePicker(kind) {
-  const neg = kind === 'unwanted';
-  const key = neg ? 'unwanted' : 'wanted';
-  const stepId = neg ? 'unwanted' : 'wanted';
 
-  const wrap = el('div', { class: 'fade-in' });
-  const head = stepHead(stepId);
-  wrap.appendChild(el('div', { class: 'stage-lead' },
-    el('div', { class: 'q-kicker' }, head.kicker),
-    el('h2', { class: 'q-title' }, head.title),
-    el('p', { class: 'q-help' }, head.help)
-  ));
-
-  /* 库未到：短语的命中数要读香水库，没有就先给全表。
-     短语表本身是静态的，先画出来；库到了也不影响已选。 */
-  const items = livePhrases();
-
-  const bar = el('div', { class: 'life-bar' });
-  wrap.appendChild(bar);
-
-  const grid = el('div', { class: 'life-grid' + (neg ? ' is-neg' : '') });
-  wrap.appendChild(grid);
-
-  /* 译文行：常驻。选了什么说什么，没选时说这一屏在挑什么 ——
-     规格 5 要求它"常驻"，所以不能只在选中后出现。 */
-  const gloss = el('p', { class: 'life-gloss is-idle' });
-  wrap.appendChild(gloss);
-
-  const paintBar = () => {
-    const sel = state.answers[key] || [];
-    bar.innerHTML = '';
-    if (!sel.length) {
-      bar.appendChild(el('span', { class: 'life-count is-empty' }, '还没点名任何一个'));
-      return;
-    }
-    bar.appendChild(el('span', { class: 'life-count is-on' }, `已收下 ${sel.length} 个`));
-    /* 已选的做成可撤小签：点一下取消。
-       为什么不回网格里取消：网格里已选项被置顶了，选的落点与取消的落点
-       是同一块区域，误触会让人反复选/取消。小签在网格外，位置稳定。 */
-    for (const id of sel) {
-      const d = items.find((x) => x.id === id) || LIFE_NOTES.find((x) => x.id === id);
-      if (!d) continue;
-      bar.appendChild(el('button', {
-        class: 'life-tag', type: 'button',
-        onclick: () => { togglePhrase(id); redraw(); },
-        'aria-label': '取消 ' + d.zh,
-      }, d.zh, el('span', { class: 'life-tag-x', 'aria-hidden': 'true' }, '×')));
-    }
-  };
-
-  const paintGloss = () => {
-    const sel = state.answers[key] || [];
-    const last = sel.length ? LIFE_NOTES.find((x) => x.id === sel[sel.length - 1]) : null;
-    gloss.classList.toggle('is-idle', !last);
-    gloss.textContent = last
-      ? `${last.zh} —— ${last.hint}`
-      : (neg
-        ? '想到哪一个点哪一个。实在想不起来就跳过，这一屏可以空着走'
-        : '想到哪一个点哪一个。一个都想不起来就跳过，后面还有别的维度');
-  };
-
-  function togglePhrase(id) {
-    const sel = state.answers[key] || (state.answers[key] = []);
-    const i = sel.indexOf(id);
-    const otherKey = neg ? 'wanted' : 'unwanted';
-    if (i >= 0) {
-      sel.splice(i, 1);
-    } else {
-      sel.push(id);
-      /* 同一条短语不能既"想要"又"受不了"：从对面移除。
-         否则引擎会同时拿到 +14 与 -40 两个互相打架的因子。 */
-      const o = state.answers[otherKey] || [];
-      const oi = o.indexOf(id);
-      if (oi >= 0) o.splice(oi, 1);
-    }
-    syncPhrasesToNotes();
-  }
-
-  /* ==== 为什么点击是**就地改状态**、而不是重建整栏 ====
-     第一版点一下就 `grid.innerHTML = ''` 再铺一遍（为了"已选置顶"）。
-     两个后果都实测到了：
-       ① 被点的那个节点从 DOM 里消失，焦点掉回 body —— 键盘用户点一次
-          就得重新 Tab 一长串卡片，这是本仓 chip 那屏早就踩过的坑
-          （见 notes 屏里 "就地更新，不重建整栏" 的注释）；
-       ② 节点身份变了，任何持有旧引用的地方都读不到新状态。
-     所以现在分两层：**选中态就地改**（class / aria / 计数 / 译文），
-     **顺序只在那一项真的需要移动位置时才动**（用 insertBefore 搬节点，
-     不重建）。同一屏里既没有长列表也没有滚动位置问题，这样最省事也最稳。 */
-  const redraw = () => {
-    const sel = state.answers[key] || [];
-    /* 首次铺：按 items 顺序铺一遍，并给每张卡挂 data-phrase 便于后续就地查。 */
-    grid.innerHTML = '';
-    const ordered = [
-      ...sel.map((id) => items.find((x) => x.id === id)).filter(Boolean),
-      ...items.filter((x) => !sel.includes(x.id)),
-    ];
-    const hit = DATA?.perfumes?.length ? lifeNoteHitCount() : null;
-    for (const d of ordered) {
-      const on = sel.includes(d.id);
-      const cnt = hit ? (hit.get(d.id) || 0) : null;
-      grid.appendChild(el('button', {
-        class: 'life-card' + (on ? ' is-on' : '') + (neg ? ' is-neg' : ''),
-        type: 'button',
-        'data-phrase': d.id,
-        'aria-pressed': String(on),
-        onclick: (ev) => onCardClick(d.id, ev && ev.currentTarget),
-      },
-        el('span', { class: 'life-zh' }, d.zh),
-        el('span', { class: 'life-hint' }, d.hint),
-        /* 库内命中数：不是"推荐度"，是"我们有多少瓶含这个东西"。
-           写出来是为了让"点了没反应"这件事不发生 —— 看见 0 的选项就不会点。 */
-        cnt != null ? el('span', { class: 'life-n', 'aria-hidden': 'true' }, String(cnt)) : null
-      ));
-    }
-    paintBar();
-    paintGloss();
-  };
-
-  /* 就地切换：改状态 → 改这一张卡自己的样子 → 需要时把它搬到队首。
-     焦点留在原节点上（搬节点不会丢焦点，重建才会）。 */
-  function onCardClick(id, node) {
-    const sel = state.answers[key] || (state.answers[key] = []);
-    const wasOn = sel.includes(id);
-    togglePhrase(id);
-    const nowOn = sel.includes(id);
-    if (node) {
-      node.classList.toggle('is-on', nowOn);
-      node.setAttribute('aria-pressed', String(nowOn));
-      /* 只在"刚被收下"时搬到队首；取消时不搬回原位 ——
-         搬回去会让刚取消的那张跳到远处，用户找不到自己刚点的是什么。 */
-      if (!wasOn && nowOn && grid.firstChild !== node) {
-        grid.insertBefore(node, grid.firstChild);
-      }
-    }
-    paintBar();
-    paintGloss();
-  }
-
-  redraw();
-
-  wrap.appendChild(el('div', { class: 'term-note' },
-    neg
-      ? el('strong', {}, '这一题比上一题更有效：')
-      : el('strong', {}, '想不起来也没关系：'),
-    neg
-      ? ' 讨厌的东西没有替代品，喜欢的东西往往能找到几个相似的 —— 排除一项，比多喜欢一项更能收窄范围。'
-      : ' 跳过这一屏，后面还有几屏在问别的维度。'
-  ));
-
-  wrap.appendChild(navBar(stepId));
-  return wrap;
-}
 
 /* 把短语状态同步到引擎认识的两个字段。
    这是整条映射层的唯一写入口 —— 别处不许直接写 likedNotes/dislikedNotes，
-   否则漏一次同步就会出现"界面上勾了、引擎不知道"。 */
+   否则漏一次同步就会出现"界面上勾了、引擎不知道"。
+
+   v7 第 ② 步起「想要的味道」屏已删（见上），所以 `answers.wanted` 恒为 `[]`
+   → `likedNotes / likedZh` 恒为空 → 引擎的 `likedNotes` 因子整条跳过，
+   与"用户当年跳过那一屏"逐位一致。键不删：`renderAvoid.toggle` 的互斥摘除
+   仍读它（见该函数），删键会让那处从「空集」变成「undefined」。 */
 function syncPhrasesToNotes() {
   state.answers.likedNotes = notesOfPhrases(state.answers.wanted);
   state.answers.dislikedNotes = notesOfPhrases(state.answers.unwanted);
   state.answers.likedZh = zhOfPhrases(state.answers.wanted);
   state.answers.dislikedZh = zhOfPhrases(state.answers.unwanted);
 }
-
-function renderWanted() { return renderLifePicker('wanted'); }
 
 /* ============================================================
    第 2 屏：动态避雷（feat/quiz-v7-step2-avoid）
@@ -2670,7 +2529,7 @@ function renderWanted() { return renderLifePicker('wanted'); }
      · 候选不是固定 18 张，而是 src/avoid.js 按当前方向现算的模糊带，
        封顶 6 张；算不出时 curSteps() 已把整屏抽掉，走不到这里。
      · 交互只有一种：点卡＝「这个不要」，不点＝接受。没有"想要"态，
-       所以不复用 renderLifePicker 的双态网格，另画一面纵列卡片墙。
+       所以不画双态卡片网格，另画一面纵列卡片墙。
      · 写回的仍是 answers.unwanted → dislikedNotes（-40 硬惩罚），
        映射层的唯一写入口 syncPhrasesToNotes 不变。
 
@@ -2712,8 +2571,10 @@ function renderAvoid() {
       : '点一下＝这个不要，再点一下收回。不点就是接受';
   };
 
-  /* 与 renderLifePicker 的 togglePhrase 同一条纪律：
-     同一条短语不能既「想要」又「不要」，点这边就从对面移除。 */
+  /* 同一条纪律（原「想要」屏的 togglePhrase 也是这一条，那屏已删）：
+     同一条短语不能既「想要」又「不要」，点这边就从对面移除。
+     `answers.wanted` 屏删后恒为 `[]`，所以这个互斥分支实际上永不命中 ——
+     留着是因为「将来恢复那一屏」时它必须还在，删掉等于静默丢掉这条不变式。 */
   const toggle = (id) => {
     const sel = state.answers.unwanted || (state.answers.unwanted = []);
     const i = sel.indexOf(id);
@@ -2730,8 +2591,8 @@ function renderAvoid() {
 
   for (const c of plan.cards) {
     const on = (state.answers.unwanted || []).includes(c.id);
-    /* 就地改状态，不重建整墙 —— 与 life-card 同一理由：
-       重建会让被点的节点消失、焦点掉回 body。 */
+    /* 就地改状态，不重建整墙 —— 重建会让被点的节点消失、焦点掉回 body
+       （原「想要」屏实测过同一件事，那屏已删，纪律留在这里）。 */
     const card = el('button', {
       class: 'avoid-card' + (on ? ' is-on' : ''),
       type: 'button',
@@ -3308,14 +3169,9 @@ function navBar(stepId) {
     return bar;
   }
 
-  /* v6 的第 3 / 4 屏（生活短语）：多选，一个都不选也能走。
-     两屏的 hint 不能写成同一句 —— 「想要」是可选加分，「受不了」是更有效的排除，
-     两句说反会让用户以为"这一题不重要"。 */
-  if (stepId === 'wanted') {
-    bar.appendChild(el('span', { class: 'hint' }, '一个都不选也能继续'));
-    bar.appendChild(el('button', { class: 'btn', type: 'button', onclick: next }, '下一步 →'));
-    return bar;
-  }
+  /* 避雷屏（v7 第 2 步）：多选，一个都不点也能走。
+     hint 必须说清"不点是接受"而不是"跳过" —— 这一屏的语义不是弃权，是默认接受。
+     原「想要的味道」屏的同类分支已随该屏删除（v7 第 3 步②），此处只剩避雷一条。 */
   if (stepId === 'unwanted') {
     bar.appendChild(el('span', { class: 'hint' }, '不点就是接受；点一下＝这个不要'));
     bar.appendChild(el('button', { class: 'btn', type: 'button', onclick: next }, '下一步 →'));
@@ -3451,7 +3307,9 @@ function restart() {
      v19 加字段时手抄漏过一次，漏掉的那一屏会带着上一轮的答案复现，
      用户看到的是"我明明重选了，结果没变"。
      v6 新增的三个（budget / wanted / unwanted）必须在这里，
-     否则重开一局时第一批仍是上一局的第二批。 */
+     否则重开一局时第一批仍是上一局的第二批。
+     `wanted` 的屏已按 v7 第 3 步② 删除，但键仍要清 —— 这个对象的键表必须与
+     state.answers 逐键对齐（历史上两次事故都是"加字段时漏更新 restart"）。 */
   state.answers = {
     family: null, subfamily: null, direction: null, emotion: null, occasion: null, intensity: 3,
     budget: 'any', wanted: [], unwanted: [],
@@ -5044,18 +4902,16 @@ function render() {
      逐屏理由（也写在 PR 的逐屏表里）：
        family   → settle  首屏，自己就是"进门"，下沉最有"推门"感；
                           **同时是底噪开灯的那一屏**（圆盘点中即点燃）
+       unwanted → cut     紧跟方向，同一段路的"不要"这一面
        budget   → settle  换轴：从"味道"进"范围"。仍是同一段路里的换挡
-       wanted   → cut     与上一屏同属"味道偏好"这段路，连续
-       unwanted → cut     同一段路的另一面
        occasion → settle  换轴：从"味道"进"什么时候"
        season   → cut     与场合同属时间轴，连续走完一年与一天
        concentration → settle 换轴：从"什么时候"进"多重的分量"
        result   → rise    给答案 */
   const SCENE = {
     family: 'settle',
-    budget: 'settle',
-    wanted: 'cut',
     unwanted: 'cut',
+    budget: 'settle',
     occasion: 'settle',
     season: 'cut',
     concentration: 'settle',

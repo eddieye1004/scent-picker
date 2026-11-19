@@ -1104,48 +1104,65 @@ ok('预算屏说明了「价位未知的不参与」', /价位未知/.test(getSt
 // }
 // --------------------------------------------------------------------------- */
 
-/* ---------- ④ 想要的味道（生活短语，无术语） ---------- */
-await advance();
-ok('第 5 屏是「想要的味道」（data-step=wanted）', stepId() === 'wanted', stepId());
-{
-  const cards = appRoot.querySelectorAll('.life-card');
-  ok('生活短语卡已渲染', cards.length >= 12, `实际 ${cards.length}`);
-  /* **规格底线**：全程无香调术语题。这里逐字核：屏上不许出现族名，
-     也不许出现香材的英文原名。一个都不许漏。 */
-  const txt = getStepText();
-  const familyZh = ['柑橘调', '花香调', '木质调', '东方琥珀调', '清新调', '美食调'];
-  const leakedFam = familyZh.filter((z) => txt.includes(z));
-  ok('想要屏不出现任何香调族名（无术语题）', leakedFam.length === 0, leakedFam.join(','));
-  const leakedEn = /\b(bergamot|lemon|jasmine|sandalwood|vanilla|vetiver|oud)\b/i.test(txt);
-  ok('想要屏不出现香材英文原名', !leakedEn, String(leakedEn));
-  /* 但短语不能因此变得含糊：它是"具体的那个东西"，不是"甜"这种形容词。
-     判据：卡片上的名字都是生活短语（含具体物象），且都带一句气味提示。 */
-  ok('每张卡都带一句气味提示（不是只有一个词）',
-    appRoot.querySelectorAll('.life-hint').length === cards.length,
-    `提示 ${appRoot.querySelectorAll('.life-hint').length} 条 / 卡 ${cards.length} 张`);
-  ok('每张卡都标了库内瓶数', appRoot.querySelectorAll('.life-n').length === cards.length,
-    `瓶数 ${appRoot.querySelectorAll('.life-n').length} 个`);
-  /* 译文行常驻（规格 5）：即使一个都没选，它也必须在那儿说这一屏在挑什么。 */
-  ok('选项区常驻一句译文行（未选也不空）',
-    appRoot.querySelectorAll('.life-gloss').length === 1
-    && appRoot.querySelectorAll('.life-gloss')[0].textContent.length > 10,
-    appRoot.querySelectorAll('.life-gloss')[0].textContent.slice(0, 50));
-
-  /* 点一张卡：收下、置顶、译文换 */
-  const first = cards[0];
-  const firstZh = first.querySelectorAll('.life-zh')[0].textContent;
-  first.dispatch('click');
-  await new Promise((r) => setTimeout(r, 60));
-  ok('点卡片后被收下（aria-pressed=true）', first.attrs['aria-pressed'] === 'true', String(first.attrs['aria-pressed']));
-  ok('已收下的卡移到队首（已选置顶）',
-    appRoot.querySelectorAll('.life-card')[0].querySelectorAll('.life-zh')[0].textContent === firstZh,
-    appRoot.querySelectorAll('.life-card')[0].querySelectorAll('.life-zh')[0].textContent);
-  ok('已选计数出现', /已收下 1 个/.test(getStepText()), appRoot.querySelectorAll('.life-count')[0].textContent);
-  ok('译文行换成了刚点的那条', appRoot.querySelectorAll('.life-gloss')[0].textContent.includes(firstZh),
-    appRoot.querySelectorAll('.life-gloss')[0].textContent.slice(0, 50));
-  ok('已选项做成可撤小签', appRoot.querySelectorAll('.life-tag').length === 1,
-    `小签 ${appRoot.querySelectorAll('.life-tag').length} 个`);
-}
+// /* ---------- ④ 想要的味道（生活短语，无术语）——【v7 第 3 步② 已整段跳过】 ----------
+//    「想要的味道」（data-step=wanted）已按 v7 定版从流程删除（L2 删屏），本段
+//    第 1 条 `await advance()` 若保留会落到场合屏，其后 `.life-card` 全部取不到
+//    节点 → 断言成批变红且与"屏已删"这个事实混在一起，分不清是删屏造成的还是
+//    改断言造成的。所以整段按行注释跳过，**不删**：L4 才逐条改断言，L2 只负责让
+//    删屏后的其余断言仍能跑出来。
+//    被跳过的断言名（12 条）逐条抄进了 L2 commit message：
+//      「第 5 屏是「想要的味道」（data-step=wanted）」/「生活短语卡已渲染」/
+//      「想要屏不出现任何香调族名（无术语题）」/「想要屏不出现香材英文原名」/
+//      「每张卡都带一句气味提示（不是只有一个词）」/「每张卡都标了库内瓶数」/
+//      「选项区常驻一句译文行（未选也不空）」/「点卡片后被收下（aria-pressed=true）」/
+//      「已收下的卡移到队首（已选置顶）」/「已选计数出现」/
+//      「译文行换成了刚点的那条」/「已选项做成可撤小签」。
+//    注意 `await advance()` 也必须一起注释：删屏后它会把光标多推一屏，
+//    于是 ⑤ 场合那段的 `advance()` 直接落在季节屏（见 L2 回执的 A/B 两臂）。
+//    两臂实测：A（跳段、屏仍在、这一行放活）= PASS 326 FAIL 4（4 条全是既有
+//    屏序/计数红，跳段本身零红）；B（跳段、屏已删）= 见回执 §3.3。
+//
+// await advance();
+// ok('第 5 屏是「想要的味道」（data-step=wanted）', stepId() === 'wanted', stepId());
+// {
+//   const cards = appRoot.querySelectorAll('.life-card');
+//   ok('生活短语卡已渲染', cards.length >= 12, `实际 ${cards.length}`);
+//   /* **规格底线**：全程无香调术语题。这里逐字核：屏上不许出现族名，
+//      也不许出现香材的英文原名。一个都不许漏。 */
+//   const txt = getStepText();
+//   const familyZh = ['柑橘调', '花香调', '木质调', '东方琥珀调', '清新调', '美食调'];
+//   const leakedFam = familyZh.filter((z) => txt.includes(z));
+//   ok('想要屏不出现任何香调族名（无术语题）', leakedFam.length === 0, leakedFam.join(','));
+//   const leakedEn = /\b(bergamot|lemon|jasmine|sandalwood|vanilla|vetiver|oud)\b/i.test(txt);
+//   ok('想要屏不出现香材英文原名', !leakedEn, String(leakedEn));
+//   /* 但短语不能因此变得含糊：它是"具体的那个东西"，不是"甜"这种形容词。
+//      判据：卡片上的名字都是生活短语（含具体物象），且都带一句气味提示。 */
+//   ok('每张卡都带一句气味提示（不是只有一个词）',
+//     appRoot.querySelectorAll('.life-hint').length === cards.length,
+//     `提示 ${appRoot.querySelectorAll('.life-hint').length} 条 / 卡 ${cards.length} 张`);
+//   ok('每张卡都标了库内瓶数', appRoot.querySelectorAll('.life-n').length === cards.length,
+//     `瓶数 ${appRoot.querySelectorAll('.life-n').length} 个`);
+//   /* 译文行常驻（规格 5）：即使一个都没选，它也必须在那儿说这一屏在挑什么。 */
+//   ok('选项区常驻一句译文行（未选也不空）',
+//     appRoot.querySelectorAll('.life-gloss').length === 1
+//     && appRoot.querySelectorAll('.life-gloss')[0].textContent.length > 10,
+//     appRoot.querySelectorAll('.life-gloss')[0].textContent.slice(0, 50));
+//
+//   /* 点一张卡：收下、置顶、译文换 */
+//   const first = cards[0];
+//   const firstZh = first.querySelectorAll('.life-zh')[0].textContent;
+//   first.dispatch('click');
+//   await new Promise((r) => setTimeout(r, 60));
+//   ok('点卡片后被收下（aria-pressed=true）', first.attrs['aria-pressed'] === 'true', String(first.attrs['aria-pressed']));
+//   ok('已收下的卡移到队首（已选置顶）',
+//     appRoot.querySelectorAll('.life-card')[0].querySelectorAll('.life-zh')[0].textContent === firstZh,
+//     appRoot.querySelectorAll('.life-card')[0].querySelectorAll('.life-zh')[0].textContent);
+//   ok('已选计数出现', /已收下 1 个/.test(getStepText()), appRoot.querySelectorAll('.life-count')[0].textContent);
+//   ok('译文行换成了刚点的那条', appRoot.querySelectorAll('.life-gloss')[0].textContent.includes(firstZh),
+//     appRoot.querySelectorAll('.life-gloss')[0].textContent.slice(0, 50));
+//   ok('已选项做成可撤小签', appRoot.querySelectorAll('.life-tag').length === 1,
+//     `小签 ${appRoot.querySelectorAll('.life-tag').length} 个`);
+// }
 
 /* ---------- ⑤ 场合（昼夜光景，定版范例之一） ----------
    v7 第 2 步：旧第 5 屏「受不了的味道」已移到第 2 位并改成避雷墙（见 ①），
