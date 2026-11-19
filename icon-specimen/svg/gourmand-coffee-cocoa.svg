@@ -17,7 +17,7 @@
   <path d="M 9.55 7.45 C 8.75 6.6 9.55 6.05 9.02 5.18" fill="none" stroke="#B07C42" stroke-width="0.48" opacity="0.58"/>
   <path d="M 11.95 7.05 C 11.12 6.15 11.98 5.55 11.45 4.65" fill="none" stroke="#B07C42" stroke-width="0.48" opacity="0.52"/>
   <path d="M 14.28 7.52 C 13.55 6.75 14.25 6.15 13.85 5.42" fill="none" stroke="#B07C42" stroke-width="0.48" opacity="0.44"/>
-  <ellipse cx="5.95" cy="16.62" rx="2.05" ry="1.42" transform="rotate(-14 5.95 16.62)" fill="url(#ccBean)" stroke="#2E1A08" stroke-width="0.56"/>
-  <path d="M 4.42 16.4 C 5.46 16.06 6.58 16.42 7.5 16.96" fill="none" stroke="#3E2410" stroke-width="0.42"/>
-  <path d="M 4.72 16.64 C 5.62 16.34 6.52 16.56 7.24 16.94" fill="none" stroke="#C9A46A" stroke-width="0.22" opacity="0.55"/>
+  <ellipse cx="7.65" cy="17.4" rx="0.779" ry="0.54" transform="rotate(-12 7.65 17.4)" fill="url(#ccBean)" stroke="#2E1A08" stroke-width="0.34"/>
+  <path d="M 6.795 17.277 C 7.376 17.087 8.002 17.288 8.516 17.59" fill="none" stroke="#3E2410" stroke-width="0.235"/>
+  <path d="M 6.963 17.411 C 7.466 17.244 7.969 17.366 8.371 17.579" fill="none" stroke="#C9A46A" stroke-width="0.123" opacity="0.55"/>
 </svg>
