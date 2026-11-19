@@ -4,8 +4,8 @@
   <linearGradient id="ccSaucer" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#FFF8E4"/><stop offset="0.6" stop-color="#E0C08A"/><stop offset="1" stop-color="#B98F52"/></linearGradient>
   <linearGradient id="ccBean" x1="0.15" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#A5713A"/><stop offset="0.5" stop-color="#6E4322"/><stop offset="1" stop-color="#3E2410"/></linearGradient>
 </defs>
-  <path d="M 5 17.42 A 6.9 1.523 0 0 0 18.8 17.42 L 18.8 17.78 A 6.9 1.523 0 0 1 5 17.78 Z" fill="#B98F52" stroke="#8A5C2A" stroke-width="0.6" stroke-linejoin="round"/>
-  <path d="M 5 17.42 A 6.9 1.523 0 0 0 18.8 17.42 A 6.9 1.523 0 0 1 5 17.42 Z" fill="url(#ccSaucer)" stroke="#8A5C2A" stroke-width="0.6"/>
+  <path d="M 5 17.42 A 6.9 1.523 0 0 0 18.8 17.42 L 18.8 17.7 A 6.9 1.523 0 0 1 5 17.7 Z" fill="#B98F52" stroke="#8A5C2A" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M 5 17.42 A 6.9 1.523 0 0 0 18.8 17.42 A 6.9 1.523 0 0 0 5 17.42 Z" fill="url(#ccSaucer)" stroke="#8A5C2A" stroke-width="0.6"/>
   <path d="M 6.242 17.48 A 5.658 1.249 0 0 0 17.558 17.48 A 5.658 1.249 0 0 1 6.242 17.48 Z" fill="#B98F52" stroke="none" opacity="0.4"/>
   <path d="M 7.75 17.12 A 4.15 0.916 0 0 0 16.05 17.12 A 4.15 0.916 0 0 1 7.75 17.12 Z" fill="#8A5C2A" stroke="none" opacity="0.18"/>
   <path d="M 7.55 9.35 L 8.55 16.55 C 8.62 17.36 9.32 17.94 10.14 17.94 L 13.66 17.94 C 14.48 17.94 15.18 17.36 15.25 16.55 L 16.25 9.35 Z" fill="url(#ccCup)" stroke="#8A5C2A" stroke-width="0.88" stroke-linejoin="round"/>
