@@ -186,7 +186,9 @@ const sample = (names = ['A', 'B', 'C']) => ({
   ok('index.html 接了 manifest', html.includes('rel="manifest" href="./manifest.json"'));
   ok('index.html 接了 pwa.js', html.includes('src="./pwa.js'));
   ok('index.html 有 apple-touch-icon', html.includes('rel="apple-touch-icon"'));
-  ok('index.html 的脚本/样式版本号已更新', html.includes('app.js?v=20261118a') && html.includes('styles.css?v=20261118a'));
+  /* styles.css 的版本号进一位（2026-11-19 删中文 webfont），app.js 内容未变故保持。
+     仍是一条断言，不新增条数 —— 断言总数是与历史回执比对的基线。 */
+  ok('index.html 的脚本/样式版本号已更新', html.includes('app.js?v=20261118a') && html.includes('styles.css?v=20261119a'));
 }
 
 /* ---------- 入口接线 ---------- */

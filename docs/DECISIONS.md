@@ -3322,3 +3322,60 @@ notes 维度另立一套 notes-first 专属小集，草案 `docs/reviews/GOLD-NO
 ### 顺带：G5 正式关闭
 
 `docs/TODO-REMAINING.md` 的 G5「三份清单」状态为「材料从未出现」，按审计表口径**无材料**，Eddie 2026-11-11 批准**正式关闭**，不留悬空条目。
+
+## D71 · 删中文字体腿：362 KB 中文 webfont 退场，CJK 回系统栈（2026-11-19）
+
+Eddie 2026-11-19 21:00 裁决：按 2026-11-18 首屏性能审计的浪费点 3 **A 方案**执行 —— 删掉 `NotoSC`，中文回退系统字体栈。
+
+### 为什么删
+
+`fonts/noto-sans-sc-subset.woff2` 362,480 B，是首屏最大单项资源（占 1.04 MB 的 **34.9%**）。
+它的问题不是"大"这一个字：`font-display: swap` 让它在 FCP **之后 1.5 s** 才下载完，那段时间里
+它一边和 modules / taxonomy 抢带宽，一边产生可见的字形切换。审计给的三条改法里，
+A 是唯一不动构建链、不动部署的一条。
+
+### 改了什么
+
+| 位置 | 改动 |
+|---|---|
+| `styles/src/70-final.css` | 删 `@font-face { font-family: "NotoSC" }`（3 个 `@font-face` → 2 个，只剩 InterVar 两段）；`--font-body` 去掉 `"NotoSC", "Noto Sans SC"` |
+| `fonts/` | 删 `noto-sans-sc-subset.woff2`；`inter-var-latin{,-ext}.woff2` 不动 |
+| `sw.js` | `CORE` 去掉该项；`VERSION` `v2-20261118b` → `v2-20261119a` |
+| `src/share-card.js` | canvas 字体栈里的 `"NotoSC"` 换成 `"InterVar"` / `"PingFang SC"`（canvas 不认 CSS 变量，只能重写一份） |
+| `index.html` / `about.html` | `styles.css?v=` 进一位（`20261118a` / `20261110a` → `20261119a`）；`app.js` 内容未变，版本号保持 |
+| `docs/launch/social-preview.html`、`SOCIAL-PREVIEW.md` | 同一字体栈，`NotoSC` 换成 `PingFang SC` |
+| `scripts/test-qoder-features.mjs` | 版本号断言改成 `styles.css?v=20261119a`（断言条数不变，仍是 66） |
+
+`--font-body` 最终顺序（审计 A 方案）：
+
+```
+"InterVar", "Inter", "Helvetica Neue", Helvetica, -apple-system,
+"PingFang SC", "HarmonyOS Sans SC", "MiSans", "Hiragino Sans GB",
+"Microsoft YaHei", "Source Han Sans SC", Arial, sans-serif
+```
+
+### 接受的代价（不是回归，是取舍）
+
+D68 当初上 webfont 的动机是「YaHei 只有 Regular/Bold，500/600 塌成 700」。删掉之后
+**Windows 上这个问题会回来**：`.pick h3` 的 `font-weight: 500` 在 YaHei 下仍会就近映射到 700。
+macOS / iOS 的 PingFang SC 有真 500，不受影响。这是用 362 KB 首屏传输换来的，判定线里没有
+"字重必须仍为真 500"这一条；若日后认为不可接受，回退路径是先按 `unicode-range` 拆块（审计 B 方案），
+不是原样接回整份子集。
+
+### 实测（本地 gzip 服务 + 无头 Edge + CDP，与审计同口径）
+
+- 首屏字节 **634,528 → 272,029**（−362,499，正好是那份字体的传输量）；请求 20 → 19。
+- 首屏网络记录里 `noto-sans-sc-subset.woff2` 0 命中；服务端日志 0 命中；Cache Storage 0 残留。
+- 首屏只请求 `/fonts/inter-var-latin.woff2` 一个字体。
+- 中文字形：标题 12 个 CJK 字符逐个 `measureText`，最小 advance 22px、0 个零宽字形。
+- 离线冷启动：装好 SW 后**关掉 HTTP 服务**、同 profile 重启浏览器打开同一地址，
+  第 1 屏正常（6 个扇区、标题「你闻着舒服的，是哪一类味道？」），断网期间服务端命中 0。
+  这一条必须关服务端才算数 —— 只做 CDP `offline` 模拟时 SW 有独立 target，
+  「缓存优先 + 后台更新」照样把 17 个请求打到服务端，那样测出来的"离线可用"是假的。
+- 测试：check-head 7 套全绿（render 334 / contrast 48 / scoring 153 / compliance 10 /
+  union-api 76 / category-gate 10 / jd-web 17）；qoder 66 / avoid 40；金标 2/12 · 4/12（±0）。
+
+### 未做
+
+`docs/launch/social-preview.png` 是删字体前渲染的，未重出（生成它需要手工开浏览器截图，
+不在本腿范围）；`social-preview.html` 的字体栈已同步，下次重出即为新栈。

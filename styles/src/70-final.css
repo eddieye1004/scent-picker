@@ -411,23 +411,22 @@
       这是"层级只剩常规/粗、密排处发糊"的直接原因。
    3. 中文小字号在 YaHei 下笔画偏粗、字面偏方，这就是"Windows 感 / 不高级"的来源。
 
-   做法：本地自带两个**可变字体**（wght 100–900 连续轴），不再依赖读者机器上装了什么。
+   做法：本地自带**可变字体**（wght 100–900 连续轴），不再依赖读者机器上装了什么。
    - fonts/inter-var-latin{,-ext}.woff2   48 KB + 85 KB，来自 Google Fonts 官方 inter v20，
      是 wght 100–900 的 variable subset（实测 fvar 轴 min 100 / default 400 / max 900）。
-   - fonts/noto-sans-sc-subset.woff2      362 KB，从本机 NotoSansSC-VF.ttf 子集化：
-     只保留站内实际用到的 1315 个 CJK 字符 + ASCII + 常用中文标点，共 1410 个码位。
-     子集化命令记在 docs/DECISIONS.md 的 D67 里，加字后必须重跑。
+   - fonts/noto-sans-sc-subset.woff2      362 KB —— **2026-11-19 已删除**，见本段末尾。
 
    为什么用可变字体而不是 4 个静态字面：静态要 4×(48+85) KB ≈ 532 KB 才拿到 4 档；
    可变字体一个文件覆盖 100–900，按需插值，600 是真的 600，不再是 Bold。
 
-   为什么中文不整体加载 Noto Sans SC 全量：全量 17.7 MB / 31036 字形，远超首屏预算。
-   子集 362 KB，且 site 内文案是固定的（不接用户输入），子集够用。
-   新增文案若用到子集外的字，会退回 Microsoft YaHei —— 观感变差但**不会出现豆腐块**，
-   这是有意的降级：兜底字体在 --font-body 里排在 Noto 之后。
-
-   字体栈顺序：Inter（拉丁/数字）→ Noto Sans SC（CJK）→ 系统黑体兜底。
-   Inter 的 unicode-range 只声明拉丁段，CJK 会自动落到 Noto，不需要拆两个 font-family。 */
+   ---- 2026-11-19 更新：中文子集字体退场 ----
+   原方案给 CJK 配了 362 KB 子集（1315 个字符）。它解决了 YaHei 只有两个字面、
+   500/600 塌成 700 的问题，但代价是首屏最大单项资源：占 1.04MB 的 34.9%，
+   且 `font-display: swap` 让它在 FCP 后 1.5s 才下完，期间抢带宽并产生字形切换。
+   现改为只保留 InterVar（拉丁/数字），CJK 回系统栈：PingFang SC → HarmonyOS Sans SC
+   → MiSans → Microsoft YaHei。系统字体的 500 档在各平台表现不一（Windows 仍会
+  就近映射），这是本次取舍接受的代价 —— 换回 362 KB 首屏传输。决策见 DECISIONS.md D71。
+   子集化产物已从仓库与 fonts/ 删除，不要再按 D67 的命令重建后接回来。 */
 
 @font-face {
   font-family: "InterVar";
@@ -449,21 +448,18 @@
                  U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
                  U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
-@font-face {
-  font-family: "NotoSC";
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("./fonts/noto-sans-sc-subset.woff2") format("woff2");
-}
+/* 2026-11-19：中文 webfont（NotoSC / noto-sans-sc-subset.woff2，362,480 B）已删除。
+   决策与两轮实测见 docs/DECISIONS.md 的 D71。中文改回系统栈，字母与数字仍走本地
+   InterVar。删除理由只有一条：它是首屏最大单项资源（占 1.04MB 的 34.9%），
+   且 font-display: swap 让它在 FCP 之后 1.5s 才到，期间既抢带宽又产生可见字形切换。 */
 
 :root {
-  /* 覆盖 base.css 的 --font-body。显式列出 InterVar / NotoSC 在最前，
-     后面保留原系统栈作为"子集外汉字"的兜底。 */
-  --font-body: "InterVar", "Inter", "NotoSC", "Noto Sans SC",
-               "Helvetica Neue", Helvetica, -apple-system,
-               "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
-               "Source Han Sans SC", Arial, sans-serif;
+  /* 覆盖 base.css 的 --font-body。拉丁与数字由本地 InterVar 接管，
+     CJK 交给系统黑体 —— 顺序取性能审计 A 方案：PingFang SC（macOS/iOS）
+     → HarmonyOS Sans（华为）→ MiSans（小米）→ Microsoft YaHei（Windows）。 */
+  --font-body: "InterVar", "Inter", "Helvetica Neue", Helvetica, -apple-system,
+               "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Hiragino Sans GB",
+               "Microsoft YaHei", "Source Han Sans SC", Arial, sans-serif;
   --font-display: var(--font-body);
 }
 

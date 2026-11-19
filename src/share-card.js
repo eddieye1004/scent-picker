@@ -21,9 +21,12 @@ const C = {
   accent: '#002FA7',
 };
 
-const SANS = '"NotoSC", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif';
+/* 字体栈与页面同一套（DECISIONS D71：中文 webfont 已退场，CJK 走系统黑体）。
+   canvas 的 font 只认「字体族名列表」，不能引用 CSS 变量，所以这里再写一遍 ——
+   改页面栈时这两行要跟着改，否则导出的 PNG 与屏幕上看到的不一致。 */
+const SANS = '"InterVar", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif';
 const SERIF = '"Cambria", "Georgia", "Times New Roman", "Songti SC", "Noto Serif SC", serif';
-const MONO = '"Cascadia Mono", "Consolas", "SFMono-Regular", "NotoSC", monospace';
+const MONO = '"Cascadia Mono", "Consolas", "SFMono-Regular", "PingFang SC", monospace';
 
 /** 把理由压成"一句"：去掉警告标记，取第一个句号前的部分，过长再截。 */
 export function summarizeReason(text, max = 72) {

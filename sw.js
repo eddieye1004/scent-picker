@@ -7,7 +7,10 @@
  *
  * 只缓存同源 GET。跨域、非 GET、chrome-extension 一律放行，不拦。
  */
-const VERSION = 'v2-20261118b';
+/* 2026-11-19：中文 webfont 退场（DECISIONS D71），CORE 去掉
+   fonts/noto-sans-sc-subset.woff2；VERSION 跟着进一位，让旧缓存整套失效 ——
+   静态资源是 cache-first + ignoreSearch，只改文件不换缓存名会一直吐旧副本。 */
+const VERSION = 'v2-20261119a';
 const CACHE_PREFIX = 'scent-picker-v7-1-';
 const CACHE = CACHE_PREFIX + VERSION;
 
@@ -31,7 +34,6 @@ const CORE = [
   './src/avoid-map.js',
   './fonts/inter-var-latin.woff2',
   './fonts/inter-var-latin-ext.woff2',
-  './fonts/noto-sans-sc-subset.woff2',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',

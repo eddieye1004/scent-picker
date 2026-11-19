@@ -6,12 +6,9 @@
   /* 1280×640 社交预览图（GitHub Social preview 规格）。
      视觉语言与站点同一套：暖纸底、衬线大标题、克莱因蓝作唯一强调色、
      右上一条墨色粗线（站内 .masthead 的同一记号）。 */
-  @font-face {
-    font-family: "NotoSC";
-    src: url("../fonts/noto-sans-sc-subset.woff2") format("woff2");
-    font-weight: 100 900;
-    font-display: block;
-  }
+  /* 中文 webfont（NotoSC）已于 2026-11-19 从仓库删除（DECISIONS D71），
+     这里的中文同样走系统黑体；重出预览图时只保留 InterVar 一个 @font-face。
+     已入库的 social-preview.png 是删字体前渲染的，与此处栈不同，属预期。 */
   @font-face {
     font-family: "InterVar";
     src: url("../fonts/inter-var-latin.woff2") format("woff2");
@@ -23,7 +20,7 @@
   body {
     background: #FAF7F1;
     color: #14120E;
-    font-family: "InterVar", "NotoSC", -apple-system, "Songti SC", serif;
+    font-family: "InterVar", "PingFang SC", "Microsoft YaHei", -apple-system, "Songti SC", serif;
     display: flex; flex-direction: column;
     padding: 64px 76px 58px;
     position: relative;
@@ -42,7 +39,7 @@
   }
 
   h1 {
-    font-family: "Songti SC", "NotoSC", Georgia, serif;
+    font-family: "Songti SC", "PingFang SC", Georgia, serif;
     font-size: 92px; line-height: 1.14; font-weight: 600;
     letter-spacing: -.012em; max-width: 1000px;
   }
