@@ -3,20 +3,27 @@
  * 策略只有两条：
  *   ① 导航请求网络优先，断网回 index.html —— 这样用户永远先拿到最新版本；
  *   ② 静态资源（JS/CSS/字体/数据/图标/实物图）缓存优先 + 后台更新 ——
- *      首屏不再等网络，断网也能走完八屏并出结果。
+ *      首屏不再等网络，断网也能走完八屏并出结果（联网用到过的重量资产
+ *      才进缓存，边界见下面 CORE 的注释）。
  *
  * 只缓存同源 GET。跨域、非 GET、chrome-extension 一律放行，不拦。
  */
 /* 2026-11-19：中文 webfont 退场（DECISIONS D71），CORE 去掉
    fonts/noto-sans-sc-subset.woff2；VERSION 跟着进一位，让旧缓存整套失效 ——
-   静态资源是 cache-first + ignoreSearch，只改文件不换缓存名会一直吐旧副本。 */
-const VERSION = 'v2-20261119a';
+   静态资源是 cache-first + ignoreSearch，只改文件不换缓存名会一直吐旧副本。
+   同日 CORE 瘦身：perfumes.json 与 24 枚标本 SVG 移出预缓存 → v2-20261119b。 */
+const VERSION = 'v2-20261119b';
 const CACHE_PREFIX = 'scent-picker-v7-1-';
 const CACHE = CACHE_PREFIX + VERSION;
 
-/* 入口页、脚本、样式、字体、图标、核心数据，以及圆盘盘心的 24 枚标本 SVG。
-   这些是「打开就能用」的最小集合；香水实物图（images/*.webp）走运行时缓存，
-   访问到哪一瓶才缓存哪一张。 */
+/* 入口页、脚本、样式、字体、图标、小体量核心数据 —— 「打开就能用」的最小集合。
+   下面这些重量资产走运行时缓存，安装期不拉：
+     · 香水实物图（images/*.webp）—— 访问到哪一瓶才缓存哪一张；
+     · 香水库与 24 枚标本 SVG —— 首屏都用不上：盘心在未选小类时是纯文字，
+       取图只发生在悬停/避雷卡（见 app.js 的 artInner 注释），香水库的首个
+       消费点是第 2 屏。fetch 处理器对未命中走网络并写入缓存，所以首次用到
+       就进缓存，之后离线照样能出结果。
+   代价：装完 SW 一次没联网走到第 2 屏就断网，那两样拿不到，退降级态。 */
 const CORE = [
   './',
   './index.html',
@@ -39,36 +46,11 @@ const CORE = [
   './icons/icon-maskable-512.png',
   './icons/apple-touch-icon.png',
   './data/taxonomy.json',
-  './data/perfumes.json',
   './data/price-bands.json',
   './data/photos.json',
   './data/affiliate-links.json',
   './data/tmall-shops.json',
   './data/avoid-scenarios.json',
-  './icon-specimen/svg/amber-amber.svg',
-  './icon-specimen/svg/amber-incense.svg',
-  './icon-specimen/svg/amber-leather.svg',
-  './icon-specimen/svg/amber-resinous.svg',
-  './icon-specimen/svg/citrus-aromatic-citrus.svg',
-  './icon-specimen/svg/citrus-citrus-floral.svg',
-  './icon-specimen/svg/citrus-cologne.svg',
-  './icon-specimen/svg/floral-fruity-floral.svg',
-  './icon-specimen/svg/floral-green-floral.svg',
-  './icon-specimen/svg/floral-powdery-floral.svg',
-  './icon-specimen/svg/floral-rose.svg',
-  './icon-specimen/svg/floral-soliflore.svg',
-  './icon-specimen/svg/fresh-aquatic.svg',
-  './icon-specimen/svg/fresh-fougere.svg',
-  './icon-specimen/svg/fresh-green.svg',
-  './icon-specimen/svg/fresh-tea.svg',
-  './icon-specimen/svg/gourmand-fruity-gourmand.svg',
-  './icon-specimen/svg/gourmand-vanilla-gourmand.svg',
-  './icon-specimen/svg/green-citrus-a.svg',
-  './icon-specimen/svg/oud-a.svg',
-  './icon-specimen/svg/white-floral-a.svg',
-  './icon-specimen/svg/woody-sandalwood.svg',
-  './icon-specimen/svg/woody-vetiver.svg',
-  './icon-specimen/svg/woody-woody.svg',
 ];
 
 const INDEX = new URL('./index.html', self.location.href).href;

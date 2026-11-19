@@ -170,11 +170,24 @@ const sample = (names = ['A', 'B', 'C']) => ({
   ok('manifest 有 maskable 图标', manifest.icons.some((i) => i.purpose === 'maskable'));
 
   const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
-  for (const asset of ['index.html', 'styles.css', 'app.js', 'manifest.json',
-    'src/scoring.js', 'src/history.js', 'src/share-card.js',
-    'data/perfumes.json', 'data/taxonomy.json', 'icon-specimen/svg/woody-woody.svg']) {
-    ok(`SW 预缓存了 ${asset}`, sw.includes(asset));
+  /* 预缓存成员判定改成解析 CORE 数组字面量，不再用 sw.includes('某路径')：
+     2026-11-19 CORE 瘦身把 perfumes.json 与 24 枚标本 SVG 移出清单，但注释里
+     仍然写着这两个名字 —— 子串断言会在清单改错时照样绿。 */
+  const CORE = (sw.match(/const CORE = \[([\s\S]*?)\n\];/)?.[1] || '')
+    .split('\n').map((line) => line.trim().match(/^'([^']+)',?$/)?.[1]).filter(Boolean);
+  for (const asset of ['./index.html', './styles.css', './app.js', './manifest.json',
+    './src/scoring.js', './src/history.js', './src/share-card.js', './data/taxonomy.json']) {
+    ok(`SW 预缓存了 ${asset}`, CORE.includes(asset));
   }
+  /* 断言总数与历史回执对齐（这一组仍是 10 条）：8 条预缓存 + 2 条改为
+     「不在 CORE + 运行时链路在位」，一换一，不新增条数。 */
+  const swConsumers = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  ok('香水库不进预缓存，首访走网络并写缓存', !CORE.includes('./data/perfumes.json')
+    && sw.includes('await putFresh(cache, req, res)')
+    && swConsumers.includes("fetch(new URL('data/perfumes.json', base))"));
+  ok('24 枚标本 SVG 不进预缓存，取图走 fetch 后写缓存',
+    !CORE.some((u) => u.startsWith('./icon-specimen/'))
+    && swConsumers.includes("'./icon-specimen/svg/'") && swConsumers.includes('fetch(p)'));
   ok('SW 有导航回退到 index.html', sw.includes('INDEX') && sw.includes('match(INDEX)'));
   ok('SW 只处理同源 GET', sw.includes("req.method !== 'GET'") && sw.includes('url.origin !== self.location.origin'));
   ok('SW 会清理旧版本缓存', sw.includes('caches.delete'));
