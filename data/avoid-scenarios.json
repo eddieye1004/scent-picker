@@ -104,8 +104,8 @@
     },
     {
       "id": "night-white",
-      "scenario": "夜里开的白花",
-      "hint": "走近才有，很远也压不住",
+      "scenario": "夏夜院子里的茉莉花",
+      "hint": "隔着几步也闻得到，浓得发甜",
       "family": "floral",
       "familyZh": "花香调",
       "notes": [
@@ -128,8 +128,8 @@
     },
     {
       "id": "lotiony-powder",
-      "scenario": "奶油味的粉",
-      "hint": "爽身粉、化妆盒",
+      "scenario": "老式化妆盒里的粉",
+      "hint": "爽身粉那种干干扑扑的香",
       "family": "floral",
       "familyZh": "花香调",
       "notes": [
@@ -141,7 +141,7 @@
     {
       "id": "ripe-peach",
       "scenario": "熟透的桃子",
-      "hint": "汁水、果皮、一点酒味",
+      "hint": "汁水、果皮，甜得清爽",
       "family": "gourmand",
       "familyZh": "美食调",
       "notes": [
@@ -166,7 +166,7 @@
     {
       "id": "sunlit-wood",
       "scenario": "晒过的旧木头",
-      "hint": "干、暖、不甜",
+      "hint": "干、暖，尾调有一点奶感",
       "family": "woody",
       "familyZh": "木质调",
       "notes": [
@@ -178,7 +178,7 @@
     {
       "id": "pine-wind",
       "scenario": "松林里的风",
-      "hint": "针叶、树脂、清苦",
+      "hint": "松针的清苦，带一点凉",
       "family": "woody",
       "familyZh": "木质调",
       "notes": [
@@ -202,8 +202,8 @@
     },
     {
       "id": "old-medicine",
-      "scenario": "古老的药木",
-      "hint": "深色木头 + 一点药味",
+      "scenario": "中药铺的老木药柜",
+      "hint": "深色木头里透出一点药味",
       "family": "woody",
       "familyZh": "木质调",
       "notes": [
@@ -227,8 +227,8 @@
     },
     {
       "id": "amber-resin",
-      "scenario": "琥珀色的树脂",
-      "hint": "温、稠、贴皮肤",
+      "scenario": "冬天围巾裹着的脖颈那股暖甜",
+      "hint": "温、稠、贴着皮肤",
       "family": "amber",
       "familyZh": "东方琥珀调",
       "notes": [
@@ -345,7 +345,7 @@
     {
       "note": "jasmine",
       "noteZh": "茉莉",
-      "scenario": "夜里开的白花",
+      "scenario": "夏夜院子里的茉莉花",
       "scenarioId": "night-white",
       "family": "floral",
       "familyZh": "花香调"
@@ -353,7 +353,7 @@
     {
       "note": "tuberose",
       "noteZh": "晚香玉",
-      "scenario": "夜里开的白花",
+      "scenario": "夏夜院子里的茉莉花",
       "scenarioId": "night-white",
       "family": "floral",
       "familyZh": "花香调"
@@ -361,7 +361,7 @@
     {
       "note": "ylang-ylang",
       "noteZh": "依兰",
-      "scenario": "夜里开的白花",
+      "scenario": "夏夜院子里的茉莉花",
       "scenarioId": "night-white",
       "family": "floral",
       "familyZh": "花香调"
@@ -377,7 +377,7 @@
     {
       "note": "iris",
       "noteZh": "鸢尾",
-      "scenario": "奶油味的粉",
+      "scenario": "老式化妆盒里的粉",
       "scenarioId": "lotiony-powder",
       "family": "floral",
       "familyZh": "花香调"
@@ -385,7 +385,7 @@
     {
       "note": "violet",
       "noteZh": "紫罗兰",
-      "scenario": "奶油味的粉",
+      "scenario": "老式化妆盒里的粉",
       "scenarioId": "lotiony-powder",
       "family": "floral",
       "familyZh": "花香调"
@@ -489,7 +489,7 @@
     {
       "note": "oud",
       "noteZh": "乌木",
-      "scenario": "古老的药木",
+      "scenario": "中药铺的老木药柜",
       "scenarioId": "old-medicine",
       "family": "woody",
       "familyZh": "木质调"
@@ -497,7 +497,7 @@
     {
       "note": "saffron",
       "noteZh": "藏红花",
-      "scenario": "古老的药木",
+      "scenario": "中药铺的老木药柜",
       "scenarioId": "old-medicine",
       "family": "woody",
       "familyZh": "木质调"
@@ -529,7 +529,7 @@
     {
       "note": "amber",
       "noteZh": "琥珀",
-      "scenario": "琥珀色的树脂",
+      "scenario": "冬天围巾裹着的脖颈那股暖甜",
       "scenarioId": "amber-resin",
       "family": "amber",
       "familyZh": "东方琥珀调"
@@ -537,7 +537,7 @@
     {
       "note": "benzoin",
       "noteZh": "安息香",
-      "scenario": "琥珀色的树脂",
+      "scenario": "冬天围巾裹着的脖颈那股暖甜",
       "scenarioId": "amber-resin",
       "family": "amber",
       "familyZh": "东方琥珀调"
