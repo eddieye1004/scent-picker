@@ -610,10 +610,20 @@ function artInner(subId) {
   }
   return ART_CACHE.get(p);
 }
-/* 首屏就把 24 枚全部拉进内存（与香水库并行，不阻塞渲染）。 */
-function artWarmAll() {
-  Object.keys(ART_FILE).forEach((id) => { artInner(id).catch(() => {}); });
-}
+/* ==== 24 枚标本的「启动即全量预热」已删除（性能腿，2026-11-19）====
+   原先这里有一个 artWarmAll()，在模块求值时就把 24 个 SVG 全拉一遍，
+   boot() 里还有第二处调用。实测代价：首屏 24 个请求 / 96KB，
+   而且那 24 枚里首屏只可能用到 0 枚 —— 第 1 屏盘心在「没选小类」时是纯文字
+   （见 scentPlate 上方的裁定：只选大类不放图标），用户不悬停到某个小类就不会取图。
+
+   为什么可以直接删而不是改成懒加载：取图本来就已经是按需的 ——
+   scentPlate() 与 avoidSpecimen() 各自 walk 这条通路：
+     先 artSvgReady() 读已解析缓存；没就绪就 artInner(id).then(写进 DOM)
+   （见下面两处调用点）。预热只是「提前把缓存填满」的加速层，
+   删掉它不改变任何一次取图的结果，只把「什么时候发这个请求」交还给真实消费点。
+
+   注意：审计原文写的「artSvgReady() 无调用方」与代码不符 —— 它有两个调用方
+   （scentPlate 的盘心、avoidSpecimen 的避雷卡）。删掉的是预热，不是缓存读取通路。 */
 /* 同一枚图标可能被同时插进 DOM 的多个位置，渐变 id 必须唯一，
    否则第二次插入会引用到第一个实例的 defs。 */
 let artSeq = 0;
@@ -643,8 +653,8 @@ function avoidSpecimen(specimenPath) {
   else artInner(sub).then((inner) => { if (inner) box.innerHTML = artNs(inner, 'a' + (++artSeq)); });
   return box;
 }
-/* 尽早开始预热：不等 taxonomy、不等 DOMContentLoaded。 */
-if (typeof window !== 'undefined') artWarmAll();
+/* 原先这里还有一处 `artWarmAll()`（"尽早开始预热：不等 taxonomy、不等 DOMContentLoaded"）。
+   已随性能腿删除，理由见 artWarmAll 原址上方那段注释。 */
 
 /* 香材英文名 → 中文，供代表香材行显示。找不到就退回原文。 */
 function noteZhOf(en) {
@@ -2559,11 +2569,22 @@ function renderAvoid() {
   ));
 
   const plan = avoidPlanNow();
-  /* 数据没到齐（或方向还没定）：先占位。库到了 render 会重画；
-     方向没定时这一屏本就不该有候选，占位句如实说。 */
+  /* 数据没到齐（或方向还没定）：先占位。
+     ==== 性能腿（2026-11-19）：这里同时是 perfumes.json 的第一个真实消费点 ====
+     avoidPlanNow() 要按香水库算模糊带，而 boot() 已不再预热香水库
+     （见"启动"那一节的注释），所以这一屏自己把请求拉起来。
+     加载态沿用既有的占位句（不新造 UI）；到货后**只在用户仍停在这一屏**时重画一次，
+     已翻走的就不打扰。守卫条件是 `avoidPlanNow()` 真的能算出 plan ——
+     方向还没定时它仍是 null，那时不该重画（重画会再进这个分支，变成自旋）。 */
   if (!plan) {
     wrap.appendChild(el('p', { class: 'avoid-empty' }, '正在按你选的方向，算最容易踩雷的几个…'));
     wrap.appendChild(navBar('unwanted'));
+    ensurePerfumes()
+      .then(() => {
+        const app = $('#app');
+        if (app && app.dataset.step === 'unwanted' && avoidPlanNow()) render();
+      })
+      .catch(() => { /* 库读不到：占位句留着，finish() 会如实报错 */ });
     return wrap;
   }
   pruneAvoid(plan);
@@ -3270,6 +3291,13 @@ async function finish(btn) {
        瓶形、下一帧才换图，视觉上是闪一下。它只有几百字节，
        而且通常早已在缓存里。失败不影响结果页。 */
     await ensurePhotos().catch(() => {});
+    /* ==== 直达链接表（性能腿 2026-11-19）：从这里开始按需加载 ====
+       它原先在 boot() 里预热，但唯一消费点是结果页的购买按钮（affiliateLinks
+       读 AFF_LINKS）。现在在渲染结果页之前等一次：此刻按钮已经是
+       「正在比对…」的忙碌态，用户看不见任何延迟，而首屏少一个 93KB 的并发请求。
+       与 ensurePhotos 同一条纪律：失败不影响结果页（加载器自己吞成 false，
+       退到平台搜索页兜底）。 */
+    await ensureAffLinks().catch(() => {});
     /* 预算走映射层：先把 perfumes 切一刀，引擎一行不动。
        三条降级见 poolForBudget() 的注释 —— 档太窄或凑不满时退回全库，
        绝不给一个空结果。 */
@@ -4992,11 +5020,20 @@ function render() {
 }
 
 /* ---------- 启动 ---------- */
-/* 分两段加载，而不是等两个文件都到齐才画第一屏。
-   为什么：perfumes.json 有 519KB，taxonomy.json 只有 23KB。原先是 Promise.all
-   一起等，慢网实测首屏要 1.9s（4G）/ 3.1s（限速），这期间页面只有一张空白纸，
-   用户会当成「网站打不开」。前三步（情绪/场合/浓度）根本用不到香水库，
-   只需要 taxonomy —— 所以先把它画出来，香水库在后台继续下，到第 4 步再等。 */
+/* 香水库（perfumes.json）与直达链接表（affiliate-links.json）自性能腿起**按需加载**：
+   boot() 不再预热它们，各自在真实消费点首次用到时才发请求。
+
+   为什么可以这么做：这两个文件都不在首屏关键路径上 ——
+     · perfumes.json（1.81MB / 149KB gzip）真正的首个消费点是**第 2 屏避雷**
+       （avoidPlanNow 要按香水库算模糊带）与出结果时的打分；
+     · affiliate-links.json（93KB gzip）只在结果页的购买按钮上用。
+   原先在 DCL 就一起拉，等于让两个非首屏文件跟 taxonomy/price-bands 抢首屏带宽
+   （审计实测 price-bands 本该 275ms，被预取挤到 958ms）。
+
+   消费点各自负责"等它到"：
+     · ensurePerfumes() → renderAvoid（占位句 + 到货重画，见那里的分支）、finish()、reshuffle()
+     · ensureAffLinks() → finish()（出结果前 await，沿用既有的「正在比对…」忙碌态）
+   两个加载器本身一字未改：都是幂等的单例 promise，重复调用不会重复发请求。 */
 let perfumesPromise = null;
 function ensurePerfumes() {
   if (DATA) return Promise.resolve(DATA);
@@ -5111,24 +5148,39 @@ async function boot() {
     // 相对 fetch('./data/…') 会随【页面】所在目录变 —— 核查页放在 /tools/
     // 下时会错找 /tools/data/ 而 404（实测踩过）。以 import.meta.url 为基就没这问题。
     const base = new URL('./', import.meta.url);
-    // 香水库不阻塞首屏：立刻发请求，但不等它
-    ensurePerfumes().catch(() => {});   // 失败在用到时再抛，这里只预热
-    /* 直达链接表同样不等：它只是便利层，到结果页时再读。 */
-    ensureAffLinks().catch(() => {});
-    /* 实物图清单也是压到底再读的便利层，顺手预热。 */
+    /* ==== 预取风暴已砍（性能腿 2026-11-19）====
+       原先这里有四路「不等它、先发请求」的预热：perfumes / affiliate-links /
+       photos / 24 枚 SVG。审计实测它们在 DCL 那一刻同时起飞，
+       把首屏仅有的两个必需文件（price-bands、taxonomy）挤到 958ms / 275ms 之外。
+       现在四路全部移除：
+         · perfumes  → 第 2 屏避雷（renderAvoid 里拉起）
+         · affiliate → 出结果前（finish 里拉起）
+         · SVG       → 盘心/避雷卡真实取图时（artInner 本来就会）
+       仍然保留的预热只有 photos.json：它是几百字节的降级表，且挂在结果页的
+       首帧判断上（见 finish 里的注解），删了会换来"先画瓶形再闪成实拍图"。
+
+       **不要**在这里把 perfumes 加回来 —— 那会复原这次修的浪费点。 */
     ensurePhotos().catch(() => {});
-    /* 盘心彩图：与香水库并行预热，24 枚一起拉，用户点到哪格都有现成的。 */
-    artWarmAll();
-    /* 价位带索引（第 1 屏预算要用）。它与 taxonomy 一起到位就够了 ——
+    /* 价位带索引（第 1 屏预算要用）与 taxonomy 一起到位就够了 ——
        第 1 屏必须能立刻画出四枚价签，否则首屏会先空一下。
-       读不到就降级：预算屏只画「不限」一项，选择器不出现死选项。 */
+
+       ==== 并行化（性能腿 2026-11-19）====
+       原先这两行是串行的（`await` 完 price-bands 再 `await` taxonomy），
+       审计实测多付一个 RTT：price-bands 3.78s→4.74s，taxonomy 4.75s→5.03s，
+       而两个文件加起来只有 18.8KB gzip。
+       改成 Promise.all 并行，**到齐之后**的写入顺序与初始化调用保持原样：
+       price-bands 先落 PRICE_INDEX、taxonomy 后落 TAX，然后 render() 一次。
+       两条各自的降级互不牵连（price-bands 读不到只影响预算屏的价签，
+       taxonomy 失败仍走 catch 的「加载失败」页）。 */
+    const [priceRes, taxRes] = await Promise.all([
+      fetch(new URL('data/price-bands.json', base)).catch(() => null),
+      fetch(new URL('data/taxonomy.json', base)),
+    ]);
     try {
-      const pr = await fetch(new URL('data/price-bands.json', base));
-      if (pr.ok) PRICE_INDEX = await pr.json();
+      if (priceRes && priceRes.ok) PRICE_INDEX = await priceRes.json();
     } catch { PRICE_INDEX = null; }
-    const res = await fetch(new URL('data/taxonomy.json', base));
-    if (!res.ok) throw new Error(`taxonomy.json HTTP ${res.status}`);
-    TAX = await res.json();
+    if (!taxRes.ok) throw new Error(`taxonomy.json HTTP ${taxRes.status}`);
+    TAX = await taxRes.json();
     render();
   } catch (err) {
     $('#app').innerHTML = `<div class="masthead"><h1>加载失败</h1></div>

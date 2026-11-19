@@ -34,6 +34,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { minifyCss, canonicalCss } from './lib/css-minify.mjs';
 
 const ROOT = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 const SRC = path.join(ROOT, 'styles', 'src');
@@ -89,14 +90,26 @@ const built = PARTS.map((p) => read(path.join(SRC, p))).join('');
 const outPath = path.join(ROOT, 'styles.css');
 const cur = fs.existsSync(outPath) ? read(outPath) : '';
 
+/* ==== 压缩：只去注释、只压空白（性能腿 2026-11-19）====
+   审计实测源产物 419KB 里 65.4% 是注释（840 段 / 274KB），gzip 后 148.8KB →
+   去注释 27.4KB。这里是渲染阻塞资源，所以这一步直接换首屏传输。
+   实现在 lib/css-minify.mjs，自带一条可执行证据：归一化后必须与源拼接逐字符相同。
+   为什么不用现成的 lightningcss/cssnano minify：见该文件的文件头注释（会合并规则）。 */
+const minified = minifyCss(built);
+if (canonicalCss(minified) !== canonicalCss(built)) {
+  console.error('✗ 压缩后语义不等价（归一化比对失败）—— 拒绝写出产物，源层未动。');
+  process.exit(1);
+}
+
 const checkOnly = process.argv.includes('--check');
 if (checkOnly) {
-  const inSync = cur === built;
+  const inSync = cur === minified;
   console.log(inSync
-    ? `✓ styles.css 与源层一致（${built.length} 字节，${built.split('\n').length} 行）`
-    : `✗ styles.css 与源层不同步：产物 ${cur.length} 字节 / 应为 ${built.length} 字节`);
+    ? `✓ styles.css 与源层一致（${minified.length} 字节，${minified.split('\n').length} 行）`
+    : `✗ styles.css 与源层不同步：产物 ${cur.length} 字节 / 应为 ${minified.length} 字节`);
   process.exit(inSync ? 0 : 1);
 }
 
-fs.writeFileSync(outPath, built);
-console.log(`styles.css 已重建：${built.length} 字节，${built.split('\n').length} 行，${PARTS.length} 个源层`);
+fs.writeFileSync(outPath, minified);
+console.log(`styles.css 已重建：${minified.length} 字节（源 ${built.length}，−${built.length - minified.length} 压缩），`
+  + `${minified.split('\n').length} 行，${PARTS.length} 个源层`);
