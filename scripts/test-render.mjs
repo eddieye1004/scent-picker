@@ -315,13 +315,39 @@ const getStepText = () => appRoot.textContent;
 const stepId = () => appRoot.attrs['data-step'] || '';
 /** 找当前屏的某个按钮（按文案）。 */
 const btnBy = (re) => appRoot.querySelectorAll('.btn').find((x) => re.test(x.textContent));
-/** 点「下一步」，等重绘。 */
+/** 走屏梯子：advance() 每落一屏就记一次 id，最后由 ⑧ 段整串比对。
+ *
+ *  为什么要记整条梯子而不只是每段各看一眼：每段只断言"我这一段落在正确的屏上"，
+ *  漏掉的是**它们合起来**错位的情形 —— 某段多 advance 一次，后面每段都错一格，
+ *  而每段自己仍然能"看见"它期待的那一屏（拿到的是别人那一屏的内容），
+ *  于是 5 段全绿、流程却跳了一屏。串比对同时否掉跳屏 / 错序 / 漏屏三种形态。 */
+const ladder = [];
+
+/** 点「下一步」，等重绘；顺手把落到的屏 id 记进梯子。 */
 async function advance() {
   const b2 = btnBy(/下一步|看推荐/);
   if (!b2) throw new Error('当前屏没有前进按钮：' + appRoot.query(0) );
   b2.dispatch('click');
   await new Promise((r) => setTimeout(r, 240));
+  ladder.push(stepId());
 }
+
+/** 按 **id** 在当前生效步骤表里的位置派生「第 N 屏」，不写死屏号。
+ *
+ *  为什么必须派生：预算屏在 v7 第 3 步里从第 3 位搬到了末位，走查段原来
+ *  写死「第 3 屏是预算屏」，搬完之后整段落到 `occasion` 上 —— `.price-tab`
+ *  取不到，`[1]` 是 undefined，直接 `TypeError`，脚本在打印汇总前退出，
+ *  **一条断言结果都拿不到**。写死屏号的代价不是"报一条红"，是"整份测试哑掉"。
+ *
+ *  取不带参的 `S.cur()`：它读的是**实时** `state.answers`，与屏上那行
+ *  「第 N 步 / 共 M 步」同源；避雷屏被跳过时（共 5 步）自动跟着缩，
+ *  不会出现"测试说第 6 屏、界面说第 5 步"的分叉。 */
+const stepNoOf = (id) => {
+  const list = appMod.__steps.cur();
+  const i = list.findIndex((x) => x.id === id);
+  return i < 0 ? 0 : i + 1;
+};
+const screenOf = (id) => `第 ${stepNoOf(id)} 屏`;
 /* ============================================================
    第 1 屏：香型圆盘（2026-11-17 v7 第 1 步恢复）
    ------------------------------------------------------------
@@ -980,22 +1006,33 @@ ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textCon
     (appRoot.querySelectorAll('.amb-tick')[0] || {}).textContent);
 
   /* ④ 圆盘点中即点燃：direction 已在，ambientOf 必须给出 active=true 且强度 > 0。
-     这是"选定反馈要能看出底噪已点燃"的可计算部分（截图只能看"有颜色"）。 */
-  const ambNow = appMod.__ambient({ direction: 'bright' }, 0, 8);
+     这是"选定反馈要能看出底噪已点燃"的可计算部分（截图只能看"有颜色"）。
+     total 跟着 v7 定版的 6 屏走（原写 8 是删屏前的表长）：它参与 strength 的
+     分档计算（span = total-1-start），留着 8 等于让这条断言算的是另一张表。 */
+  const ambNow = appMod.__ambient({ direction: 'bright' }, 0, 6);
   ok('圆盘给了方向后底噪立即激活（第 1 屏就有光）',
     ambNow.active === true && ambNow.strength > 0,
     `${ambNow.active} / ${ambNow.strength}`);
   ok('底噪在圆盘那一屏是最弱的一档（不抢盘的注意力）',
     Math.abs(ambNow.strength - 0.34) < 1e-9, String(ambNow.strength));
-  /* 大方向屏（emotion）仍在，但它不许改方向 —— 圆盘先给的算数。
-     这一条守的是 src/ambient.js 第 1 条纪律："来源只能是第一个大方向"。 */
-  const ambBoth = appMod.__ambient({ direction: 'bright', emotion: 'cold' }, 3, 8);
+  /* 大方向屏（emotion）**已随 v7 第 3 步① 从流程删除**，但它仍是引擎与底噪的
+     一个入口（answers.emotion 键保留、src/ambient.js 仍支持它兜底）。
+     所以下面三条测的是**契约**而不是那一屏 —— 它们不读 DOM，只调 __ambient：
+     K1「后答的大方向不改方向」、K2「圆盘被跳过时 emotion 仍能点亮」（措辞随屏
+     删除从"大方向屏"改成"emotion 入口"，断言本体一字未改）、
+     K3「未选大方向时底噪不激活」（原在已删的第 3 屏段里，随屏删除挪到这里）。 */
+  const ambBoth = appMod.__ambient({ direction: 'bright', emotion: 'cold' }, 3, 6);
   ok('后答的大方向不改底噪方向（先给的那一个说了算）',
     ambBoth.axis === 'bright', ambBoth.axis);
-  /* 圆盘没给方向时，大方向屏照旧能点亮 —— v6 的行为不能被这次改动弄丢。 */
-  const ambEmo = appMod.__ambient({ emotion: 'cold' }, 2, 8);
-  ok('圆盘被跳过时大方向屏仍能点亮底噪（v6 行为保留）',
+  /* 圆盘没给方向时，emotion 入口照旧能点亮 —— v6 的行为不能被这次改动弄丢。 */
+  const ambEmo = appMod.__ambient({ emotion: 'cold' }, 2, 6);
+  ok('圆盘被跳过时 emotion 入口仍能点亮底噪（v6 行为保留）',
     ambEmo.active === true && ambEmo.axis === 'cold', `${ambEmo.active} / ${ambEmo.axis}`);
+  /* 一条纯 __ambient({}) 断言，与屏无关：没选大方向时底噪必须是"诚实地没有"，
+     不是强度 0 的底噪。它守的是 src/ambient.js 的第一条纪律
+     （来源只能是用户自己给的第一个大方向），屏删了这条纪律还在。 */
+  const ambNone = appMod.__ambient({}, 1, 6);
+  ok('未选大方向时底噪不激活', ambNone.active === false, String(ambNone.active));
 }
 
 /* ---------- ① 首屏之后：动态避雷（v7 第 2 步，移到第 2 位） ----------
@@ -1037,38 +1074,13 @@ ok('避雷屏标题是「只问最容易踩雷的几个」',
     (appRoot.querySelectorAll('.avoid-count')[0] || {}).textContent);
 }
 
-/* ---------- ② 预算（v7 第 2 步：从第 2 位挪到第 3 位，屏本身不动） ---------- */
-await advance();
-ok('第 3 屏是预算屏（data-step=budget）', stepId() === 'budget', stepId());
-ok('预算屏标题是「你打算花多少钱」', getStepText().includes('你打算花多少钱'), getStepText().slice(0, 90));
-ok('预算屏是四档 + 不限，共 5 枚价签',
-  appRoot.querySelectorAll('.price-tab').length === 5,
-  `实际 ${appRoot.querySelectorAll('.price-tab').length}`);
-ok('价签组是 radiogroup 语义',
-  appRoot.querySelectorAll('.price-row')[0]
-  && appRoot.querySelectorAll('.price-row')[0].attrs.role === 'radiogroup',
-  String(appRoot.querySelectorAll('.price-row')[0] && appRoot.querySelectorAll('.price-row')[0].attrs.role));
-/* 每档都要写瓶数 —— 不写数字，"300 以内"和"1200 以上"看起来一样大，
-   用户会选到一个只有十几瓶的档，答完才发现没货。 */
-ok('每枚具体档的价签都标了瓶数',
-  appRoot.querySelectorAll('.price-n').length === 4,
-  `标了瓶数的 ${appRoot.querySelectorAll('.price-n').length} 枚`);
-ok('价签有剪口（这一屏唯一的效果）',
-  appRoot.querySelectorAll('.price-notch').length === 5,
-  `剪口 ${appRoot.querySelectorAll('.price-notch').length} 个`);
-/* 价位未知那 766 瓶必须被说出来，否则等于把"未知"静默当成"便宜"。 */
-ok('预算屏说明了「价位未知的不参与」', /价位未知/.test(getStepText()), getStepText().slice(0, 200));
-
-/* 选一档，断言选中态与说明行跟着变 */
-{
-  const tab = appRoot.querySelectorAll('.price-tab')[1];
-  tab.dispatch('click');
-  await new Promise((r) => setTimeout(r, 60));
-  ok('点价签后它变成选中态', tab.attrs['aria-checked'] === 'true', String(tab.attrs['aria-checked']));
-  ok('选中具体档后说明行改成「只在这一档里挑」',
-    /只在这一档里挑/.test(appRoot.querySelectorAll('.price-note')[0].textContent),
-    appRoot.querySelectorAll('.price-note')[0].textContent.slice(0, 80));
-}
+/* ---------- ② 预算 ——【已整段搬到末屏，见 ⑧ 之前的「② 预算（末屏）」】 ----------
+   v7 第 3 步③ 把预算屏从第 3 位搬到末位（第 6 位）。本段原来写死「第 3 屏是预算屏」
+   并按位置取 `.price-tab`，搬完之后它落到 `occasion` 上：`.price-tab` 为空数组，
+   `[1]` 是 undefined → `tab.dispatch('click')` 抛 TypeError，脚本在打印
+   PASS/FAIL 汇总**之前**退出，整份测试一条结果都给不出来。
+   所以这里不保留任何断言（连空壳也不留）：屏还在，只是位置换了，
+   8 条内容断言一字不改地整段平移到末屏，理由见那里的注释。 */
 
 // /* ---------- ③ 大方向（v6 原屏）——【v7 第 3 步① 已整段跳过】 ----------
 //    大方向屏（data-step=emotion）已按 v7 定版从流程删除，本段第 1 条
@@ -1104,71 +1116,16 @@ ok('预算屏说明了「价位未知的不参与」', /价位未知/.test(getSt
 // }
 // --------------------------------------------------------------------------- */
 
-// /* ---------- ④ 想要的味道（生活短语，无术语）——【v7 第 3 步② 已整段跳过】 ----------
-//    「想要的味道」（data-step=wanted）已按 v7 定版从流程删除（L2 删屏），本段
-//    第 1 条 `await advance()` 若保留会落到场合屏，其后 `.life-card` 全部取不到
-//    节点 → 断言成批变红且与"屏已删"这个事实混在一起，分不清是删屏造成的还是
-//    改断言造成的。所以整段按行注释跳过，**不删**：L4 才逐条改断言，L2 只负责让
-//    删屏后的其余断言仍能跑出来。
-//    被跳过的断言名（12 条）逐条抄进了 L2 commit message：
-//      「第 5 屏是「想要的味道」（data-step=wanted）」/「生活短语卡已渲染」/
-//      「想要屏不出现任何香调族名（无术语题）」/「想要屏不出现香材英文原名」/
-//      「每张卡都带一句气味提示（不是只有一个词）」/「每张卡都标了库内瓶数」/
-//      「选项区常驻一句译文行（未选也不空）」/「点卡片后被收下（aria-pressed=true）」/
-//      「已收下的卡移到队首（已选置顶）」/「已选计数出现」/
-//      「译文行换成了刚点的那条」/「已选项做成可撤小签」。
-//    注意 `await advance()` 也必须一起注释：删屏后它会把光标多推一屏，
-//    于是 ⑤ 场合那段的 `advance()` 直接落在季节屏（见 L2 回执的 A/B 两臂）。
-//    两臂实测：A（跳段、屏仍在、这一行放活）= PASS 326 FAIL 4（4 条全是既有
-//    屏序/计数红，跳段本身零红）；B（跳段、屏已删）= 见回执 §3.3。
-//
-// await advance();
-// ok('第 5 屏是「想要的味道」（data-step=wanted）', stepId() === 'wanted', stepId());
-// {
-//   const cards = appRoot.querySelectorAll('.life-card');
-//   ok('生活短语卡已渲染', cards.length >= 12, `实际 ${cards.length}`);
-//   /* **规格底线**：全程无香调术语题。这里逐字核：屏上不许出现族名，
-//      也不许出现香材的英文原名。一个都不许漏。 */
-//   const txt = getStepText();
-//   const familyZh = ['柑橘调', '花香调', '木质调', '东方琥珀调', '清新调', '美食调'];
-//   const leakedFam = familyZh.filter((z) => txt.includes(z));
-//   ok('想要屏不出现任何香调族名（无术语题）', leakedFam.length === 0, leakedFam.join(','));
-//   const leakedEn = /\b(bergamot|lemon|jasmine|sandalwood|vanilla|vetiver|oud)\b/i.test(txt);
-//   ok('想要屏不出现香材英文原名', !leakedEn, String(leakedEn));
-//   /* 但短语不能因此变得含糊：它是"具体的那个东西"，不是"甜"这种形容词。
-//      判据：卡片上的名字都是生活短语（含具体物象），且都带一句气味提示。 */
-//   ok('每张卡都带一句气味提示（不是只有一个词）',
-//     appRoot.querySelectorAll('.life-hint').length === cards.length,
-//     `提示 ${appRoot.querySelectorAll('.life-hint').length} 条 / 卡 ${cards.length} 张`);
-//   ok('每张卡都标了库内瓶数', appRoot.querySelectorAll('.life-n').length === cards.length,
-//     `瓶数 ${appRoot.querySelectorAll('.life-n').length} 个`);
-//   /* 译文行常驻（规格 5）：即使一个都没选，它也必须在那儿说这一屏在挑什么。 */
-//   ok('选项区常驻一句译文行（未选也不空）',
-//     appRoot.querySelectorAll('.life-gloss').length === 1
-//     && appRoot.querySelectorAll('.life-gloss')[0].textContent.length > 10,
-//     appRoot.querySelectorAll('.life-gloss')[0].textContent.slice(0, 50));
-//
-//   /* 点一张卡：收下、置顶、译文换 */
-//   const first = cards[0];
-//   const firstZh = first.querySelectorAll('.life-zh')[0].textContent;
-//   first.dispatch('click');
-//   await new Promise((r) => setTimeout(r, 60));
-//   ok('点卡片后被收下（aria-pressed=true）', first.attrs['aria-pressed'] === 'true', String(first.attrs['aria-pressed']));
-//   ok('已收下的卡移到队首（已选置顶）',
-//     appRoot.querySelectorAll('.life-card')[0].querySelectorAll('.life-zh')[0].textContent === firstZh,
-//     appRoot.querySelectorAll('.life-card')[0].querySelectorAll('.life-zh')[0].textContent);
-//   ok('已选计数出现', /已收下 1 个/.test(getStepText()), appRoot.querySelectorAll('.life-count')[0].textContent);
-//   ok('译文行换成了刚点的那条', appRoot.querySelectorAll('.life-gloss')[0].textContent.includes(firstZh),
-//     appRoot.querySelectorAll('.life-gloss')[0].textContent.slice(0, 50));
-//   ok('已选项做成可撤小签', appRoot.querySelectorAll('.life-tag').length === 1,
-//     `小签 ${appRoot.querySelectorAll('.life-tag').length} 个`);
-// }
 
 /* ---------- ⑤ 场合（昼夜光景，定版范例之一） ----------
    v7 第 2 步：旧第 5 屏「受不了的味道」已移到第 2 位并改成避雷墙（见 ①），
-   所以 wanted 之后直接 advance 到场合，这里不再有一屏 unwanted。 */
+   所以 wanted 之后直接 advance 到场合，这里不再有一屏 unwanted。
+   v7 第 3 步③：预算屏搬到末位后，场合从第 4 屏前移到第 3 屏 —— 屏号用
+   `screenOf('occasion')` 从当前生效步骤表派生，不写死：避雷屏被跳过时
+   （共 5 步）它会自动变成「第 2 屏」，写死就会在另一条分支上误报。 */
 await advance();
-ok('第 6 屏是场合（data-step=occasion）', stepId() === 'occasion', stepId());
+ok(`${screenOf('occasion')}是场合（data-step=occasion）`, stepId() === 'occasion',
+  `实际 ${stepId()}（表长 ${appMod.__steps.cur().length}）`);
 {
   const bands = appRoot.querySelectorAll('.hour-band');
   ok('场合屏是五个时段段（不是圆盘）', bands.length === 5, `实际 ${bands.length}`);
@@ -1187,9 +1144,11 @@ ok('第 6 屏是场合（data-step=occasion）', stepId() === 'occasion', stepId
     appRoot.querySelectorAll('.hour-gloss')[0].textContent.slice(0, 50));
 }
 
-/* ---------- ⑥ 季节（温度光带，定版范例之二） ---------- */
+/* ---------- ⑥ 季节（温度光带，定版范例之二） ----------
+   屏号派生（见 ⑤）：预算搬走后季节从第 5 屏前移到第 4 屏。 */
 await advance();
-ok('第 7 屏是季节（data-step=season）', stepId() === 'season', stepId());
+ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season',
+  `实际 ${stepId()}（表长 ${appMod.__steps.cur().length}）`);
 {
   const stops = appRoot.querySelectorAll('.temp-stop');
   ok('季节屏是温度光带上的四个落点', stops.length === 4, `实际 ${stops.length}`);
@@ -1228,9 +1187,11 @@ ok('第 7 屏是季节（data-step=season）', stepId() === 'season', stepId());
   ok('点一季后落点亮起', stops[3].attrs['aria-checked'] === 'true', String(stops[3].attrs['aria-checked']));
 }
 
-/* ---------- ⑦ 浓淡（扩散场，定版范例之三） ---------- */
+/* ---------- ⑦ 浓淡（扩散场，定版范例之三） ----------
+   屏号派生（见 ⑤）：预算搬走后浓淡从第 6 屏前移到第 5 屏。 */
 await advance();
-ok('第 8 屏是浓淡（data-step=concentration）', stepId() === 'concentration', stepId());
+ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId() === 'concentration',
+  `实际 ${stepId()}（表长 ${appMod.__steps.cur().length}）`);
 {
   const rings = appRoot.querySelectorAll('.diffuse-ring');
   ok('扩散场是五个同心环', rings.length === 5, `实际 ${rings.length}`);
@@ -1282,14 +1243,85 @@ ok('第 8 屏是浓淡（data-step=concentration）', stepId() === 'concentratio
     tops.join(','));
 }
 
+/* ---------- ② 预算（末屏；v7 第 3 步③ 从第 3 位搬到末位） ----------
+   这 8 条内容断言一字未改，只是整体从「第 3 屏」平移到末屏位置 ——
+   屏还在、题面没动，只有位置换了，所以判据不该跟着改：
+   「价位未知的不参与」这条守的是"别把未知静默当成便宜"的信任底线，删不得。
+   屏号仍用派生（`screenOf('budget')`），不写死第 6 屏：避雷屏被跳过时
+   表长是 5，预算就是第 5 屏 —— 写死 6 会在那条分支上误报。 */
+await advance();
+ok(`${screenOf('budget')}是预算屏（data-step=budget，末屏）`, stepId() === 'budget',
+  `实际 ${stepId()}（表长 ${appMod.__steps.cur().length}）`);
+ok('预算屏标题是「你打算花多少钱」', getStepText().includes('你打算花多少钱'), getStepText().slice(0, 90));
+ok('预算屏是四档 + 不限，共 5 枚价签',
+  appRoot.querySelectorAll('.price-tab').length === 5,
+  `实际 ${appRoot.querySelectorAll('.price-tab').length}`);
+ok('价签组是 radiogroup 语义',
+  appRoot.querySelectorAll('.price-row')[0]
+  && appRoot.querySelectorAll('.price-row')[0].attrs.role === 'radiogroup',
+  String(appRoot.querySelectorAll('.price-row')[0] && appRoot.querySelectorAll('.price-row')[0].attrs.role));
+/* 每档都要写瓶数 —— 不写数字，"300 以内"和"1200 以上"看起来一样大，
+   用户会选到一个只有十几瓶的档，答完才发现没货。 */
+ok('每枚具体档的价签都标了瓶数',
+  appRoot.querySelectorAll('.price-n').length === 4,
+  `标了瓶数的 ${appRoot.querySelectorAll('.price-n').length} 枚`);
+ok('价签有剪口（这一屏唯一的效果）',
+  appRoot.querySelectorAll('.price-notch').length === 5,
+  `剪口 ${appRoot.querySelectorAll('.price-notch').length} 个`);
+/* 价位未知那 766 瓶必须被说出来，否则等于把"未知"静默当成"便宜"。 */
+ok('预算屏说明了「价位未知的不参与」', /价位未知/.test(getStepText()), getStepText().slice(0, 200));
+
+/* 选一档，断言选中态与说明行跟着变。
+   空值守卫写在这里而不是不写：一次 `undefined.dispatch` 会抛错退出，
+   **整份测试的 PASS/FAIL 汇总根本打印不出来**（搬屏后 ② 段就是这么哑掉的），
+   而"少一枚价签"本身已经被上面那条「共 5 枚价签」判红了 ——
+   所以守卫不掩盖缺陷，它只保证缺陷以"一条红"而不是"全盘哑掉"的形式出现。
+   两条断言照旧无条件执行，条数不随守卫增减。 */
+{
+  const tab = appRoot.querySelectorAll('.price-tab')[1];
+  if (tab) {
+    tab.dispatch('click');
+    await new Promise((r) => setTimeout(r, 60));
+  }
+  ok('点价签后它变成选中态', !!tab && tab.attrs['aria-checked'] === 'true',
+    tab ? String(tab.attrs['aria-checked']) : '（取不到第 2 枚价签）');
+  const note = appRoot.querySelectorAll('.price-note')[0];
+  ok('选中具体档后说明行改成「只在这一档里挑」',
+    !!tab && !!note && /只在这一档里挑/.test(note.textContent),
+    note ? note.textContent.slice(0, 80) : '（取不到 .price-note）');
+}
+
 /* ---------- ⑧ 末屏「看推荐」+ 已知款入口已撤（v7 第 1 步） ----------
    v7 定版没有「已知款」这一题，它的入口（STEPS / renderAnchor / 品牌组合框 /
    navBar 分支 / SCENE 键）整块删除。这里不验"那个函数还在"，验的是
    三件用户看得见的事：
      ① 走完最后一屏就能出结果（「看推荐」必须在末屏，而不是凭空消失）；
      ② 屏上不再有那一题的任何痕迹（标题、组合框、香调锚点 chip）；
-     ③ 用户翻到最后也不会经过一个"空屏"。 */
-ok('末屏是浓淡（data-step=concentration）', stepId() === 'concentration', stepId());
+     ③ 用户翻到最后也不会经过一个"空屏"。
+   v7 第 3 步③：末屏换人 —— 浓淡 → 预算。断言名跟着换，判据不变：
+   末屏必须是当前步骤表的**最后一项**（不是写死某个 id），
+   这样"末屏换人"这件事本身也进断言：谁把预算挪走，这一条就红。 */
+{
+  const list = appMod.__steps.cur();
+  const lastId = list[list.length - 1].id;
+  ok('末屏是当前步骤表的最后一项（且是预算 budget）',
+    stepId() === lastId && lastId === 'budget',
+    `屏上 ${stepId()} / 表尾 ${lastId}`);
+}
+/* 整条走屏梯子：从第 2 屏一直走到末屏，落过的每一屏按序记在 ladder 里。
+   这条是本文件唯一一条"顺序级"断言 —— 上面每段各自都对，也可能整体错位一格
+   （某段多 advance 一次，后面每段拿到的是别人那一屏的内容，自己仍然"看见了"
+   期待的那一屏）。串比对同时否掉跳屏 / 错序 / 漏屏三种形态。
+   期望串从**当前生效步骤表**派生（去掉第 1 屏圆盘：梯子从 advance 之后开始记），
+   不写死 —— 避雷屏被跳过时表是 5 项，写死的串会误报。 */
+{
+  const expect = appMod.__steps.cur().map((x) => x.id).slice(1);
+  ok('走屏梯子与步骤表逐屏一致（不跳屏、不重排、不漏屏）',
+    ladder.join(',') === expect.join(','),
+    `走过 ${ladder.join(',')} / 期望 ${expect.join(',')}`);
+  ok('梯子末项就是结果之前的最后一屏预算（看推荐出口在末屏，没被跳过）',
+    ladder[ladder.length - 1] === 'budget', ladder[ladder.length - 1]);
+}
 ok('已知款那题已不在流程里（屏上不再问「试过、并且喜欢」）',
   !getStepText().includes('已经试过'), getStepText().slice(0, 80));
 ok('已知款的组合框与锚点 chip 都不再渲染',
@@ -2180,58 +2212,75 @@ ok('结果页无 NaN/undefined', !/NaN|undefined/.test(resultText), resultText.s
 console.log('\n--- 第一瓶渲染结果 ---');
 console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
 
-/* ---------- 步骤表本身（v7 第 1 步：八屏固定，无入口分叉）----------
-   v5 的两条入口（家族 8 步 / 情绪 9 步）早已不存在；v7 又撤掉了「已知款」
-   那一屏、把圆盘放回第 1 屏。所以这里钉的是 v7 的**顺序与计数** ——
-   这是用户唯一看得见的两个数字，它们错一次，用户就会以为自己漏答了一屏。 */
+/* ---------- 步骤表本身（v7 第 3 步③：六屏固定，预算末屏，无入口分叉）----------
+   v5 的两条入口（家族 8 步 / 情绪 9 步）早已不存在；v7 删掉了「已知款」那一屏
+   与「大方向」「想要的味道」两题、把圆盘放回第 1 屏，第 3 步③ 又把预算搬到末位。
+   所以这里钉的是 v7 的**顺序与计数** —— 这是用户唯一看得见的两个数字，
+   它们错一次，用户就会以为自己漏答了一屏。 */
 {
   const S = appMod.__steps;
   const ids = S.all.map((x) => x.id);
-  ok('步骤全集是 8 步（v7）', S.all.length === 8, `实际 ${S.all.length}`);
-  /* 顺序即内容：圆盘第 1、避雷第 2、预算第 3、大方向第 4、浓淡收尾（末屏出结果）。
-     写成整串比对而不是逐项 includes —— 逐项判不出顺序错。
-     v7 第 2 步把 unwanted 从第 5 位提到第 2 位（紧跟圆盘选完方向）。 */
-  ok('八屏顺序与 v7 定版一致（圆盘第 1、避雷第 2、已知款已撤）',
-    ids.join(',') === 'family,unwanted,budget,emotion,wanted,occasion,season,concentration',
+  /* 计数一律用 S.all.length 派生写进期望值：断言名字里的数字若与表长脱钩，
+     下一个人删一屏就得手工改两处，改漏的那处会变成一条"永远绿"的假断言。
+     唯一例外是这一条：它就是"表长该是几"的定义处，写死 6 才有意义。 */
+  ok('步骤全集是 6 步（v7 定版）', S.all.length === 6, `实际 ${S.all.length}`);
+  /* 顺序即内容：圆盘第 1、避雷第 2、预算末屏（第 6）。
+     写成整串比对而不是逐项 includes —— 逐项判不出顺序错。 */
+  ok('六屏顺序与 v7 定版一致（圆盘第 1、避雷第 2、预算末屏）',
+    ids.join(',') === 'family,unwanted,occasion,season,concentration,budget',
     ids.join(','));
-  ok('8 个步骤的 id 两两不同', new Set(ids).size === ids.length, ids.join(','));
+  ok(`${S.all.length} 个步骤的 id 两两不同`, new Set(ids).size === ids.length, ids.join(','));
 
   /* 圆盘必须第 1 屏：v7 定版第一条就是"圆盘是第一屏"，
      而且它同时是底噪的方向来源（见 src/ambient.js 与 AXIS_OF_FAMILY）。 */
   ok('圆盘是第 1 屏', ids[0] === 'family', ids[0]);
   /* 避雷紧跟圆盘：方向一定下来就问最容易踩雷的几个（v7 第 2 步）。 */
   ok('避雷是第 2 屏（紧跟圆盘选完方向）', ids[1] === 'unwanted', ids[1]);
-  /* 预算仍是"圈池"那一刀，排在偏好题之前；本步从第 2 位顺延到第 3 位。 */
-  ok('预算是第 3 屏（先圈池再问偏好）', ids[2] === 'budget', ids[2]);
+  /* 预算排末位（v7 第 3 步③）。位置变了，理由也跟着换 ——
+     旧理由是"先圈池再问偏好"，搬屏后这句已经不成立：
+     `poolForBudget` 只在 `finish()` 与结果页「换一批」两处生效，
+     两处都在最后一屏之后，所以"圈池"这件事在引擎侧从来没有提前发生过。
+     理由留在断言名里，是为了让下一个人不会再拿旧理由去"修"这个位置。 */
+  ok('预算是末屏（第 6 位；价格过滤只在 finish() 生效，屏序不影响口径）',
+    ids[ids.length - 1] === 'budget' && ids[5] === 'budget', ids[5]);
   /* 已知款不许复活：它是 v7 定版明确删掉的一屏，且要求用户认得瓶子。 */
   ok('已知款（anchor）不得复活', !ids.includes('anchor'), ids.join(','));
 
   /* 被退场的 id 不许复活。名单来自 v5 的实际步骤表；
-     注意 family 已**不再**属于这张表 —— v7 把它请回来了，见上一条。 */
+     注意 family 已**不再**属于这张表 —— v7 把它请回来了，见上一条。
+     v7 第 3 步删掉的两屏（emotion / wanted）一并加进来：
+     它们的屏没了，但**答案键**（answers.emotion / answers.wanted）仍被
+     避雷屏与引擎读取，所以这条守的是"别把屏当成键一起删"，不是"别保留键"。
+     'unwanted' 不许加 —— 它是避雷屏正在用的 id（第 2 屏）。 */
   const gone = ['mood', 'dislikedFamilies', 'likedNotes', 'dislikedNotes',
-    'notes', 'context', 'strength', 'intensity'];
+    'notes', 'context', 'strength', 'intensity',
+    'emotion', 'wanted'];
   const revived = gone.filter((g) => ids.includes(g));
-  ok('v5 退场的步骤 id 都不得复活（family 除外，v7 已请回）', revived.length === 0, revived.join(','));
+  ok('退场的步骤 id 都不得复活（family 除外）', revived.length === 0, revived.join(','));
 
-  /* 步骤表与答案无关（无 when）—— 空答案与答满答案必须等长。 */
+  /* 步骤表与答案无关（无 when）—— 空答案与答满答案必须等长。
+     唯一的条件屏是避雷（方向定了但模糊带为空时整屏跳过），
+     所以样例答案要**带 family**（不带就是"还没到那一屏"的占位态，不跳）。
+     旧写法里的 `emotion: 'cold'` 已随那一屏删除，换成不依赖已删屏的写法。 */
   ok('步骤数与答案无关（无入口分叉）',
-    S.cur({}).length === S.cur({ family: 'floral', emotion: 'cold' }).length,
-    `${S.cur({}).length} vs ${S.cur({ family: 'floral', emotion: 'cold' }).length}`);
+    S.cur({}).length === S.cur({ family: 'floral', occasion: 'commute' }).length,
+    `${S.cur({}).length} vs ${S.cur({ family: 'floral', occasion: 'commute' }).length}`);
 
   /* 「第 N 步 / 共 M 步」跟着表走 */
-  ok('末屏是第 8 步 / 共 8 步',
-    S.head('concentration', {}).kicker === '第 8 步 / 共 8 步', S.head('concentration', {}).kicker);
-  ok('第 1 屏是第 1 步 / 共 8 步',
-    S.head('family', {}).kicker === '第 1 步 / 共 8 步', S.head('family', {}).kicker);
+  ok(`末屏是第 ${S.cur({}).length} 步 / 共 ${S.cur({}).length} 步`,
+    S.head('budget', {}).kicker === `第 ${S.cur({}).length} 步 / 共 ${S.cur({}).length} 步`,
+    S.head('budget', {}).kicker);
+  ok('第 1 屏是第 1 步 / 共 6 步',
+    S.head('family', {}).kicker === '第 1 步 / 共 6 步', S.head('family', {}).kicker);
 
-  /* 越界夹取 */
-  ok('越界夹取：step=9 在 8 步表里夹到 8', S.clamp(9, 8) === 8, String(S.clamp(9, 8)));
-  ok('越界夹取：step=8 在 8 步表里保持 8（=结果页）', S.clamp(8, 8) === 8, String(S.clamp(8, 8)));
-  ok('越界夹取：负数是 0', S.clamp(-1, 8) === 0, String(S.clamp(-1, 8)));
-  ok('越界夹取：NaN 是 0', S.clamp(NaN, 8) === 0, String(S.clamp(NaN, 8)));
+  /* 越界夹取：表长跟着 v7 定版走（6 屏） */
+  ok('越界夹取：step=7 在 6 步表里夹到 6', S.clamp(7, 6) === 6, String(S.clamp(7, 6)));
+  ok('越界夹取：step=6 在 6 步表里保持 6（=结果页）', S.clamp(6, 6) === 6, String(S.clamp(6, 6)));
+  ok('越界夹取：负数是 0', S.clamp(-1, 6) === 0, String(S.clamp(-1, 6)));
+  ok('越界夹取：NaN 是 0', S.clamp(NaN, 6) === 0, String(S.clamp(NaN, 6)));
 
   const allReachable = S.all.every((x) => typeof x.render === 'function');
-  ok('8 个步骤全部有可渲染函数', allReachable,
+  ok(`${S.all.length} 个步骤全部有可渲染函数`, allReachable,
     S.all.filter((x) => typeof x.render !== 'function').map((x) => x.id).join(','));
 
   /* 每屏 help 都要说清"能不能跳过" —— 除圆盘与预算外都可跳过。

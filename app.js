@@ -35,8 +35,9 @@ const state = {
   answers: {
     /* ==== 2026-11-17 问卷 v7 第 1 步：圆盘回到第一屏 ====
        v6 的两处结构性改动里，② 被 Eddie 否决（"删了开屏圆盘、删了 24 个图标"），
-       本步把它恢复；① 预算前置保留，只是退到第 2 屏 ——
-       它仍在除大方向外的所有偏好题之前，"先圈池再问偏好"未被破坏。
+       本步把它恢复；① 预算前置保留，只是退到第 2 屏 —— 到 v7 第 3 步③ 它更进一步
+       退到末屏。两次搬动都不改口径：`poolForBudget` 只在 `finish()` 与「换一批」
+       生效（两处都在最后一屏之后），"先圈池再问偏好"在引擎侧从未被破坏。
 
        v6 的原注释（为什么当年撤盘）留在这里当反面记录，不删：
          ① **预算前置到第 1 屏**（规格：预算题前置，先圈池再问偏好）；
@@ -190,10 +191,14 @@ const el = (tag, attrs = {}, ...kids) => {
      1 family        香型圆盘 —— 定大方向，同时点燃背景底噪
      2 unwanted      动态避雷 —— 紧跟方向，只问这个方向最容易踩雷的几个
                      （src/avoid.js 现算，封顶 6 张；算不出整屏跳过 → 共 5 步）
-     3 budget        先圈池（范围）
-     4 occasion      场合 —— 决定浓淡与时段
-     5 season        季节 —— 温度光带（.temp-band），Eddie 定版范例之一
-     6 concentration 浓淡＋浓度（扩散场：同心环半径＝扩散距离）
+     3 occasion      场合 —— 决定浓淡与时段
+     4 season        季节 —— 温度光带（.temp-band），Eddie 定版范例之一
+     5 concentration 浓淡＋浓度（扩散场：同心环半径＝扩散距离）
+     6 budget        预算（末屏）—— 圈定候选池，选完即出结果
+
+   **预算已从第 3 位搬到末位**（第 ③ 步）。搬位置不改口径：`poolForBudget` 的两个
+   调用点（`finish()` 与结果页「换一批」）本来就在最后一屏之后 —— 它一直是
+   "出结果那一刻才切一刀"，屏序变化对池过滤的语义与时序零影响。
 
    **大方向屏（emotion）已按 v7 定版删除**（第 ① 步）。`answers.emotion` 键保留，
    唯一写入点是圆盘屏底部的「按感觉选」segControl —— 它同时是 `finish()` 的
@@ -205,8 +210,9 @@ const el = (tag, attrs = {}, ...kids) => {
 
    为什么第 1 屏是圆盘：Eddie 2026-11-17 否决 v6 的第一条就是「删了开屏圆盘」。
    开屏那张盘是这个产品唯一一处"控件即内容"—— 外圈六族、中圈 24 个小类，
-   父子关系画在同一张图上。预算退到第 3 屏不破坏 v6 的"先圈池再问偏好"：
-   它仍在除大方向之外的所有偏好题之前。
+   父子关系画在同一张图上。预算从第 3 屏退到末屏仍不破坏 v6 的"先圈池再问偏好"：
+   `poolForBudget` 只在 `finish()` 与「换一批」生效，两处都在最后一屏之后，
+   所以"先圈池"这件事在引擎侧从来没有提前发生过 —— 它一直是"出结果那一刻才切"。 
 
    为什么底噪的方向来源可以是圆盘：src/ambient.js 的第 1 条纪律要求
    "来源只能是第一个大方向"。圆盘选出来的家族就是第一个大方向，
@@ -241,13 +247,6 @@ const STEPS = [
     render: renderAvoid,
   },
   {
-    id: 'budget',
-    short: '预算',
-    title: '你打算花多少钱？',
-    help: '先圈个范围，后面几屏只在这个范围里挑。不限也行，只是候选会多很多',
-    render: renderBudget,
-  },
-  {
     id: 'occasion',
     short: '场合',
     title: '主要什么时候用？',
@@ -278,6 +277,20 @@ const STEPS = [
        改为「浓度类型」——与 short「浓淡」呼应，也与下面单选卡的文案对得上。 */
     help: '先说体感（想让人闻到多重的分量），再说浓度类型（决定留香多久）。两项都不选也能出结果',
     render: renderConcentration,
+  },
+  {
+    /* ==== 第 6 步（末屏）：预算（v7 第 3 步③ 从第 3 位搬到末位）====
+       搬屏不改这一屏自身的题面与计分：它仍是"圈池"那一刀，语义与时序零影响 ——
+       priceIndex/poolForBudget 只在 finish() 与结果页「换一批」两个调用点生效，
+       两处都在最后一屏之后（见 poolForBudget 的注释）。
+       位置换了，所以 help 里"后面几屏只在这个范围里挑"这句已经不成立，改成末屏口径；
+       "不限也行"四个字必须留住（test-render 的「除圆盘外每屏都写明了可跳过」
+       靠 x.id !== 'budget' 排除这一屏，改文案时不要把这四个字丢掉）。 */
+    id: 'budget',
+    short: '预算',
+    title: '你打算花多少钱？',
+    help: '最后圈一下范围，只看这一档里的瓶子。不限也行，只是候选会多很多',
+    render: renderBudget,
   },
 ];
 
@@ -3178,7 +3191,7 @@ function navBar(stepId) {
     return bar;
   }
 
-  /* 预算 / 场合 / 季节 / 浓淡：都可跳过，所以按钮永远可点。
+  /* 预算（末屏）/ 场合 / 季节 / 浓淡：都可跳过，所以按钮永远可点。
      要求"必须答完才能走"会把可跳过的问题变成门槛。
 
      为什么仍画一个显式的「下一步」而不是点选即自动前进：
@@ -3186,17 +3199,21 @@ function navBar(stepId) {
      "等它自己跳"的出口；而且键盘用户 Tab 到这里时自动前进已经错过了，
      没有按钮他们就卡住了。
 
-     **末屏（concentration）在这里就出结果**：v7 撤掉了「已知款」那一屏，
-     所以"看推荐"按钮从它挪到了这一屏 —— 不留一条 anchor 分支，
-     否则那个 id 一复活就会静默走到这里。 */
-  if (stepId === 'concentration') {
-    bar.appendChild(el('span', { class: 'hint' }, '不选也能继续'));
+     **末屏（budget）在这里就出结果**：v7 第 3 步③ 把预算从第 3 位搬到末位，
+     「看推荐」出口随之换人 —— 这条分支必须排在下面那条合并分支**之前**，
+     因为 navBar 自上而下短路返回：顺序写反，预算屏会拿到「下一步」，
+     永远出不了结果（点「下一步」时 state.step 已到 list.length - 1，
+     next() 不动，页面停在预算屏）—— 那正是"点了看推荐没反应"这一类事故。
+     浓淡（concentration）已改回普通前进分支，不在这里留 finish 出口，
+     否则那个 id 一旦被重排就会静默变成第二个末屏。 */
+  if (stepId === 'budget') {
+    bar.appendChild(el('span', { class: 'hint' }, '不限也行，选完就能看推荐'));
     bar.appendChild(el('button', {
       class: 'btn', type: 'button', onclick: (ev) => finish(ev.currentTarget),
     }, '看推荐 →'));
     return bar;
   }
-  if (stepId === 'budget' || stepId === 'season' || stepId === 'occasion') {
+  if (stepId === 'concentration' || stepId === 'season' || stepId === 'occasion') {
     bar.appendChild(el('span', { class: 'hint' }, '不选也能继续'));
     bar.appendChild(el('button', { class: 'btn', type: 'button', onclick: next }, '下一步 →'));
     return bar;
@@ -4708,8 +4725,8 @@ async function reshuffle(btn) {
 
    哪一题最可能答错：**香型圆盘**（v7 起它是第 1 屏）。它同时决定两件事 ——
    候选池的族向（引擎按 family 取 profile）与整程的底噪方向；答错它，
-   后面每一屏的推荐和光都会跟着偏。预算退到第 2 屏之后仍是"圈池"那一刀，
-   但它只影响范围、不影响方向，所以让位给圆盘。
+   后面每一屏的推荐和光都会跟着偏。预算是末屏那一刀"圈池"，只影响范围、
+   不影响方向，所以让位给圆盘（它按 id 取，位置变了也不用改这里）。
    这一判断写在 RETUNE_DEFAULT 里，不藏在代码中间。 */
 const RETUNE_DEFAULT = 'family';
 function openRetune(btn) {
@@ -4896,17 +4913,22 @@ function render() {
 
        cut    零位移淡入  —— 同一段路里连续作答，位移会打断线性感
        settle 下沉 6px    —— 换轴：从"范围"进"感觉"，从"时间"进"分量"
-       lift   上浮 6px    —— 收束：末屏（已知款）之后要给答案了
+       lift   上浮 6px    —— 收束后进答案（**目前无人使用**：它原本属于「已知款」
+                             那一屏，该屏已按 v7 定版撤掉；留着类型说明是为了
+                             将来真有"收束屏"时不必重新发明。末屏 budget 用 settle）
        rise   上浮 14px   —— 结果页（全流程唯一"给答案"的一屏）
 
-     逐屏理由（也写在 PR 的逐屏表里）：
+     逐屏理由（也写在 PR 的逐屏表里）。**这张表按 id 键，不按下标** ——
+     搬屏（第 ③ 步把 budget 从第 3 位搬到末位）不需要动这里，值仍按 id 取：
        family   → settle  首屏，自己就是"进门"，下沉最有"推门"感；
                           **同时是底噪开灯的那一屏**（圆盘点中即点燃）
        unwanted → cut     紧跟方向，同一段路的"不要"这一面
-       budget   → settle  换轴：从"味道"进"范围"。仍是同一段路里的换挡
        occasion → settle  换轴：从"味道"进"什么时候"
        season   → cut     与场合同属时间轴，连续走完一年与一天
        concentration → settle 换轴：从"什么时候"进"多重的分量"
+       budget   → settle  换轴：从"多重的分量"进"范围"。末屏仍是换挡（范围≠答案），
+                          所以保留 settle 而不是 lift —— lift 是"收束后立刻给答案"，
+                          这一屏之后还有一次点击，用 lift 会提前宣告结束
        result   → rise    给答案 */
   const SCENE = {
     family: 'settle',

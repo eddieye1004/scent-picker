@@ -24,7 +24,11 @@ const ROOT = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\/([
 const NODE = process.execPath;
 
 const SUITES = [
-  ['test-render.mjs', 294],
+  /* v7 第 3 步删两屏（emotion / wanted）+ 预算屏搬末屏后重标定：294 → 334。
+     删掉 18 条随屏消失的屏内断言（A 段）+ 12 条 L2 注释保留的 wanted 断言，
+     新增顺序/计数/梯子断言（K3 底噪契约 1 条、末屏顺序 2 条、预算末屏前置 1 条）并
+     把 ②⑤⑥⑦⑧ 五段的屏号改成派生。只改这一个数字，其余六套与 GOLD 段不动。 */
+  ['test-render.mjs', 334],
   ['test-contrast.mjs', 42],
   ['test-scoring.mjs', 153],
   ['test-compliance.mjs', 10],
