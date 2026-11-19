@@ -1,0 +1,26 @@
+/* ---------- v3：环境线的唯一写入口 ----------
+   为什么做成"只改 #app 上的四个 CSS 变量"而不是重绘什么：
+   ① 环境线跨屏存在是连接感的第一条；写在内层节点上会随 render() 的
+      innerHTML 清空而消失，那就退化成"每屏重置"；
+   ② 只改变量 → CSS 的 transition 能真的插值过去，观感是"走过去"，
+      不是"换了一张纸"。
+
+   第一次调用时给 #app 打 `is-amb-init`：CSS 用它在首屏**关掉**过渡，
+   否则用户一进页面就会看到环境色从默认值缓慢漂过去 —— 那不是演变，那是加载。 */
+function applyAmbient() {
+  const app = $('#app');
+  if (!app) return null;
+  const a = currentAmbient();
+  const style = ambientStyle(a);
+  const prevStyle = app.getAttribute('data-amb');
+  if (prevStyle !== style) app.setAttribute('data-amb', style);
+  /* 行内样式逐条写：不能用 setAttribute('style', …)，
+     那会把标签里已有的其它行内属性（--amb-* 之外的东西）一并冲掉。 */
+  app.style.setProperty('--amb-warm', a.warm.toFixed(3));
+  app.style.setProperty('--amb-lit', a.lit.toFixed(3));
+  app.style.setProperty('--amb-weight', ((a.weight + 1) / 2).toFixed(3));
+  app.style.setProperty('--amb-temp', a.temp.toFixed(3));
+  if (!app.classList.contains('is-amb-init')) app.classList.add('is-amb-init');
+  ambientPrev = a;
+  return a;
+}

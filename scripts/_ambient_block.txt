@@ -1,0 +1,143 @@
+
+/* ============================================================
+   v3 · 连接感三件套（Eddie 2026-11-16 定版，规格「五·补」）
+   ------------------------------------------------------------
+   这一段的三个函数是「整个问卷是一段旅程，不是一屏屏表单」的实现。
+
+     ambientStyle()   环境线：把答案算成一组 CSS 变量，写在 #app 的行内样式上
+     escortBar()      标本签：已选香型的小图标，跟着用户走完每一屏
+     sceneTransition() 屏间不断裂：切换时不整页淡入，而是让环境值**插值**过去
+
+   三条都必须同时成立才算连接感，缺一条就退回"翻页"：
+     · 环境线连续 —— 写在 #app 上而不是每一屏上，所以它跨屏存在、只改值；
+     · 屏间有连续元素 —— 标本签在 #app 里，不随 render() 的 innerHTML 清空而消失
+       （见 render()：它不 append 进 app.innerHTML 的替换范围，而是单独维护）；
+     · 标本签到结果页与推荐卡图标呼应 —— 见 renderResult 的 esc-card 段。
+
+   ⚠️ 改这里之前先读规格第五节：环境线的**唯一验收标准是"累积"**，
+   不是"好看"。任何让它每屏重置（覆盖式赋值）的改法都是回归。
+   ============================================================ */
+
+/* 当前情形的环境值缓存。为什么要有缓存而不是每次重算：
+   屏间过渡需要「上一屏的值 → 这一屏的值」两端，重算只能得到这一端。
+   缓存同时是测试的观察点（`__ambient.last`）。 */
+let ambientPrev = null;
+
+/** 取当前答案对应的气质原型 dims（没选就是 null）。 */
+function moodDimsNow() {
+  const id = state.answers.characterPreset;
+  if (!id) return null;
+  const c = CHARACTER_PRESET.find((x) => x.id === id);
+  return c ? c.dims : null;
+}
+
+/** 生活情景对环境的推力（取"想要"那一屏的均值，最多 ±0.24）。 */
+function scenePushNow() {
+  const ids = state.answers.likedScenes || [];
+  if (!ids.length) return null;
+  let t = 0;
+  let l = 0;
+  let n = 0;
+  for (const id of ids) {
+    const s = sceneById(id);
+    if (!s || !s.push) continue;
+    t += s.push.temp || 0;
+    l += s.push.light || 0;
+    n += 1;
+  }
+  if (!n) return null;
+  return { temp: t / n, light: l / n };
+}
+
+/** 当前答案 → 环境状态（纯函数调用的薄封装，集中一处，避免散落）。 */
+function currentAmbient() {
+  return ambientOf(state.answers, { moodDims: moodDimsNow(), scenePush: scenePushNow() });
+}
+
+/** 环境状态 → #app 的行内 CSS 变量。命名带 `--amb-` 前缀，样式层只认这一组。 */
+function ambientStyle(a) {
+  /* 三个 0..100 的百分比给 CSS 直接做渐变插值位置，
+     另给 warm/lit 两个 0..1 的数做透明度与色相计算。
+     全部写成字符串：CSS 变量在行内样式里只能是字符串。 */
+  return [
+    `--amb-warm: ${a.warm.toFixed(3)}`,
+    `--amb-lit: ${a.lit.toFixed(3)}`,
+    `--amb-weight: ${((a.weight + 1) / 2).toFixed(3)}`,
+    `--amb-temp: ${a.temp.toFixed(3)}`,
+  ].join('; ');
+}
+
+/* ---------- 标本签（escort）----------
+   已选香型的小图标，做成 24px 的一枚，跟着走完每一屏。
+   为什么用 ART_FILE 那套上色 SVG 而不是重新画：规格第二节要求「图标优先复用/
+   扩展现有香型小图标系统」，且那 24 枚已经过「36px 不看文字可辨形」的验收。
+   这里只缩小到 22px 用，不新增任何图形。
+
+   一个细节：**标本签只在真的选过香型之后出现**。没选就画一个空框，
+   等于每一屏挂一个"提醒你没答"的牌子 —— 那是压力，不是陪伴。 */
+const ESCORT_SIZE = 22;
+
+/** 香型 id（家族）→ 用于标本签的小类 id（取该族第一个小类的图标）。 */
+function escortSubOf(famId) {
+  const fam = (TAX?.families || []).find((f) => f.id === famId);
+  if (!fam) return null;
+  const subs = fam.subfamilies || [];
+  const chosen = state.answers.subfamily
+    ? subs.find((s) => s.id === state.answers.subfamily)
+    : subs[0];
+  return chosen || null;
+}
+
+/**
+ * 标本签条。返回 null 表示"这一屏不该有"（还没选香型）。
+ * @param {{at?: 'top'|'result'}} cfg
+ */
+function escortBar(cfg = {}) {
+  const famId = state.answers.family;
+  if (!famId) return null;
+  const fam = (TAX?.families || []).find((f) => f.id === famId);
+  if (!fam) return null;
+  const sub = escortSubOf(famId);
+
+  const bar = el('div', {
+    class: 'escort' + (cfg.at === 'result' ? ' is-result' : ''),
+    'data-escort': famId,
+    role: 'img',
+    'aria-label': `已选香型：${fam.zh}${sub ? ' · ' + sub.zh : ''}`,
+  });
+
+  /* 图标：优先上色 SVG（与盘心同一套），没就绪时留位不画线稿（同 scentPlate 的取舍：
+     线稿会先闪一帧再被替换，用户看得见）。 */
+  const icon = svgEl('svg', {
+    class: 'escort-art',
+    viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+  if (sub) {
+    const ready = artSvgReady(sub.id);
+    if (ready) icon.innerHTML = ready;
+    else {
+      artInner(sub.id).then((inner) => {
+        if (!inner) return;
+        icon.innerHTML = artNs(inner, 'a' + (++artSeq));
+      });
+    }
+  }
+  bar.appendChild(icon);
+
+  /* 文字：主词用**生活语言**（与圆盘扇区同一套，见 FAMILY_PLAIN），
+     术语降为后缀小字。标本签是"我带在身上的那枚标签"，
+     标签上写的应该是人话。 */
+  bar.appendChild(el('span', { class: 'escort-zh' }, FAMILY_PLAIN[famId] || fam.zh));
+  bar.appendChild(el('span', { class: 'escort-term' }, fam.zh));
+
+  /* 预算：选过就把价签钉在标本签右侧 —— 它是范围，与香型并列显示最省事，
+     不必每屏再解释一遍。 */
+  const band = bandById(state.answers.budget);
+  if (band && cfg.at !== 'result') {
+    bar.appendChild(el('span', { class: 'escort-price' }, band.zh));
+  }
+
+  return bar;
+}

@@ -1,0 +1,10 @@
+/* ---------- v3：整族排除这一屏已删（2026-11-16）----------
+   原 renderDislikedFamilies 位于此处，随 STEPS 里的 dislikedFamilies 一起移除。
+   删除理由见 STEPS 顶部注释 ① 条：实测它是全问卷最接近无效的一项，
+   而且删掉之后步骤表不再有 when() 动态分叉，「共 N 步」只有一套数字。
+
+   保留这条注释而不是整段删干净，是为了让下一个读代码的人知道
+   "这里原来有一屏，不是漏写了" —— 以及它为什么不该回来。
+   若将来要恢复：引擎侧 answers.dislikedFamilies 与 scoring 的
+   dislikedFamily(-30) 权重都还在，恢复只需加回一屏渲染 + STEPS 一项。
+*/

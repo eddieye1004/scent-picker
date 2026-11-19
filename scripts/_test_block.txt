@@ -1,0 +1,183 @@
+/* ======== 一屏一问 · v3 九屏（2026-11-16）========
+   1 香型 / 2 预算 / 3 想要 / 4 不想要 / 5 气质 / 6 场合 / 7 季节 / 8 浓淡 / 9 已知款
+
+   v3 的两处结构变化都直接改了这一段的数字，逐条写清为什么：
+   ① **预算前置到第 2 屏**（规格「预算题前置」）：所以第 2 屏不再是"想要的味道"。
+   ② **「整族排除」这一屏被删**：步骤表不再有 when() 动态分叉，
+      九屏对所有人恒定 —— 所以原来那套"家族入口 8 步 / 情绪入口 9 步"
+      的双数字断言整组作废，换成"恒为 9 步"。
+      这不是把断言放松：双数字本身的**目的**是"两套数字必须一致"，
+      而现在只有一套数字，一致性由"恒等 9"直接守住，比原来更硬。 */
+
+ok('进入第 2 步（预算）', getStepText().includes('打算花多少'), getStepText().slice(0, 140));
+ok('v3：进度显示共 9 步', /共 9 步/.test(appRoot.textContent),
+  appRoot.textContent.slice(0, 40));
+
+/* ---- 预算屏（第 2 屏）----
+   规格把它前置，所以这里逐条钉住"它真的在第一屏之后、并且可跳过"。 */
+{
+  const segs = appRoot.querySelectorAll('.shelf-seg');
+  ok('v3 预算屏：一条尺带上有「不限」+ 四个价位档', segs.length === 5,
+    `实际 ${segs.length} 段`);
+  const ids = segs.map((s) => s.getAttribute('data-band'));
+  ok('v3 预算屏：不限在最前（默认值不该藏在末尾）', ids[0] === 'any', ids.join(','));
+  ok('v3 预算屏：四档 id 与 ambient.js 的 BUDGET_BANDS 一致',
+    ['b1', 'b2', 'b3', 'b4'].every((x) => ids.includes(x)), ids.join(','));
+
+  /* 未选时不说"你选了第一档"：读数要老实说这是不限。
+     这类"空态当默认值"的错在本项目历史上出现过（圆盘盘心空态）。 */
+  const read0 = appRoot.querySelector('.shelf-read');
+  ok('v3 预算屏：未选时读数是「不限」而不是某一档',
+    !!read0 && /不限/.test(read0.textContent), read0 ? read0.textContent.slice(0, 60) : '(无读数)');
+
+  /* 点一档：读数必须换成**这一档的真实瓶数**（不是百分比、不是硬编码）。 */
+  segs[1].dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  const read1 = appRoot.querySelector('.shelf-read');
+  const m = read1 ? read1.textContent.match(/(\d+)\s*瓶/) : null;
+  ok('v3 预算屏：选中后读数给出这一档的真实瓶数', !!m && Number(m[1]) > 0,
+    read1 ? read1.textContent.slice(0, 80) : '(无读数)');
+  ok('v3 预算屏：读数不是百分比（价格档不冒充匹配度）',
+    !!read1 && !/%/.test(read1.textContent), read1 ? read1.textContent : '');
+  ok('v3 预算屏：选中一段后恰有一段是 checked',
+    segs.filter((s) => s.getAttribute('aria-checked') === 'true').length === 1,
+    String(segs.filter((s) => s.getAttribute('aria-checked') === 'true').length));
+  /* 退回不限，后面的屏按"不筛价格"走 —— 否则整条主流程会被某一档绑住，
+     而这一段的目的是验结构，不是验某一档都能凑够三瓶。 */
+  segs[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+}
+
+/* ---- 两处黑话文案已改（任务8 B，Eddie 2026-11-12 批准）----
+   原文出自 POLISH-20261112.md §2 标出的两个候选：
+     场合屏「主战场决定浓度下限」、浓淡屏「香精占比」。
+
+   **读源码而不是读 DOM**：这两句分别在场合屏与浓淡屏，而这里只走到第 2 屏，
+   DOM 里根本没有它们 —— 用 DOM 断言会恒真（找不到旧词 = 通过），
+   那是一条假绿。直接对 app.js 的 STEPS 文案做文本断言，才真能抓到回退。
+
+   同时钉"新文案在"：只钉"旧词不在"的话，把整句删掉也会通过。 */
+{
+  const src = appSrc;
+  /* 只对 help 字面量做断言，不对整份源码做 includes：
+     代码注释里会合法地引用旧文案（"原文是「主战场…」，改成…"）——
+     对整份源码查旧词，会把这种解释性注释判成回退，那是假红。
+     这里把 help 值抠出来再判。 */
+  const helpValues = [...src.matchAll(/help: '([^']*)'/g)].map((m) => m[1]);
+  const helpAll = helpValues.join('\n');
+  ok('场合屏帮助文案已改为「最常在什么场合用…决定了推荐的浓淡」',
+    helpAll.includes('你最常在什么场合用，决定了推荐的浓淡')
+    && !helpAll.includes('主战场')
+    && !helpAll.includes('浓度下限'),
+    helpValues.find((h) => h.includes('场合')) || '(未找到)');
+  ok('浓淡屏帮助文案已用「浓度类型」替掉「香精占比」',
+    helpAll.includes('再说浓度类型（决定留香多久）')
+    && !helpAll.includes('香精占比'),
+    helpValues.find((h) => h.includes('体感')) || '(未找到)');
+}
+
+/* ======== v3：香调术语题已被生活情景取代 ========
+   这是本轮最该被守住的一条底线（规格「全程无香调术语题」）。
+   判据不是"没有 .chip"（那只是实现细节），而是两条同时成立：
+     ① 上屏的每个选项都是 scenes.js 里的**生活词**；
+     ② 它们背后挂的香调全部真实存在于 taxonomy 且至少命中 1 瓶
+        —— 即"不许发明整套新题"，用户点的东西必须真能筛出瓶子。 */
+{
+  /* 第 3 屏：想要的味道 */
+  const b = appRoot.querySelectorAll('.btn').find((x) => x.textContent.includes('下一步'));
+  ok('第 2 步有前进按钮', !!b,
+    appRoot.querySelectorAll('.btn').map((x) => x.textContent.trim()).join(' | ').slice(0, 120));
+  if (b) { b.dispatch('click'); await new Promise((r) => setTimeout(r, 320)); }
+
+  ok('进入第 3 步（想要的味道）', getStepText().includes('想闻到的'), getStepText().slice(0, 120));
+
+  const cells = appRoot.querySelectorAll('.scene');
+  ok('v3 「想要」屏是生活情景格子（不是香调 chip 墙）', cells.length > 0 && appRoot.querySelectorAll('.chip').length === 0,
+    `情景格 ${cells.length} 个 / chip ${appRoot.querySelectorAll('.chip').length} 个`);
+
+  /* 每一格的主词必须来自 LIKED_SCENES（用导出表比对，不硬编码字符串）。 */
+  const S = appMod.__scenes;
+  const likedZh = new Set(S.liked.map((s) => s.zh));
+  const shown = cells.map((c) => {
+    const zhNode = c.querySelectorAll('.scene-zh')[0];
+    return zhNode ? zhNode.textContent.trim() : '';
+  });
+  ok('v3 「想要」屏每格主词都来自 scenes.js（没有临时编题）',
+    shown.length > 0 && shown.every((z) => likedZh.has(z)),
+    shown.filter((z) => !likedZh.has(z)).join(' / ') || shown.slice(0, 4).join(' / '));
+
+  /* 底线：每格挂着的那味香调必须在 taxonomy 里、且至少命中 1 瓶。
+     用一个都不存在的表比对，才能抓到"写错一个字符导致 0 命中"
+     —— 这类错不会报错，只会让用户点了没反应。 */
+  const { matchesNote, tokenize, normNote } = await import(
+    'file:///' + path.join(ROOT, 'src/notes.js').replace(/\\/g, '/'));
+  const perfs0 = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/perfumes.json'), 'utf8')).perfumes;
+  const entryByEn = new Map(taxa.noteIndex.entries.map((e) => [normNote(e.en), e]));
+  const tokCache = perfs0.map((p) => (p.notesAll || []).map((x) => tokenize(x)));
+  const hitsOf = (en) => {
+    const e = entryByEn.get(normNote(en));
+    if (!e) return -1;
+    let n = 0;
+    for (const toks of tokCache) if (toks.some((t) => matchesNote(e, null, t))) n += 1;
+    return n;
+  };
+  const deadScenes = [];
+  for (const s of [...S.liked, ...S.avoid]) {
+    for (const en of s.notes) if (hitsOf(en) <= 0) deadScenes.push(`${s.id}:${en}`);
+  }
+  ok('v3 情景表里每一味香调都真实存在且至少命中 1 瓶（无死格）',
+    deadScenes.length === 0, deadScenes.join(', ') || `共核对 ${S.allNotes().length} 味`);
+
+  /* 一格不超过 4 味：多了等于"我全都要"，区分度会掉光。 */
+  const tooMany = [...S.liked, ...S.avoid].filter((s) => s.notes.length > 4).map((s) => s.id);
+  ok('v3 每格挂不超过 4 味香调（多了就退化成"我全都要"）',
+    tooMany.length === 0, tooMany.join(',') || '全部 ≤4');
+
+  /* 点一格：译文行要换成那一格的大白话（学圆盘圆心那句） */
+  const transBefore = (appRoot.querySelector('.scene-trans') || {}).textContent || '';
+  cells[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 80));
+  const transAfter = (appRoot.querySelector('.scene-trans') || {}).textContent || '';
+  ok('v3 选中一格后译文行跟着换（不是静态说明）',
+    transAfter !== transBefore && transAfter.length > 0,
+    `${transBefore.slice(0, 30)} → ${transAfter.slice(0, 30)}`);
+  ok('v3 选中的格标了 aria-pressed',
+    appRoot.querySelectorAll('.scene').some((c) => c.getAttribute('aria-pressed') === 'true'));
+
+  /* 环境线：选了清新系应当往"凉"走。这一条直接调纯函数，
+     不读 DOM —— 读色值只能看到最终值，验不出"是累加还是覆盖"。 */
+  const amb = appMod.__ambient;
+  const cool = amb.of({ family: 'citrus' });
+  const warm = amb.of({ family: 'amber' });
+  ok('v3 环境线：选柑橘比选琥珀更凉（同一函数、只差一个答案）',
+    cool.temp < warm.temp, `citrus ${cool.temp.toFixed(2)} vs amber ${warm.temp.toFixed(2)}`);
+  ok('v3 环境线：选琥珀比选柑橘更暖更重',
+    warm.weight > cool.weight, `amber ${warm.weight.toFixed(2)} vs citrus ${cool.weight.toFixed(2)}`);
+  /* 累积而不是覆盖：在柑橘之上再加一个"夏天"，应当比只有柑橘**更凉**。 */
+  const coolSummer = amb.of({ family: 'citrus', season: 'summer' });
+  ok('v3 环境线是累积的（加一个夏天答案，不会把前面的答案推翻）',
+    coolSummer.temp <= cool.temp + 1e-9 && coolSummer.light >= cool.light,
+    `citrus ${cool.temp.toFixed(2)}/${cool.light.toFixed(2)} → +summer ${coolSummer.temp.toFixed(2)}/${coolSummer.light.toFixed(2)}`);
+  /* 幅度必须夹在 [-1,1]：答满九屏也不许超出，否则色值会被压成死色。 */
+  const extreme = amb.of({
+    family: 'amber', occasion: 'formal', season: 'autumn', concentration: 'parfum', intensity: 5,
+  }, { moodDims: { temp: 1, sweet: 1, weight: 1 }, scenePush: { temp: 1, light: -1 } });
+  ok('v3 环境线三轴都夹在 [-1,1]（答满也不越界）',
+    Math.abs(extreme.temp) <= 1 && Math.abs(extreme.light) <= 1 && Math.abs(extreme.weight) <= 1,
+    `${extreme.temp.toFixed(2)}/${extreme.light.toFixed(2)}/${extreme.weight.toFixed(2)}`);
+
+  /* ---- 第 4 屏：不想要 ---- */
+  const b2 = appRoot.querySelectorAll('.btn').find((x) => x.textContent.includes('下一步'));
+  ok('第 3 步有前进按钮', !!b2);
+  if (b2) { b2.dispatch('click'); await new Promise((r) => setTimeout(r, 320)); }
+  ok('进入第 4 步（不想要的味道）', getStepText().includes('不想靠近'), getStepText().slice(0, 120));
+  const negCells = appRoot.querySelectorAll('.scene');
+  ok('v3 「不想要」屏也是生活情景，且与上一屏不是同一批',
+    negCells.length > 0 && negCells.length !== cells.length,
+    `不想要 ${negCells.length} 格 / 想要 ${cells.length} 格`);
+  ok('v3 「不想要」屏挂了多选语义（它不是单选）',
+    appRoot.querySelector('.scene-grid')
+    && appRoot.querySelector('.scene-grid').getAttribute('aria-multiselectable') === 'true',
+    (appRoot.querySelector('.scene-grid') || {}).getAttribute
+      ? String(appRoot.querySelector('.scene-grid').getAttribute('aria-multiselectable')) : '(无)');
+}

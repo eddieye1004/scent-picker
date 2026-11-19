@@ -1,0 +1,998 @@
+/* ============================================================
+   90-quiz-v3.css — 问卷 v3「连接感 + 逐屏专属环境效果」
+   ------------------------------------------------------------
+   规格正本：C:\Users\16256\work\design-logic-study-20261116.md 第五节 +「五·补」。
+   这一层必须在构建顺序的**最后**（在 80-specimen.css 之后）：它覆盖的是
+   token 与"每屏一个物件"的样式，不是布局骨架。
+
+   ============================================================
+   一、环境线（连接感第一条）——三段式实现，全部在 CSS 里
+   ============================================================
+   app.js 只往 #app 的行内样式写四个变量：
+       --amb-warm    0..1   冷 ←→ 暖
+       --amb-lit     0..1   暗 ←→ 亮
+       --amb-weight  0..1   轻 ←→ 重
+       --amb-temp    -1..1  原始值（需要符号的地方用）
+   这些值由 src/ambient.js 按**全部答案累加**算出，跨屏连续。
+
+   为什么用 `color-mix()` 而不是几档写死的类名：
+   类名只能表达"几档"（冷/中/暖），而规格要求的是**连续演变**。
+   color-mix 让 0.37 与 0.42 之间的差别真的能画出来。它是 Baseline 2023
+   的 CSS 原生函数，Chrome 111+ / Safari 16.2+ / Firefox 113+ 都支持；
+   不支持时下面的兜底（第二段 background 声明）会给一个中性纸底 ——
+   **观感降级但逻辑不缺**（规格原话）。
+
+   ⚠️ 这一层的所有颜色都由 --amb-* 推导，**不许写死色值**：
+   写死就等于"每屏重置"，那是规格明令禁止的回归。
+   ============================================================ */
+
+#app {
+  /* 环境线的两端色。冷暖轴取"晨雾灰蓝 ↔ 琥珀暖褐"，
+     亮度轴取"纸白 ↔ 微暗的暖灰"。两者相乘 → 一条二维平面上的连续路径。 */
+  --amb-cool: #eef2f4;
+  --amb-warmc: #f6ece0;
+  --amb-cool-dim: #e4e9ed;
+  --amb-warmc-dim: #ecdfd1;
+
+  /* 兜底（不支持 color-mix 时）：中性纸底，与 80-specimen 的 --bg 同值。 */
+  background-color: var(--bg);
+}
+
+@supports (background: color-mix(in oklab, red 50%, blue)) {
+  #app {
+    /* 两段混色：先按冷暖混，再按亮度叠一层极淡的暗部。
+       亮度项用 `--amb-dim` 把"暗"表达成"掺一点自身色的深版"，
+       而不是掺黑 —— 掺黑会让暖色区域发脏（实测在 #f6ece0 上很明显）。 */
+    --amb-dim: color-mix(in oklab, var(--amb-mix) calc((1 - var(--amb-lit)) * 26%), transparent);
+    --amb-mix: color-mix(in oklab, var(--amb-warmc) calc(var(--amb-warm) * 100%), var(--amb-cool));
+  }
+}
+
+/* 环境线用一层**固定定位的底色层**，而不是直接改 #app 的 background：
+   直接改 background 会与 80-specimen 的纸纹 repeating-linear-gradient 打架
+   （后声明的 background-image 会把前者的纹路整片盖掉）。
+   独立一层还带来一个好处：它能单独做 transition，纸纹留在原处不动。 */
+#app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--bg);
+}
+
+@supports (background: color-mix(in oklab, red 50%, blue)) {
+  #app::before {
+    /* 环境色的两个极端：
+         极冷极亮 → 近乎纸白偏青
+         极暖极暗 → 琥珀底
+       两端之间的任意一点都能画出来。 */
+    background-color: color-mix(in oklab,
+      color-mix(in oklab, var(--amb-warmc) calc(var(--amb-warm) * 100%), var(--amb-cool))
+      calc(100% - (1 - var(--amb-lit)) * 42%),
+      color-mix(in oklab, var(--amb-warmc-dim) calc(var(--amb-warm) * 100%), var(--amb-cool-dim))
+    );
+  }
+  /* 过渡就是"走过去"：1.15s 足够让用户看见颜色在变，又不至于跟不上点选。
+     ⚠️ 首屏必须关掉 —— 否则一进页面就会看到底色从默认值缓慢漂过来，
+     那读起来像"加载慢"，不是"环境在演变"。is-amb-init 由 applyAmbient 打上。 */
+  #app.is-amb-init::before {
+    transition: background-color 1.15s cubic-bezier(.32, .72, .24, 1);
+  }
+}
+
+/* 环境线还要有**可读的旁白**：不是所有人（也不是所有屏幕）都能分辨
+   1.5% 的色差。所以标本签里带一句 ambientOf 产出的中文（见 app.js）。
+   它同时是无障碍的替代表达 —— 屏幕阅读器读得到"凉下来 · 光线变暗"。 */
+
+/* ============================================================
+   二、标本签（escort）——连接感第二条的载体
+   ============================================================
+   它挂在 #app 下、内容块之外，所以跨屏不消失。形态取"标本柜里的签条"：
+   一枚小图 + 生活词 + 术语注脚 + 价签，一行排开，靠一条 1px 竖线与正文隔开。
+
+   为什么不做成浮动徽章/胶囊：
+   那是社交产品的语言（关注、标签）。这个站的语言是图鉴与标本柜，
+   签条应该**贴在页面上**，而不是浮在内容之上。
+   ============================================================ */
+.escort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 0 8px 0;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--hair);
+  font-size: 12px;
+  color: var(--ink-3);
+  letter-spacing: 0.02em;
+  /* 进场只有一次：签条第一次出现（用户选完香型）时从上方落位 4px。
+     之后它在页面上原地不动，只有内容在换 —— 这正是"连续元素"的意思。 */
+  animation: escortIn .34s cubic-bezier(.22, .9, .28, 1) both;
+}
+
+@keyframes escortIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.escort-art {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  /* 图标本体是上色 SVG，自带渐变；这里只负责尺寸与不拉伸 */
+  display: block;
+}
+
+.escort-zh {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* 术语注脚：比主词小一档、提字距、加一道前置分隔点。
+   规格要求"术语从不裸奔"，所以它留下，但退到辅读位置。 */
+.escort-term {
+  color: var(--ink-3);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.escort-term::before {
+  content: '·';
+  margin-right: 4px;
+  /* ⚠️ 这里**不能**用 var(--line)：--line 是纯装饰线色（白底 1.41:1），
+     test-contrast 有一条断言专门守"装饰色不许承载文字"，我第一次就踩了。
+     它这个字是可见文字（哪怕是分隔点），必须用能过 4.5:1 的 --ink-3。 */
+  color: var(--ink-3);
+}
+
+/* 价签：带一道细边框，像标本柜里夹在签条上的小价牌。
+   只在选过预算时出现（escortBar 决定），不选就不占位。 */
+.escort-price {
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 结果页的标本签：放大一档，成为"你的答案"的抬头。
+   与上面同构（同一套子元素），只改尺寸与语气 —— 不另起一套结构。 */
+.escort.is-result {
+  margin-bottom: 10px;
+  padding: 10px 0;
+  border-bottom: none;
+  font-size: 13px;
+}
+
+.escort.is-result .escort-art {
+  width: 28px;
+  height: 28px;
+}
+
+.escort.is-result .escort-zh {
+  font-size: 15px;
+}
+
+/* 结果页的答案摘要行：与标本签同一个包裹块（.esc-echo）。
+   它是"我带着这枚标签走完了九屏"的收尾，所以贴近签条、字号小一档。 */
+.esc-echo {
+  margin-bottom: 22px;
+}
+
+.esc-echo-line {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+}
+
+/* ============================================================
+   三、预算屏：货架量尺（第 2 屏专属）
+   ============================================================
+   内容隐喻：**先划出货架边界**。所以控件是一条横向的尺带，
+   每段宽度按该档真实瓶数比例给（--w 由 app.js 写在行内）。
+   几何即信息：宽的段能选的瓶多。
+
+   专属环境效果：选中一段时，其余段退成虚线（"这一段以外的货架"），
+   选中段实心并在右端伸出一道 2px 的"取货"短线。
+   ============================================================ */
+.shelf {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  margin: 4px 0 14px;
+  /* 尺带上方一道刻度基线：它是"尺"的视觉锚，不是装饰边框 */
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.shelf-seg {
+  /* 宽度来自行内 --w（按真实瓶数比例）。min-width 保证最窄那段仍可点 ——
+     触控目标是硬约束（test-contrast 守 44px 高），宽度也不能缩成一条缝。 */
+  flex: var(--w, 1) 1 0;
+  min-width: 84px;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .22s linear, border-color .22s linear, transform .22s cubic-bezier(.22,.9,.28,1);
+}
+
+.shelf-seg:hover {
+  border-color: var(--stroke-ui);
+  background: var(--bg-2);
+}
+
+/* 选中：实线 + 实底 + 一道右端"取货"短线。
+   为什么不用主色填满：价格是范围不是主张，填主色会让它读成"推荐这一段"。 */
+.shelf-seg.is-on {
+  border-style: solid;
+  border-color: var(--ink);
+  background: var(--bg-2);
+}
+
+.shelf-seg.is-on::after {
+  content: '';
+  position: absolute;
+}
+
+.shelf-zh {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.006em;
+  font-variant-numeric: tabular-nums;
+}
+
+.shelf-plain {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* 「不限」段：不做成同样宽度的第五档，而是更窄、语气更轻 ——
+   它是兜底而不是第五个价格区间。虚线边框在未选中时就存在，
+   表示"这一格不属于价位连续体"。 */
+.shelf-seg.is-any {
+  border-style: dotted;
+}
+
+.shelf-seg.is-any .shelf-zh {
+  font-weight: 400;
+}
+
+/* 尺带读数：这一档的真实瓶数。mono 数字 + 前置一道短横线，
+   与 .chips-label 的语法一致（全站的"标签+数据"都是这个语法）。 */
+.shelf-read {
+  margin: 0 0 18px;
+  padding-left: 12px;
+  position: relative;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.shelf-read::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: .72em;
+  width: 6px;
+  height: 1px;
+  background: var(--ink-3);
+}
+
+@media (max-width: 620px) {
+  .shelf {
+    /* 窄屏横排放不下五段（每段最少 84px）。改成两行网格：
+       前三段一行、后两段一行 —— 不折成五条细缝，也不做横向滚动
+       （横向滚动会藏起"不限"这个默认项）。 */
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+  .shelf-seg {
+    min-height: 58px;
+    padding: 6px 8px;
+  }
+  .shelf-seg.is-any,
+  .shelf-seg:nth-child(5) {
+    grid-column: span 1;
+  }
+  .shelf-zh { font-size: 13px; }
+  .shelf-plain { display: none; }
+}
+
+/* ============================================================
+   四、生活情景屏（第 3 / 4 屏专属）
+   ============================================================
+   想要 = **标本抽屉**：每格是一枚抽屉，选中 → 拉开一线、里面那味香材亮起来。
+   不想要 = **退潮**：选中 → 那一格向后退、褪色，像被从台面上拿走。
+
+   为什么两屏方向相反：它们在做相反的决定（拉近 / 推开）。
+   同一套动效公式会让"我在排除"读成"我在挑选"，那是语义错误不是风格问题。
+   ============================================================ */
+.scene-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.scene {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 76px;
+  padding: 10px 12px;
+  background: transparent;
+  border: 1px solid var(--stroke-ui);
+  border-radius: var(--radius);
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+  /* 抽屉的"轨道"：底部一道细线，选中时它变实 —— 这一格被从架子上抽出来了 */
+  transition:
+    transform .26s cubic-bezier(.22, .9, .28, 1),
+    border-color .22s linear,
+    background-color .22s linear,
+    opacity .3s linear;
+}
+
+.scene-art {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  margin-top: 1px;
+  /* 未选时图标压暗一档：它还是"抽屉里的东西"，不是主角 */
+  opacity: .62;
+  transition: opacity .24s linear, transform .26s cubic-bezier(.22,.9,.28,1);
+}
+
+.scene-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.scene-zh {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.006em;
+}
+
+.scene-plain {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 选中标记：一道短竖线，位置在格子右端。
+   刻意只有一个记号 —— 规格要求"不为炫技而炫技"，这一屏的反馈语义
+   是"我把它抽出来了"，一根线就够了。 */
+.scene-mark {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 2px;
+  height: 0;
+  background: var(--ink);
+  transform: translateY(-50%);
+  transition: height .26s cubic-bezier(.22, .9, .28, 1);
+}
+
+/* 想要屏：选中 = 抽屉拉开。
+   translateY(-2px) 是"抽出来"的位移，border 变实、图标全亮。 */
+.scene.is-on {
+  border-color: var(--ink);
+  background: var(--bg-2);
+  transform: translateY(-2px);
+}
+
+.scene.is-on .scene-art {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+.scene.is-on .scene-mark {
+  height: 22px;
+}
+
+.scene:hover {
+  border-color: var(--ink-2);
+}
+
+/* ---- 不想要屏：退潮 ----
+   方向必须与上一屏**相反**：选中 = 下沉 + 褪色 + 一道删除线穿过主词。
+   不沿用 .is-on 那套"拉近"的语言，否则两屏读起来是同一件事。 */
+.scene-neg.is-on {
+  border-color: var(--line);
+  border-style: dashed;
+  background: transparent;
+  transform: translateY(2px);
+  opacity: .55;
+}
+
+.scene-neg.is-on .scene-zh {
+  text-decoration: line-through;
+  text-decoration-color: var(--danger);
+  text-decoration-thickness: 1px;
+}
+
+.scene-neg.is-on .scene-art {
+  opacity: .3;
+  transform: none;
+}
+
+.scene-neg.is-on .scene-mark {
+  height: 0;
+}
+
+/* 译文行（每屏常驻，学圆盘圆心）：它在标题下、格子之上，
+   未选时说的是"这一屏在问什么"，选中后换成那一格的大白话。 */
+.scene-trans {
+  margin: 10px 0 0;
+  padding-left: 12px;
+  position: relative;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.65;
+  transition: color .2s linear;
+}
+
+.scene-trans::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: .74em;
+  width: 6px;
+  height: 1px;
+  background: var(--ink-3);
+}
+
+/* 未选时降一档：它是"提示"而不是"当前值"，但**不隐藏** ——
+   译文行常驻是规格要求，隐藏它会让"术语从不裸奔"这条失效。 */
+.scene-trans.is-idle {
+  color: var(--ink-3);
+}
+
+@media (max-width: 620px) {
+  .scene-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .scene {
+    min-height: 68px;
+    padding: 9px 11px;
+  }
+  /* 窄屏单列时抽屉方向改成左右：位移过大在单列里会显得抖 */
+  .scene.is-on { transform: translateY(-1px); }
+}
+
+/* ============================================================
+   五、结果页的两条退路 + 预算范围声明
+   ============================================================ */
+
+/* 预算范围声明：一条贴边引用块，语法与 .term-note 同族但更轻 ——
+   它陈述的是"范围"，不是"原因"。 */
+.pool-note {
+  margin: 0 0 20px;
+  padding: 9px 12px;
+  border-left: 2px solid var(--ink);
+  background: var(--bg-2);
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 预算被回退（池子太小）时，那道左边线换成警示色 ——
+   这是"你选的档没生效"，必须与正常情况在视觉上分开，不能只靠文字。 */
+.pool-note[data-pool="fell-back"] {
+  border-left-color: var(--warn);
+}
+
+/* 三个退路按钮：主操作（换一批）实心，另外两个 ghost。
+   窄屏时竖排占满宽度 —— 三个按钮挤一行在 390px 下每个只有 ~110px，
+   「改一题重推」会折成两行。 */
+.result-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 620px) {
+  .result-actions .btn {
+    flex: 1 1 100%;
+  }
+  .result-actions .spacer {
+    display: none;
+  }
+  .result-actions .hint {
+    flex: 1 1 100%;
+    margin-top: 4px;
+  }
+}
+
+/* ============================================================
+   六、香型圆盘的生活主词（第 1 屏）
+   ============================================================
+   主词换成生活语言后，字比原来的两个字长（"刚剥开的橘子皮" 7 字）。
+   扇区标签的盒子是按 2–4 字设计的，直接塞进去会溢出。
+   这里只做一件事：给主词两行、给术语注脚一行，并把行高压到 1.2。
+   **不动**几何、半径、扇区角度 —— 那些是圆盘的信息结构，不是文案。
+   ============================================================ */
+.disc-sector.lvl1 .zh {
+  line-height: 1.2;
+  /* 长词必须能在盒子里折行，且不撑破标签命中垫 */
+  overflow-wrap: anywhere;
+}
+
+.disc-sector.lvl1 .notes {
+  opacity: .78;
+}
+
+/* 第三行代表香材：只在桌面显示（窄屏那两行已经占满盒子）。 */
+.disc-sector.lvl1 .fam-sample {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--ink-3);
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 620px) {
+  .disc-sector.lvl1 .fam-sample {
+    display: none;
+  }
+  .disc-sector.lvl1 .zh {
+    font-size: 12px;
+  }
+}
+
+/* ============================================================
+   七、逐屏专属环境效果的容器规则
+   ============================================================
+   下面四条分别服务四屏，**各自形状不同**，不共用一套动效公式：
+
+     第 6 屏 场合 → 一天的时间弧（.day-arc）
+     第 7 屏 季节 → 温度光带（.temp-band）
+     第 8 屏 浓淡 → 香气扩散场（.diffuse）
+     第 5 屏 气质 → 七格光谱（.mood-spectrum）
+
+   这些效果的共同纪律：**必须帮助理解选项**。
+   所以每一条都直接由数据驱动（时段、季节顺序、浓度档、气质三维），
+   不是随机装饰。全部纯 CSS，低端安卓可降级（见文末 reduced-motion 段）。
+   ============================================================ */
+
+/* ---- 第 6 屏：一天的时间弧 ----
+   把五个场合按"一天里的什么时候用"排在同一条弧上：
+     运动/户外（清晨）→ 上班/上课（白天）→ 日常/居家（傍晚）
+     → 约会（夜）→ 正式场合（深夜）
+   弧本身是一道 1px 的曲线 + 一个可移动的光点，光点位置 = 当前选中场合。
+   这不是装饰：它把"场合"翻译成"什么时候"，而时段本来就在数据里
+   （scoring.js 的 OCCASION_TIME）。 */
+.day-arc {
+  position: relative;
+  height: 92px;
+  margin: 4px 0 18px;
+  /* 弧用两层径向渐变的交界画出来，避免额外 SVG 节点 */
+  background:
+    radial-gradient(circle at 50% 118%, transparent 56%, var(--line) 56.6%, transparent 57.4%);
+}
+
+/* 光点：位置由行内 --pos（0..1，按 OCCASION_ORDER 序号）决定。 */
+.day-arc .arc-sun {
+  position: absolute;
+  bottom: 0;
+  left: calc(6% + var(--pos, .5) * 88%);
+  width: 9px;
+  height: 9px;
+  margin-bottom: -4px;
+  border-radius: 50%;
+  background: var(--ink);
+  transform: translateX(-50%);
+  transition: left .42s cubic-bezier(.32, .72, .24, 1), background-color .3s linear;
+}
+
+/* 弧上五个刻度：每个场合一个落点，选中那个加粗。 */
+.day-arc .arc-tick {
+  position: absolute;
+  bottom: 0;
+  left: calc(6% + var(--pos) * 88%);
+  width: 1px;
+  height: 7px;
+  background: var(--line);
+  transform: translateX(-50%);
+}
+
+.day-arc .arc-tick.is-on {
+  height: 12px;
+  background: var(--ink);
+}
+
+/* ---- 时间弧的命中层 ----
+   视觉上刻度只有 1px 宽，但**触控目标必须 44px**（test-contrast 的硬约束，
+   与圆盘扇区、香调 chip 同一个理由：1px 的东西在触屏上点不中）。
+   做法是 ::before 铺一层透明垫，左右各扩 22px、上下 22px。
+   这不是"看起来能点"—— 真正接事件的就是这个 button。 */
+.day-arc .arc-tick {
+  width: 1px;
+  border: none;
+  padding: 0;
+  background: var(--line);
+  cursor: pointer;
+}
+
+.day-arc .arc-tick::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 44px;
+  height: 44px;
+  transform: translateX(-50%);
+  /* 透明但可命中 */
+  background: transparent;
+}
+
+.day-arc .arc-tick:focus-visible::before {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+/* 时间轴图例：五个场合的名字与解释。
+   用三列横排（时段 / 名字 / 解释）而不是卡片：
+   在弧上它们是有序的，网格会读成五个并列项。 */
+.arc-legend {
+  margin: 0 0 16px;
+  border-top: 1px solid var(--hair);
+}
+
+.arc-legend-row {
+  display: grid;
+  grid-template-columns: 4.5em 8.5em 1fr;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--hair);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.arc-when {
+  color: var(--ink-3);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+
+.arc-zh {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.arc-desc {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+@media (max-width: 620px) {
+  /* 窄屏三列放不下（解释会折成三行）。改成两列：时段+名字一行、解释独占一行。 */
+  .arc-legend-row {
+    grid-template-columns: 3.6em 1fr;
+    gap: 6px 8px;
+  }
+  .arc-desc {
+    grid-column: 1 / -1;
+    padding-left: calc(3.6em + 8px);
+  }
+}
+
+/* ---- 第 7 屏：温度光带 ----
+   四个季节排成一条带，色温随选中季的冷暖整体倾斜
+   （--band-warm 由该季的 SEASON_AMBIENT.temp 换算，数据驱动）。
+   为什么要它：季节的语义就是温度与光线，一条色温带比四个按钮更接近原意。
+
+   ⚠️ 这一段**必须只有一条 .temp-band 主规则**。第一版拆成了三条
+   （基础 + @supports 渐变 + 控件布局），而第三条的 `background: var(--bg-2)`
+   把第二条的渐变整条覆盖掉 —— 实测 computed backgroundImage 是 "none"，
+   截图上看是一条灰带。现在把布局与背景合并成一条，渐变写在它内部。
+   教训：同一选择器拆成多条规则时，后一条的后声明会静默吃掉前一条的成果，
+   而且**不报错**。 */
+.temp-band {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  min-height: 58px;
+  margin: 2px 0 16px;
+  padding: 0;
+  border: 1px solid var(--stroke-ui);
+  border-radius: var(--radius);
+  overflow: hidden;
+  /* 兜底（不支持 color-mix）：一档中性底，结构仍在、只是没有色温。 */
+  background: var(--bg-3);
+}
+
+
+/* 四段各是一个真实按钮，直接坐在色带上。
+   ⚠️ 第一版这里只有四个 1px 的 .band-pin（纯指示），控件另有一排分段按钮
+   —— 实测截图上是**同一件事的两个可点控件**并排，用户不知道该点哪个，
+   而且两处状态要互相同步（多一条会出错的路径）。
+   现在带子本身就是控件：四段等宽、各 58px 高、名字写在段里。 */
+.temp-band .band-seg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 58px;
+  padding: 8px 6px;
+  border: none;
+  border-right: 1px solid rgba(20, 18, 14, .1);
+  /* ⚠️ 这里不能写 `background: transparent` 然后指望后面 @supports 里的
+     background 覆盖它 —— 那条 @supports 在本文件的**更前面**（因为它跟在
+     .temp-band 主规则后面），后声明的这条会反过来把它吃掉，实测四段全是
+     rgba(0,0,0,0)。所以底色只在这里声明一次，色温值走 color-mix。 */
+  background: var(--bg-2);
+  cursor: pointer;
+  transition: background .5s linear, color .22s linear;
+}
+
+.temp-band .band-seg:last-child {
+  border-right: none;
+}
+
+.temp-band .band-seg:hover {
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
+}
+
+.temp-band .band-zh {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.temp-band .band-desc {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  /* 段只有 160px 宽，解释最多两行；多了会撑高整条带 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 选中：那一段反相（墨底白字），与带子的整体色温一起变化。
+   为什么反相而不是加边框：带子的语义是"温度连续体"，
+   边框会在连续体上切出一格"独立的卡"，反而破坏连续性。 */
+.temp-band .band-seg.is-on {
+  background: var(--ink);
+}
+
+.temp-band .band-seg.is-on .band-zh {
+  color: var(--bg);
+}
+
+.temp-band .band-seg.is-on .band-desc {
+  color: var(--bg);
+  opacity: .82;
+}
+
+/* 每段自带色温 —— 这一段必须写在 `.band-seg` 主规则**之后**。
+   ⚠️ 踩过两次，两次都是"后声明的声明静默吃掉前一条"：
+     ① 第一版把 `background: var(--bg-2)` 写在它后面 → 渐变整条失效，
+        computed backgroundImage 是 "none"，截图上看是纯平一条灰带；
+     ② 用 PowerShell 按行号搬这一段时切坏了一条规则的正文。
+   所以现在这一段独立成块、位置在基规则之后，且**只声明 background**。
+
+   色值来自 --seg-tint（app.js 调 ambient.js 的 seasonTint() 算好写进来的
+   oklch）。为什么不在 CSS 里现混：四个季节的 temp 只差 <0.13，
+   color-mix 混出来的四段 oklab 差 0.004–0.017，肉眼完全不可辨 ——
+   截图上是纯平一条。那不是"克制的设计"，是效果没生效。 */
+.temp-band .band-seg {
+  background: var(--seg-tint, var(--bg-2));
+}
+
+/* 整条带随所选季节整体偏移一档明度：
+   选中夏 → 整带更亮更冷；选中冬 → 整带更暗。
+   这是"你的选择改变了周围"这件事在**这一屏内部**的表达，
+   与全局环境线（#app 的 --amb-*）是两条不同的轴，不要混。 */
+.temp-band {
+  transition: filter .6s linear;
+}
+
+.temp-band[data-warm="cool"] {
+  filter: brightness(1.02);
+}
+
+.temp-band[data-warm="warm"] {
+  filter: brightness(.985);
+}
+
+/* 未选任何一季时整条带子降一档不透明度：
+   它还不是"你的答案"，只是一条可读的尺。 */
+.temp-band.is-idle {
+  opacity: .88;
+}
+
+@media (max-width: 620px) {
+  /* 窄屏四段各只剩 90px，解释放不下。只留季节名，
+     解释交给 .scene-trans 那一行（它本来就常驻）。 */
+  .temp-band .band-desc {
+    display: none;
+  }
+  .temp-band .band-seg {
+    min-height: 52px;
+    padding: 6px 4px;
+  }
+  .temp-band .band-zh {
+    font-size: 14px;
+  }
+}
+
+/* ---- 第 8 屏：香气扩散场 ----
+   五圈同心圆，半径递增。选中第 N 档 → 前 N 圈着色，
+   最外圈向外做一次性扩散脉冲（0.9s，跑完即停，不循环）。
+   它把"浓淡"翻译成"离开皮肤多远还闻得到"——这是扩散的物理含义，
+   而不是一个 1–5 的数字。
+   ⚠️ 五圈是**读数**，滑块是**控件**（见 app.js 的注释）：
+   1px 的圆环拿不到 44px 触控保护，所以圆场不接点击。 */
+.diffuse {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  margin: 6px auto 18px;
+}
+
+.diffuse .ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  transform: translate(-50%, -50%);
+  transition: border-color .3s linear, background-color .3s linear, transform .3s cubic-bezier(.22,.9,.28,1);
+}
+
+/* 五圈尺寸写死成精确的 px，而不是百分比：
+   百分比在容器尺寸变化时会一起缩放，五圈的间距就不均匀了。 */
+.diffuse .ring:nth-child(1) { width: 42px;  height: 42px;  }
+.diffuse .ring:nth-child(2) { width: 78px;  height: 78px;  }
+.diffuse .ring:nth-child(3) { width: 114px; height: 114px; }
+.diffuse .ring:nth-child(4) { width: 140px; height: 140px; }
+.diffuse .ring:nth-child(5) { width: 166px; height: 166px; }
+
+.diffuse .ring.is-lit {
+  border-color: var(--ink-3);
+  background: color-mix(in oklab, var(--ink) 7%, transparent);
+}
+
+/* 最外那一圈被点亮时做一次扩散脉冲。
+   ⚠️ 不能用 `fill: both` —— 那会永久钉住 transform，
+   于是取消选择时它回不去（这个坑在圆盘的"确认脉冲"上踩过，
+   见 test-render 的 "确认脉冲不能用 fill both"）。 */
+.diffuse .ring.is-lit:last-child {
+  animation: diffusePulse .9s cubic-bezier(.22, .9, .28, 1) 1;
+}
+
+@keyframes diffusePulse {
+  0%   { transform: translate(-50%, -50%) scale(1);    opacity: .9; }
+  70%  { transform: translate(-50%, -50%) scale(1.14); opacity: .35; }
+  100% { transform: translate(-50%, -50%) scale(1);    opacity: 1; }
+}
+
+/* 场心：这一档的具象说法（"靠近才闻到"），不是档位数字。 */
+.diffuse .field-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12px;
+  line-height: 34px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 第 5 屏：七格光谱 ----
+   七个气质原型是三维空间（冷暖 × 甜度 × 轻重）里的一组点。
+   光谱把每个点按 (甜度, 轻重) 摆在一条斜带上，冷暖决定色温。
+   它让"这七个不是并列的词"这件事**看得见**——
+   这正是 v37 合并冷暖/甜度进气质时想表达的结构。 */
+.mood-spectrum {
+  display: flex;
+  height: 26px;
+  margin: 2px 0 14px;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.mood-spectrum .mood-chip {
+  flex: 1;
+  position: relative;
+  background: var(--bg-3);
+  border-right: 1px solid var(--bg);
+  transition: background-color .3s linear;
+}
+
+.mood-spectrum .mood-chip:last-child {
+  border-right: none;
+}
+
+/* 未选中时按该原型的冷暖给一层淡底；选中时加深。
+   颜色用 color-mix 从 ink 里掺，保证在深浅两套底色下都不会变成"另一种主色"。 */
+.mood-spectrum .mood-chip.is-warm {
+  background: color-mix(in oklab, var(--warn) 12%, var(--bg-3));
+}
+
+.mood-spectrum .mood-chip.is-cool {
+  background: color-mix(in oklab, var(--accent) 10%, var(--bg-3));
+}
+
+.mood-spectrum .mood-chip.is-on {
+  background: var(--ink);
+}
+
+/* ============================================================
+   八、降级与无障碍（规格：动效可降级但逻辑不可缺）
+   ============================================================
+   两条独立处理：
+     · prefers-reduced-motion：关掉所有位移与脉冲，**保留颜色变化**
+       （颜色不引起前庭反应，而它承载的是环境线这个信息本身）；
+     · 低端机（.is-lowfx，由 app.js 在发现掉帧时挂上）：
+       关掉 fixed 底色层的过渡，保留静态色 —— 环境线仍然"存在"，
+       只是不再平滑插值。
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .escort { animation: none; }
+  .scene,
+  .scene-art,
+  .scene-mark,
+  #app.is-amb-init::before {
+    transition: none !important;
+  }
+  .scene.is-on { transform: none; }
+  .scene-neg.is-on { transform: none; }
+  .diffuse .ring.is-lit:last-child { animation: none; }
+  .day-arc .arc-sun { transition: left .01s linear; }
+}
+
+.temp-band { --band-warm: .5; }
+
+/* 打印：环境线永远回到白纸（与 80-specimen 的 @media print 同一判据）。
+   不关掉的话，深色模式用户打印出来的纸会带一层琥珀底。 */
+@media print {
+  #app::before {
+    background: #fff !important;
+  }
+  .escort {
+    animation: none;
+  }
+  .diffuse .ring.is-lit:last-child {
+    animation: none;
+  }
+}

@@ -1,0 +1,349 @@
+/* ============================================================
+   第 3 / 4 屏：想要的味道 · 受不了的味道（v3 生活情景）
+   ------------------------------------------------------------
+   这两屏是 v3 改动最大的一处。旧版是 58 个香调名的 chip 墙（`renderNotePicker`），
+   对零基础的人等于一道术语测验，而且恰好出现在用户刚进状态的位置。
+
+   新版每一格写成**一件闻过的东西**（"刚剥开的橘子皮" / "庙里的焚香"），
+   背后挂到仓库既有的香调 en 上（src/scenes.js）。用户点的是生活经验，
+   引擎收到的仍是 likedNotes / dislikedNotes —— 打分侧零改动。
+
+   为什么仍保留"两屏分开"而不是合并：
+   ① 排除比偏好更能收窄（实测：讨厌的香调只做剔除、乱序 0.011）；
+   ② 两屏的候选来源本来就该不同（不喜欢屏不该是喜欢屏的翻版）；
+   ③ 一屏一问是既有契约，合并会把两个决定塞回一屏。
+
+   每屏的**专属环境效果**：
+     想要屏 = 标本抽屉（每格是一枚抽屉把手，选中后抽屉拉开一线、
+              里面那味香材的小图标亮起来）
+     不想要屏 = 退潮（选中后那一格向后退、颜色褪掉，像被从台面上拿走）
+   两者方向相反：一个"拉近"，一个"推开"，视觉上说明这一屏在做哪种决定。
+   ------------------------------------------------------------ */
+
+/** 把一组情景 id 同步进引擎读的两个字段（en 数组 + 中文名映射）。 */
+function syncNotesFromScenes(which) {
+  const liked = which === 'liked';
+  const ids = liked ? (state.answers.likedScenes || []) : (state.answers.avoidScenes || []);
+  const notes = notesOfScenes(ids);
+  const zh = zhOfScenes(ids);
+  if (liked) {
+    state.answers.likedNotes = notes;
+    state.answers.likedZh = zh;
+    /* 同一香调不能既喜欢又讨厌（D41）。两屏分开后这条约束仍要守：
+       用户在"想要"里点了含香草的一格，就要把它从"不想要"那一屏的对应格里
+       清掉。清的方式是**回退到香调级**：只要该格还有别的香调没被排除，
+       就留下；全被排掉了才把整格从 avoidScenes 里删。
+       这样用户看到的是"我把香草要过来了"，而不是"我刚才点的那格凭空消失"。 */
+    const bad = new Set(notes);
+    state.answers.avoidScenes = (state.answers.avoidScenes || []).filter((id) => {
+      const s = sceneById(id);
+      if (!s) return false;
+      return s.notes.some((n) => !bad.has(n));
+    });
+    const stillAvoid = new Set(notesOfScenes(state.answers.avoidScenes));
+    state.answers.dislikedNotes = [...stillAvoid];
+    state.answers.dislikedZh = zhOfScenes(state.answers.avoidScenes);
+  } else {
+    state.answers.dislikedNotes = notes;
+    state.answers.dislikedZh = zh;
+    const bad = new Set(notes);
+    state.answers.likedScenes = (state.answers.likedScenes || []).filter((id) => {
+      const s = sceneById(id);
+      if (!s) return false;
+      return s.notes.some((n) => !bad.has(n));
+    });
+    const stillWant = new Set(notesOfScenes(state.answers.likedScenes));
+    state.answers.likedNotes = [...stillWant];
+    state.answers.likedZh = zhOfScenes(state.answers.likedScenes);
+  }
+}
+
+/* 每一格的图标：复用该格第一味香调所属小类的上色 SVG。
+   为什么不用 emoji 或新画图形：规格要求「图标优先复用/扩展现有香型小图标系统」，
+   而那 24 枚已经过 36px 可辨形验收。这里只按 look-up 取，不新增图形。 */
+function sceneIconId(scene) {
+  if (!scene || !scene.notes.length || !TAX) return null;
+  const first = scene.notes[0];
+  const e = TAX.noteIndex.entries.find((x) => normNote(x.en) === normNote(first));
+  return e && ART_FILE[e.subfamily] ? e.subfamily : null;
+}
+
+function sceneArtNode(scene, cls) {
+  const subId = sceneIconId(scene);
+  const box = svgEl('svg', {
+    class: cls,
+    viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+  if (subId) {
+    const ready = artSvgReady(subId);
+    if (ready) box.innerHTML = ready;
+    else {
+      artInner(subId).then((inner) => {
+        if (!inner) return;
+        box.innerHTML = artNs(inner, 'a' + (++artSeq));
+      });
+    }
+  }
+  return box;
+}
+
+/* 两屏共用一个渲染器。差别只有：key / 标题 / 语气 / 候选表 / 选中语义。
+   不写两个几乎相同的函数，否则下次改格子行为要改两遍、且必然漏一处
+   （旧版 renderNotePicker 也是这样合并的，理由不变）。 */
+function renderScenePicker(kind) {
+  const neg = kind === 'avoid';
+  const stepId = neg ? 'avoid' : 'wanted';
+  const listKey = neg ? 'avoidScenes' : 'likedScenes';
+  const scenes = neg ? AVOID_SCENES : LIKED_SCENES;
+
+  const wrap = el('div', { class: 'fade-in' });
+  const head = stepHead(stepId);
+
+  /* 屏头：与其余屏同构，但这一屏多一行**译文行**——
+     规格要求「每屏选项区常驻一句生活化译文行（学圆盘圆心），选项换、译文换」。
+     译文行放在标题下、格子之上：用户先知道"这一屏在问什么感觉"，
+     再挑具体的东西。 */
+  const lead = el('div', { class: 'stage-lead' },
+    el('div', { class: 'q-kicker' }, head.kicker),
+    el('h2', { class: 'q-title' }, head.title),
+    el('p', { class: 'q-help' }, head.help)
+  );
+  const trans = el('p', { class: 'scene-trans' });
+  lead.appendChild(trans);
+  wrap.appendChild(lead);
+
+  /* 译文行三态：未选 → 这一屏在问什么；选中一格 → 那一格的大白话；
+     选中多格 → 它们合成的一句话。写得短，一屏只占一行。 */
+  const paintTrans = () => {
+    const ids = state.answers[listKey] || [];
+    trans.classList.toggle('is-idle', ids.length === 0);
+    if (!ids.length) {
+      trans.textContent = neg
+        ? '挑你躲得开的：选中的味道会从结果里被扣分，选得越准越省事'
+        : '挑一两样就够。选得越多，候选越窄——但也会更像你要的那一瓶';
+      return;
+    }
+    const names = ids.map((id) => (sceneById(id) || {}).zh).filter(Boolean);
+    if (names.length === 1) {
+      const s = sceneById(ids[0]);
+      trans.textContent = neg
+        ? `${s.zh}：${s.plain} —— 这一类会从结果里被扣掉`
+        : `${s.zh}：${s.plain}`;
+      return;
+    }
+    trans.textContent = neg
+      ? `已避开 ${names.length} 类：${names.join('、')}`
+      : `已选 ${names.length} 类：${names.join('、')}`;
+  };
+  paintTrans();
+
+  /* 计数徽标与译文行同一行右侧：与旧版 .note-count 同一套语义（已选 N），
+     但这一屏的格子总数只有 10–14 个，不需要"展开全部"折叠。 */
+  const grid = el('div', {
+    class: 'scene-grid' + (neg ? ' is-neg' : ''),
+    role: 'group',
+    'aria-multiselectable': 'true',
+    'aria-label': neg ? '不想靠近的味道' : '想要的味道',
+  });
+
+  const nodes = [];
+  scenes.forEach((s, i) => {
+    const on = (state.answers[listKey] || []).includes(s.id);
+    const cell = el('button', {
+      class: 'scene' + (neg ? ' scene-neg' : '') + (on ? ' is-on' : ''),
+      type: 'button',
+      'data-scene': s.id,
+      'aria-pressed': String(on),
+      style: '--i: ' + i,
+      onclick: () => {
+        const arr = state.answers[listKey] || (state.answers[listKey] = []);
+        const idx = arr.indexOf(s.id);
+        if (idx >= 0) arr.splice(idx, 1); else arr.push(s.id);
+        const now = arr.includes(s.id);
+        cell.classList.toggle('is-on', now);
+        cell.setAttribute('aria-pressed', String(now));
+        syncNotesFromScenes(neg ? 'avoid' : 'liked');
+        /* 「想要」与「不想要」互斥时会改写另一屏的数组（见 syncNotesFromScenes），
+           所以这里必须把**本屏**的选中态按最新数组重刷 —— 否则用户会看到
+           另一屏的操作悄悄把自己刚点的格子摘掉高亮。 */
+        nodes.forEach((n) => {
+          const mine = (state.answers[listKey] || []).includes(n.getAttribute('data-scene'));
+          n.classList.toggle('is-on', mine);
+          n.setAttribute('aria-pressed', String(mine));
+        });
+        paintTrans();
+        /* 环境线要跟着变（选了清新则整体渐凉）—— 只重算变量，不重绘整屏。 */
+        applyAmbient();
+      },
+    },
+      /* 图形（这一格那味香材的小图标）+ 生活主词 + 一句大白话。
+         图形在左、文字在右：图标是"认脸"的入口，文字是确认。 */
+      sceneArtNode(s, 'scene-art'),
+      el('span', { class: 'scene-body' },
+        el('span', { class: 'scene-zh' }, s.zh),
+        el('span', { class: 'scene-plain' }, s.plain)
+      ),
+      /* 选中标记：一个"拉开"的短线，克制到只有一个记号（规格：不为炫技而炫技） */
+      el('span', { class: 'scene-mark', 'aria-hidden': 'true' })
+    );
+    nodes.push(cell);
+    grid.appendChild(cell);
+  });
+  wrap.appendChild(grid);
+
+  /* 说明随屏变化。两句都不是装饰 —— 实测里"跳过"与"必须答"两种误解都出现过。 */
+  {
+    const all = curSteps();
+    const idx = all.findIndex((st) => st.id === stepId);
+    const rest = idx >= 0 ? all.length - idx - 1 : 0;
+    wrap.appendChild(el('div', { class: 'term-note' },
+      el('strong', {}, neg ? '一个都不选也成立：' : '想不起来也没关系：'),
+      neg
+        ? ' 说不上来就先跳过。这一屏的候选只是"常见的不受欢迎味道"，你的雷点可能不在里面 —— 后面还有别的维度可以把范围收窄。'
+        : ` 跳过这一屏，后面还有 ${rest} 屏在问别的维度。但只要能想起一样明确的，命中率会明显提高。`
+    ));
+  }
+
+  wrap.appendChild(navBar(stepId));
+  return wrap;
+}
+
+function renderWanted() { return renderScenePicker('wanted'); }
+function renderAvoid() { return renderScenePicker('avoid'); }
+
+/* ============================================================
+   第 2 屏：预算（v3 新增，前置）
+   ------------------------------------------------------------
+   内容隐喻：**先划出货架的边界**。
+   它不是"你有多少钱"（那是审讯），而是"我们从哪一段货架开始挑"（那是范围）。
+
+   交互形式：一条四段式**价签行**。四段宽度按各自真实瓶数比例分配
+   （BUDGET_BANDS 的 shelf 字段不参与计算，只做视觉近似）——
+   几何本身就是信息：宽的段能选的瓶多，窄的段能选的少。
+   这直接学圆盘的做法（控件形状 = 内容结构）。
+
+   专属环境效果：选中一段时，那条尺带上**其余三段退成虚线**、
+   选中段实心并向右延伸出一道极短的"取货"线。
+   同时尺带下方那行读数换成**这一档的真实瓶数**（不是百分比）。
+
+   为什么这一屏不显示"匹配度会不会变"这种技术话：
+   用户只关心两件事 —— 这一段里有没有货、会不会把好瓶子筛掉。
+   所以读数写瓶数与一句"这一段能买到什么"。
+   ------------------------------------------------------------ */
+function renderBudget() {
+  const wrap = el('div', { class: 'fade-in' });
+  const head = stepHead('budget');
+  const lead = el('div', { class: 'stage-lead' },
+    el('div', { class: 'q-kicker' }, head.kicker),
+    el('h2', { class: 'q-title' }, head.title),
+    el('p', { class: 'q-help' }, head.help)
+  );
+  /* 常驻译文行：与其余屏同一套（学圆盘圆心）。 */
+  const trans = el('p', { class: 'scene-trans' });
+  const paintTrans = () => {
+    const band = bandById(state.answers.budget);
+    trans.classList.toggle('is-idle', !band);
+    trans.textContent = band
+      ? `${band.zh}：${band.desc}`
+      : '不选就是「不限」—— 全库 1388 瓶里凡是有挂牌价的都进候选';
+  };
+  paintTrans();
+  lead.appendChild(trans);
+  wrap.appendChild(lead);
+
+  const all = DATA?.perfumes || [];
+  const prices = PRICES || {};
+  const counted = (band) => {
+    if (!all.length) return null;
+    let n = 0;
+    for (const p of all) {
+      const v = prices[p.id];
+      if (!band) { n += 1; continue; }
+      const bid = bandOfPrice(v);
+      if (bid == null) continue;
+      if (bid === band.id) n += 1;
+    }
+    return n;
+  };
+
+  /* 尺带：四段 + 一段「不限」。不限放在最前，因为它是默认值，
+     放在末尾会让"不选"变成一个需要特意找到的隐藏选项。 */
+  const track = el('div', { class: 'shelf', role: 'radiogroup', 'aria-label': '预算档位' });
+  const opts = [{ id: 'any', zh: '不限', desc: '不按价格筛', shelf: 0 }, ...BUDGET_BANDS];
+  const cells = [];
+  const readout = el('p', { class: 'shelf-read', 'aria-live': 'polite' });
+
+  const paintRead = () => {
+    if (!all.length) {
+      readout.textContent = '香水库还在读取，稍等一下这里会显示每一档的真实瓶数';
+      return;
+    }
+    const cur = state.answers.budget;
+    const band = bandById(cur);
+    const n = counted(band);
+    const total = all.length;
+    if (!band) {
+      readout.textContent = `不限：${total} 瓶全在候选里（其中 ${Object.keys(prices).length} 瓶有挂牌价）`;
+      return;
+    }
+    /* 这一档的真实瓶数 + 一句"哪些瓶被挡在外面"。
+       必须说清"没有挂牌价的瓶不参与筛选"，否则用户会以为系统漏了几百瓶。 */
+    const noPrice = total - Object.keys(prices).length;
+    readout.textContent = `${band.zh}：这一段里有 ${n} 瓶`
+      + (noPrice > 0 ? `（另有 ${noPrice} 瓶没有挂牌价，不参与预算筛选）` : '');
+  };
+
+  const paintSel = () => {
+    const cur = state.answers.budget;
+    cells.forEach((c) => {
+      const id = c.getAttribute('data-band');
+      const mine = id === 'any' ? !cur : cur === id;
+      c.classList.toggle('is-on', mine);
+      c.setAttribute('aria-checked', String(mine));
+      c.setAttribute('aria-pressed', String(mine));
+    });
+    paintRead();
+  };
+
+  opts.forEach((b) => {
+    const isAny = b.id === 'any';
+    const node = el('button', {
+      class: 'shelf-seg' + (isAny ? ' is-any' : ''),
+      type: 'button',
+      role: 'radio',
+      'aria-checked': 'false',
+      'data-band': b.id,
+      /* 宽度按真实瓶数比例给（不限段固定占一档宽的 1.2 倍：它是兜底选项，
+         不该按"1388 瓶"撑成整条带，那会让四档挤成细缝）。 */
+      style: isAny ? '--w: 1.2' : `--w: ${Math.max(0.55, b.shelf * 6).toFixed(2)}`,
+      onclick: () => {
+        state.answers.budget = isAny ? null : b.id;
+        paintSel();
+        paintTrans();
+        applyAmbient();
+      },
+    },
+      el('span', { class: 'shelf-zh' }, b.zh),
+      el('span', { class: 'shelf-plain' }, isAny ? '不筛价格' : (BUDGET_PLAIN[b.id] || ''))
+    );
+    cells.push(node);
+    track.appendChild(node);
+  });
+  paintSel();
+  wrap.appendChild(track);
+  wrap.appendChild(readout);
+
+  /* 数据口径披露。这一段不是免责声明，它是**这支产品的诚实性**：
+     价格是快照、不是实时、不是最低价。写清楚才不会让用户拿它当比价工具。 */
+  wrap.appendChild(el('div', { class: 'term-note' },
+    el('strong', {}, '价位是从哪来的：'),
+    ' 取自淘宝/京东商品页的挂牌价快照（2026-11-09），不是实时比价，也不是最低价。',
+    ' 同一瓶在不同容量、促销期、套装里差别可以很大 —— 这一屏只做粗档，不做比价。',
+    ' 拿不准就选「不限」，价格不会影响匹配怎么算。'
+  ));
+
+  wrap.appendChild(navBar('budget'));
+  return wrap;
+}

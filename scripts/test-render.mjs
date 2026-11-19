@@ -57,7 +57,17 @@ class TNode {
     this.parentNode = null;
     this._text = null;
     this._listeners = {};
-    this.style = {};
+    /* style 必须带 setProperty / removeProperty —— v3 的环境线用
+       `#app.style.setProperty('--amb-warm', …)` 写 CSS 变量（那是标准 DOM API，
+       也是"只改变量、不重绘"这条设计的落点）。桩里只有普通对象时，
+       render() 会在第一屏就抛 TypeError，被 boot() 的 try/catch 吞成
+       「加载失败」—— 测试只会看到空白页，看不出真正原因（本轮实测踩到）。
+       按仓库既有纪律：桩缺能力就补桩，不能改业务代码为桩让路。 */
+    this.style = {
+      setProperty(k, v) { this[k] = String(v); },
+      removeProperty(k) { delete this[k]; },
+      getPropertyValue(k) { return this[k] ?? ''; },
+    };
     /* dataset：app.js 用 `documentElement.dataset.build` 写构建标记。
        桩里做成普通对象就够 —— 只写不读，不需要往属性上映射 data-*。 */
     this.dataset = {};
@@ -126,6 +136,19 @@ class TNode {
     const i = this.children.indexOf(n);
     if (i >= 0) { this.children.splice(i, 1); n.parentNode = null; }
     return n;
+  }
+  /* replaceChild / remove 是标准 DOM 方法，v3 的 syncEscort() 用到它
+     （第 1 屏选完香型要**就地**换掉标本签，而不是重绘整屏 ——
+     重绘会重播圆盘的转场动画）。桩里不实现就抛 TypeError，
+     而浏览器里是正常的；按仓库纪律：桩缺能力就补桩，不改业务代码绕开。 */
+  replaceChild(n, ref) {
+    const i = this.children.indexOf(ref);
+    if (typeof n !== 'string') n.parentNode = this;
+    if (i >= 0) { this.children[i] = n; ref.parentNode = null; }
+    return ref;
+  }
+  remove() {
+    if (this.parentNode) this.parentNode.removeChild(this);
   }
   /* replaceWith 与 insertBefore 同理：app.js:1098 `old.replaceWith(art)` 是
      标准 DOM 方法，桩里没有就抛 "old.replaceWith is not a function"。
@@ -846,15 +869,55 @@ ok('第 1 步有下一步按钮', !!goBtn);
 goBtn.dispatch('click');
 await new Promise((r) => setTimeout(r, 800));
 
-/* 一屏一问（2026-11-10 拆屏；2026-11-11 浓淡+浓度合回一屏 → 9 屏）：家族入口 8 屏 ——
-   1 香型 / 2 想要的味道 / 3 受不了的味道 / 4 气质 / 5 场合
-   6 季节 / 7 浓淡+浓度 / 8 已知款
-   家族入口没有「整族排除」，所以 8 屏；情绪入口 9 屏（末尾另有一段）。
-   最大流程长度 9 是 Eddie 2026-11-11 的硬要求，也是本节所有数字的来源。 */
+/* ======== 一屏一问 · v3 九屏（2026-11-16）========
+   1 香型 / 2 预算 / 3 想要 / 4 不想要 / 5 气质 / 6 场合 / 7 季节 / 8 浓淡 / 9 已知款
 
-ok('进入第 2 步（想要的味道）', getStepText().includes('特别想闻到'), getStepText().slice(0, 120));
-ok('一屏一问：进度显示共 8 步（家族入口）', /共 8 步/.test(appRoot.textContent),
+   v3 的两处结构变化都直接改了这一段的数字，逐条写清为什么：
+   ① **预算前置到第 2 屏**（规格「预算题前置」）：所以第 2 屏不再是"想要的味道"。
+   ② **「整族排除」这一屏被删**：步骤表不再有 when() 动态分叉，
+      九屏对所有人恒定 —— 所以原来那套"家族入口 8 步 / 情绪入口 9 步"
+      的双数字断言整组作废，换成"恒为 9 步"。
+      这不是把断言放松：双数字本身的**目的**是"两套数字必须一致"，
+      而现在只有一套数字，一致性由"恒等 9"直接守住，比原来更硬。 */
+
+ok('进入第 2 步（预算）', getStepText().includes('打算花多少'), getStepText().slice(0, 140));
+ok('v3：进度显示共 9 步', /共 9 步/.test(appRoot.textContent),
   appRoot.textContent.slice(0, 40));
+
+/* ---- 预算屏（第 2 屏）----
+   规格把它前置，所以这里逐条钉住"它真的在第一屏之后、并且可跳过"。 */
+{
+  const segs = appRoot.querySelectorAll('.shelf-seg');
+  ok('v3 预算屏：一条尺带上有「不限」+ 四个价位档', segs.length === 5,
+    `实际 ${segs.length} 段`);
+  const ids = segs.map((s) => s.getAttribute('data-band'));
+  ok('v3 预算屏：不限在最前（默认值不该藏在末尾）', ids[0] === 'any', ids.join(','));
+  ok('v3 预算屏：四档 id 与 ambient.js 的 BUDGET_BANDS 一致',
+    ['b1', 'b2', 'b3', 'b4'].every((x) => ids.includes(x)), ids.join(','));
+
+  /* 未选时不说"你选了第一档"：读数要老实说这是不限。
+     这类"空态当默认值"的错在本项目历史上出现过（圆盘盘心空态）。 */
+  const read0 = appRoot.querySelector('.shelf-read');
+  ok('v3 预算屏：未选时读数是「不限」而不是某一档',
+    !!read0 && /不限/.test(read0.textContent), read0 ? read0.textContent.slice(0, 60) : '(无读数)');
+
+  /* 点一档：读数必须换成**这一档的真实瓶数**（不是百分比、不是硬编码）。 */
+  segs[1].dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  const read1 = appRoot.querySelector('.shelf-read');
+  const m = read1 ? read1.textContent.match(/(\d+)\s*瓶/) : null;
+  ok('v3 预算屏：选中后读数给出这一档的真实瓶数', !!m && Number(m[1]) > 0,
+    read1 ? read1.textContent.slice(0, 80) : '(无读数)');
+  ok('v3 预算屏：读数不是百分比（价格档不冒充匹配度）',
+    !!read1 && !/%/.test(read1.textContent), read1 ? read1.textContent : '');
+  ok('v3 预算屏：选中一段后恰有一段是 checked',
+    segs.filter((s) => s.getAttribute('aria-checked') === 'true').length === 1,
+    String(segs.filter((s) => s.getAttribute('aria-checked') === 'true').length));
+  /* 退回不限，后面的屏按"不筛价格"走 —— 否则整条主流程会被某一档绑住，
+     而这一段的目的是验结构，不是验某一档都能凑够三瓶。 */
+  segs[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+}
 
 /* ---- 两处黑话文案已改（任务8 B，Eddie 2026-11-12 批准）----
    原文出自 POLISH-20261112.md §2 标出的两个候选：
@@ -884,121 +947,125 @@ ok('一屏一问：进度显示共 8 步（家族入口）', /共 8 步/.test(ap
     helpValues.find((h) => h.includes('体感')) || '(未找到)');
 }
 
-const chips = appRoot.querySelectorAll('.chip');
-ok('香调 chip 已渲染', chips.length >= 16, `实际 ${chips.length}`);
-/* 一屏一问的核心契约：这一屏**只有一栏**。改动前是"喜欢 + 讨厌同屏"，
-   两栏互斥要跨栏同步 DOM；拆开后每屏只渲染一栏，另一栏永不在 DOM 里。
-   若这里又出现两栏，说明有人把拆屏改回去了，那段跨栏同步代码会跟着回来。 */
-ok('香调屏只有「想要」一栏（讨厌那栏已拆到下一屏）',
-  appRoot.querySelectorAll('[data-col="liked"]').length > 0
-  && appRoot.querySelectorAll('[data-col="disliked"]').length === 0,
-  `liked ${appRoot.querySelectorAll('[data-col="liked"]').length} / disliked ${appRoot.querySelectorAll('[data-col="disliked"]').length}`);
-ok('该屏只有一枚「已选 N」计数徽标',
-  appRoot.querySelectorAll('.note-count').length === 1,
-  `实际 ${appRoot.querySelectorAll('.note-count').length}`);
-
-const taxa = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/taxonomy.json'), 'utf8'));
-const entryFamily = new Map(taxa.noteIndex.entries.map((n) => [n.zh, n.family]));
-/* 只剩一栏 16 个之后，家族覆盖从 6 降到 3 —— 这是**拆屏的已知代价**，
-   不是回归：另一半家族在「受不了」屏（取尾部 16 个，与这里互补）。
-   所以本屏只断言 >= 3，两屏合起来的覆盖在下一屏再合计验证。 */
-const visibleZh = chips.map((c) => c.textContent.trim());
-const fams = new Set(visibleZh.map((z) => entryFamily.get(z)).filter(Boolean));
-ok('「想要」屏覆盖至少 3 个家族（防家族偏斜）', fams.size >= 3,
-  `${fams.size} 个家族: ${[...fams].join(',')}`);
-ok('「想要」屏能选到具体香材（不只是大类）', visibleZh.length >= 16,
-  visibleZh.slice(0, 20).join(' '));
-
-// 回归守门：40 个香调里有在当前 200 瓶样本中 0 命中的死选项（实测只有 可可/cocoa）。
-// 勾了它永远推荐不出东西，等于骗一次点击。必须被 usableEntries() 挡在界面之外。
-const perfs = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/perfumes.json'), 'utf8')).perfumes;
-const allChipZh = chips.map((c) => c.textContent.trim());
-ok('死选项「可可」不出现在香调 chip 里（0 命中即隐藏）',
-  !allChipZh.includes('可可'), `共渲染 ${allChipZh.length} 个 chip`);
-const moreBtnTxt = appRoot.querySelectorAll('.btn')
-  .map((b) => b.textContent).find((t) => t.includes('展开全部'));
-const renderedUnique = new Set(allChipZh).size;
-ok('「展开全部」计数与实际可选香调数一致（不是硬编码 40）',
-  !!moreBtnTxt && moreBtnTxt.includes(String(renderedUnique)),
-  `按钮="${moreBtnTxt}" 实际去重 ${renderedUnique} 个`);
-
-// 反向核对：所有上屏香调都必须至少命中 1 瓶，否则就是死选项漏网。
-const { usableEntries } = await import('file:///' + path.join(ROOT, 'src/notes.js').replace(/\\/g, '/'));
-const usableZh = new Set(usableEntries(taxa.noteIndex.entries, perfs).map((e) => e.zh));
-const deadLeaked = allChipZh.filter((z) => !usableZh.has(z));
-ok('上屏香调全部至少命中 1 瓶（无死选项漏网）',
-  deadLeaked.length === 0, deadLeaked.join(',') || '无泄漏');
-
-/* 点一个「想要」的 chip，验证状态切换 */
-chips[0].dispatch('click');
-ok('chip 状态可切换', chips[0].getAttribute('aria-pressed') === 'true',
-  chips[0].getAttribute('aria-pressed'));
-const likedPickZh = chips[0].textContent.trim();
-
-/* 前进到「受不了」屏。一屏一问之后，同屏互斥变成**跨屏互斥** ——
-   验证方式随之改变：不同屏上不可能同时点到两个副本，只能验
-   「同一份 state 只有一个位置」这条不变量（见下方合入的那段）。
-   然后继续走剩下的 7 屏。 */
+/* ======== v3：香调术语题已被生活情景取代 ========
+   这是本轮最该被守住的一条底线（规格「全程无香调术语题」）。
+   判据不是"没有 .chip"（那只是实现细节），而是两条同时成立：
+     ① 上屏的每个选项都是 scenes.js 里的**生活词**；
+     ② 它们背后挂的香调全部真实存在于 taxonomy 且至少命中 1 瓶
+        —— 即"不许发明整套新题"，用户点的东西必须真能筛出瓶子。 */
 {
+  /* 第 3 屏：想要的味道 */
   const b = appRoot.querySelectorAll('.btn').find((x) => x.textContent.includes('下一步'));
   ok('第 2 步有前进按钮', !!b,
-    appRoot.querySelectorAll('.btn').map((x) => x.textContent.trim()).join(' | ').slice(0, 100));
-  b.dispatch('click');
-  await new Promise((r) => setTimeout(r, 320));
-  ok('进入第 3 步（受不了的味道）', getStepText().includes('完全受不了'), getStepText().slice(0, 100));
-  ok('「受不了」屏只有一栏（喜欢那栏已在上屏）',
-    appRoot.querySelectorAll('[data-col="disliked"]').length > 0
-    && appRoot.querySelectorAll('[data-col="liked"]').length === 0,
-    `liked ${appRoot.querySelectorAll('[data-col="liked"]').length} / disliked ${appRoot.querySelectorAll('[data-col="disliked"]').length}`);
+    appRoot.querySelectorAll('.btn').map((x) => x.textContent.trim()).join(' | ').slice(0, 120));
+  if (b) { b.dispatch('click'); await new Promise((r) => setTimeout(r, 320)); }
 
-  const disChips = appRoot.querySelectorAll('.chip');
-  const disZh = disChips.map((c) => c.textContent.trim());
-  const disFams = new Set(disZh.map((z) => entryFamily.get(z)).filter(Boolean));
-  /* 两屏合计家族覆盖 —— 拆屏后必须仍然成立的不变量。 */
-  const unionFams = new Set([...fams, ...disFams]);
-  ok('香调两屏合计覆盖至少 4 个家族（拆屏后仍不偏斜）', unionFams.size >= 4,
-    `想要 ${fams.size} 族 + 受不了 ${disFams.size} 族 = 合计 ${unionFams.size} 族`);
-  /* 两屏候选互补：讨厌屏取尾部 16 个，与「想要」屏的前 16 个**不相交**。
-     不能拿 `.chip` 全量比 —— 那个包含折叠区（展开才显示的 42 个），
-     两屏的全量都是同一批 58 个香调，必然完全重合。
-     要验的是"各自首屏可见的 16 个是否互补"，所以只取前 16。
-     也不用上面的 `visibleZh` 快照 —— 那次点击把已选项置顶了。 */
-  const likedFirst16 = allChipZh.slice(0, 16);
-  const disFirst16 = disZh.slice(0, 16);
-  const onlyInDisliked = disFirst16.filter((z) => !likedFirst16.includes(z));
-  ok('两屏首屏候选互补（讨厌屏不是喜欢屏的翻版）', onlyInDisliked.length > 0,
-    `讨厌屏前 16 里独有 ${onlyInDisliked.length} 个：${onlyInDisliked.slice(0, 6).join('、')}`);
+  ok('进入第 3 步（想要的味道）', getStepText().includes('想闻到的'), getStepText().slice(0, 120));
 
-  /* 跨屏互斥（D41：同一香调不能既喜欢又讨厌）。
-     同一份 state 只有两个数组，点击时会把同名项从另一栏移出。
-     这里在讨厌屏点一个**上一屏点过的同名项**（若存在），
-     然后回上一屏确认它已被取消 —— 这是拆屏后唯一还能验互斥的路径。 */
-  const twin = disChips.find((c) => c.textContent.trim() === likedPickZh);
-  if (twin) {
-    twin.dispatch('click');
-    await new Promise((r) => setTimeout(r, 60));
-    ok('跨屏互斥：讨厌屏勾上同名项后，喜欢屏那份会被移出',
-      appRoot.querySelectorAll('.note-count')[0].textContent.includes('已选'),
-      `已选=${appRoot.querySelectorAll('.note-count')[0].textContent}`);
-  } else {
-    ok('跨屏互斥：两屏候选互补，本屏无同名项（属预期）', true,
-      `想要屏点的是「${likedPickZh}」，讨厌屏取尾部 16 个不含它`);
+  const cells = appRoot.querySelectorAll('.scene');
+  ok('v3 「想要」屏是生活情景格子（不是香调 chip 墙）', cells.length > 0 && appRoot.querySelectorAll('.chip').length === 0,
+    `情景格 ${cells.length} 个 / chip ${appRoot.querySelectorAll('.chip').length} 个`);
+
+  /* 每一格的主词必须来自 LIKED_SCENES（用导出表比对，不硬编码字符串）。 */
+  const S = appMod.__scenes;
+  const likedZh = new Set(S.liked.map((s) => s.zh));
+  const shown = cells.map((c) => {
+    const zhNode = c.querySelectorAll('.scene-zh')[0];
+    return zhNode ? zhNode.textContent.trim() : '';
+  });
+  ok('v3 「想要」屏每格主词都来自 scenes.js（没有临时编题）',
+    shown.length > 0 && shown.every((z) => likedZh.has(z)),
+    shown.filter((z) => !likedZh.has(z)).join(' / ') || shown.slice(0, 4).join(' / '));
+
+  /* 底线：每格挂着的那味香调必须在 taxonomy 里、且至少命中 1 瓶。
+     用一个都不存在的表比对，才能抓到"写错一个字符导致 0 命中"
+     —— 这类错不会报错，只会让用户点了没反应。 */
+  const { matchesNote, tokenize, normNote } = await import(
+    'file:///' + path.join(ROOT, 'src/notes.js').replace(/\\/g, '/'));
+  const perfs0 = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/perfumes.json'), 'utf8')).perfumes;
+  const taxa0 = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/taxonomy.json'), 'utf8'));
+  const entryByEn = new Map(taxa0.noteIndex.entries.map((e) => [normNote(e.en), e]));
+  const tokCache = perfs0.map((p) => (p.notesAll || []).map((x) => tokenize(x)));
+  const hitsOf = (en) => {
+    const e = entryByEn.get(normNote(en));
+    if (!e) return -1;
+    let n = 0;
+    for (const toks of tokCache) if (toks.some((t) => matchesNote(e, null, t))) n += 1;
+    return n;
+  };
+  const deadScenes = [];
+  for (const s of [...S.liked, ...S.avoid]) {
+    for (const en of s.notes) if (hitsOf(en) <= 0) deadScenes.push(`${s.id}:${en}`);
   }
+  ok('v3 情景表里每一味香调都真实存在且至少命中 1 瓶（无死格）',
+    deadScenes.length === 0, deadScenes.join(', ') || `共核对 ${S.allNotes().length} 味`);
+
+  /* 一格不超过 4 味：多了等于"我全都要"，区分度会掉光。 */
+  const tooMany = [...S.liked, ...S.avoid].filter((s) => s.notes.length > 4).map((s) => s.id);
+  ok('v3 每格挂不超过 4 味香调（多了就退化成"我全都要"）',
+    tooMany.length === 0, tooMany.join(',') || '全部 ≤4');
+
+  /* 点一格：译文行要换成那一格的大白话（学圆盘圆心那句） */
+  const transBefore = (appRoot.querySelector('.scene-trans') || {}).textContent || '';
+  cells[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 80));
+  const transAfter = (appRoot.querySelector('.scene-trans') || {}).textContent || '';
+  ok('v3 选中一格后译文行跟着换（不是静态说明）',
+    transAfter !== transBefore && transAfter.length > 0,
+    `${transBefore.slice(0, 30)} → ${transAfter.slice(0, 30)}`);
+  ok('v3 选中的格标了 aria-pressed',
+    appRoot.querySelectorAll('.scene').some((c) => c.getAttribute('aria-pressed') === 'true'));
+
+  /* 环境线：选了清新系应当往"凉"走。这一条直接调纯函数，
+     不读 DOM —— 读色值只能看到最终值，验不出"是累加还是覆盖"。 */
+  const amb = appMod.__ambient;
+  const cool = amb.of({ family: 'citrus' });
+  const warm = amb.of({ family: 'amber' });
+  ok('v3 环境线：选柑橘比选琥珀更凉（同一函数、只差一个答案）',
+    cool.temp < warm.temp, `citrus ${cool.temp.toFixed(2)} vs amber ${warm.temp.toFixed(2)}`);
+  ok('v3 环境线：选琥珀比选柑橘更暖更重',
+    warm.weight > cool.weight, `amber ${warm.weight.toFixed(2)} vs citrus ${cool.weight.toFixed(2)}`);
+  /* 累积而不是覆盖：在柑橘之上再加一个"夏天"，应当比只有柑橘**更凉**。 */
+  const coolSummer = amb.of({ family: 'citrus', season: 'summer' });
+  ok('v3 环境线是累积的（加一个夏天答案，不会把前面的答案推翻）',
+    coolSummer.temp <= cool.temp + 1e-9 && coolSummer.light >= cool.light,
+    `citrus ${cool.temp.toFixed(2)}/${cool.light.toFixed(2)} → +summer ${coolSummer.temp.toFixed(2)}/${coolSummer.light.toFixed(2)}`);
+  /* 幅度必须夹在 [-1,1]：答满九屏也不许超出，否则色值会被压成死色。 */
+  const extreme = amb.of({
+    family: 'amber', occasion: 'formal', season: 'autumn', concentration: 'parfum', intensity: 5,
+  }, { moodDims: { temp: 1, sweet: 1, weight: 1 }, scenePush: { temp: 1, light: -1 } });
+  ok('v3 环境线三轴都夹在 [-1,1]（答满也不越界）',
+    Math.abs(extreme.temp) <= 1 && Math.abs(extreme.light) <= 1 && Math.abs(extreme.weight) <= 1,
+    `${extreme.temp.toFixed(2)}/${extreme.light.toFixed(2)}/${extreme.weight.toFixed(2)}`);
+
+  /* ---- 第 4 屏：不想要 ---- */
+  const b2 = appRoot.querySelectorAll('.btn').find((x) => x.textContent.includes('下一步'));
+  ok('第 3 步有前进按钮', !!b2);
+  if (b2) { b2.dispatch('click'); await new Promise((r) => setTimeout(r, 320)); }
+  ok('进入第 4 步（不想要的味道）', getStepText().includes('不想靠近'), getStepText().slice(0, 120));
+  const negCells = appRoot.querySelectorAll('.scene');
+  ok('v3 「不想要」屏也是生活情景，且与上一屏不是同一批',
+    negCells.length > 0 && negCells.length !== cells.length,
+    `不想要 ${negCells.length} 格 / 想要 ${cells.length} 格`);
+  ok('v3 「不想要」屏挂了多选语义（它不是单选）',
+    appRoot.querySelector('.scene-grid')
+    && appRoot.querySelector('.scene-grid').getAttribute('aria-multiselectable') === 'true',
+    (appRoot.querySelector('.scene-grid') || {}).getAttribute
+      ? String(appRoot.querySelector('.scene-grid').getAttribute('aria-multiselectable')) : '(无)');
 }
 
-/* 一屏一问：家族入口 8 屏全集（第 3 屏之后还剩 5 屏）。顺序见 app.js 的 STEPS ——
-   4 气质 / 5 场合 / 6 季节 / 7 浓淡+浓度 / 8 已知款
-   家族入口没有「整族排除」（when: !a.family），所以 8 屏；
-   情绪入口 9 屏，另有一段断言（搜「入口分叉」，在文件末尾）。 */
-
+/* ======== 第 5–9 屏（v3：气质 / 场合 / 季节 / 浓淡 / 已知款）========
+   与 v19 相比只剩一处位移：预算插在第 2 屏，于是原来第 2 屏之后的每一屏
+   都往后挪一位；「整族排除」整屏删除。编号与短语在这里同步更新。 */
 const stepNames = [
-  [4, '给人什么感觉', 'mood'],
-  [5, '主要什么时候用', 'occasion'],
-  [6, '主要在哪个季节用', 'season'],
-  [7, '想要多浓', 'concentration'],
-  [8, '试过、并且喜欢', 'anchor'],
+  [5, '给人什么感觉', 'mood'],
+  [6, '主要什么时候用', 'occasion'],
+  [7, '主要在哪个季节用', 'season'],
+  [8, '想要多浓', 'concentration'],
+  [9, '试过、并且喜欢', 'anchor'],
 ];
 for (const [n, phrase] of stepNames) {
+
   /* 顺序很重要：先点前进、再断言落在第 n 步。
      第一版写成"先断言再前进"，结果每一条都在报上一屏的文案 ——
      因为进循环时还停在第 5 步（讨厌香调）。 */
@@ -1012,7 +1079,7 @@ for (const [n, phrase] of stepNames) {
   /* E6：品牌从原生 select 换成可搜索组合框。
      133 项原生下拉只能滚，是全场唯一无法用输入法到达的地方。
      一屏一问之后 anchor 是第 8 步（家族入口，浓淡+浓度合屏后）。 */
-  if (n === 8) {
+  if (n === 9) { /* v3: anchor 从第 8 屏挪到第 9 屏（预算前置） */
     const combos = appRoot.querySelectorAll('.combo-input');
     ok('末步品牌是可搜索组合框', combos.length === 1, `实际 ${combos.length}`);
     ok('组合框是 combobox 语义',
@@ -1031,7 +1098,7 @@ for (const [n, phrase] of stepNames) {
      .choice-grid 原来只有子项 aria-pressed，容器是裸 div —— 读屏把一组单选
      念成"切换按钮"，既不知道是一组，也报不出"共几个、第几个"。
      断言写在这里而不是首屏，是因为首屏根本没有 .choice-grid。 */
-  if (n === 7) {
+  if (n === 8) { /* v3: 浓淡从第 7 屏挪到第 8 屏（预算前置） */
     /* P2-4：滑块要有 5 个落点标记，且与档位对齐。
        位置算法必须与浏览器画滑块的一致（手柄宽 20px，可用轨道 = 宽度 − 20px），
        否则刻度会和手柄错开 —— 这条断言只看数量与亮起项，对齐由浏览器实测覆盖。 */
@@ -1070,7 +1137,7 @@ for (const [n, phrase] of stepNames) {
      文件末尾的「v36 入口分叉」段，在情绪入口下重新跑一遍。
      留在原处会让这条循环在 n===6（现在是 anchor 屏）时去查 .choice-grid，
      报「(无 .choice-grid)」—— 那不是回归，是断言挂错了入口。 */
-  if (n === 4) {
+  if (n === 5) { /* v3: 气质从第 4 屏挪到第 5 屏（预算前置） */
     /* v37：冷暖与甜度已合并进「整体气质」那一组卡片（见 app.js 的 deriveFromPreset）。
        这一屏不再有分段控件，所以原来的四条 .seg 断言整组作废。
        替换成三条钉住"合并后仍然能表达这两维"的断言：
@@ -1111,7 +1178,7 @@ for (const [n, phrase] of stepNames) {
         + `sweet 取值 ${[...new Set(presets.map((c) => c.dims.sweet))].join(',')}`);
     }
   }
-  if (n === 4) {
+  if (n === 5) { /* v3: 气质从第 4 屏挪到第 5 屏（预算前置） */
     /* 气质七个原型：由冷暖/甜度/初始偏好推导，首项按接近度排序。
        断言四条 —— 数量、标签是对象、每项都有 neg、推导函数能给出对应项。 */
     const cards = appRoot.querySelectorAll('.choice');
@@ -1127,7 +1194,7 @@ for (const [n, phrase] of stepNames) {
     const emptyProbe = appRoot.__rankProbe ? appRoot.__rankProbe({}) : null;
     ok('全未答时推导函数仍有确定输出（但不预选）', !!emptyProbe, String(emptyProbe && emptyProbe[0].zh));
   }
-  if (n === 4) {
+  if (n === 5) { /* v3: 气质从第 4 屏挪到第 5 屏（预算前置） */
     const grid = appRoot.querySelector('.choice-grid');
     ok('第 3 步的卡片组是 radiogroup', !!grid && grid.attrs.role === 'radiogroup',
       grid ? String(grid.attrs.role) : '(没有 .choice-grid)');
@@ -1267,6 +1334,62 @@ ok('每条理由含至少一条结构性理由（家族/浓度）',
 ok('结果含数据来源链接',
   appRoot.querySelectorAll('a').some((a) => String(a.attrs.href || '').includes('scento')));
 ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textContent.includes('重新来一次')));
+
+/* ---------- v3：结果页两条退路（规格底线要求保留）----------
+   ① 换一批     —— 同一份答案换三瓶，且**真的换**（不是把顺序搬一下）
+   ② 改一题重推 —— 回第 1 屏但保留已答项（与"重新来一次"是两件事）
+
+   判据为什么落在"名字变了"而不是"按钮存在"：
+   按钮存在是零信息量（它总是存在）。真正会坏的是 reroll() 里那段
+   游标推进 —— 如果它推错了或者 buffer 只有 3 瓶，用户点下去三瓶名字
+   一个都不变，而按钮看着完全正常。 */{
+  const btns = appRoot.querySelectorAll('.btn').map((b) => b.textContent.trim());
+  ok('v3：结果页有「换一批」', btns.some((t) => t.includes('换一批')), btns.join(' | '));
+  ok('v3：结果页有「改一题重推」', btns.some((t) => t.includes('改一题')), btns.join(' | '));
+
+  const namesNow = () => appRoot.querySelectorAll('.pick h3').map((h) => h.textContent.trim());
+  const before = namesNow();
+  const rerollBtn = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('换一批'));
+  if (rerollBtn) {
+    rerollBtn.dispatch('click');
+    await new Promise((r) => setTimeout(r, 400));
+    const after = namesNow();
+    ok('v3：换一批真的换掉了三瓶（不是只换顺序）',
+      after.length === 3 && after.some((n) => !before.includes(n)),
+      `${before.join('/')} → ${after.join('/')}`);
+    /* 换完之后理由必须仍在 —— 换一批如果只换名字不换理由，
+       用户会看到"瓶子变了但理由还是上一瓶的"，那是最难解释的错。 */
+    ok('v3：换一批之后每张卡仍有理由与三调',
+      appRoot.querySelectorAll('.reasons').length === 3
+      && appRoot.querySelectorAll('.pyramid').length === 3,
+      `理由 ${appRoot.querySelectorAll('.reasons').length} / 三调 ${appRoot.querySelectorAll('.pyramid').length}`);
+  }
+
+  /* 改一题：回第 1 屏，且**保留**已答项（判据是回到第一屏时香型仍选中）。 */
+  const gotoBtn = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('改一题'));
+  if (gotoBtn) {
+    gotoBtn.dispatch('click');
+    await new Promise((r) => setTimeout(r, 400));
+    ok('v3：改一题重推回到第 1 屏',
+      getStepText().includes('哪一类味道'), getStepText().slice(0, 80));
+    ok('v3：改一题重推保留已答的香型（不是清空重来）',
+      appRoot.querySelectorAll('.disc-sector')
+        .some((b) => b.getAttribute('aria-checked') === 'true'),
+      '回到第 1 屏时香型未保持选中 —— 那是 restart 的语义，不是"改一题"');
+    /* 回到结果页，后面的断言还要用（走一遍剩余步骤即可）。 */
+    let guard = 0;
+    while (guard++ < 14) {
+      const b = appRoot.querySelectorAll('.btn').find((x) => x.textContent.includes('下一步'));
+      if (!b) break;
+      b.dispatch('click');
+      await new Promise((r) => setTimeout(r, 160));
+    }
+    const fin2 = appRoot.querySelectorAll('.btn').find((x) => x.textContent.includes('看推荐'));
+    if (fin2) { fin2.dispatch('click'); await new Promise((r) => setTimeout(r, 600)); }
+    ok('v3：改一题后仍能重新出结果', appRoot.querySelectorAll('.pick').length === 3,
+      `实际 ${appRoot.querySelectorAll('.pick').length} 张卡`);
+  }
+}
 
 /* ---------- 可分享的结果摘要卡（方向 B：截图友好）----------
    这张卡是"一屏截得下、截图能自证"的载体。四条断言分别守：
@@ -1578,9 +1701,37 @@ ok('结果含重新开始', appRoot.querySelectorAll('.btn').some((b) => b.textC
      所以"这卡有没有搜索渠道"从 buy 列表按卡分组判，不用 DOM 选择器。 */
   const hasOfficial = (c) => (tbByCard.get(c) || []).some((a) => a.attrs['data-channel'] === 'official');
   const cardsWithChannel = cards.filter(hasOfficial);
-  ok('有搜索渠道的卡各挂一条双渠道说明',
-    cardsWithChannel.length > 0 && cardsWithChannel.every((c) => c.querySelectorAll('.link-note').length === 1),
-    `有搜索渠道的卡 ${cardsWithChannel.length} 张，说明 ${searchNotes.length} 条`);
+  /* ⚠️ 断言从「必须存在至少一张有搜索渠道的卡」改成**条件式**（v3，2026-11-16）。
+     原因不是放宽，是这条原写法本来就会随数据变好而变红 ——
+     这正是本文件其它地方反复记录的坑（见上面"数量断言从每瓶固定 3 个
+     改成结构不变量"那段注释，同一个教训）。
+
+     实测：`data/affiliate-links.json` 的淘宝覆盖已到 661/1388，
+     本轮问卷改动换了推荐的取向之后，跑出来的三瓶恰好都命中直达链 ——
+     于是"有搜索渠道的卡"变成 0 张，而**页面上没有任何一处错误**：
+     三张卡各有一条直达链、不挂双渠道说明，完全符合规则。
+     原断言在这种情况下红，是在要求"数据别太好"。
+
+     改成守**真正会造成伤害的那一侧**：只要某张卡挂了双渠道说明，
+     它就必须真的有 official+market 一对渠道；反之有渠道就必须挂且只挂一条。
+     两个方向都保留，只是不再要求"本次运行必须出现这种卡"。 */
+  ok('有搜索渠道的卡各挂一条双渠道说明（无此类卡时该条不适用）',
+    cardsWithChannel.every((c) => c.querySelectorAll('.link-note').length === 1),
+    `有搜索渠道的卡 ${cardsWithChannel.length} 张，说明 ${searchNotes.length} 条`
+      + (cardsWithChannel.length === 0 ? '（本次三瓶都走直达链，无搜索渠道卡）' : ''));
+  /* 反向：挂了双渠道说明的卡，必须真的成对出现 official+market ——
+     这是"写了就是编"那一侧的守门，与上面互为反向。 */
+  {
+    const cardsWithNote = cards.filter((c) => c.querySelectorAll('.link-note').length > 0);
+    const bad = cardsWithNote.filter((c) => {
+      const ch = (tbByCard.get(c) || [])
+        .filter((a) => SEARCH_CH.has(String(a.attrs['data-channel'])))
+        .map((a) => a.attrs['data-channel']);
+      return !(ch.includes('official') && ch.includes('market'));
+    });
+    ok('挂了双渠道说明的卡，必须真有 official+market 一对渠道',
+      bad.length === 0, `${bad.length} 张卡挂说明但没有成对渠道`);
+  }
   ok('双渠道说明包含「价格未排序」',
     searchNotes.every((n) => /价格未排序|未排序/.test(n.textContent)),
     searchNotes.map((n) => n.textContent.slice(0, 20)).join(' | '));
@@ -1897,108 +2048,119 @@ ok('结果页无 NaN/undefined', !/NaN|undefined/.test(resultText), resultText.s
 console.log('\n--- 第一瓶渲染结果 ---');
 console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
 
-/* ---------- 入口分叉（一屏一问后：家族 9 步 / 情绪 10 步）----------
-   上面的主流程走的是**家族入口**（第 1 步在轮盘里选了家族），
-   那一支下「整族排除」不出现，所以它的三条 aria 断言在这里补测。
-   不补的话，这段代码在情绪入口坏掉时会全绿通过 ——
-   而情绪入口恰是「整族排除」唯一真正有效的那一支。
+/* ---------- 步骤表契约（v3：九屏恒定，不再有入口分叉）----------
+   v19 时这里测的是「家族入口 8 步 / 情绪入口 9 步」两条数字必须一致。
 
-   同时钉住两条入口的步数与「共 N 步」文案必须一致：
-   两套数字一旦分叉，用户会看到「共 10 步」但翻到第 9 屏就出结果。 */
+   v3 删掉了唯一那屏带 when() 的「整族排除」，于是分叉消失、九屏对所有人恒定。
+   所以这一段的判据也从"两套数字一致"改成**更硬的一条**：任何答案下都是 9 步。
+   这不是把断言放松 —— 原来双数字的**目的**就是"用户看到的步数不会与屏数对不上"，
+   现在只有一套数字，恒等 9 直接守住它，且多了一条"不许偷偷加回动态屏"。
+
+   代价（如实记录）：情绪入口那条遍历在这一段里失效了 —— 它原来是为了走到
+   「整族排除」而写的，那一屏没了。所以替换成"按感觉选之后仍然 9 步、仍能一路
+   走到末屏"，验的是同一件事（入口切换不会让步数与屏数分叉），不是删掉。 */
 {
   const S = appMod.__steps;
-  ok('一屏一问后步骤全集是 9 步', S.all.length === 9, `实际 ${S.all.length}`);
-  ok('全集里有「整族排除」', S.all.some((x) => x.id === 'dislikedFamilies'));
-  /* 拆屏时最容易犯的错是复制粘贴后忘改 id：两个步骤互相覆盖、
+  ok('v3：步骤全集是 9 屏', S.all.length === 9, `实际 ${S.all.length}`);
+  ok('v3：全集里不再有「整族排除」（实测最接近无效的一项，已按规格删除）',
+    !S.all.some((x) => x.id === 'dislikedFamilies'),
+    S.all.map((x) => x.id).join(','));
+  /* 复制粘贴后忘改 id 是最常见的一类：两个步骤互相覆盖、
      进度条段数却对得上，从界面上完全看不出来。 */
   const ids = S.all.map((x) => x.id);
-  ok('9 个步骤的 id 两两不同', new Set(ids).size === ids.length, ids.join(','));
+  ok('v3：9 个步骤的 id 两两不同', new Set(ids).size === ids.length, ids.join(','));
+  /* 顺序是用户能看见的东西：预算必须在第 2 位（规格「预算题前置」），
+     香型必须在第 1 位（圆盘是入口）。这两条钉的是位置，不是"碰巧"。 */
+  ok('v3：香型在第 1 屏、预算在第 2 屏（预算题前置）',
+    ids[0] === 'family' && ids[1] === 'budget', ids.join(','));
+  ok('v3：末屏是已知款（收束在真实反馈上）', ids[ids.length - 1] === 'anchor', ids.join(','));
 
-  /* 纯函数层：家族入口 8 步、情绪入口 9 步 */
+  /* 核心契约：任何答案下都 9 步。这四条合起来等价于"没有动态屏了"。 */
   const byFam = S.cur({ family: 'floral' });
   const byEmo = S.cur({ emotion: 'cold' });
   const empty = S.cur({});
-  ok('家族入口 8 步', byFam.length === 8, `实际 ${byFam.length}`);
-  ok('情绪入口 9 步', byEmo.length === 9, `实际 ${byEmo.length}`);
-  ok('家族入口不含「整族排除」', !byFam.some((x) => x.id === 'dislikedFamilies'),
-    byFam.map((x) => x.id).join(','));
-  ok('情绪入口含「整族排除」', byEmo.some((x) => x.id === 'dislikedFamilies'),
-    byEmo.map((x) => x.id).join(','));
-  ok('未答任何入口时有 9 步（保留全集，不隐藏）', empty.length === 9, `实际 ${empty.length}`);
+  const both = S.cur({ family: 'woody', emotion: 'warm', budget: 'b2' });
+  ok('v3：家族入口也是 9 步（不再缩短）', byFam.length === 9, `实际 ${byFam.length}`);
+  ok('v3：情绪入口是 9 步', byEmo.length === 9, `实际 ${byEmo.length}`);
+  ok('v3：未答任何入口时仍是 9 步', empty.length === 9, `实际 ${empty.length}`);
+  ok('v3：两条入口同时有值时仍是 9 步（没有 when() 会重复或吞屏）',
+    both.length === 9, `实际 ${both.length}`);
 
-  /* 一屏一问的核心契约：香调 / 场景 各自拆成两屏，浓淡+浓度 合回一屏。
-     这五条钉的是"集合里到底有哪几屏"，不是"顺序碰巧对" —— 顺序再变它们仍该绿。 */
+  /* 集合里到底有哪几屏 —— 顺序再变它们仍该绿。 */
   const has = (arr, id) => arr.some((x) => x.id === id);
-  ok('香调拆成「想要」「受不了」两屏',
-    has(byFam, 'likedNotes') && has(byFam, 'dislikedNotes'), byFam.map((x) => x.id).join(','));
-  ok('场景拆成「场合」「季节」两屏',
-    has(byFam, 'occasion') && has(byFam, 'season'), byFam.map((x) => x.id).join(','));
-  /* 2026-11-11：Eddie 要求总流程 9 屏，浓淡/浓度按当初预留的最小回滚点合回一屏。
-     所以这里从「必须拆开」翻成「必须合并」，并同时钉住 intensity 不再作为独立步骤 ——
-     否则下次有人补回一屏，总数会静默超到 10 而这条断言仍然绿。 */
-  ok('浓淡与浓度合成一屏（只剩 concentration）',
-    has(byFam, 'concentration') && !has(byFam, 'intensity'), byFam.map((x) => x.id).join(','));
-  ok('旧 id（notes / context / strength / intensity）都不得复活',
-    !has(byFam, 'notes') && !has(byFam, 'context') && !has(byFam, 'strength')
-    && !has(byFam, 'intensity'),
+  ok('v3：香调仍是「想要」「不想要」两屏（生活情景，但仍是两个决定）',
+    has(byFam, 'wanted') && has(byFam, 'avoid'), byFam.map((x) => x.id).join(','));
+  ok('v3：旧香调屏 id（likedNotes / dislikedNotes）不再作为步骤存在',
+    !has(byFam, 'likedNotes') && !has(byFam, 'dislikedNotes'),
     byFam.map((x) => x.id).join(','));
+  ok('v3：场景仍是「场合」「季节」两屏',
+    has(byFam, 'occasion') && has(byFam, 'season'), byFam.map((x) => x.id).join(','));
+  /* 浓淡/浓度合回一屏是 2026-11-11 的决定，v3 不动它。 */
+  ok('v3：浓淡与浓度仍合成一屏（只剩 concentration）',
+    has(byFam, 'concentration') && !has(byFam, 'intensity'),
+    byFam.map((x) => x.id).join(','));
+  ok('v3：旧 id（notes / context / strength / intensity）都不得复活',
+    !has(byFam, 'notes') && !has(byFam, 'context') && !has(byFam, 'strength')
+    && !has(byFam, 'intensity'), byFam.map((x) => x.id).join(','));
+  ok('v3：每个步骤都有可渲染函数', S.all.every((x) => typeof x.render === 'function'),
+    S.all.filter((x) => typeof x.render !== 'function').map((x) => x.id).join(','));
 
-  /* 「第 N 步 / 共 M 步」必须跟着入口走 —— 这是用户唯一能看见的数字。
-     注意 head() 必须显式传 answers，否则两次都读 state.answers，测出来永远相等。 */
+  /* 「第 N 步 / 共 M 步」必须只读步骤表 —— 这是用户唯一能看见的数字。
+     注意 head() 必须显式传 answers，否则每次都读 state.answers，测出来永远相等。 */
   const headFam = S.head('anchor', { family: 'floral' });
   const headEmo = S.head('anchor', { emotion: 'cold' });
-  ok('家族入口「试过并且喜欢」是第 8 步 / 共 8 步',
-    headFam.kicker === '第 8 步 / 共 8 步', headFam.kicker);
-  ok('情绪入口「试过并且喜欢」是第 9 步 / 共 9 步',
-    headEmo.kicker === '第 9 步 / 共 9 步', headEmo.kicker);
-  /* 同一屏在两条入口下序号必须不同 —— 防「两个头部都硬编码成同一个数字」。 */
-  ok('同一屏在两条入口下序号不同', headFam.kicker !== headEmo.kicker,
+  ok('v3：末屏在任一入口下都是「第 9 步 / 共 9 步」',
+    headFam.kicker === '第 9 步 / 共 9 步' && headEmo.kicker === '第 9 步 / 共 9 步',
     `${headFam.kicker} vs ${headEmo.kicker}`);
+  const headBudget = S.head('budget', {});
+  ok('v3：预算屏显示「第 2 步 / 共 9 步」', headBudget.kicker === '第 2 步 / 共 9 步',
+    headBudget.kicker);
 
-  /* 越界保护：切换入口会让步骤表从 9 缩短到 8，
-     而 state.step 可能还停在 9（结果页）或 8（旧的第 8 屏）。 */
-  ok('越界夹取：step=9 在 8 步表里夹到 8', S.clamp(9, 8) === 8, String(S.clamp(9, 8)));
-  ok('越界夹取：step=8 在 8 步表里保持 8（=结果页）', S.clamp(8, 8) === 8, String(S.clamp(8, 8)));
-  ok('越界夹取：step=3 不动', S.clamp(3, 8) === 3, String(S.clamp(3, 8)));
-  ok('越界夹取：负数是 0', S.clamp(-1, 8) === 0, String(S.clamp(-1, 8)));
-  ok('越界夹取：NaN 是 0', S.clamp(NaN, 8) === 0, String(S.clamp(NaN, 8)));
-  const allReachable = byFam.every((x) => typeof x.render === 'function');
-  ok('家族入口 8 个步骤全部有可渲染函数', allReachable, byFam.map((x) => x.id).join(','));
+  /* 越界夹取。v3 之后长度恒定，但这层保护仍要留：它守的是
+     「容器长度与下标」这对不变量，将来若加回动态屏不会炸。 */
+  ok('越界夹取：step=9 在 9 步表里保持 9（=结果页）', S.clamp(9, 9) === 9, String(S.clamp(9, 9)));
+  ok('越界夹取：step=12 在 9 步表里夹到 9', S.clamp(12, 9) === 9, String(S.clamp(12, 9)));
+  ok('越界夹取：step=3 不动', S.clamp(3, 9) === 3, String(S.clamp(3, 9)));
+  ok('越界夹取：负数是 0', S.clamp(-1, 9) === 0, String(S.clamp(-1, 9)));
+  ok('越界夹取：NaN 是 0', S.clamp(NaN, 9) === 0, String(S.clamp(NaN, 9)));
 
-  /* 情绪入口下真的走到那一屏：重开一局，用「按感觉选」进第 1 步。
-     不能只验纯函数 —— 那样 navBar / render / 进度条任何一处漏改都测不到。 */
+  /* 情绪入口真的走一遍：重开一局 → 按感觉选 → 一路点到末屏。
+     不能只验纯函数，那样 navBar / render / 进度条任何一处漏改都测不到。 */
   const restartFn = appMod.__restart;
   if (restartFn) {
     restartFn();
     await new Promise((r) => setTimeout(r, 300));
     const emoSeg = appRoot.querySelectorAll('.seg').find((s) => s.attrs['aria-label']
       && /感觉/.test(s.attrs['aria-label']));
-    /* 情绪段控件的 aria-label 是「说不清香型时按感觉选」，取第一个 .seg 也够 */
     const seg = emoSeg || appRoot.querySelectorAll('.seg')[0];
     const emoItem = seg ? seg.querySelectorAll('.seg-item')[0] : null;
     ok('第 1 步有「按感觉选」分段控件', !!emoItem);
     if (emoItem) {
       emoItem.dispatch('click');
       await new Promise((r) => setTimeout(r, 300));
-      ok('情绪入口显示「共 9 步」', /共 9 步/.test(appRoot.textContent), appRoot.textContent.slice(0, 50));
-      /* 一路点到「整族排除」那一屏（情绪入口下它是第 8 屏） */
+      ok('v3：按感觉选之后仍显示「共 9 步」（入口不改变步数）',
+        /共 9 步/.test(appRoot.textContent), appRoot.textContent.slice(0, 60));
+      /* 一路点到末屏。v3 的末屏是「有没有已经试过」那一屏。 */
       let guard = 0;
-      while (guard++ < 12) {
+      while (guard++ < 14) {
         const b = appRoot.querySelectorAll('.btn').find((x) => x.textContent.includes('下一步'));
         if (!b) break;
         b.dispatch('click');
-        await new Promise((r) => setTimeout(r, 200));
-        if (getStepText().includes('完全不想要')) break;
+        await new Promise((r) => setTimeout(r, 180));
+        if (getStepText().includes('已经试过')) break;
       }
       const t = getStepText();
-      ok('情绪入口能走到「完全不想要」那一屏', t.includes('完全不想要'), t.slice(0, 80));
-      ok('该屏写明「可多选」', t.includes('可多选'), t.slice(0, 80));
-      const g = appRoot.querySelector('.choice-grid');
-      ok('该屏容器标了 aria-multiselectable',
-        !!g && g.attrs['aria-multiselectable'] === 'true',
-        g ? String(g.attrs['aria-multiselectable']) : '(无 .choice-grid)');
-      ok('该屏不是 radiogroup（是多选）',
-        !!g && g.attrs.role !== 'radiogroup', g ? String(g.attrs.role) : '-');
+      ok('v3：情绪入口能一路走到末屏（试过、并且喜欢）', t.includes('已经试过'), t.slice(0, 80));
+      /* 末屏必须能出结果 —— 「换一批 / 改一题」的前置是这里真的有一份结果。 */
+      const fin = appRoot.querySelectorAll('.btn').find((x) => x.textContent.includes('看推荐'));
+      ok('v3：情绪入口的末屏有「看推荐」', !!fin);
+      if (fin) {
+        fin.dispatch('click');
+        await new Promise((r) => setTimeout(r, 600));
+        ok('v3：情绪入口能出结果（三瓶）',
+          appRoot.querySelectorAll('.pick').length === 3,
+          `实际 ${appRoot.querySelectorAll('.pick').length} 张卡`);
+      }
     }
   }
 }

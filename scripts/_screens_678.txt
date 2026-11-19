@@ -1,0 +1,234 @@
+/* ============================================================
+   第 6 屏：场合（v3 专属环境效果 = 一天的时间弧）
+   ------------------------------------------------------------
+   内容隐喻：场合在数据里是「被闻到多远 + 撑多久」的组合，
+   而在人的经验里它首先是**一天里的某个时候**。
+   所以这一屏的主控件从圆盘改成一条时间弧：
+     清晨 → 白天 → 傍晚 → 夜 → 深夜
+   五个场合各占弧上一个落点，移动的是"太阳"，不是高亮框。
+
+   为什么不再用圆盘：圆盘在 v3 已经被香型屏独占（那是它的语义主场：
+   分类树）。同一支问卷里两个圆盘会让"物体的身份"混淆 ——
+   用户第二次看到圆盘会以为又回到香型。规格要求每屏形式各不相同。
+
+   弧的几何是**真实**的：落点位置来自 OCCASION_ARC，那个顺序与
+   src/scoring.js 的 OCCASION_TIME（时段）同一套判断。
+   所以它不是装饰弧，是"把时段画出来"。
+   ============================================================ */
+
+/* 五个场合在一天里的落点（0 = 清晨，1 = 深夜）。
+   顺序与 OCCASION_TIME 的 day/evening 分档一致，但更细：
+   户外在清晨（最凉）、通勤在白天、居家在傍晚、约会在夜、正式在深夜。 */
+const OCCASION_ARC = [
+  { id: 'outdoor', pos: 0.06, when: '清晨' },
+  { id: 'commute', pos: 0.30, when: '白天' },
+  { id: 'daily',   pos: 0.52, when: '傍晚' },
+  { id: 'date',    pos: 0.76, when: '夜里' },
+  { id: 'formal',  pos: 0.96, when: '深夜' },
+];
+
+function renderOccasion() {
+  const wrap = el('div', { class: 'fade-in' });
+  const head = stepHead('occasion');
+  const lead = el('div', { class: 'stage-lead' },
+    el('div', { class: 'q-kicker' }, head.kicker),
+    el('h2', { class: 'q-title' }, head.title),
+    el('p', { class: 'q-help' }, head.help)
+  );
+  /* 常驻译文行（学圆盘圆心）：未选说这一屏在问什么，选中说那个场合的时段含义。 */
+  const trans = el('p', { class: 'scene-trans' });
+  const paintTrans = () => {
+    const hit = OCCASION_ARC.find((x) => x.id === state.answers.occasion);
+    const item = hit ? (TAX.occasionMap || []).find((o) => o.id === hit.id) : null;
+    trans.classList.toggle('is-idle', !hit);
+    trans.textContent = hit && item
+      ? `${hit.when}用它 —— ${item.desc}`
+      : '挑一个最像的。同一瓶香水在通勤和约会里的宽容度差得很远';
+  };
+  paintTrans();
+  lead.appendChild(trans);
+  wrap.appendChild(lead);
+
+  /* ---- 时间弧本体 ----
+     弧线用 CSS 画（.day-arc 的两层径向渐变交界），
+     这里只放"太阳"与五个刻度。刻度是真实按钮（44px 命中区由 CSS 的
+     ::before 垫出来），不是 SVG 里的死点。 */
+  const arc = el('div', { class: 'day-arc', role: 'radiogroup', 'aria-label': '一天里的使用时段' });
+  const sun = el('span', { class: 'arc-sun', 'aria-hidden': 'true' });
+  const ticks = [];
+  OCCASION_ARC.forEach((x) => {
+    const on = state.answers.occasion === x.id;
+    const item = (TAX.occasionMap || []).find((o) => o.id === x.id) || { zh: x.id, desc: '' };
+    const b = el('button', {
+      class: 'arc-tick' + (on ? ' is-on' : ''),
+      type: 'button',
+      role: 'radio',
+      'aria-checked': String(on),
+      'aria-label': `${x.when} · ${item.zh}`,
+      'data-occasion': x.id,
+      style: `--pos: ${x.pos}`,
+      onclick: () => {
+        state.answers.occasion = x.id;
+        paintArc();
+        paintTrans();
+        applyAmbient();
+      },
+    });
+    ticks.push({ node: b, pos: x.pos, id: x.id });
+    arc.appendChild(b);
+  });
+  arc.appendChild(sun);
+  wrap.appendChild(arc);
+
+  const paintArc = () => {
+    const cur = state.answers.occasion;
+    const hit = OCCASION_ARC.find((x) => x.id === cur);
+    ticks.forEach((t) => {
+      const on = t.id === cur;
+      t.node.classList.toggle('is-on', on);
+      t.node.setAttribute('aria-checked', String(on));
+    });
+    /* 太阳只在真的选过之后出现（未选时不摆一个"默认时段"——
+       那读起来像已经替用户答了）。 */
+    sun.style.display = hit ? 'block' : 'none';
+    if (hit) {
+      sun.style.setProperty('--pos', hit.pos);
+      sun.style.left = `calc(6% + ${hit.pos} * 88%)`;
+    }
+  };
+  paintArc();
+
+  /* 五个场合的中文名与一句解释：弧上的刻度只有位置，
+     名字必须另有落处 —— 否则用户点的是五个无名点。
+     用分组列表而不是卡片网格：它们在这条弧上是有序的。 */
+  const list = el('div', { class: 'arc-legend' });
+  OCCASION_ARC.forEach((x) => {
+    const item = (TAX.occasionMap || []).find((o) => o.id === x.id);
+    if (!item) return;
+    list.appendChild(el('div', { class: 'arc-legend-row' },
+      el('span', { class: 'arc-when' }, x.when),
+      el('span', { class: 'arc-zh' }, item.zh),
+      el('span', { class: 'arc-desc' }, item.desc)
+    ));
+  });
+  wrap.appendChild(list);
+
+  wrap.appendChild(el('div', { class: 'term-note' },
+    el('strong', {}, '为什么这一屏是一条时间轴：'),
+    ' 场合真正影响推荐的地方是"什么时候用"——通勤在白天、约会在夜里，'
+    + ' 而库里每瓶都标了时段。把它画成一天，比列五个并列的按钮更接近你实际的决定。'
+  ));
+
+  wrap.appendChild(navBar('occasion'));
+  return wrap;
+}
+
+/* ============================================================
+   第 7 屏：季节（v3 专属环境效果 = 温度光带）
+   ------------------------------------------------------------
+   内容隐喻：季节对香水的影响是**温度与光线**（夏天会闷、冬天散得快）。
+   所以这一屏的主控件是一条色温带，四个季节是带上的四个刻度，
+   选中哪一季，整条带就向那一端的色温倾斜。
+
+   与场合屏的区别（必须说清，否则两屏读起来像同一套）：
+     场合 = 一条线上的位置（时间，离散但有序），控件是弧 + 移动的光点；
+     季节 = 一条带上的色温（连续的量），控件是色带 + 固定刻度。
+   一个讲"何时"，一个讲"多冷暖"。形式不同，语义也不同。
+   ============================================================ */
+function renderSeason() {
+  const wrap = el('div', { class: 'fade-in' });
+  const head = stepHead('season');
+  const lead = el('div', { class: 'stage-lead' },
+    el('div', { class: 'q-kicker' }, head.kicker),
+    el('h2', { class: 'q-title' }, head.title),
+    el('p', { class: 'q-help' }, head.help)
+  );
+  const trans = el('p', { class: 'scene-trans' });
+  const paintTrans = () => {
+    const hit = SEASONS.find((s) => s.id === state.answers.season);
+    trans.classList.toggle('is-idle', !hit);
+    trans.textContent = hit
+      ? `${hit.zh}：${hit.desc}`
+      : '按你打算主要在哪个季节用选一个；不确定就跳过，不答不扣分';
+  };
+  paintTrans();
+  lead.appendChild(trans);
+  wrap.appendChild(lead);
+
+  /* ---- 温度光带 ----
+     --band-warm（0..1）来自 SEASON_AMBIENT 的 temp 值，映射到 0..1：
+       夏（temp -0.28）→ 偏冷端；秋（+0.24）→ 偏暖端。
+     **这条映射是数据驱动的**，不是四个写死的色块 —— 所以将来调
+     ambient.js 的数值，这条带会跟着变，不会与逻辑分叉。 */
+  const band = el('div', { class: 'temp-band' });
+  const bandWarmOf = (seasonId) => {
+    const a = SEASON_AMBIENT_LOCAL[seasonId];
+    if (!a) return 0.5;
+    return Math.max(0, Math.min(1, (a.temp + 1) / 2));
+  };
+  SEASONS.forEach((s, i) => {
+    band.appendChild(el('button', {
+      class: 'band-pin' + (state.answers.season === s.id ? ' is-on' : ''),
+      type: 'button',
+      'aria-label': s.zh,
+      'data-season': s.id,
+      style: `--i: ${i}`,
+      onclick: () => {
+        state.answers.season = s.id;
+        paint(false);
+        paintTrans();
+        applyAmbient();
+      },
+    }));
+  });
+  wrap.appendChild(band);
+
+  /* 季节按钮本体（真的可点、带 44px 命中区）。
+     带上的刻度只是**指示**，真正的控件在这里 —— 与圆盘同一套做法：
+     视觉层与命中层分开，命中层是真实 button，拿得到浏览器的触控保护。 */
+  const seg = segControl(SEASONS, state.answers.season, (id) => {
+    state.answers.season = id;
+  }, '主季节', () => { paint(true); });
+  wrap.appendChild(seg);
+
+  function paint(fromSeg) {
+    const cur = state.answers.season;
+    band.style.setProperty('--band-warm', bandWarmOf(cur).toFixed(3));
+    [...band.children].forEach((n) => n.classList.toggle('is-on', n.getAttribute('data-season') === cur));
+    if (fromSeg) paintTrans();
+  }
+  paint(false);
+
+  const hint = segHint(SEASONS, state.answers.season);
+  if (state.answers.season == null) {
+    hint.textContent = '按你打算主要在哪个季节用选一个；不确定就跳过，不答不扣分。';
+  }
+  wrap.appendChild(hint);
+
+  /* 这段数字是**用户可见**的，必须跟数据同步（1388 瓶实测，D56）。
+     写错等于自拆台 —— 这类文字恰恰靠"说得具体"建立可信度。 */
+  wrap.appendChild(el('div', { class: 'term-note' },
+    el('strong', {}, '关于候选多少：'),
+    ' 库里按季节标注为「春 1331 · 夏 840 · 秋 1357 · 冬 548」（1388 瓶中的标注覆盖数，每瓶平均标 2.9 个季节）。',
+    ' 冬天能选的最少，这是数据分布，不是推荐变差了。'
+  ));
+
+  wrap.appendChild(navBar('season'));
+  return wrap;
+}
+
+/* ============================================================
+   第 8 屏：浓淡 + 浓度（v3 专属环境效果 = 香气扩散场）
+   ------------------------------------------------------------
+   内容隐喻：浓淡的物理含义是**离开皮肤多远还闻得到**。
+   所以这一屏用五圈同心圆，选到第 N 档 → 前 N 圈着色，
+   最外圈向外做一次性扩散脉冲。
+
+   为什么保留滑块：五圈是**读数**，滑块是**控件**。
+   把五圈做成可点（点第几圈 = 第几档）会让触控目标变成 1px 宽的圆环，
+   而触控 44px 是硬约束。所以圆场只负责"看得懂"，滑块负责"改得动"。
+
+   为什么 ② 浓度仍是单选卡：它是香精占比，与扩散距离不是同一根轴
+   （有清淡的 Parfum，也有呛人的 EDT）—— 合并会丢掉一个真实维度。
+   这一屏的两个决定在视觉上分开：上半是场（①），下半是卡（②③）。
+   ============================================================ */

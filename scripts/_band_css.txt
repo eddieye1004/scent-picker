@@ -1,0 +1,125 @@
+/* ---- 第 7 屏：温度光带 ----
+   四个季节排成一条带，色温随选中季的冷暖整体倾斜
+   （--band-warm 由该季的 SEASON_AMBIENT.temp 换算，数据驱动）。
+   为什么要它：季节的语义就是温度与光线，一条色温带比四个按钮更接近原意。
+
+   ⚠️ 这一段**必须只有一条 .temp-band 主规则**。第一版拆成了三条
+   （基础 + @supports 渐变 + 控件布局），而第三条的 `background: var(--bg-2)`
+   把第二条的渐变整条覆盖掉 —— 实测 computed backgroundImage 是 "none"，
+   截图上看是一条灰带。现在把布局与背景合并成一条，渐变写在它内部。
+   教训：同一选择器拆成多条规则时，后一条的后声明会静默吃掉前一条的成果，
+   而且**不报错**。 */
+.temp-band {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  min-height: 58px;
+  margin: 2px 0 16px;
+  padding: 0;
+  border: 1px solid var(--stroke-ui);
+  border-radius: var(--radius);
+  overflow: hidden;
+  /* 兜底（不支持 color-mix）：一档中性底，结构仍在、只是没有色温。 */
+  background: var(--bg-3);
+}
+
+@supports (background: color-mix(in oklab, red 50%, blue)) {
+  /* ⚠️ 第一版的三个 stop 实测几乎同色（oklab L 都在 0.895，差 <0.02），
+     截图上看是一条灰带 —— 那不是"克制的设计"，是**效果没生效**。
+     修法是把两端的色相拉开、并把整条渐变交给 --band-warm 决定：
+       冷端 #b9d4de（明确偏青）  暖端 #ecd0ab（明确偏琥珀）
+     实测两端 oklab 的 b 轴差 0.09（原 0.02），肉眼可辨。
+     这个色差是**有含义的**：它就是"这个季节的冷暖"。
+     两端都刻意压得比纸底深一档 —— 色带是"物"不是"底"。 */
+  .temp-band {
+    background: linear-gradient(90deg,
+      color-mix(in oklab, #ecd0ab calc(var(--band-warm, .5) * 100%), #b9d4de) 0%,
+      color-mix(in oklab, #b9d4de calc(100% - var(--band-warm, .5) * 100%), #ecd0ab) 100%);
+    transition: background .8s linear;
+  }
+}
+
+/* 四段各是一个真实按钮，直接坐在色带上。
+   ⚠️ 第一版这里只有四个 1px 的 .band-pin（纯指示），控件另有一排分段按钮
+   —— 实测截图上是**同一件事的两个可点控件**并排，用户不知道该点哪个，
+   而且两处状态要互相同步（多一条会出错的路径）。
+   现在带子本身就是控件：四段等宽、各 58px 高、名字写在段里。 */
+.temp-band .band-seg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 58px;
+  padding: 8px 6px;
+  border: none;
+  border-right: 1px solid rgba(20, 18, 14, .1);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color .34s linear, color .22s linear;
+}
+
+.temp-band .band-seg:last-child {
+  border-right: none;
+}
+
+.temp-band .band-seg:hover {
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
+}
+
+.temp-band .band-zh {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.temp-band .band-desc {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  /* 段只有 160px 宽，解释最多两行；多了会撑高整条带 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 选中：那一段反相（墨底白字），与带子的整体色温一起变化。
+   为什么反相而不是加边框：带子的语义是"温度连续体"，
+   边框会在连续体上切出一格"独立的卡"，反而破坏连续性。 */
+.temp-band .band-seg.is-on {
+  background: var(--ink);
+}
+
+.temp-band .band-seg.is-on .band-zh {
+  color: var(--bg);
+}
+
+.temp-band .band-seg.is-on .band-desc {
+  color: var(--bg);
+  opacity: .82;
+}
+
+/* 未选任何一季时整条带子降一档不透明度：
+   它还不是"你的答案"，只是一条可读的尺。 */
+.temp-band.is-idle {
+  opacity: .88;
+}
+
+@media (max-width: 620px) {
+  /* 窄屏四段各只剩 90px，解释放不下。只留季节名，
+     解释交给 .scene-trans 那一行（它本来就常驻）。 */
+  .temp-band .band-desc {
+    display: none;
+  }
+  .temp-band .band-seg {
+    min-height: 52px;
+    padding: 6px 4px;
+  }
+  .temp-band .band-zh {
+    font-size: 14px;
+  }
+}

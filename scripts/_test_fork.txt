@@ -1,0 +1,116 @@
+/* ---------- 步骤表契约（v3：九屏恒定，不再有入口分叉）----------
+   v19 时这里测的是「家族入口 8 步 / 情绪入口 9 步」两条数字必须一致。
+
+   v3 删掉了唯一那屏带 when() 的「整族排除」，于是分叉消失、九屏对所有人恒定。
+   所以这一段的判据也从"两套数字一致"改成**更硬的一条**：任何答案下都是 9 步。
+   这不是把断言放松 —— 原来双数字的**目的**就是"用户看到的步数不会与屏数对不上"，
+   现在只有一套数字，恒等 9 直接守住它，且多了一条"不许偷偷加回动态屏"。
+
+   代价（如实记录）：情绪入口那条遍历在这一段里失效了 —— 它原来是为了走到
+   「整族排除」而写的，那一屏没了。所以替换成"按感觉选之后仍然 9 步、仍能一路
+   走到末屏"，验的是同一件事（入口切换不会让步数与屏数分叉），不是删掉。 */
+{
+  const S = appMod.__steps;
+  ok('v3：步骤全集是 9 屏', S.all.length === 9, `实际 ${S.all.length}`);
+  ok('v3：全集里不再有「整族排除」（实测最接近无效的一项，已按规格删除）',
+    !S.all.some((x) => x.id === 'dislikedFamilies'),
+    S.all.map((x) => x.id).join(','));
+  /* 复制粘贴后忘改 id 是最常见的一类：两个步骤互相覆盖、
+     进度条段数却对得上，从界面上完全看不出来。 */
+  const ids = S.all.map((x) => x.id);
+  ok('v3：9 个步骤的 id 两两不同', new Set(ids).size === ids.length, ids.join(','));
+  /* 顺序是用户能看见的东西：预算必须在第 2 位（规格「预算题前置」），
+     香型必须在第 1 位（圆盘是入口）。这两条钉的是位置，不是"碰巧"。 */
+  ok('v3：香型在第 1 屏、预算在第 2 屏（预算题前置）',
+    ids[0] === 'family' && ids[1] === 'budget', ids.join(','));
+  ok('v3：末屏是已知款（收束在真实反馈上）', ids[ids.length - 1] === 'anchor', ids.join(','));
+
+  /* 核心契约：任何答案下都 9 步。这四条合起来等价于"没有动态屏了"。 */
+  const byFam = S.cur({ family: 'floral' });
+  const byEmo = S.cur({ emotion: 'cold' });
+  const empty = S.cur({});
+  const both = S.cur({ family: 'woody', emotion: 'warm', budget: 'b2' });
+  ok('v3：家族入口也是 9 步（不再缩短）', byFam.length === 9, `实际 ${byFam.length}`);
+  ok('v3：情绪入口是 9 步', byEmo.length === 9, `实际 ${byEmo.length}`);
+  ok('v3：未答任何入口时仍是 9 步', empty.length === 9, `实际 ${empty.length}`);
+  ok('v3：两条入口同时有值时仍是 9 步（没有 when() 会重复或吞屏）',
+    both.length === 9, `实际 ${both.length}`);
+
+  /* 集合里到底有哪几屏 —— 顺序再变它们仍该绿。 */
+  const has = (arr, id) => arr.some((x) => x.id === id);
+  ok('v3：香调仍是「想要」「不想要」两屏（生活情景，但仍是两个决定）',
+    has(byFam, 'wanted') && has(byFam, 'avoid'), byFam.map((x) => x.id).join(','));
+  ok('v3：旧香调屏 id（likedNotes / dislikedNotes）不再作为步骤存在',
+    !has(byFam, 'likedNotes') && !has(byFam, 'dislikedNotes'),
+    byFam.map((x) => x.id).join(','));
+  ok('v3：场景仍是「场合」「季节」两屏',
+    has(byFam, 'occasion') && has(byFam, 'season'), byFam.map((x) => x.id).join(','));
+  /* 浓淡/浓度合回一屏是 2026-11-11 的决定，v3 不动它。 */
+  ok('v3：浓淡与浓度仍合成一屏（只剩 concentration）',
+    has(byFam, 'concentration') && !has(byFam, 'intensity'),
+    byFam.map((x) => x.id).join(','));
+  ok('v3：旧 id（notes / context / strength / intensity）都不得复活',
+    !has(byFam, 'notes') && !has(byFam, 'context') && !has(byFam, 'strength')
+    && !has(byFam, 'intensity'), byFam.map((x) => x.id).join(','));
+  ok('v3：每个步骤都有可渲染函数', S.all.every((x) => typeof x.render === 'function'),
+    S.all.filter((x) => typeof x.render !== 'function').map((x) => x.id).join(','));
+
+  /* 「第 N 步 / 共 M 步」必须只读步骤表 —— 这是用户唯一能看见的数字。
+     注意 head() 必须显式传 answers，否则每次都读 state.answers，测出来永远相等。 */
+  const headFam = S.head('anchor', { family: 'floral' });
+  const headEmo = S.head('anchor', { emotion: 'cold' });
+  ok('v3：末屏在任一入口下都是「第 9 步 / 共 9 步」',
+    headFam.kicker === '第 9 步 / 共 9 步' && headEmo.kicker === '第 9 步 / 共 9 步',
+    `${headFam.kicker} vs ${headEmo.kicker}`);
+  const headBudget = S.head('budget', {});
+  ok('v3：预算屏显示「第 2 步 / 共 9 步」', headBudget.kicker === '第 2 步 / 共 9 步',
+    headBudget.kicker);
+
+  /* 越界夹取。v3 之后长度恒定，但这层保护仍要留：它守的是
+     「容器长度与下标」这对不变量，将来若加回动态屏不会炸。 */
+  ok('越界夹取：step=9 在 9 步表里保持 9（=结果页）', S.clamp(9, 9) === 9, String(S.clamp(9, 9)));
+  ok('越界夹取：step=12 在 9 步表里夹到 9', S.clamp(12, 9) === 9, String(S.clamp(12, 9)));
+  ok('越界夹取：step=3 不动', S.clamp(3, 9) === 3, String(S.clamp(3, 9)));
+  ok('越界夹取：负数是 0', S.clamp(-1, 9) === 0, String(S.clamp(-1, 9)));
+  ok('越界夹取：NaN 是 0', S.clamp(NaN, 9) === 0, String(S.clamp(NaN, 9)));
+
+  /* 情绪入口真的走一遍：重开一局 → 按感觉选 → 一路点到末屏。
+     不能只验纯函数，那样 navBar / render / 进度条任何一处漏改都测不到。 */
+  const restartFn = appMod.__restart;
+  if (restartFn) {
+    restartFn();
+    await new Promise((r) => setTimeout(r, 300));
+    const emoSeg = appRoot.querySelectorAll('.seg').find((s) => s.attrs['aria-label']
+      && /感觉/.test(s.attrs['aria-label']));
+    const seg = emoSeg || appRoot.querySelectorAll('.seg')[0];
+    const emoItem = seg ? seg.querySelectorAll('.seg-item')[0] : null;
+    ok('第 1 步有「按感觉选」分段控件', !!emoItem);
+    if (emoItem) {
+      emoItem.dispatch('click');
+      await new Promise((r) => setTimeout(r, 300));
+      ok('v3：按感觉选之后仍显示「共 9 步」（入口不改变步数）',
+        /共 9 步/.test(appRoot.textContent), appRoot.textContent.slice(0, 60));
+      /* 一路点到末屏。v3 的末屏是「有没有已经试过」那一屏。 */
+      let guard = 0;
+      while (guard++ < 14) {
+        const b = appRoot.querySelectorAll('.btn').find((x) => x.textContent.includes('下一步'));
+        if (!b) break;
+        b.dispatch('click');
+        await new Promise((r) => setTimeout(r, 180));
+        if (getStepText().includes('已经试过')) break;
+      }
+      const t = getStepText();
+      ok('v3：情绪入口能一路走到末屏（试过、并且喜欢）', t.includes('已经试过'), t.slice(0, 80));
+      /* 末屏必须能出结果 —— 「换一批 / 改一题」的前置是这里真的有一份结果。 */
+      const fin = appRoot.querySelectorAll('.btn').find((x) => x.textContent.includes('看推荐'));
+      ok('v3：情绪入口的末屏有「看推荐」', !!fin);
+      if (fin) {
+        fin.dispatch('click');
+        await new Promise((r) => setTimeout(r, 600));
+        ok('v3：情绪入口能出结果（三瓶）',
+          appRoot.querySelectorAll('.pick').length === 3,
+          `实际 ${appRoot.querySelectorAll('.pick').length} 张卡`);
+      }
+    }
+  }
+}

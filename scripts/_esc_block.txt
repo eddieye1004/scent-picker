@@ -1,0 +1,28 @@
+  /* ---------- v3：结果页与标本签呼应（连接感的第三条闭环）----------
+     规格要求「已选香型图标…到结果页与推荐卡上的图标呼应闭环」。
+     做法：这一屏的标本签换成 is-result 变体，尺寸放大一档，
+     并且**在它旁边写出这次答案的摘要** —— 让用户看到"我一路带过来的那枚标签，
+     最后就是这三瓶的来时路"。
+
+     为什么放在结果标题之后、三张卡之前：它是"你的答案"，而卡片是"我们的回答"。
+     答案先、回答后，读序才成立。 */
+  {
+    const esc = escortBar({ at: 'result' });
+    if (esc) {
+      const echo = el('div', { class: 'esc-echo' }, esc);
+      const seasonZh = profile.season
+        ? ((SEASONS.find((s) => s.id === profile.season) || {}).zh || profile.season)
+        : null;
+      const bits = [
+        profile.familyZh ? `香型 ${profile.familyZh}` : null,
+        profile.subfamilyZh ? `小类 ${profile.subfamilyZh}` : null,
+        kindOfBudget,
+        profile.emotionZh || null,
+        profile.occasionZh || null,
+        seasonZh ? `${seasonZh}季` : null,
+        `浓淡 ${profile.intensity}/5`,
+      ].filter(Boolean);
+      echo.appendChild(el('p', { class: 'esc-echo-line' }, bits.join(' · ')));
+      wrap.appendChild(echo);
+    }
+  }
