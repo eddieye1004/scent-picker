@@ -1,0 +1,127 @@
+15|const state = {
+66|function getUsableNotes() {
+77|const $ = (sel) => document.querySelector(sel);
+78|const el = (tag, attrs = {}, ...kids) => {
+93|/* ---------- 步骤定义 ----------
+136|const STEPS = [
+241|function curSteps(answers = state.answers) {
+249|function clampStep(step, len) {
+264|function stepHead(id, answers = state.answers) {
+275|/* ---------- 圆盘选择器（第 1、2 步共用）----------
+280|const SVG_NS = 'http://www.w3.org/2000/svg';
+290|const VB_CENTER = 240;
+292|const DISC = { vb: 480, cx: VB_CENTER, cy: VB_CENTER, rOut: 230, rIn: 
+294|function polar(r, deg) {
+300|function annulusPath(rOut, rIn, a0, a1) {
+312|function svgEl(tag, attrs) {
+322|function buildDisc(items, cfg) {
+662|/* ---------- 多层香型轮盘（第 1 步）----------
+668|const WHEEL = {
+682|function noteZhOf(en) {
+699|const PLATE_SIZE = 24;
+704|const BUILD_ID = '2026-11-08-icon-art-only';
+706|const PLATE_LABEL = { citrus: '柑橘', floral: '花', woody: '木质', amber: '
+711|const ART_FILE = {
+737|const ART_CACHE = new Map();
+742|const ART_READY = new Map();
+743|function artPath(subId) {
+747|function artInner(subId) {
+764|function artWarmAll() {
+770|function artNs(inner, ns) {
+775|function artSvgReady(subId) {
+783|function scentPlate(sub) {
+838|function buildWheel(cfg) {
+1612|/* ---------- 第 1 步：香型轮盘（外圈家族 + 中圈子家族）---------- */
+1613|function renderFamily() {
+1698|function familyPanel(famId) {
+1734|function paintFamilyPanel(fam) {
+1739|const GROUP_ZH = { fresh: '清新系', floral: '花香系', woody: '木质系', amber: '
+1741|/* ---------- 第 3 步：浓郁度 ---------- */
+1742|const INTENSITY_LABEL = {
+1750|/* ---------- 第 4 / 5 步：香调点名（喜欢 / 讨厌各一屏） ----------
+1757|/* ---------- v19 新增七屏 ----------
+1769|function choiceGrid(opts, current, onPick) {
+1807|/* ---------- 分段控件（有序、互斥、2–5 档）----------
+1821|function segControl(opts, current, onPick, label, onPaint) {
+1875|function segHint(opts, current) {
+1886|function updateSegHint(node, opts, current) {
+1894|/* ---------- 第 6 步：气质 ----------
+1898|/* ---------- 整体气质：由三维推导，不是八个并列标签 ----------
+1924|/* ---------- 整体气质：由三维推导的七个原型 ----------
+1943|const CHARACTER_PRESET = [
+1990|const FAM_WEIGHT = {
+1994|function deriveDims(answers) {
+2008|function rankCharacterPresets(answers) {
+2042|function deriveFromPreset(id) {
+2051|/* ---------- 第 7 步：季节 ----------
+2055|const SEASONS = [
+2062|/* ---------- 第 8 步：浓度 ----------
+2066|const CONCENTRATIONS = [
+2073|/* ---------- 第 9 步：留香时长 ----------
+2079|const LONGEVITY = [
+2086|/* ---------- 第 10 步：整族排除 ----------
+2091|function renderDislikedFamilies() {
+2158|/* ---------- 第 11 步：气味温度 ----------
+2166|const TEMPERATURES = [
+2172|/* ---------- 第 12 步：甜度 ----------
+2177|const SWEETNESS = [
+2184|/* ---------- 第 13 步：已知锚点（试过且喜欢的香水 / 味道） ----------
+2196|/* ---------- 可搜索组合框（E6）----------
+2212|function brandCombobox(opts) {
+2347|function renderAnchor() {
+2464|const NOTE_PEEK = 16;
+2476|function renderNotePicker(kind) {
+2619|function renderLikedNotes() { return renderNotePicker('liked'); }
+2620|function renderDislikedNotes() { return renderNotePicker('disliked'); 
+2627|function renderMood() {
+2796|function renderOccasion() {
+2827|function renderSeason() {
+2881|function renderConcentration() {
+2997|const CONC_TO_LONGEVITY = {
+3006|/* ---------- 导航条 ---------- */
+3011|function refreshNav(stepId) {
+3017|function navBar(stepId) {
+3099|/* ---------- 流程 ---------- */
+3100|function next() {
+3108|function prev() {
+3147|function setBusy(btn, text) {
+3163|function restart() {
+3187|/* ---------- 渲染 ---------- */
+3188|function renderProgress() {
+3214|function renderMasthead() {
+3263|const SEARCH_PLATFORMS = {
+3278|const AFFILIATE = {
+3334|function affiliateConfig() {
+3372|/* ---------- 联盟转链域名白名单 ----------
+3383|const AFF_DIRECT_HOSTS = {
+3391|function safeHttpUrl(raw) {
+3404|function isAffiliateHost(plat, href) {
+3415|function affiliateHref(perfume, cfg) {
+3436|/* ---------- 搜索页兜底：零配置就能用的那一层 ----------
+3454|/* ---------- 天猫店清单（任务8 A3，2026-11-12）----------
+3473|/* ---------- 淘宝的两个入口：官方旗舰店 / 全网 ----------
+3498|const TAOBAO_CHANNELS = [
+3520|function platformLinks(perfume, plat, cfg) {
+3627|function affiliateLinks(perfume, cfg) {
+3636|function affiliateLink(perfume, cfg) {
+3680|const TB_OPEN = 'tbopen://m.taobao.com/tbopen/index.html?action=ali.op
+3687|function isMobileContext() {
+3698|function tbopenHref(webUrl) {
+3709|function taobaoMobileFallback(perfume, cfg) {
+3729|function topBadgeText(hasPct) {
+3733|/* ---------- 结果卡上的商品图 ----------
+3759|const BOTTLE_TINT = {
+3771|function dominantFamily(p) {
+3783|function stableHash(s) {
+3792|function bottleArt(p) {
+3836|function artSourceOf(p, photos) {
+3849|function isCutout(p, cutouts) {
+3861|function pickArt(p) {
+3887|function renderResult() {
+4234|function renderFooter(onResult = false) {
+4297|function render() {
+4376|/* ---------- 启动 ---------- */
+4383|function ensurePerfumes() {
+4403|function ensurePhotos() {
+4437|function ensureAffLinks() {
+4473|function ensureTmallShops() {
