@@ -3159,8 +3159,54 @@ async function finish(btn) {
        瓶形、下一帧才换图，视觉上是闪一下。它只有几百字节，
        而且通常早已在缓存里。失败不影响结果页。 */
     await ensurePhotos().catch(() => {});
+    /* batchOffset 归零：用户改了答案再点「看推荐」，就是从第 0 批重新给，
+       不该接着上一轮「换过几次」的偏移继续往下挑 —— 那会让"改了一个答案"
+       看起来像"换了三瓶但没重算"。 */
+    batchOffset = 0;
     state.result = recommend(state.answers, d.perfumes, TAX, { topN: 3 });
     state.step = curSteps().length;
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } finally {
+    busy(false);
+  }
+}
+
+/* ---------- 「换一批」：同答案、同分数，只往前多取几瓶 ----------
+   为什么要一个偏移量而不是随机：结果页要能说清"为什么是这三瓶"。
+   随机取会让"理由能反推到某个答案"这条产品硬约束在第二轮失效
+   （每瓶的 breakdown 仍是真的，但"这三瓶是这批里分最高的"不再成立）。
+   所以按分数顺序继续往后取：第 2 批 = 第 4–6 名，第 3 批 = 第 7–9 名。
+
+   为什么重跑 recommend 而不是把完整榜存下来：recommend 是纯函数，
+   1388 瓶一遍约 15ms（实测），存一份完整榜反而要在 state 里放 1388 个对象。
+   代价是每次"换一批"多算一遍 —— 换来的是"改过的答案"与"原答案"走同一条路径。
+
+   循环：取满 topN + offset 后切片。offset 越过候选总数时回绕到 0，
+   并在界面说一句"已经轮过一遍"，否则用户会以为按钮坏了。 */
+let batchOffset = 0;
+let batchCycled = false;
+
+async function shuffleBatch(btn) {
+  const busy = setBusy(btn, '正在换…');
+  try {
+    const d = await ensurePerfumes();
+    /* 先按"要看到第几瓶"把榜取长，再切出这一批。
+       每轮多要 3 瓶；取不到那么长说明榜已到底，回绕。 */
+    const want = 3 + batchOffset + 3;
+    const full = recommend(state.answers, d.perfumes, TAX, { topN: want });
+    const all = full.results || [];
+    if (all.length <= 3 + batchOffset) {
+      /* 到底了：回绕到第 0 批。 */
+      batchOffset = 0;
+      batchCycled = true;
+    } else {
+      batchOffset += 3;
+    }
+    const next = recommend(state.answers, d.perfumes, TAX, { topN: 3 + batchOffset });
+    /* 只换 results，不动 profile：屏幕头上的条件摘要（气质 · 场合 · 浓淡）
+       来自用户的答案，换一批不该改它。 */
+    state.result = { ...state.result, results: next.results.slice(batchOffset) };
     render();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } finally {
@@ -4245,10 +4291,53 @@ function renderResult() {
     wrap.appendChild(card);
   }
 
+  /* ============================================================
+     结果页的两个出口（Eddie 2026-11-16 规格第 6 条）
+     ------------------------------------------------------------
+     规格原文：「换一批」（同答案换一组推荐）和「改一题重推」（回改任一题答案
+     重新推荐），不许只能从头再来。
+
+     为什么「换一批」不需要改打分逻辑：recommend() 的 opts 里已经有 topN，
+     而它的返回是**排好序的全部候选**里的前 N 个。要"同一份答案换一组"，
+     只要把 topN 加大、跳过已经展示过的那三瓶，再取三瓶就行 ——
+     分数、理由、breakdown 全部原样，没有一条是重新算的。
+     这条边界很重要：规格写的是"换一组推荐"，不是"换个算法"。
+
+     为什么「改一题重推」回的是**问卷屏**而不是重建一个"只改这一题"的界面：
+     每一屏的 render 都是幂等的（读 state.answers、写 state.answers），
+     回第 N 屏改完再点「看推荐」，走的就是原来那条 finish()。
+     再造一个精简版会让"改过的答案"与"重新答的答案"走两条不同的路径，
+     最终一致性只能靠测两条路径等价 —— 那是自找的。
+     所以在结果页给一排「回到第 N 步」的入口，点哪条就 state.step = 那一步。
+     ============================================================ */
+  wrap.appendChild(el('div', { class: 'result-exits', 'data-exits': 'result' },
+    el('div', { class: 'exits-row' },
+      el('button', {
+        class: 'btn', type: 'button', 'data-action': 'shuffle',
+        onclick: (ev) => shuffleBatch(ev.currentTarget),
+      }, '换一批'),
+      el('div', { class: 'spacer' }),
+      el('span', { class: 'hint' }, '同样的答案，换三瓶别的')
+    ),
+    /* 「改一题重推」是一排小入口而不是一个按钮：规格要求"回改**任一题**"，
+       只给一个"回去改"的按钮，用户还得自己一屏屏退回目标那一屏。 */
+    el('div', { class: 'exits-row exits-back' },
+      el('span', { class: 'chips-label' }, '改一题重推'),
+      el('div', { class: 'exits-chips' },
+        ...curSteps().map((st, i) => el('button', {
+          class: 'btn ghost exits-chip',
+          type: 'button',
+          'data-jump': st.id,
+          onclick: () => { state.step = i; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); },
+        }, `${i + 1} · ${st.short || st.title.slice(0, 4)}`))
+      )
+    )
+  ));
+
   wrap.appendChild(el('div', { class: 'actions', style: 'margin-top:36px' },
     el('button', { class: 'btn', type: 'button', onclick: restart }, '重新来一次'),
     el('div', { class: 'spacer' }),
-    el('span', { class: 'hint' }, '换一个答案，结果会完全不同')
+    el('span', { class: 'hint' }, '从头开始，所有答案清空')
   ));
 
   return wrap;

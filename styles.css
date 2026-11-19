@@ -6893,6 +6893,60 @@ body {
   stroke: none;
   stroke-width: 0;
 }
+
+/* ============================================================
+   结果页的两个出口（Eddie 2026-11-16 规格第 6 条）
+   ------------------------------------------------------------
+   为什么单独一组类名而不是复用 .actions：.actions 是**吸底工具栏**，
+   问卷页必须常驻（"下一步"随时可点），结果页的 .actions 在
+   60-motion.css 里有 `data-step="result"` 的 static 例外。
+   两个出口是结果页**专属**的动作，跟着问卷的吸底规则跑没有意义，
+   而且它们要换行（「改一题重推」是一排 N 个小入口，不是一行）。
+   复用 .actions 会让那条 static 例外同时管到它们，两个组件的
+   粘性行为被一条选择器耦合在一起 —— 以后改一个会误伤另一个。
+
+   色值全部走既有 token（--ink / --ink-2 / --stroke-l1 / --bg-2），
+   不新增色，深色方案因此自动跟随（深色那套 --ink 等已被本轮 tier
+   提亮一起校准过，见 80-specimen.css 的深色块）。
+   ============================================================ */
+.result-exits {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--stroke-l1);
+}
+
+.exits-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* 「改一题重推」那一行：标签与一排小入口分行，窄屏才不会被挤成一条线。 */
+.exits-back {
+  margin-top: 14px;
+  align-items: flex-start;
+}
+
+.exits-back .chips-label {
+  flex: 0 0 auto;
+  margin-top: 8px;
+}
+
+/* 一排小入口：可换行，每枚都是真实 button（键盘可达），
+   命中区由 .btn 的既有 44px 下限保证（test-contrast 会拦）。 */
+.exits-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+
+.exits-chip {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  font-size: 13px;
+}
 /* ============================================================
    v34 · D59 视觉统一：线条三档 / 切屏过渡 / 控件反馈
    ------------------------------------------------------------
