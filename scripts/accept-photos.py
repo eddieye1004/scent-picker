@@ -23,7 +23,7 @@ accept-photos.py — 实物图批次验收管线（batch-3 做法的可复用版
 报告与联系表。判据不在这里复刻 —— 直接调 scripts/build-photos.py check，
 阈值永远只有一份（build-photos.py 顶部那组）。
 
-**七道闸（每一条都是「漏交/漏检不会静默通过」，2026-11-18 复审后加）**
+**十一道闸（每一条都是「漏交/漏检不会静默通过」，2026-11-18 复审后加，2026-11-19 补⑧—⑪）**
   ① 申报像素必须与实测一致 —— 清单写「实际像素」就必须是实测值，不符即拒
      （此前 px 直接采信申报值，--min-side 形同虚设）。低于 --min-side 只标
      resolution_exception 供人裁决，不自动拒（batch-3 有 12 张 650–900px 的
@@ -44,6 +44,12 @@ accept-photos.py — 实物图批次验收管线（batch-3 做法的可复用版
      本批判据再通过也只判 needs_review，不判 auto_pass —— 判据从来没拒过
      batch-3 那 2 张（绿边在瓶底、锯齿在瓶身，都不在边框带上），只靠判据放行
      等于把人的裁决抹掉。needs_review 不是硬伤，是「必须再看一眼」。
+  ⑧ 内核量不出指标（坏图/超时）单列「无法量测」并计入 problems，非零退出 ——
+     不许把「解析失败」混在普通 rejected_auto 里让整批仍 exit 0。
+  ⑨ photos.json 已有实物图的 id 要替换，必须显式 --replace-ok；默认拦下并计硬伤。
+  ⑩ 清单显式 kind=marketing 的图补上高饱和闸（阈值从 build-photos.py 源码读，
+     这里不另立一份）；没有 kind 的历史清单不受影响。
+  ⑪ 调内核的 subprocess 带 timeout；单张挂住按不可判定隔离，不拖死整批。
 
 用法：
   python scripts/accept-photos.py <交付文件夹> [--manifest FILE] [--report DIR]
@@ -66,8 +72,9 @@ accept-photos.py — 实物图批次验收管线（batch-3 做法的可复用版
 
 退出码：0 正常出报告；1 有硬伤（清单缺文件 / id 不在 perfumes.json / 重复 id /
         磁盘多出未登记图 / 申报像素与实测不符 / 应交付清单缺交 / 跳过却交了图 /
-        force 用在量不出指标的图上）；2 用法错误（含报告路径越界）。
-        判据拒收不算硬伤，是正常验收结果。
+        force 用在量不出指标的图上 / 内核量不出指标 / 营销图高饱和未过闸 /
+        未带 --replace-ok 却替换已上线图）；2 用法错误（含报告路径越界）。
+        普通判据拒收不算硬伤，是正常验收结果。
 """
 import argparse
 import json
@@ -88,6 +95,25 @@ ID_RE = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)+$')
 DATE_RE = re.compile(r'^\d{4}-\d{1,2}-\d{1,2}$')
 # 报告只允许写进仓库内，或与仓库同级的 .legs（腿的落盘惯例目录）。
 REPORT_ROOTS = [ROOT, os.path.join(os.path.dirname(ROOT), '.legs')]
+# #15：单张内核判据的超时预算（秒）。块调用按张数线性放大，避免 96 张大图误杀。
+KERNEL_TIMEOUT_PER_IMAGE = 45
+
+
+def kernel_hi_sat_limit():
+    """#7：从内核源码读 HI_SAT_MARKETING，阈值只有 build-photos.py 一份。
+    用 ast 取值而不是 import，避免把内核的 PIL 依赖和 stdout 副作用带进来。"""
+    try:
+        import ast
+        with open(KERNEL, encoding='utf-8') as fh:
+            tree = ast.parse(fh.read())
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id == 'HI_SAT_MARKETING':
+                        return float(ast.literal_eval(node.value))
+    except Exception:
+        pass
+    return 0.08  # 仅当内核源码不可读时兜底；正常路径恒走上面那份
 
 
 def load_repo():
@@ -224,6 +250,7 @@ def parse_manifest_json(path):
             'id': pid, 'source': r.get('source', ''), 'pixels': px,
             'file': r.get('file', ''),
             'force': bool(r.get('force')), 'forced_because': r.get('forced_because', ''),
+            'kind': r.get('kind', ''),  # #7：只有显式 marketing 才过高饱和闸
         }
     return entries, skips, bad_rows
 
@@ -253,15 +280,29 @@ def load_expected(path):
 
 def run_kernel(paths):
     """调 build-photos.py check（只算指标不写文件）。分块防命令行超长；
-    整块失败时逐张重试，把坏文件隔离成 parse_failed 而不是炸掉整批。"""
-    out = {}
+    整块失败时逐张重试，把坏文件隔离成 parse_failed 而不是炸掉整批。
+    #15：每次调用都带 timeout —— 单张畸形图把内核挂住时按「不可判定」隔离，
+    不拖死整批；预算按块内张数线性放大，96 张大图同块跑也不会被误杀。"""
+    out, timeouts = {}, []
     for i in range(0, len(paths), 200):
         chunk = paths[i:i + 200]
-        r = subprocess.run([PY, KERNEL, 'check', *chunk], capture_output=True, text=True, encoding='utf-8')
-        lines = [l for l in (r.stdout or '').splitlines() if l.startswith('{')]
-        if r.returncode != 0 or len(lines) != len(chunk):
+        limit = KERNEL_TIMEOUT_PER_IMAGE * len(chunk)
+        try:
+            r = subprocess.run([PY, KERNEL, 'check', *chunk], capture_output=True, text=True,
+                               encoding='utf-8', timeout=limit)
+        except subprocess.TimeoutExpired:
+            r = None
+        lines = [l for l in (((r.stdout if r else '') or '')).splitlines() if l.startswith('{')]
+        if r is None or r.returncode != 0 or len(lines) != len(chunk):
             for p in chunk:
-                r1 = subprocess.run([PY, KERNEL, 'check', p], capture_output=True, text=True, encoding='utf-8')
+                try:
+                    r1 = subprocess.run([PY, KERNEL, 'check', p], capture_output=True, text=True,
+                                        encoding='utf-8', timeout=KERNEL_TIMEOUT_PER_IMAGE)
+                except subprocess.TimeoutExpired:
+                    timeouts.append(os.path.basename(p))
+                    out[os.path.basename(p)] = {'file': os.path.basename(p), 'ok': False,
+                                                'why': f'判据超时（>{KERNEL_TIMEOUT_PER_IMAGE}s）：按不可判定处理'}
+                    continue
                 l1 = [l for l in (r1.stdout or '').splitlines() if l.startswith('{')]
                 if r1.returncode == 0 and l1:
                     rec = json.loads(l1[0])
@@ -273,7 +314,7 @@ def run_kernel(paths):
             for l in lines:
                 rec = json.loads(l)
                 out[rec['file']] = rec
-    return out
+    return out, timeouts
 
 
 def make_sheet(records, folder, dst):
@@ -326,7 +367,7 @@ def report_dir_allowed(rdir):
 def usage_text():
     return ('用法：python scripts/accept-photos.py <交付文件夹> [--manifest FILE] [--report DIR]\n'
             '                                     [--expected GAP.json] [--sheet]\n'
-            '                                     [--force id1,id2] [--min-side 1000]\n'
+            '                                     [--force id1,id2] [--replace-ok] [--min-side 1000]\n'
             '  -h / --help 打印完整说明。缺少 <交付文件夹> 时退 2。')
 
 
@@ -340,6 +381,8 @@ def main():
     ap.add_argument('--expected')
     ap.add_argument('--sheet', action='store_true')
     ap.add_argument('--force', default='')
+    ap.add_argument('--replace-ok', action='store_true',
+                    help='显式批准替换 photos.json 里已有实物图的 id（默认拦下）')
     ap.add_argument('--min-side', type=int, default=1000)
     ap.add_argument('-h', '--help', action='store_true')
     args = ap.parse_args()
@@ -436,10 +479,13 @@ def main():
     # ---- 判据（只读）+ 像素核对 + 分辨率 ----
     # 磁盘上的图**全部**过判据（含未登记/挂跳过的），跳过只影响它是否算「已交」。
     todo = [p for p in disk.values() if p]
-    kernel = run_kernel(todo) if todo else {}
+    kernel, kernel_timeouts = run_kernel(todo) if todo else ({}, [])
     records = []
     pixel_mismatch = []
     carryover_rejected = []
+    unmeasurable = []        # #5
+    marketing_hi = []        # #7
+    replacement_blocked = [] # #9
     for pid in sorted(set(entries) | set(skips) | set(disk)):
         rec = {'id': pid}
         ent = entries.get(pid, {'id': pid, 'source': '', 'pixels': None, 'file': ''})
@@ -475,6 +521,11 @@ def main():
         else:
             # ⑤ force 只在真量出判据指标后才生效；量不出指标（坏图）不许洗白。
             metrics_ok = k.get('border_uniform') is not None
+            # #5：量不出指标单列「无法量测」并计硬伤 —— 不许藏在普通 rejected_auto 里 exit 0。
+            if not metrics_ok:
+                rec['unmeasurable'] = True
+                unmeasurable.append(pid)
+                problems.append(f'{pid}：内核未能量测判据指标（{str(k.get("why"))[:100]}）—— 按无法量测计硬伤，不许静默放行')
             forced = bool(pid in force_ids or ent.get('force'))
             if forced and not metrics_ok:
                 forced = False
@@ -487,6 +538,17 @@ def main():
             else:
                 rec['verdict'] = 'rejected_auto'
                 rec['why'] = k.get('why')
+        # #7：清单显式 kind=marketing 时补上 batch 路径同款高饱和闸。阈值从内核源码读，
+        # 没有 kind 的历史清单（如 batch3）不受影响 —— 回归逐瓶结果必须不变。
+        if ent.get('kind') == 'marketing' and rec['verdict'] == 'auto_pass':
+            hs = rec.get('hi_sat')
+            limit = kernel_hi_sat_limit()
+            if hs is not None and hs > limit:
+                rec['verdict'] = 'rejected_auto'
+                rec['marketing_hi_sat_rejected'] = True
+                rec['why'] = f'营销图高饱和贴纸（hi_sat {hs:.3f} > {limit:.3f}）—— check 路径补上 batch 同款闸'
+                marketing_hi.append(pid)
+                problems.append(f'{pid}：营销图高饱和未过闸（hi_sat={hs} > {limit}），已拦下')
         side = rec.get('size') or (measured if measured else claim)
         if side and max(side) < args.min_side:
             rec['resolution_exception'] = f'长边 {max(side)} < {args.min_side}（需登记裁决，不自动拒）'
@@ -500,7 +562,12 @@ def main():
                 rec['why'] = '上批人工验收已驳回，本批须重新目视确认修复（判据通过不等于修复）'
                 carryover_rejected.append(pid)
         if pid in photo_ids:
-            rec['already_has_photo'] = True  # 替换已有图需另行批准，本批清单应全为新增
+            rec['already_has_photo'] = True
+            # #9：替换已上线图必须显式批准；默认拦下并计硬伤，不再只留一个标记就放行。
+            if not args.replace_ok:
+                rec['replacement_blocked'] = True
+                replacement_blocked.append(pid)
+                problems.append(f'{pid}：photos.json 已有此瓶实物图，替换需显式 --replace-ok 批准（本次未给）')
         records.append(rec)
 
     # ---- 汇总 ----
@@ -524,6 +591,10 @@ def main():
         'skipped_but_delivered': skipped_but_delivered,
         'pixel_mismatch': pixel_mismatch,
         'carryover_rejected': carryover_rejected,
+        'unmeasurable': unmeasurable,
+        'kernel_timeouts': kernel_timeouts,
+        'marketing_hi_sat_rejected': marketing_hi,
+        'replacement_blocked': replacement_blocked,
         'verdicts': by_verdict,
         'resolution_exceptions': len(res_exc),
         'forced': len(forced),
@@ -576,6 +647,15 @@ def main():
             md += ['', '## 判据拒收', '']
             for r in rej:
                 md.append(f"- {r['id']}：{r.get('why', '')}")
+        if unmeasurable:
+            md += ['', f'## 内核无法量测（{len(unmeasurable)} 瓶，已计硬伤）', '']
+            md += [f'- {pid}' for pid in unmeasurable] + ['']
+        if marketing_hi:
+            md += ['', f'## 营销图高饱和未过闸（{len(marketing_hi)} 瓶）', '']
+            md += [f'- {pid}' for pid in marketing_hi] + ['']
+        if replacement_blocked:
+            md += ['', f'## 已上线图替换未批准（{len(replacement_blocked)} 瓶，需 --replace-ok）', '']
+            md += [f'- {pid}' for pid in replacement_blocked] + ['']
         if problems:
             md += ['', f'## 硬伤（{len(problems)} 条）', ''] + [f'- {p}' for p in problems]
         md += ['', '> auto_pass ≠ 验收入库：请人工逐张目视后再走 build-photos.py batch + add-photos.mjs。', '']
