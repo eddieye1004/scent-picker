@@ -2653,6 +2653,11 @@ function renderAvoid() {
   }
 
   wrap.append(wall, count, gloss);
+  /* 首屏就要有提示行：paintMeta 原来只在点卡时跑，于是第一次进这一屏
+     count 与 gloss 都是空字符串 —— 用户得先点一下才知道"点一下＝这个不要"。
+     在挂载后补一次调用即可（不是结构调整，两个节点本来就已建好）；
+     顺带让"回到这一屏"时已有的选择被正确回读，而不是从空开始。 */
+  paintMeta();
   wrap.appendChild(navBar('unwanted'));
   return wrap;
 }

@@ -2222,8 +2222,11 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
   const ids = S.all.map((x) => x.id);
   /* 计数一律用 S.all.length 派生写进期望值：断言名字里的数字若与表长脱钩，
      下一个人删一屏就得手工改两处，改漏的那处会变成一条"永远绿"的假断言。
-     唯一例外是这一条：它就是"表长该是几"的定义处，写死 6 才有意义。 */
-  ok('步骤全集是 6 步（v7 定版）', S.all.length === 6, `实际 ${S.all.length}`);
+     唯一例外是这一条：它就是"表长该是几"的定义处，写死 6 才有意义。
+     因此写死值收成下面这一个常量，凡是要"钉死屏数"的地方都引用它 ——
+     散落两处写死 6 与本处自派生是同一类坑的两侧：前者改漏一处，后者自我循环。 */
+  const STEP_COUNT = 6;
+  ok(`步骤全集是 ${STEP_COUNT} 步（v7 定版）`, S.all.length === STEP_COUNT, `实际 ${S.all.length}`);
   /* 顺序即内容：圆盘第 1、避雷第 2、预算末屏（第 6）。
      写成整串比对而不是逐项 includes —— 逐项判不出顺序错。 */
   ok('六屏顺序与 v7 定版一致（圆盘第 1、避雷第 2、预算末屏）',
@@ -2242,7 +2245,7 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
      两处都在最后一屏之后，所以"圈池"这件事在引擎侧从来没有提前发生过。
      理由留在断言名里，是为了让下一个人不会再拿旧理由去"修"这个位置。 */
   ok('预算是末屏（第 6 位；价格过滤只在 finish() 生效，屏序不影响口径）',
-    ids[ids.length - 1] === 'budget' && ids[5] === 'budget', ids[5]);
+    ids[ids.length - 1] === 'budget' && ids[STEP_COUNT - 1] === 'budget', ids[STEP_COUNT - 1]);
   /* 已知款不许复活：它是 v7 定版明确删掉的一屏，且要求用户认得瓶子。 */
   ok('已知款（anchor）不得复活', !ids.includes('anchor'), ids.join(','));
 
@@ -2266,18 +2269,23 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
     S.cur({}).length === S.cur({ family: 'floral', occasion: 'commute' }).length,
     `${S.cur({}).length} vs ${S.cur({ family: 'floral', occasion: 'commute' }).length}`);
 
-  /* 「第 N 步 / 共 M 步」跟着表走 */
-  ok(`末屏是第 ${S.cur({}).length} 步 / 共 ${S.cur({}).length} 步`,
-    S.head('budget', {}).kicker === `第 ${S.cur({}).length} 步 / 共 ${S.cur({}).length} 步`,
+  /* 「第 N 步 / 共 M 步」跟着表走 —— 但期望值写死 STEP_COUNT，不用 S.cur({}).length。
+     只读复核（2026-11-19，cx1）指出：自派生等于让期望值跟被测对象同源，
+     表长本身错了（例如误删一屏）这条仍会绿，属自我循环。写死常量才与
+     「步骤全集是 6 步」同一处口径，删屏只改 STEP_COUNT 一处。 */
+  ok(`末屏是第 ${STEP_COUNT} 步 / 共 ${STEP_COUNT} 步`,
+    S.head('budget', {}).kicker === `第 ${STEP_COUNT} 步 / 共 ${STEP_COUNT} 步`,
     S.head('budget', {}).kicker);
-  ok('第 1 屏是第 1 步 / 共 6 步',
-    S.head('family', {}).kicker === '第 1 步 / 共 6 步', S.head('family', {}).kicker);
+  ok(`第 1 屏是第 1 步 / 共 ${STEP_COUNT} 步`,
+    S.head('family', {}).kicker === `第 1 步 / 共 ${STEP_COUNT} 步`, S.head('family', {}).kicker);
 
   /* 越界夹取：表长跟着 v7 定版走（6 屏） */
-  ok('越界夹取：step=7 在 6 步表里夹到 6', S.clamp(7, 6) === 6, String(S.clamp(7, 6)));
-  ok('越界夹取：step=6 在 6 步表里保持 6（=结果页）', S.clamp(6, 6) === 6, String(S.clamp(6, 6)));
-  ok('越界夹取：负数是 0', S.clamp(-1, 6) === 0, String(S.clamp(-1, 6)));
-  ok('越界夹取：NaN 是 0', S.clamp(NaN, 6) === 0, String(S.clamp(NaN, 6)));
+  ok(`越界夹取：step=7 在 ${STEP_COUNT} 步表里夹到 ${STEP_COUNT}`,
+    S.clamp(7, STEP_COUNT) === STEP_COUNT, String(S.clamp(7, STEP_COUNT)));
+  ok(`越界夹取：step=${STEP_COUNT} 在 ${STEP_COUNT} 步表里保持 ${STEP_COUNT}（=结果页）`,
+    S.clamp(STEP_COUNT, STEP_COUNT) === STEP_COUNT, String(S.clamp(STEP_COUNT, STEP_COUNT)));
+  ok('越界夹取：负数是 0', S.clamp(-1, STEP_COUNT) === 0, String(S.clamp(-1, STEP_COUNT)));
+  ok('越界夹取：NaN 是 0', S.clamp(NaN, STEP_COUNT) === 0, String(S.clamp(NaN, STEP_COUNT)));
 
   const allReachable = S.all.every((x) => typeof x.render === 'function');
   ok(`${S.all.length} 个步骤全部有可渲染函数`, allReachable,
