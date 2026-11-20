@@ -1,0 +1,175 @@
+/* ============================================================
+   98 · 动态避雷屏（feat/quiz-v7-step2-avoid）
+   ------------------------------------------------------------
+   第 2 屏「只问最容易踩雷的几个」。候选由 src/avoid.js 现算，
+   封顶 6 张，所以这一屏是**一列大卡片、一屏看完**，不是网格抽屉。
+
+   视觉沿用 80-specimen 的暖纸标本语言：卡面 --spec-plate、
+   发丝线 --spec-hair、控件边界 --stroke-ui、划掉用 --danger。
+   文字色只取已纳入 test-contrast 审计的 token（ink / ink-2 / ink-3 /
+   danger / spec-ink），不引入新文字色。
+
+   交互只有一种：点卡＝「这个不要」（.is-on），不点＝接受。
+   所以没有"想要"态，右侧那枚 .avoid-mark 印章只在 .is-on 时落下来。
+   围栏：所有选择器都带 .avoid- 前缀，不命中圆盘、其余问卷屏与结果页。
+   ============================================================ */
+
+/* 一列大卡片。限宽让桌面端不至于把一张卡拉成一条横幅；
+   窄屏自然撑满。z-index:1 与 life-grid 同理，压在底噪之上。 */
+.avoid-wall {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+.avoid-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 84px;               /* 触控目标远超 44px 下限 */
+  padding: 14px 18px;
+  text-align: left;
+  background: var(--spec-plate);
+  border: 1px solid var(--stroke-ui);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color var(--t-hover) var(--ease),
+              border-color var(--t-hover) var(--ease),
+              box-shadow var(--t-hover) var(--ease);
+}
+
+.avoid-card:hover {
+  background: var(--spec-tint-hot);
+  border-color: var(--ink-3);
+}
+
+/* 键盘焦点：与 .btn 同一套可见环，不去默认 outline 也不裸奔。 */
+.avoid-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 标本风小图：复用圆盘那 24 枚上色 SVG，不新造图标。
+   viewBox 24×24、透明底，放大到 56px 仍是清晰线稿。 */
+.avoid-spec {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.avoid-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;                    /* 让长句能缩行而不撑破卡片 */
+  flex: 1 1 auto;
+}
+
+/* 场景句是这一屏的主角：衬线、大一档，读起来像标本签上的名字。 */
+.avoid-zh {
+  font: 500 18px/1.35 var(--font-serif);
+  color: var(--ink);
+}
+
+.avoid-hint {
+  font: 400 13px/1.5 var(--font-ui, system-ui);
+  color: var(--ink-3);
+}
+
+/* 「这个不要」印章：平时隐去，点下去才落下。
+   做成一枚描边小章（危险色），不是红底警告块 —— 它是"划掉"，不是"报错"。 */
+.avoid-mark {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  font: 600 12px/1 var(--font-ui, system-ui);
+  letter-spacing: .06em;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 3px;
+  opacity: 0;
+  transform: scale(.9);
+  transition: opacity var(--t-hover) var(--ease), transform var(--t-hover) var(--ease);
+}
+
+/* 选中＝这个不要：左缘一道危险色横杠 + 场景句划掉 + 印章落下。
+   与 life-grid.is-neg 的"划掉"语义一致，但这里整卡都是开关。 */
+.avoid-card.is-on {
+  border-color: var(--danger);
+  box-shadow: inset 3px 0 0 var(--danger);
+  background: var(--bg);
+}
+
+.avoid-card.is-on .avoid-zh {
+  color: var(--danger);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.avoid-card.is-on .avoid-mark {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* 计数行：常驻。没点时明说"都接受"，点了报数。 */
+.avoid-count {
+  margin: 16px auto 0;
+  max-width: 640px;
+  font: 500 13px/1.4 var(--font-ui, system-ui);
+  letter-spacing: .04em;
+  color: var(--ink-2);
+}
+
+/* 译文行：与 life-gloss 同一职责（规格 5 常驻），选了什么说什么。 */
+.avoid-gloss {
+  margin: 8px auto 0;
+  max-width: 640px;
+  min-height: 40px;
+  font: 400 14px/1.65 var(--font-ui, system-ui);
+  color: var(--ink-2);
+}
+
+.avoid-gloss.is-idle { color: var(--ink-3); }
+
+/* 数据未到 / 方向未定时的占位句。 */
+.avoid-empty {
+  margin: 24px auto;
+  max-width: 640px;
+  font: 400 14px/1.7 var(--font-ui, system-ui);
+  color: var(--ink-3);
+}
+
+/* 窄屏：小图收一档、印章不挤占场景句。卡片仍是一列纵排（不分页、不横滑）；
+   390×844 放不下六张大卡＋页眉，允许纵向滚动 —— "一屏看完"在桌面档保证。 */
+@media (max-width: 620px) {
+  .avoid-card { gap: 12px; padding: 12px 14px; min-height: 76px; }
+  .avoid-spec { width: 46px; height: 46px; }
+  .avoid-zh { font-size: 16px; }
+  .avoid-mark { padding: 4px 8px; }
+}
+
+/* 桌面「一屏看完」：避雷屏把页眉的封面 chrome 收起（标题缩一档、lede 隐藏），
+   并收紧墙与计数/译文行的间距，让六张大卡＋导航在 900px 高内完整可见。
+   进度条与方向刻度不在收起之列 —— 步数/进度是这一屏的契约。
+   只作用于 unwanted 一屏，其它屏的页眉保持原样。 */
+@media (min-width: 621px) {
+  #app[data-step="unwanted"] .masthead { padding-top: 12px; margin-bottom: 14px; }
+  #app[data-step="unwanted"] .masthead h1 { font-size: 26px; }
+  #app[data-step="unwanted"] .masthead .lede { display: none; }
+  /* 说明句放宽到一行，省出纵向空间给卡片 */
+  #app[data-step="unwanted"] .stage-lead .q-help { max-width: 46em; }
+  #app[data-step="unwanted"] .avoid-wall { gap: 8px; }
+  /* 卡片收一档密度（仍是大卡：整宽 640、70px 高），保证第六张完整落在
+     sticky 导航条之上 —— 导航贴底时会盖住超出的内容。 */
+  #app[data-step="unwanted"] .avoid-card { min-height: 70px; padding: 10px 18px; }
+  #app[data-step="unwanted"] .avoid-spec { width: 48px; height: 48px; }
+  #app[data-step="unwanted"] .avoid-count { margin-top: 10px; }
+  #app[data-step="unwanted"] .avoid-gloss { margin-top: 4px; min-height: 24px; }
+}

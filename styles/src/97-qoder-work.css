@@ -1,0 +1,183 @@
+/* ============================================================
+   97-qoder-work.css — Qoder 改造层（2026-11-18）
+   ------------------------------------------------------------
+   只服务结果页新增的两块：分享卡片下载行、我的香水档案。
+   不碰圆盘、问卷八屏、深色主题 token —— 所有颜色都取既有变量，
+   所以 test-contrast 的 48 条断言不需要为新组件放宽任何一条。
+
+   为什么另开一层：styles.css 是 95 层按顺序拼出来的产物，
+   直接改产物会在下一次 build-css 时静默丢失。新功能独立成层，
+   与「哪一层负责什么」的既有约定一致。
+   ============================================================ */
+
+/* ---------- 分享卡片：下载 PNG ---------- */
+.qw-share-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  max-width: 560px;
+}
+
+/* 主按钮的字号/触控高度继承 .btn；这里只收窄横向留白，
+   让它和摘要卡同宽，而不是把整行撑成第二个主操作。 */
+.qw-share-row .btn {
+  padding: 12px 18px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* ---------- 我的香水档案 ---------- */
+.qw-history {
+  margin-top: 34px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  max-width: 560px;
+}
+
+.qw-history-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.qw-history-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+  line-height: 1.3;
+}
+
+/* 与 .chips-label 同一条引出线，保证新块不是"另一个设计语言"。 */
+.qw-history-label::before {
+  content: "";
+  flex: none;
+  width: 12px;
+  height: 1px;
+  background: var(--ink);
+}
+
+.qw-history-sub {
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+
+.qw-history-toggle {
+  flex: none;
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.qw-history-panel {
+  margin-top: 16px;
+  padding: 2px 18px 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--stroke-l1);
+  border-radius: var(--radius, 4px);
+}
+
+/* hidden 必须显式压回 none：面板自己的 display 一旦被写成 block，
+   浏览器默认的 [hidden]{display:none} 就会被层叠掉。 */
+.qw-history-panel[hidden] {
+  display: none;
+}
+
+.qw-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.qw-history-item {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.qw-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.qw-history-time {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+.qw-history-entry {
+  padding: 1px 8px;
+  border: 1px solid var(--stroke-l1);
+  border-radius: 999px;
+  color: var(--ink-2);
+  letter-spacing: 0.02em;
+}
+
+.qw-history-names {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.qw-history-brand {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.qw-history-empty {
+  margin: 0;
+  padding: 16px 0 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+
+.qw-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+/* 清空按钮沿用 .link-btn 的 44px 触达与焦点环，只把颜色换成危险色。
+   危险色对 --bg-2 的对比仍高于 4.5（与 test-contrast 的 --danger 同一档）。 */
+.qw-history-clear {
+  color: var(--danger);
+}
+
+.qw-history-clear:focus-visible {
+  outline-color: var(--danger);
+}
+
+@media (max-width: 520px) {
+  .qw-history-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .qw-history-toggle {
+    align-self: flex-start;
+  }
+}

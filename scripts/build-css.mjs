@@ -34,6 +34,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { minifyCss, canonicalCss } from './lib/css-minify.mjs';
 
 const ROOT = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 const SRC = path.join(ROOT, 'styles', 'src');
@@ -62,6 +63,19 @@ const PARTS = [
      顺序本身对观感无影响 —— 实测两层选择器集合**完全不重叠**（quiz-v6 104 个 /
      line-system 11 个，交集 0），谁也覆盖不到谁。 */
   '90-quiz-v6.css',
+  /* 问卷 v7 第 1.5 步：第 1 屏圆盘的设计层（九条缺陷 + 液态玻璃交互）。
+     必须最后：它用 `#app[data-step="family"]` 这个 id 级选择器覆盖
+     70-final 与 20/30 层在圆盘上的取值，且只挂在第 1 屏之下 ——
+     其余七屏与结果页不受影响（那是本层唯一的围栏）。 */
+  '95-quiz-v7-design.css',
+  /* Qoder 改造层（2026-11-18）：结果页的历史档案与分享 PNG 下载行。
+     放在最后，避免与既有层抢结果页的样式；两条选择器都带 .qw- 前缀，
+     不会命中问卷各屏与圆盘。 */
+  '97-qoder-work.css',
+  /* 动态避雷屏（feat/quiz-v7-step2-avoid）：第 2 屏的场景卡片墙。
+     放在最后；所有选择器带 .avoid- 前缀，不命中圆盘、其余问卷屏与结果页。
+     文字色只取已审计 token，不引入新文字色。 */
+  '98-avoid-wall.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');
@@ -76,14 +90,26 @@ const built = PARTS.map((p) => read(path.join(SRC, p))).join('');
 const outPath = path.join(ROOT, 'styles.css');
 const cur = fs.existsSync(outPath) ? read(outPath) : '';
 
+/* ==== 压缩：只去注释、只压空白（性能腿 2026-11-19）====
+   审计实测源产物 419KB 里 65.4% 是注释（840 段 / 274KB），gzip 后 148.8KB →
+   去注释 27.4KB。这里是渲染阻塞资源，所以这一步直接换首屏传输。
+   实现在 lib/css-minify.mjs，自带一条可执行证据：归一化后必须与源拼接逐字符相同。
+   为什么不用现成的 lightningcss/cssnano minify：见该文件的文件头注释（会合并规则）。 */
+const minified = minifyCss(built);
+if (canonicalCss(minified) !== canonicalCss(built)) {
+  console.error('✗ 压缩后语义不等价（归一化比对失败）—— 拒绝写出产物，源层未动。');
+  process.exit(1);
+}
+
 const checkOnly = process.argv.includes('--check');
 if (checkOnly) {
-  const inSync = cur === built;
+  const inSync = cur === minified;
   console.log(inSync
-    ? `✓ styles.css 与源层一致（${built.length} 字节，${built.split('\n').length} 行）`
-    : `✗ styles.css 与源层不同步：产物 ${cur.length} 字节 / 应为 ${built.length} 字节`);
+    ? `✓ styles.css 与源层一致（${minified.length} 字节，${minified.split('\n').length} 行）`
+    : `✗ styles.css 与源层不同步：产物 ${cur.length} 字节 / 应为 ${minified.length} 字节`);
   process.exit(inSync ? 0 : 1);
 }
 
-fs.writeFileSync(outPath, built);
-console.log(`styles.css 已重建：${built.length} 字节，${built.split('\n').length} 行，${PARTS.length} 个源层`);
+fs.writeFileSync(outPath, minified);
+console.log(`styles.css 已重建：${minified.length} 字节（源 ${built.length}，−${built.length - minified.length} 压缩），`
+  + `${minified.split('\n').length} 行，${PARTS.length} 个源层`);

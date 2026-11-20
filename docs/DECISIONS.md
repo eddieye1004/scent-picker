@@ -3322,3 +3322,125 @@ notes 维度另立一套 notes-first 专属小集，草案 `docs/reviews/GOLD-NO
 ### 顺带：G5 正式关闭
 
 `docs/TODO-REMAINING.md` 的 G5「三份清单」状态为「材料从未出现」，按审计表口径**无材料**，Eddie 2026-11-11 批准**正式关闭**，不留悬空条目。
+
+## D71 · 删中文字体腿：362 KB 中文 webfont 退场，CJK 回系统栈（2026-11-19）
+
+Eddie 2026-11-19 21:00 裁决：按 2026-11-18 首屏性能审计的浪费点 3 **A 方案**执行 —— 删掉 `NotoSC`，中文回退系统字体栈。
+
+### 为什么删
+
+`fonts/noto-sans-sc-subset.woff2` 362,480 B，是首屏最大单项资源（占 1.04 MB 的 **34.9%**）。
+它的问题不是"大"这一个字：`font-display: swap` 让它在 FCP **之后 1.5 s** 才下载完，那段时间里
+它一边和 modules / taxonomy 抢带宽，一边产生可见的字形切换。审计给的三条改法里，
+A 是唯一不动构建链、不动部署的一条。
+
+### 改了什么
+
+| 位置 | 改动 |
+|---|---|
+| `styles/src/70-final.css` | 删 `@font-face { font-family: "NotoSC" }`（3 个 `@font-face` → 2 个，只剩 InterVar 两段）；`--font-body` 去掉 `"NotoSC", "Noto Sans SC"` |
+| `fonts/` | 删 `noto-sans-sc-subset.woff2`；`inter-var-latin{,-ext}.woff2` 不动 |
+| `sw.js` | `CORE` 去掉该项；`VERSION` `v2-20261118b` → `v2-20261119a` |
+| `src/share-card.js` | canvas 字体栈里的 `"NotoSC"` 换成 `"InterVar"` / `"PingFang SC"`（canvas 不认 CSS 变量，只能重写一份） |
+| `index.html` / `about.html` | `styles.css?v=` 进一位（`20261118a` / `20261110a` → `20261119a`）；`app.js` 内容未变，版本号保持 |
+| `docs/launch/social-preview.html`、`SOCIAL-PREVIEW.md` | 同一字体栈，`NotoSC` 换成 `PingFang SC` |
+| `scripts/test-qoder-features.mjs` | 版本号断言改成 `styles.css?v=20261119a`（断言条数不变，仍是 66） |
+
+`--font-body` 最终顺序（审计 A 方案）：
+
+```
+"InterVar", "Inter", "Helvetica Neue", Helvetica, -apple-system,
+"PingFang SC", "HarmonyOS Sans SC", "MiSans", "Hiragino Sans GB",
+"Microsoft YaHei", "Source Han Sans SC", Arial, sans-serif
+```
+
+### 接受的代价（不是回归，是取舍）
+
+D68 当初上 webfont 的动机是「YaHei 只有 Regular/Bold，500/600 塌成 700」。删掉之后
+**Windows 上这个问题会回来**：`.pick h3` 的 `font-weight: 500` 在 YaHei 下仍会就近映射到 700。
+macOS / iOS 的 PingFang SC 有真 500，不受影响。这是用 362 KB 首屏传输换来的，判定线里没有
+"字重必须仍为真 500"这一条；若日后认为不可接受，回退路径是先按 `unicode-range` 拆块（审计 B 方案），
+不是原样接回整份子集。
+
+### 实测（本地 gzip 服务 + 无头 Edge + CDP，与审计同口径）
+
+- 首屏字节 **634,528 → 272,029**（−362,499，正好是那份字体的传输量）；请求 20 → 19。
+- 首屏网络记录里 `noto-sans-sc-subset.woff2` 0 命中；服务端日志 0 命中；Cache Storage 0 残留。
+- 首屏只请求 `/fonts/inter-var-latin.woff2` 一个字体。
+- 中文字形：标题 12 个 CJK 字符逐个 `measureText`，最小 advance 22px、0 个零宽字形。
+- 离线冷启动：装好 SW 后**关掉 HTTP 服务**、同 profile 重启浏览器打开同一地址，
+  第 1 屏正常（6 个扇区、标题「你闻着舒服的，是哪一类味道？」），断网期间服务端命中 0。
+  这一条必须关服务端才算数 —— 只做 CDP `offline` 模拟时 SW 有独立 target，
+  「缓存优先 + 后台更新」照样把 17 个请求打到服务端，那样测出来的"离线可用"是假的。
+- 测试：check-head 7 套全绿（render 334 / contrast 48 / scoring 153 / compliance 10 /
+  union-api 76 / category-gate 10 / jd-web 17）；qoder 66 / avoid 40；金标 2/12 · 4/12（±0）。
+
+### 未做
+
+`docs/launch/social-preview.png` 是删字体前渲染的，未重出（生成它需要手工开浏览器截图，
+不在本腿范围）；`social-preview.html` 的字体栈已同步，下次重出即为新栈。
+
+## D72 · v7 第 3 步：匹配度显示门槛 `MATCH_PCT_MIN_DIMS` 8 → 6（2026-11-19）
+
+把 `src/scoring.js` 的 `MATCH_PCT_MIN_DIMS` 从 8 改为 6，**只动显示门槛，不改任何分数、
+不改排序、不改归一分母**。D55 里「为什么是 8」那段论证是对旧口径（13–16 维）写的，
+本次没有推翻它，而是它的前提被删屏改变了。
+
+### 为什么改
+
+v7 第 3 步删掉 emotion 屏与 wanted 屏之后，引擎可数维度的上限从 16 降到 14，
+**UI 能答出的维数**也跟着降：删屏前那条"把情绪与想要都答上"的路径实测 12 维
+（旧计划附录记的是 13，差 1 维定位不到，不影响结论），删屏后的 UI 全答路径只剩 8 维。
+旧门槛 8 恰好卡在 UI 可达上限上，后果是只有把每一屏都答满的 d7 深度才显示百分比，
+d5、d6 这两种常见深度全部退回「初步匹配」—— 而"初步匹配"在结果页上读起来像
+"系统还没看懂你"，与用户实际答了一多半的事实不符。
+
+实测（本机探针 `probe-threshold-surface.mjs` 产出，6 个香型家族 × 7 个作答深度 =
+42 条路径；探针与 JSON 都是本地核查产物、**未入库**，入库的只有结论）：
+
+| 指标 | 实测 |
+|---|---|
+| `activeDims` 随深度分布（d1..d7，六族一致） | 2, 3, 4, 5, 6, 6, **8** |
+| `activeDims < 8` | **36 条 / 42** |
+| `activeDims = 8` | **6 条 / 42**（六个家族的 d7） |
+| 新门槛 6 下 `shownAt6 = true` | **18 条**（d5/d6/d7），占 43% |
+| 旧门槛 8 下 `shownAt8 = true` | 6 条（仅 d7） |
+
+所以「8 永不可达」是**错的**：d7 就是 8 维，可达。改 6 是主动放宽，不是"够不到 8 才降"。
+这个措辞更正同步落到了 `src/scoring.js:14-34` 的注释里（只改注释，零代码改动，
+`test-scoring` 153/0 不变）。
+
+d7 的 8 维构成：`family` / `subfamily` / `occasion` / `intensity` / `concentration` /
+`longevity` / `season` / `dislikedNotes`。其中 `longevity` 是浓度档的推断值、
+自 v42 起不参与打分，所以"8 维"是代码口径成立、其中只有 7 条是用户各自独立说过的信息。
+
+### 重构链六腿落点（可回退的坐标）
+
+| 腿 | 内容 | 落点 commit |
+|---|---|---|
+| 腿 1 | L0 前置门禁 + L1 删大方向（emotion）屏，保留 `answers.emotion` 键与盘下兜底入口 | `12444bf` |
+| 腿 2 | L2 删「想要的味道」屏（映射层与 `wanted` 键保留）+ **L6 本门槛 8→6** + L3 认屏串核对 | `32aa40d` / `e99a513` / `c234edf` |
+| 腿 3 | L3 预算屏搬末屏 —— **未提交即停手上报**（搬屏正确但 test-render 机械性抛错，触发预注册停止条件） | 无（改动留存，见腿 3+4） |
+| 腿 3+4 | 预算屏搬末屏 + L4 断言随屏序重标定（合并落地） | `f7fe5ae` |
+| 腿 5 | L5 引擎口径核验（只读，零代码改动） | 无（回执与报告是本地 `.legs/` 产物，未入库） |
+| 腿 6 | 避雷文案按裁定改写 7 条（源 + 生成物同步） | `c8cdf20` |
+
+L0 的 HEAD 是 `a1b9739`，也是腿 5 重建基线用的那棵树。
+
+### 已知文档漂移（本次**未**修，留作待办）
+
+下列文件仍按旧门槛 8 叙述，属删屏前的口径，本次不动：
+`docs/DECISIONS.md` D55 段（本文件上方，按"不许改旧条目"的约束保留原样）、
+`docs/reviews/MOOD-STEP-VERDICT-20261111.md:83`、`scent-launch-pack/README.md:36`、
+`scent-launch-pack/05-faq.md:30`。D55 那段保留的理由：它记录的是当时（旧口径 13–16 维）
+的真实论证与实测数字，改写它等于伪造决策史；读它的人应先读到本条。
+
+### 同批收尾（同一个 commit）
+
+- `dist/` 重建：自腿 2 起 `dist/` 一直陈旧，`dist/src/scoring.js` 里还是 `= 8`。
+  跑 `node scripts/make-dist.mjs` 刷新，594 个产物文件与源码逐文件 sha256 一致。
+- `scripts/test-render.mjs` 末屏步数断言从 `S.cur({}).length` 自派生改回写死常量
+  `STEP_COUNT = 6`（与「步骤全集是 6 步」合并为唯一写死处）。自派生会让期望值跟被测
+  对象同源，表长本身错了这条仍会绿。
+- `app.js` `renderAvoid()` 在挂载前补一次 `paintMeta()`：此前它只在点卡时触发，
+  首屏进入避雷屏时提示行是空的。

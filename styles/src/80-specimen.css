@@ -280,8 +280,9 @@ body {
    为什么是 26px/500：21px 的衬线只比下面 14px 的品牌行高 7px，扫读时两行会连成
    一句「Aqua Universalis Maison Francis Kurkdjian 淡香水 EDT | … 源家族」。
    提到 26px 后名与 meta 拉开 12px 差，一眼能分出「这是什么」和「谁做的」。
-   字重取 500 而不是 700：InterVar / NotoSC 是可变字体，500 是真实字重
-   （YaHei 时代 500 会塌成 700，这也是历史上不敢用 500 的原因）。
+   字重取 500 而不是 700：InterVar（拉丁/数字）是可变字体，500 是真实字重；
+   中文自 2026-11-19 起走系统黑体（DECISIONS D71），Windows 上 500 仍会就近塌成 700，
+   这是删掉 362 KB 中文 webfont 换来的已知代价，不是回归。
    **桌面 26px、窄屏 22px 分开写**：`Eterna Man Limited Edition` 这类 24 字符名
    在 390 宽、26px 下会折两行，把首屏又还回去。 */
 .pick h3 {

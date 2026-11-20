@@ -11,16 +11,46 @@ import { tokenize, matchesNote, aliasesOf, normNote, hasTokenSubsequence } from 
 
 export const SCHEMA_VERSION = '1.1.0';
 
-/* ---------- 匹配度展示门槛（G6，v28）----------
+/* ---------- 匹配度展示门槛（G6，v28；v7 第 3 步③ 重标定）----------
 
    低于这么多"激活维度"时不显示百分比，改显示定性文案。
 
-   为什么是 8：实测（scripts/probe-matchpct.mjs，40 组随机答案 × 10 个深度）
+   ==== 为什么现在变成 6（2026-11-19，v7 第 3 步删两屏后重标定）====
+   emotion 屏（第 ① 步）与 wanted 屏（第 ② 步）删除后，引擎可数维度的上限
+   从 16 掉到 14 —— 注意 14 是**引擎**可数上限，不是 **UI** 可达上限（UI 可达 8），
+   两个数不是一回事，别读成同一件。
+   UI 全答路径（6 屏答满：方向含子类 / 避雷 / 场合 / 季节 / 浓淡 / 浓度档，
+   浓度档会自动带出留香）实测可达 **8** 维；42 条作答路径中 36 条低于 8、
+   6 条等于 8（六个香型家族的 d7 深度全部为 8）。所以 8 这个门槛**并非不可达**。
+   本次按新口径主动放宽到 6，是为了让 d5 起的常见深度也能显示百分比
+   （42 条里 18 条 = d5/d6/d7，占 43%），不是"因为 8 够不到"。
+   这批数字来自本机探针 `probe-threshold-surface.mjs` 产出的
+   `L5-threshold-surface.json`（6 香型家族 × 7 个深度 = 42 条路径）。
+   两者都是本地核查产物、**未入库**，入库的只有结论本身；
+   要复算请照 D72 记的口径重跑，别去仓库里找这两个文件。
+   计数口径提醒：这 8 维里 longevity 是浓度档的推断值、自 v42 起不参与打分
+   （见下方 WEIGHTS 区注释），所以"8 维"是代码口径成立，其中只有 7 条
+   是用户各自独立说过的信息 —— 不影响"可达"的判定，只影响措辞。
+   6 与本文件下方 `recommend` 里那句旧注释写的数字一致（那句一直写 6，
+   与常量 8 早已不一致，是 2026-11 重做归一化分母时漏改的）。
+   更正记录：本段旧版曾写"UI 全答只剩 6 维 / 8 永不可达 / 全站退回初步匹配"，
+   那是把"屏幕数"当成了"维度数"（预算屏根本不进 activeDims），三句均与实测不符，
+   2026-11-19 按只读核查结论改写；结论见 docs/DECISIONS.md D72。
+
+   ==== 为什么原来写 8（保留原始论证，说明没被推翻）====
+   实测（scripts/probe-matchpct.mjs，40 组随机答案 × 10 个深度）
    在"库内可达上界"这个分母下，激活维度 ≥ 8 时第 1 名的百分位中位数
    落在 82–86%（8 维 86%、15 维 82%），波动可接受；
    7 维及以下时最高会飙到 99%（分母也被砍到只剩那几项，数学自洽但读起来
-   像虚假承诺）。门槛设在百分比开始"虚高"的位置，宁可说「初步匹配」。 */
-export const MATCH_PCT_MIN_DIMS = 8;
+   像虚假承诺）。门槛设在百分比开始"虚高"的位置，宁可说「初步匹配」。
+   那段论证针对的是**旧口径的 13–16 维**；现在维度上限本身降了，
+   同样的 6 维在删屏后的答案集里对应的是"该答的都答了"，不是"只答了一点"。
+   这条重标定只动显示门槛，**不改任何分数、不改排序、不改归一分母**。 */
+export const MATCH_PCT_MIN_DIMS = 6;
+
+/* 避雷屏软降权系数（见 recommend 里 avoidSoftHit 的注释）。
+   导出是为了让 test-avoid 能断言"软降权确实发生了、且幅度就是这个数"。 */
+export const AVOID_SOFT_MUL = 0.94;
 
 /* ---------- 权重配置（集中于此，便于调参与写测试） ---------- */
 export const WEIGHTS = {
@@ -975,11 +1005,32 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
     return 0.82;
   };
 
+  /* 避雷屏的软降权（feat/quiz-v7-step2-avoid）：没上屏的低频模糊元素
+     由调用方经 opts.avoidSoftNotes 传进来，命中的瓶子乘 AVOID_SOFT_MUL。
+     与 dislikedNotes（-40 硬惩罚）是两档：点过卡的走硬惩罚，
+     没点但落在模糊带里的只轻轻压一下 —— 不硬排除，结果池门一行不动。
+     0.94 与 boundaryPenalty 的 0.82 同一量级思路：压排序不翻盘。
+     只对正分生效：负分本已在受罚，再乘小于 1 的数反而把它抬上来。 */
+  const avoidSoftNotes = opts.avoidSoftNotes || [];
+  const avoidSoftHit = avoidSoftNotes.length ? (perfume) => {
+    const toks = (perfume.notesAll || []).map((x) => tokenize(x));
+    return avoidSoftNotes.some((key) => {
+      const entry = profile.noteEntryOf?.get(normNote(key));
+      if (entry) return toks.some((t) => matchesNote(entry, null, t));
+      const needle = tokenize(key);
+      return needle.length > 0 && toks.some((t) => hasTokenSubsequence(t, needle));
+    });
+  } : () => false;
+
   const scored = perfumes.map((p) => {
     const r = scorePerfume(p, profile, taxonomy, opts);
     /* opts.boundary === false 时关闭惩罚，仅供 scripts/probe-boundary.mjs 做 A/B。 */
     const mul = opts.boundary === false ? 1 : boundaryPenalty(p);
-    return { perfume: p, ...r, score: r.score * mul, boundaryMul: mul };
+    const softMul = r.score > 0 && avoidSoftHit(p) ? AVOID_SOFT_MUL : 1;
+    const row = { perfume: p, ...r, score: r.score * mul * softMul, boundaryMul: mul };
+    /* 不传 avoidSoftNotes 时对象形状与旧版逐位一致（老测试不受扰）。 */
+    if (softMul !== 1) row.avoidSoftMul = softMul;
+    return row;
   }).sort((a, b) => b.score - a.score);
 
   // 香型轮盘入口：优先只从"真的是这一族"的瓶里挑。
@@ -1066,9 +1117,10 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
           它一定 >= 任何单瓶得分（每瓶每项都不会超过该项的库内最高），
           所以百分比不会超过 100%，而且 100% 是**真的能到**的。
        ② 但分母随答案变会让"答得少反而高"，所以配一道**证据门槛**：
-          激活维度 < MATCH_PCT_MIN_DIMS（6）时**不显示百分比**，
-          改显示「初步匹配」。六维以上时 F 口径实测稳定在 79–86% 区间
-          （深度 5 是 86%，深度 9 是 79%），波动 7 个点，可接受。
+          激活维度 < MATCH_PCT_MIN_DIMS 时**不显示百分比**，改显示「初步匹配」。
+          门槛值与理由见文件顶部常量处（v7 第 3 步删两屏后由 8 重标定为 6 ——
+          不是这里改的：这里只跟着常量走，不再重复写死一个数字，
+          那句旧注释里的「（6）」正是常量曾为 8 时留下的不一致）。
 
      为什么不干脆保留 275：它让"最好的一瓶"永远显示 60–70%，
      用户看到的第一反应是"这推荐不靠谱"，而问题出在分母不是算法。

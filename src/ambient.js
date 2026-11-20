@@ -64,20 +64,33 @@ export const PEAK_STRENGTH = 0.79;
  *            axis:string, kicker:string}}
  */
 export function ambientOf(answers, step, total) {
-  const dir = answers && answers.emotion;
+  /* ==== v7 第 1 步：方向可以有两个来源，但同一时刻只有一个生效 ====
+     ① answers.direction —— 香型圆盘（第 1 屏）选出来的大方向。值是六轴 id，
+        由 app.js 的 AXIS_OF_FAMILY 从家族换算过来（六族 ↔ 六轴的最优匹配）。
+     ② answers.emotion   —— v6 的大方向屏（第 3 屏）。它仍在，只是圆盘给了
+        方向之后它不再充当底噪来源：一个人先说了"木质调"、后又说"温暖"，
+        若两者都能改方向，底噪就会在流程中途掉头 —— 那正是第 1 条纪律
+        要防的事（"来源只能是第一个大方向"，第一个给的那一个）。
+     优先级不是靠"谁后写"决定的，是靠这里显式判定的：direction 在就只读它。 */
+  const fromWheel = !!(answers && answers.direction && DIRECTION_AXES[answers.direction]);
+  const dir = fromWheel ? answers.direction : (answers && answers.emotion);
   const ax = DIRECTION_AXES[dir];
   if (!ax) {
     /* 还没选大方向：底噪不存在（不是"强度 0 的底噪"，是诚实的没有）。
-       第 1 屏（预算）因此是一张干净的纸 —— 底噪从第 2 屏才开灯。 */
+       圆盘屏因此是一张干净的纸 —— 底噪从"圆盘被点中"那一刻才开灯。 */
     return {
       active: false, temp: 0, light: 0, sat: 0, strength: 0, axis: 'none', kicker: '',
     };
   }
 
-  /* ---- 进程：从大方向那一屏起算 0，到末屏 1 ----
-     为什么用「大方向所在屏」而不是第 0 屏做起点：第 1 屏（预算）时用户还没
-     给出方向，那时给底噪就是在替用户定调。 */
-  const start = Math.max(1, directionIndex(answers));
+  /* ---- 进程：从"方向给出的那一屏"起算 0，到末屏 1 ----
+     为什么用「方向所在屏」而不是第 0 屏做起点：还没给出方向时给底噪，
+     就是在替用户定调。
+       · 圆盘来源：方向在第 1 屏（下标 0）就给出了，所以起点是 0 ——
+         这样"点中一个香型"的当下就有底噪（而且是最弱的一档，见 BASE_STRENGTH），
+         不然用户会看到"选完什么都不变"，那等于底噪没接上。
+       · 情绪来源：v6 的行为一字不改，起点仍是 1（第 3 屏）。 */
+  const start = fromWheel ? 0 : Math.max(1, directionIndex(answers));
   const span = Math.max(1, total - 1 - start);
   const p = clamp01((Number(step) - start) / span);
 

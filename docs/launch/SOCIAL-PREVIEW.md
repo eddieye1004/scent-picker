@@ -50,7 +50,7 @@ await b.close();
 |---|---|
 | 暖纸底 `#FAF7F1` | 站内 `--bg`（`80-specimen.css` 的 `:root`） |
 | 顶部墨色粗线 | 站内每屏页头的 `.masthead` 记号 |
-| 衬线大标题 | 站内标题同一字体栈（Songti / NotoSC / Georgia） |
+| 衬线大标题 | 站内标题同一字体栈（Songti / PingFang SC / Georgia；中文 webfont 已于 2026-11-19 删除，见 DECISIONS D71） |
 | 克莱因蓝 `#002FA7` | 站内唯一强调色（`--blue`），只用在「那一瓶」 |
 | 四个数字 | `1388` 瓶库 / `8` 屏问卷 / `58` 个香调词 / `0` 次模型调用 —— 全部实测（见 `REPO-ABOUT.md` §5） |
 | 右侧瓶形 | 同站内 `bottleArt()` 的方肩短颈结构，浅色液面 |
