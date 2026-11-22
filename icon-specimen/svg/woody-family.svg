@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="木质调"><title>木质调</title><defs>
+  <radialGradient id="wdFace" cx="0.36" cy="0.22" r="0.92"><stop offset="0" stop-color="#FCF2D8"/><stop offset="0.5" stop-color="#EBD2A4"/><stop offset="1" stop-color="#C39B62"/></radialGradient>
+  <linearGradient id="wdBark" x1="0.12" y1="0" x2="0.88" y2="1"><stop offset="0" stop-color="#8A6034"/><stop offset="0.42" stop-color="#5E3A18"/><stop offset="1" stop-color="#2E1B0A"/></linearGradient>
+  <linearGradient id="wdBarkL" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4E2E12"/><stop offset="0.5" stop-color="#6B4620"/><stop offset="1" stop-color="#3A2210"/></linearGradient>
+</defs>
+  <path d="M 5 9.15 C 4.58 12.35 5.1 15.15 6.05 16.7 C 7.4 17.57 9.6 17.77 12 17.75 C 14.4 17.73 16.7 17.51 17.95 16.65 C 19.12 15.1 19.44 12.33 19 9.15 C 15.85 13.92 8.15 13.92 5 9.15 Z" fill="url(#wdBark)" stroke="#2E1B0A" stroke-width="0.86"/>
+  <path d="M 6.15 13.1 C 6.5 14.9 7.35 16.2 8.6 16.95" fill="none" stroke="#1C1004" stroke-width="0.6" opacity="0.42"/>
+  <path d="M 17.85 12.95 C 17.5 14.85 16.6 16.2 15.3 16.9" fill="none" stroke="#1C1004" stroke-width="0.6" opacity="0.38"/>
+  <ellipse cx="12" cy="9.15" rx="7" ry="4.35" fill="url(#wdFace)" stroke="#6A4A22" stroke-width="0.86"/>
+  <ellipse cx="12" cy="9.15" rx="6.51" ry="4.05" fill="#F8E8C4" stroke="none" opacity="0.35"/>
+  <path d="M 5.91 8.06 A 6.34 3.94 0 1 1 10.47 12.97" fill="none" stroke="#A5713A" stroke-width="0.34" opacity="0.66"/>
+  <path d="M 6.95 8.25 A 5.25 3.26 0 1 1 10.73 12.32" fill="none" stroke="#B07A3E" stroke-width="0.32" opacity="0.66"/>
+  <path d="M 8 8.44 A 4.17 2.59 0 1 1 10.99 11.66" fill="none" stroke="#8A6438" stroke-width="0.3" opacity="0.66"/>
+  <path d="M 9.04 8.62 A 3.08 1.91 0 1 1 11.25 11.01" fill="none" stroke="#B8702F" stroke-width="0.28" opacity="0.66"/>
+  <ellipse cx="12" cy="9.15" rx="0.5" ry="0.31" fill="#8A6438" opacity="0.55"/>
+  <path d="M 7.75 7.05 C 9.9 5.78 13.3 5.65 15.95 6.75" fill="none" stroke="#FCF6E2" stroke-width="0.4" opacity="0.5"/>
+</svg>
