@@ -16,7 +16,7 @@
 ### 1. ysl-libre（排名 2）
 - 名称：Yves Saint Laurent Libre
 - 背书类型：名人同款
-- 文案：全球流行歌手 Dua Lipa 自 2019 年起出任 YSL Libre 香水代言人，是这瓶「自由之香」的面孔。
+- 文案：全球流行歌手 Dua Lipa 曾自 2019 年起担任 YSL Libre 香水代言人。
 - 来源链接：https://www.premiumbeautynews.com/en/ysl-beauty-names-dua-lipa-as,23437
 - 备注：行业媒体 Premium Beauty News（2024-02-26），已两次 fetch 核实原文 "previously served as the face of Yves Saint Laurent Beauty's Libre fragrance since 2019"。
 
@@ -30,7 +30,7 @@
 ### 3. creed-aventus（排名 5）
 - 名称：Creed Aventus (2010)
 - 背书类型：经典故事
-- 文案：2010 年问世，灵感取自拿破仑皇帝征战、和平与浪漫交织的一生，寄寓力量、远见与成功。
+- 文案：2010 年问世；Creed 将其灵感描述为拿破仑征战、和平与浪漫交织的一生，并以力量、远见与成功概括其寓意。
 - 来源链接：https://www.fragrantica.com/perfume/Creed/Aventus-9828.html
 - 备注：仅搜索摘要佐证（Fragrantica 403）；摘要原文 "Aventus celebrates strength, vision and success, inspired by the dramatic life of war, peace and romance lived by Emperor Napoleon"。
 
@@ -233,9 +233,9 @@
 ### 32. guerlain-jicky（排名 70）
 - 名称：Guerlain Jicky
 - 背书类型：经典故事
-- 文案：1889 年，Aimé Guerlain 率先将香兰素与香豆素入香，由此开启现代香水的新纪元。
+- 文案：1889 年，Aimé Guerlain 将当时新近研发的香兰素与香豆素融入 Jicky。
 - 来源链接：https://www.guerlain.com/uk/en-uk/p/les-legendaires-jicky---eau-de-parfum-P014315.html
-- 备注：仅搜索摘要佐证（官网 403）；官网摘要 "created Jicky in 1889 using the two newly discovered Vanillin and Coumarin molecules… ushered in a new era"；Smithsonian《Jicky, the First Modern Perfume》标题交叉佐证。
+- 备注：娇兰官网称其为首款融合合成香调与天然原料的香水；法国 Comité Colbert 记载，Houbigant 的 Fougère Royale 于 1882 年已结合天然香材与合成香豆素（https://www.comitecolbert.com/en/savoir-faire/fragrance/）。因此此处只保留娇兰来源可支持的年代、作者与原料，不将品牌的优先权及「开启现代香水」表述写成无归属的定论。
 
 ### 33. tiziana-terenzi-kirke（排名 72）
 - 名称：Tiziana Terenzi Kirke
@@ -324,7 +324,7 @@
 ### 45. gucci-bloom（排名 93）
 - 名称：Gucci Bloom
 - 背书类型：经典故事
-- 文案：2017 年问世，Alessandro Michele 首款全程主导的 Gucci 香水，由调香大师 Alberto Morillas 调制的馥郁白花花园。
+- 文案：2017 年问世；Coty 称其为 Alessandro Michele 创意愿景下开发的首款 Gucci 香水，由调香师 Alberto Morillas 调制。
 - 来源链接：https://www.coty.com/news/gucci-bloom-debuting-the-first-fragrance-by-alessandro-michele
 - 备注：Coty 官方新闻稿（2017-08-15），已两次 fetch 核实（"The first Gucci fragrance developed wholly under Alessandro Michele's creative vision"、"Blended by master perfumer Alberto Morillas"）。
 
