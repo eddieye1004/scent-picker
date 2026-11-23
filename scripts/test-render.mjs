@@ -977,6 +977,179 @@ ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textCon
 }
 }
 
+/* ============================================================
+   盘心大类图标（冻结前 C 腿，方向 B）
+   ------------------------------------------------------------
+   验收线三条状态，缺一条这件事就落空：
+     ① 选中 → 盘心出现该大类的图标（且是**那一族**的，不是随便一枚）
+     ② 切换 → 图标跟着换（不是渲染一次就冻住）
+     ③ 取消 → 盘心恢复原样（徽记退场、空态纹样回来、文字回到「还没选」）
+
+   为什么走真实点击而不注入 state：图标挂在 paint() 里，而 paint() 由
+   onChange / 扇区点击驱动。注入 state 就把要验的那一段绕掉了 ——
+   本仓已有的圆盘断言块（上面那一整段）也是为同一个原因写成点击驱动的。
+
+   为什么断言读 data-fam 而不是去认图形：图形是 24×24 的上色稿，
+   认清它需要像素比对；而"盘心上现在挂的是哪一族"这件事，代码里本来
+   就有一个明确的答案（.hub-emblem 的 data-fam），断言它才是断言契约。
+   图形是否**真的**画进去了，由下面那条图元数断言守（空 svg 也是 svg）。
+   ============================================================ */
+{
+  const emblemOf = () => {
+    const em = appRoot.querySelector('.hub-emblem');
+    if (!em) return null;
+    const svgs = em.querySelectorAll('svg');
+    /* 渐变 id 只能走子节点读，不能读 innerHTML：桩的 innerHTML getter 返回的是
+       文本内容（标签被剥掉），在这里读会永远拿到空串 —— 那会变成一条
+       永远失败的假断言。桩缺能力就换一条真能读的路径。 */
+    const gradIds = [];
+    const walk = (n) => {
+      if (!n || typeof n === 'string') return;
+      const id = n.getAttribute && n.getAttribute('id');
+      if (id) gradIds.push(id);
+      (n.children || []).forEach(walk);
+    };
+    if (svgs[0]) walk(svgs[0]);
+    return {
+      fam: em.getAttribute('data-fam'),
+      svgCount: svgs.length,
+      shapes: svgs[0] ? svgs[0].querySelectorAll('path').length
+        + svgs[0].querySelectorAll('circle').length
+        + svgs[0].querySelectorAll('ellipse').length : 0,
+      viewBox: svgs[0] ? svgs[0].getAttribute('viewBox') : null,
+      gradientIds: gradIds,
+      wrap: em,
+    };
+  };
+
+  /* ① 选中 → 出现对应图标。此刻盘心已落到小类（上一段最后一步），
+     徽记应当退场 —— 那一路盘心有自己的标本，两者互斥。 */
+  const atSub = emblemOf();
+  const hubAtSub = appRoot.querySelector('.disc-hub');
+  ok('落到小类时盘心不出大类徽记（让位给标本）',
+    atSub && atSub.fam === null && atSub.svgCount === 0,
+    `data-fam=${atSub && atSub.fam} svg=${atSub && atSub.svgCount}`);
+  ok('落到小类时盘心不挂 has-emblem', !!hubAtSub && !hubAtSub.classList.contains('has-emblem'),
+    hubAtSub && hubAtSub.className);
+
+  /* 回到「只选大类」：点返回清空，再点第一个扇区。 */
+  appRoot.querySelector('.wheel-back').dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+
+  /* ③ 取消 → 恢复原样。此处是最干净的一次"未选中"，先验它。 */
+  {
+    const em = emblemOf();
+    const hub = appRoot.querySelector('.disc-hub');
+    const orn = appRoot.querySelector('.hub-orn');
+    ok('取消选择后盘心徽记退场', !!em && em.fam === null && em.svgCount === 0,
+      `data-fam=${em && em.fam} svg=${em && em.svgCount}`);
+    ok('取消选择后盘心不挂 has-emblem', !!hub && !hub.classList.contains('has-emblem'),
+      hub && hub.className);
+    ok('取消选择后空态纹样回来（原样，不是新的东西）', !!orn,
+      orn ? orn.className : 'no .hub-orn');
+    ok('取消选择后盘心回到「还没选」', appRoot.querySelector('.hub-zh').textContent === '还没选',
+      appRoot.querySelector('.hub-zh').textContent);
+    ok('取消选择后盘心没有留下任何标本/徽记图形',
+      appRoot.querySelectorAll('.hub-glyph svg').length === 0
+        && appRoot.querySelectorAll('.hub-emblem svg').length === 0,
+      `glyph=${appRoot.querySelectorAll('.hub-glyph svg').length} emblem=${appRoot.querySelectorAll('.hub-emblem svg').length}`);
+  }
+
+  /* ① 选中第一个大类 → 盘心出现那一族的图标。 */
+  const famIdOfSector = (g) => g.getAttribute('data-fam');
+  const firstSector = appRoot.querySelectorAll('.sector-g')[0];
+  const firstFam = famIdOfSector(firstSector);
+  firstSector.dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+  const sel1 = emblemOf();
+  const hubSel1 = appRoot.querySelector('.disc-hub');
+  ok('选中大类后盘心出现该类图标', !!sel1 && sel1.fam === firstFam && sel1.svgCount === 1,
+    `期望 ${firstFam}，实际 ${sel1 && sel1.fam}／svg ${sel1 && sel1.svgCount}`);
+  ok('盘心图标是那一族的那一枚（不是任何一枚）', !!sel1 && sel1.fam === firstFam,
+    `data-fam=${sel1 && sel1.fam}`);
+  ok('盘心图标挂上 has-emblem', !!hubSel1 && hubSel1.classList.contains('has-emblem'),
+    hubSel1 && hubSel1.className);
+  /* 空 svg 也是 svg：图元数为 0 就等于"画了个空白"，必须抓住。 */
+  ok('盘心图标里真画了几何', !!sel1 && sel1.shapes >= 6, `图元数 ${sel1 && sel1.shapes}`);
+  ok('盘心图标是 24×24 同一视框（与小类那 24 枚同规格）',
+    !!sel1 && sel1.viewBox === '0 0 24 24', sel1 && sel1.viewBox);
+  /* 渐变 id 必须带实例后缀：两枚图标同时进 DOM 时，第二枚会引用第一枚的 defs。
+     这一条守的是 artNs() 那条重写，盘心与避雷卡共用同一个缓存。 */
+  ok('盘心图标的渐变 id 带实例后缀（多实例不串 defs）',
+    !!sel1 && sel1.gradientIds.length > 0 && sel1.gradientIds.every((s) => /-a\d+$/.test(s)),
+    sel1 && sel1.gradientIds.slice(0, 3).join(' '));
+
+  /* ② 切换 → 图标跟着换。点第四个大类（与第一个不同族）。 */
+  const fourthSector = appRoot.querySelectorAll('.sector-g')[3];
+  const fourthFam = famIdOfSector(fourthSector);
+  fourthSector.dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+  const sel2 = emblemOf();
+  ok('切换大类后盘心图标跟着换', !!sel2 && sel2.fam === fourthFam && sel2.fam !== firstFam,
+    `${firstFam} → ${sel2 && sel2.fam}（期望 ${fourthFam}）`);
+  ok('切换后仍是恰好一枚图标（没有叠图）', !!sel2 && sel2.svgCount === 1,
+    `svg ${sel2 && sel2.svgCount}`);
+  ok('切换后图标里仍真画了几何', !!sel2 && sel2.shapes >= 6, `图元数 ${sel2 && sel2.shapes}`);
+
+  /* 每一族都要有徽记资产：渲染不出图时用户看到的是"选了没反应"。
+     这条读的是 app.js 里的 FAM_ART_FILE 表 + 磁盘上的文件，不另抄一份清单。 */
+  {
+    const appSrc2 = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+    const s0 = appSrc2.indexOf('const FAM_ART_FILE = {');
+    let depth = 0; let e0 = -1;
+    for (let i = appSrc2.indexOf('{', s0); i < appSrc2.length; i += 1) {
+      if (appSrc2[i] === '{') depth += 1;
+      else if (appSrc2[i] === '}') { depth -= 1; if (depth === 0) { e0 = i + 1; break; } }
+    }
+    ok('能从 app.js 里切出 FAM_ART_FILE 块', s0 > 0 && e0 > s0);
+    const FAMS = new Function(appSrc2.slice(s0, e0) + '; return FAM_ART_FILE;')();
+    const taxa2 = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'taxonomy.json'), 'utf8'));
+    const famIds = taxa2.families.map((f) => f.id);
+    const missingMap = famIds.filter((id) => typeof FAMS[id] !== 'string');
+    ok('六个大类都有图标映射（不缺格）', missingMap.length === 0, missingMap.join(','));
+    const extraMap = Object.keys(FAMS).filter((k) => !famIds.includes(k));
+    ok('没有多余的大类图标映射', extraMap.length === 0, extraMap.join(','));
+    const goneFiles = Object.values(FAMS)
+      .filter((f) => !fs.existsSync(path.join(ROOT, 'icon-specimen', 'svg', f + '.svg')));
+    ok('映射到的 6 枚大类 SVG 都在磁盘上', goneFiles.length === 0, goneFiles.join(','));
+    /* 与扇区上"同一套图"这句话要能核：文件里自带的 title 必须等于那一族的中文名。
+       逐字节比 title 而不是比文件名 —— 文件名是搬运动作定的，title 是画的时候写的。 */
+    const titleMismatch = famIds.filter((id) => {
+      const p = path.join(ROOT, 'icon-specimen', 'svg', (FAMS[id] || '') + '.svg');
+      if (!fs.existsSync(p)) return true;
+      const t = fs.readFileSync(p, 'utf8');
+      const title = (t.match(/<title>([^<]*)<\/title>/) || [])[1] || '';
+      const fam = taxa2.families.find((x) => x.id === id);
+      return title !== (fam && fam.zh);
+    });
+    ok('6 枚大类 SVG 的 title 与 taxonomy 的族名逐字相同', titleMismatch.length === 0,
+      titleMismatch.join(','));
+    /* 大类图不能是空壳：与小类那 24 枚同一档门槛（>= 6 个图元、带渐变）。 */
+    const thinFam = [];
+    const noGradFam = [];
+    for (const id of famIds) {
+      const p = path.join(ROOT, 'icon-specimen', 'svg', (FAMS[id] || '') + '.svg');
+      if (!fs.existsSync(p)) continue;
+      const t = fs.readFileSync(p, 'utf8');
+      const shapes = (t.match(/<(path|circle|ellipse|rect|polygon)\b/g) || []).length;
+      if (shapes < 6) thinFam.push(`${id}:${shapes}`);
+      if (!/url\(#/.test(t)) noGradFam.push(id);
+    }
+    ok('每枚大类 SVG 的图元数都够（>= 6）', thinFam.length === 0, thinFam.join(','));
+    ok('每枚大类 SVG 都带渐变（不是单色块）', noGradFam.length === 0, noGradFam.join(','));
+  }
+
+  /* 把状态还原成「有大类 + 有小类」：后面的流程断言要靠它继续往下走。
+     必须**先点回第 1 个扇区**再点小类 —— 上面切换留在了第 4 族，直接点小类
+     会让家族停在第 4 族，而下游的季节屏断言假设的是 citrus（见 1486 行）。
+     这条不是可有可无的收尾：漏了它，四条季节断言会连着红，而红的原因
+     与季节文案毫无关系（第一版就踩了这一下）。 */
+  appRoot.querySelectorAll('.sector-g')[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+  appRoot.querySelectorAll('.disc-sector.lvl2')[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 400));
+}
+
 /* ==== 圆盘 → 底噪的接线（v7 第 1 步的增量，不是取回的那块）====
    取自回那一块之后，圆盘上已经选了「柑橘调 + 古龙水型」（见上面「把状态还原成…」）。
    这里验三件事，每件都能否定一种"看起来接上了"的假实现：
@@ -1107,6 +1280,128 @@ ok('避雷屏标题是「只问最容易踩雷的几个」',
     (appRoot.querySelectorAll('.avoid-count')[0] || {}).textContent);
 }
 
+/* ---------- ①b 避雷屏的另外两处改动（2026-11-23，Eddie 批准 QW10 诊断） ----------
+   ① 第三态「没闻过」（不扣分也不加分）② 已排除清单可点撤销 ③ 屏顶代价提示。
+   三条都要在同一屏上验 —— 它们共用一段状态，分开验会各自"绿"而合起来错。 */
+{
+  const cards = appRoot.querySelectorAll('.avoid-card');
+  /* ③ 代价提示：口径由任务书给定，这里守两件事 ——
+     ① 它在屏顶且在卡片墙之前（点第一张卡之前就能看到）；
+     ② 它不含任何内部权重数字（−40 / +14 是引擎术语，不许上屏）。 */
+  const tip = appRoot.querySelectorAll('.avoid-tip')[0];
+  ok('避雷屏顶部有代价提示（.avoid-tip）', !!tip,
+    `实际 ${appRoot.querySelectorAll('.avoid-tip').length} 条`);
+  ok('代价提示写清「点错会扣分」与「没闻过」两个口径',
+    !!tip && /扣/.test(tip.textContent) && /没闻过/.test(tip.textContent),
+    tip && tip.textContent);
+  ok('代价提示不含内部权重数字（−40 / +14 这类不许上屏）',
+    !!tip && !/[-−+]\s?\d+|40|14/.test(tip.textContent), tip && tip.textContent);
+  /* 位置：提示必须先于卡片墙出现（DOM 顺序即朗读顺序与视觉顺序）。
+     桩的选择器不支持逗号分组，所以直接读父节点的 children 顺序 ——
+     这也正是浏览器里"谁先谁后"的定义。 */
+  {
+    const wallEl = appRoot.querySelectorAll('.avoid-wall')[0];
+    const tipEl = appRoot.querySelectorAll('.avoid-tip')[0];
+    const siblings = (tipEl && tipEl.parentNode && tipEl.parentNode.children) || [];
+    ok('代价提示排在卡片墙之前（点卡前就能看见）',
+      !!tipEl && !!wallEl && siblings.indexOf(tipEl) >= 0
+      && siblings.indexOf(tipEl) < siblings.indexOf(wallEl),
+      `tip@${siblings.indexOf(tipEl)} wall@${siblings.indexOf(wallEl)}`);
+  }
+
+  /* ① 第三态：给第 2 张卡点「没闻过」。
+     关键断言不是"卡变色了"，而是"引擎侧一个字都没变" ——
+     界面上两种态长得不一样，但 dislikedNotes 只有一个来源。 */
+  const rows = appRoot.querySelectorAll('.avoid-row');
+  ok('每张卡都配一枚独立的「没闻过」键（不是嵌在卡里的 span）',
+    rows.length === cards.length
+    && rows.every((r) => r.querySelectorAll('.avoid-nope').length === 1),
+    `行 ${rows.length} / 卡 ${cards.length}`);
+  ok('「没闻过」是真 button（键盘可达，不是坐标点击）',
+    rows.every((r) => r.querySelector('.avoid-nope').tagName === 'BUTTON'),
+    rows.map((r) => r.querySelector('.avoid-nope').tagName).join(','));
+
+  const before = appMod.__avoid.picked();
+  const second = rows[1];
+  const secondId = second.attrs['data-row'];
+  const nope = second.querySelector('.avoid-nope');
+  ok('未点「没闻过」时 aria-pressed=false', nope.attrs['aria-pressed'] === 'false',
+    String(nope.attrs['aria-pressed']));
+  nope.dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  const after = appMod.__avoid.picked();
+  ok('点「没闻过」→ 该 id 进 noSmell、不进 unwanted',
+    after.noSmell.includes(secondId) && !after.unwanted.includes(secondId),
+    `noSmell=${after.noSmell.join(',')} / unwanted=${after.unwanted.join(',')}`);
+  ok('点「没闻过」→ dislikedNotes 一个字节都没变（不进打分）',
+    after.dislikedNotes.join(',') === before.dislikedNotes.join(','),
+    `${before.dislikedNotes.join(',')} → ${after.dislikedNotes.join(',')}`);
+  ok('点「没闻过」→ 「不要」那一列也没变多',
+    after.unwanted.length === before.unwanted.length,
+    `${before.unwanted.length} → ${after.unwanted.length}`);
+  ok('没闻过态在卡上可辨（is-unknown + aria-pressed 翻 true）',
+    second.querySelector('.avoid-card').classList.contains('is-unknown')
+    && nope.attrs['aria-pressed'] === 'true',
+    second.querySelector('.avoid-card').className);
+  ok('没闻过态不盖「这个不要」章（两枚章同卡＝自相矛盾的陈述）',
+    !second.querySelector('.avoid-card').classList.contains('is-on'),
+    second.querySelector('.avoid-card').className);
+  ok('计数行同时报两种态', /没闻过/.test(appRoot.querySelectorAll('.avoid-count')[0].textContent),
+    appRoot.querySelectorAll('.avoid-count')[0].textContent);
+
+  /* ② 已排除清单：上一步点的第 1 张卡已经在 unwanted 里，必须出现在清单上。 */
+  const excl = appRoot.querySelectorAll('.avoid-excluded')[0];
+  ok('屏内有「你已排除」汇总行', !!excl && /你已排除/.test(excl.textContent),
+    excl && excl.textContent);
+  const undo = excl.querySelectorAll('.avoid-undo');
+  ok('已排除清单里的名字可点（撤销入口）',
+    undo.length === before.unwanted.length && undo.length >= 1,
+    `撤销键 ${undo.length} / 已排除 ${before.unwanted.length}`);
+  ok('撤销键是真 button 且带无障碍名（读屏能说出撤销的是哪一条）',
+    undo.every((b) => b.tagName === 'BUTTON' && /取消排除/.test(b.attrs['aria-label'] || '')),
+    undo.map((b) => b.attrs['aria-label']).join(' | '));
+
+  /* 点清单里的名字 → 该条回到未选态（卡上 is-on 摘掉、计数回落）。 */
+  const undoId = undo[0].attrs['data-undo'];
+  undo[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  const afterUndo = appMod.__avoid.picked();
+  ok('点清单里的名字 → 该条取消排除（回到未选）',
+    !afterUndo.unwanted.includes(undoId) && afterUndo.unwanted.length === before.unwanted.length - 1,
+    `unwanted=${afterUndo.unwanted.join(',')}`);
+  ok('取消排除后卡上的 is-on 也摘掉了（状态与视觉同步）',
+    !appRoot.querySelectorAll(`[data-row="${undoId}"] .avoid-card`)[0].classList.contains('is-on'),
+    appRoot.querySelectorAll(`[data-row="${undoId}"] .avoid-card`)[0].className);
+  ok('取消排除后 dislikedNotes 同步清掉（否则引擎还在扣分）',
+    afterUndo.dislikedNotes.length < before.dislikedNotes.length,
+    `${before.dislikedNotes.length} → ${afterUndo.dislikedNotes.length}`);
+  /* 复原：这一段为了验撤销而真的摘掉了一条排除项，而后面几屏与结果页的断言
+     都是在"第 1 张卡已标不要"这份状态上建立的（实测过：不还原，结果页第 1 瓶
+     会从「匹配度 82%」变成「初步匹配」，虽然仍绿，但验的已经是另一条分支）。
+     点回第 1 张卡把它还原，这一段就只动它自己要验的东西。 */
+  appRoot.querySelectorAll(`[data-row="${undoId}"] .avoid-card`)[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  ok('撤销后可点回「不要」（复原测试前置状态）',
+    appMod.__avoid.picked().unwanted.includes(undoId)
+    && appMod.__avoid.picked().dislikedNotes.join(',') === before.dislikedNotes.join(','),
+    `unwanted=${appMod.__avoid.picked().unwanted.join(',')}`);
+
+  /* 互斥：把同一张卡从「没闻过」改判成「不要」，「没闻过」必须让位。 */
+  second.querySelector('.avoid-card').dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  const swapped = appMod.__avoid.picked();
+  ok('同一张卡改成「不要」后，「没闻过」让位（两列互斥）',
+    swapped.unwanted.includes(secondId) && !swapped.noSmell.includes(secondId),
+    `unwanted=${swapped.unwanted.join(',')} / noSmell=${swapped.noSmell.join(',')}`);
+  /* 收尾：把它还原成未选，后面的流程不受这一段的点击影响。 */
+  second.querySelector('.avoid-card').dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  ok('第三态可完整回到未选（不是单向锁死）',
+    !appMod.__avoid.picked().unwanted.includes(secondId)
+    && !appMod.__avoid.picked().noSmell.includes(secondId),
+    JSON.stringify(appMod.__avoid.picked()));
+}
+
 /* ---------- ② 预算 ——【已整段搬到末屏，见 ⑧ 之前的「② 预算（末屏）」】 ----------
    v7 第 3 步③ 把预算屏从第 3 位搬到末位（第 6 位）。本段原来写死「第 3 屏是预算屏」
    并按位置取 `.price-tab`，搬完之后它落到 `occasion` 上：`.price-tab` 为空数组，
@@ -1218,6 +1513,71 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
     String(appRoot.querySelectorAll('.temp-band')[0].style['--band-temp']));
   await new Promise((r) => setTimeout(r, 60));
   ok('点一季后落点亮起', stops[3].attrs['aria-checked'] === 'true', String(stops[3].attrs['aria-checked']));
+
+  /* ---- 情境句（2026-11-23 定版 24 句）----
+     这一屏现在有两行译文，分工不同，所以**四件事分开验**：
+       ① 未选季节时情境句不存在（不替用户选一个季节来解释）；
+       ② 选了季节、也有方向时，出现的是「该方向 × 该季」那一句（不是别的格）；
+       ③ 换了季节，句子跟着换（不是渲染一次就冻住）；
+       ④ 没有方向（情绪入口）时退回该季 desc —— 不许留空、不许白屏。
+     ③④ 都要真渲染才看得见，所以放在这个块里而不是纯函数断言里。 */
+  {
+    /* 走到这一屏时家族是 citrus（本文件前面点的是 sectorGroups[0]，见 940 行）。
+       定版表里 citrus 对应「果香」—— 这一层映射在 src/season-copy.js 里，
+       这里不重抄那张表，只验"上屏的那句 = seasonScene 算出的那句"。 */
+    const cell = (fam, s) => appMod.__seasonScene(fam, s);
+    ok('情境句与 seasonScene 同源（不是渲染层另写了一份文案）',
+      typeof cell('citrus', 'winter') === 'string' && cell('citrus', 'winter').length > 0,
+      String(cell('citrus', 'winter')));
+
+    const sceneEl = () => appRoot.querySelectorAll('.season-scene')[0];
+    ok('季节屏有情境句这一行（只有一个）', appRoot.querySelectorAll('.season-scene').length === 1,
+      `实际 ${appRoot.querySelectorAll('.season-scene').length}`);
+
+    /* 此刻 stops[3]（冬）已被点上，家族是 citrus —— 应是「果香 × 冬」那句。 */
+    const wantWinter = cell('citrus', 'winter');
+    ok('选了季节 + 有方向时，屏上是该方向 × 该季那一句',
+      !!sceneEl() && sceneEl().hidden === false && sceneEl().textContent === wantWinter,
+      `期望「${wantWinter}」实得「${sceneEl() ? sceneEl().textContent : '(无节点)'}」`);
+
+    /* 这句话必须真的是季节表里的那一格，而不是碰巧非空 ——
+       直接把它与 SEASON_SCENES 逐字对一次。
+       为什么不在这里读定版 md：md 不在仓库里，check-head 会把 HEAD 干净导出到
+       临时目录再跑，那边读不到本机路径，这条断言就会变成"只有本机能绿"的假门。
+       "与 md 逐字一致"由 scripts/verify-season-copy.mjs 单独守（它是本任务的
+       验收脚本，允许读本机路径，且可用 SEASON_COPY_MD 覆盖）。 */
+    const cellTable = appMod.__seasonCells;
+    const cellOf = (fam, s) => (cellTable.find((c) => c.family === fam && c.season === s) || {}).sentence;
+    ok('上屏的这句逐字等于季节表里那一格（不是渲染层另写的文案）',
+      cellOf('citrus', 'winter') === wantWinter,
+      `表「${cellOf('citrus', 'winter')}」屏「${wantWinter}」`);
+
+    /* 换一季：句子必须跟着换，且仍然来自同一张表。 */
+    stops[0].dispatch('click');
+    await new Promise((r) => setTimeout(r, 60));
+    const wantSpring = cell('citrus', 'spring');
+    ok('换季后情境句跟着换（不是渲染一次就冻住）',
+      !!sceneEl() && sceneEl().textContent === wantSpring && wantSpring !== wantWinter,
+      `期望「${wantSpring}」实得「${sceneEl() ? sceneEl().textContent : '(无节点)'}」`);
+    ok('换季后的这句也逐字等于表里那一格',
+      cellOf('citrus', 'spring') === wantSpring, String(cellOf('citrus', 'spring')));
+
+    /* ④ 回退：把方向清掉（等价于从情绪入口进来的人），句子退回该季 desc。
+       desc 是 SEASONS 里原有的那句，它必须还在 —— 这是"不许白屏"的判据。 */
+    const keepFam = appMod.__state.answers.family;
+    appMod.__state.answers.family = null;
+    appMod.__seasonRepaint();
+    const fallback = sceneEl();
+    ok('没有方向时退回该季原有的 desc（不留空行）',
+      !!fallback && fallback.hidden === false && fallback.textContent.length > 0
+      && fallback.textContent !== wantSpring,
+      fallback ? `「${fallback.textContent}」` : '(无节点)');
+    appMod.__state.answers.family = keepFam;
+    appMod.__seasonRepaint();
+    ok('恢复方向后重新回到该方向那一句',
+      !!sceneEl() && sceneEl().textContent === wantSpring,
+      sceneEl() ? sceneEl().textContent : '(无节点)');
+  }
 }
 
 /* ---------- ⑦ 浓淡（扩散场，定版范例之三） ----------

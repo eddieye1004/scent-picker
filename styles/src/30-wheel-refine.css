@@ -372,6 +372,29 @@
   }
   .choice.is-on .choice-zh { color: var(--blue-lift); }
   .choice.is-on .choice-desc { color: var(--ink-3); }
+
+  /* ==== 未选卡面：本层唯一写死浅色的底（2026-11-23 冻结修复 1）====
+     病灶：`.choice` 的底是**字面量** `#FDFBF7`（见上文 V2 改法 D-1），
+     这是全站唯一一处「写死十六进制、不走 token」的背景。深色块里
+     只补了 .is-on / .choice-neg.is-on，未选态从来没有覆盖 ——
+     于是深色下变成「--ink 深字压纸白卡」：
+
+       .choice-zh    未选卡标题  #F5F1E8 on #FDFBF7 = **1.09**   ← P0，近不可见
+       .choice-desc  副行        #9A9284 on #FDFBF7 = **3.01**
+
+     为什么不一并改成 `var(--spec-plate)` 或 `var(--bg-2)`：
+       · --spec-plate 同样没有深色定义（深色下仍是 #FFFCF6），换过去等于没改；
+       · --bg-2 深色是 #1E1B16（对页底 1.090），与页底几乎同色，卡读成"没有底"。
+     所以直接给深色一档 --bg-3 #2A2620（对页底 1.244）：
+       --ink **13.34** / --ink-3 **4.88**，与避雷卡同一块面、同一组数字 ——
+     两屏未选卡因此是**同一档次**的观感，不是各修各的。
+
+     浅色一个字节没动（本条在 dark 块内）。
+     hover 不用管：`.choice:hover` 在深色下已走 `background: var(--bg-2)`
+     （上一条基础规则，token 会自动变暗），实测 --ink 15.23 / --ink-3 5.57。 */
+  .choice {
+    background: var(--bg-3);
+  }
 }
 
 /* ---------------- 二、术语解释块 ----------------
