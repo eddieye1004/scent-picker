@@ -35,6 +35,8 @@ const SUITES = [
   ['test-union-api.mjs', 76],
   ['test-category-gate.mjs', 10],
   ['test-jd-web.mjs', 17],
+  /* 心仪清单 L1 数据层（纯数据、无 DOM、无网络、时间源注入 → 可复算）。 */
+  ['test-wishlist.mjs', 96],
 ];
 
 /* 金标准套件走另一套判据：它报的是命中率，不是断言条数。
