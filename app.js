@@ -28,7 +28,7 @@ import {
    avoid-map.js 是「元素 → 场景句 → 所属香型」映射表（原 LIFE_NOTES 抽出来的），
    avoid.js 是按 perfumes.json 频次现算候选的三条硬规则。两者都不碰 DOM。 */
 import { AVOID_SCENARIOS } from './src/avoid-map.js';
-import { buildAvoidIndex, avoidPlan } from './src/avoid.js';
+import { buildAvoidIndex, avoidPlan, avoidSelection } from './src/avoid.js';
 
 const state = {
   step: 0,
@@ -89,6 +89,14 @@ const state = {
        —— 与"用户当年跳过那一屏"逐位一致。将来若恢复这一屏，写入口接回去即可。 */
     wanted: [],
     unwanted: [],
+    /* ==== 避雷屏第三态「没闻过」（2026-11-23，Eddie 批准 QW10 诊断第 1 条）====
+       存的是生活短语 id，与 unwanted 同一套键。这**不是**排除项，也**不是**
+       接受项：它唯一的职责是把"我确实不知道"与"我接受"区分开，让用户敢承认
+       没闻过，而不是被迫在"扣 40 分"和"假装接受"之间二选一。
+       所以它不参与 syncPhrasesToNotes —— dislikedNotes 只由 unwanted 展开，
+       这一点由 syncPhrasesToNotes 的实现保证（它只读 unwanted），不靠调用方自觉。
+       两列互斥由 src/avoid.js 的 avoidSelection 保证（不要优先）。 */
+    noSmell: [],
     likedNotes: [],
     dislikedNotes: [],
     // 英文香调名 → 中文显示名。理由里要回显用户点的中文，而不是 bergamot。
@@ -243,6 +251,9 @@ const STEPS = [
     id: 'unwanted',
     short: '避雷',
     title: '只问最容易踩雷的几个',
+    /* help 保持原句不扩写：它必须落在**一行**里。多一句就换行，
+       把下面的「你已排除」整行顶到 sticky 导航条底下（实测过）。
+       「没闻过」这件事交给屏顶 .avoid-tip 说 —— 那里本来就要说。 */
     help: '都是你选的方向里最容易混进来的味道。点一下＝这个不要；不点就是接受',
     render: renderAvoid,
   },
@@ -317,11 +328,21 @@ function avoidSoftNow() {
 function pruneAvoid(plan) {
   if (!plan || state.avoidKey === plan.key) return;
   state.avoidKey = plan.key;
-  const keep = new Set(plan.cards.map((c) => c.id));
+  const keep = plan.cards.map((c) => c.id);
   const before = state.answers.unwanted || [];
-  const after = before.filter((id) => keep.has(id));
-  if (after.length !== before.length) {
-    state.answers.unwanted = after;
+  /* 「没闻过」这一列同样会悬空：它是视图状态（用户对"这一屏上这几张"的表态），
+     方向一变，屏上那几张就换了，旧表态必须一起清。
+     用 avoidSelection 而不是手写 filter —— 它同时守"两列互斥"，
+     手写两份 filter 等于把同一条不变式再实现一遍，迟早分叉。 */
+  const merged = avoidSelection(
+    { unwanted: before, noSmell: state.answers.noSmell || [] },
+    keep,
+  );
+  const gone = merged.unwanted.length !== before.length
+    || merged.noSmell.length !== (state.answers.noSmell || []).length;
+  if (gone) {
+    state.answers.unwanted = merged.unwanted;
+    state.answers.noSmell = merged.noSmell;
     syncPhrasesToNotes();
   }
 }
@@ -548,7 +569,7 @@ function applyDirectionToCharacter(emotionId) {
    页面里 `document.documentElement.dataset.build` 会带上它。
    用途是"这次看到的到底是哪份代码"—— 改完 app.js 如果这个值没变，
    说明浏览器还在跑缓存的旧文件，别去猜渲染逻辑。 */
-const BUILD_ID = '2026-11-17-quiz-v7-step15-design';
+const BUILD_ID = '2026-11-23-pre-freeze-avoid-3state';
 
 /* ---------- 上色图标（结果页实物图的降级瓶形，与盘心标本共用同一批） ----------
    24 枚上色版在 ./icon-specimen/svg/ 合计 295.6KB / gzip 80.1KB，
@@ -2567,6 +2588,13 @@ function renderAvoid() {
     el('h2', { class: 'q-title' }, head.title),
     el('p', { class: 'q-help' }, head.help)
   ));
+  /* 代价提示（Eddie 2026-11-23 批准，QW10 诊断第 3 条）。
+     口径由任务书给定，只许润色不许改语义，且**不许出现内部数字** ——
+     「−40 / +14」是引擎权重，对用户是黑话，写出来只会让人以为这是可计算的交易。
+     位置在屏顶（页眉之下、卡片墙之上）：用户在点第一张卡之前就要看到它，
+     放到底部等于点完才提醒。 */
+  wrap.appendChild(el('p', { class: 'avoid-tip' },
+    '点错一张会扣掉不少分。没闻过的，选「没闻过」就行 —— 它不加分也不扣分'));
 
   const plan = avoidPlanNow();
   /* 数据没到齐（或方向还没定）：先占位。
@@ -2591,18 +2619,95 @@ function renderAvoid() {
 
   const wall = el('div', { class: 'avoid-wall', role: 'group', 'aria-label': '最容易踩雷的几个' });
   const count = el('p', { class: 'avoid-count' });
+  const excluded = el('p', { class: 'avoid-excluded' });
   const gloss = el('p', { class: 'avoid-gloss is-idle' });
 
+  /* 当前两列选中态的一次读取。两列互斥由 avoidSelection 保证（不要优先），
+     所以界面与引擎看到的是同一份判据，不会出现"卡上标了没闻过、引擎却扣了分"。 */
+  const selNow = () => avoidSelection(
+    { unwanted: state.answers.unwanted || [], noSmell: state.answers.noSmell || [] },
+    plan.cards.map((c) => c.id),
+  );
+
+  /* 卡片的三种视觉态（未选 / 不要 / 没闻过）统一在这里落地：
+     两个开关各自 aria-pressed、卡面挂 is-on 或 is-unknown。
+     点完就地改，不重建整墙（重建会让被点的节点消失、焦点掉回 body）。 */
+  const paintCard = (id) => {
+    const s = selNow();
+    const on = s.unwanted.includes(id);
+    const off = s.noSmell.includes(id);
+    const row = wall.querySelector(`[data-row="${id}"]`);
+    if (!row) return;
+    const card = row.querySelector('.avoid-card');
+    const nope = row.querySelector('.avoid-nope');
+    card.classList.toggle('is-on', on);
+    card.classList.toggle('is-unknown', off);
+    card.setAttribute('aria-pressed', String(on));
+    nope.classList.toggle('is-on', off);
+    nope.setAttribute('aria-pressed', String(off));
+    /* 没闻过的卡不再盖「这个不要」章 —— 两枚章叠在同一张卡上是自相矛盾的陈述。 */
+    card.setAttribute('data-state', on ? 'on' : off ? 'unknown' : 'idle');
+  };
+
   const paintMeta = () => {
-    const sel = state.answers.unwanted || [];
-    count.textContent = sel.length
-      ? `已标 ${sel.length} 个「这个不要」`
+    const s = selNow();
+    const parts = [];
+    if (s.unwanted.length) parts.push(`已标 ${s.unwanted.length} 个「这个不要」`);
+    if (s.noSmell.length) parts.push(`${s.noSmell.length} 个「没闻过」`);
+    count.textContent = parts.length
+      ? parts.join('，')
       : '一个都没点＝这几个都接受';
-    const last = sel.length ? LIFE_NOTES.find((x) => x.id === sel[sel.length - 1]) : null;
+
+    /* 已排除清单（Eddie 批准第 2 条）：把"我到底排除了什么"从记忆里搬回屏上。
+       名字本身就是撤销按钮 —— 用户看到"我误伤了玫瑰"时，最短的补救路径是
+       直接点这个名字，而不是先找到那张卡再点两下。 */
+    excluded.textContent = '';
+    /* 用 firstChild/removeChild 逐个清而不是 `textContent = ''`：
+       两者语义等价，但 test-render 的 DOM 桩里 `textContent = ''` 会把 _text
+       置成空串并让后续 appendChild 的文本读不回来 —— 那是桩的简化，
+       不是浏览器行为。清子节点用的是标准 DOM 方法，两边都成立。 */
+    while (excluded.firstChild) excluded.removeChild(excluded.firstChild);
+    const names = s.unwanted
+      .map((id) => LIFE_NOTES.find((x) => x.id === id))
+      .filter(Boolean);
+    if (!names.length) {
+      excluded.classList.add('is-idle');
+      excluded.textContent = '你已排除：（还没有）';
+    } else {
+      excluded.classList.remove('is-idle');
+      excluded.appendChild(document.createTextNode('你已排除：'));
+      names.forEach((d, i) => {
+        if (i) excluded.appendChild(document.createTextNode('、'));
+        excluded.appendChild(el('button', {
+          class: 'avoid-undo',
+          type: 'button',
+          'data-undo': d.id,
+          'aria-label': `取消排除「${d.zh}」`,
+          onclick: () => {
+            const cur = state.answers.unwanted || [];
+            const at = cur.indexOf(d.id);
+            if (at >= 0) cur.splice(at, 1);
+            syncPhrasesToNotes();
+            paintCard(d.id);
+            paintMeta();
+            /* 撤销后这个名字会从清单里消失：焦点不能掉回 body，
+               交还给对应的那张卡（键盘用户下一步就在那里）。 */
+            const back = wall.querySelector(`[data-row="${d.id}"] .avoid-card`);
+            if (back && typeof back.focus === 'function') back.focus();
+          },
+        }, d.zh));
+      });
+    }
+
+    const lastId = s.unwanted[s.unwanted.length - 1] || s.noSmell[s.noSmell.length - 1];
+    const last = lastId ? LIFE_NOTES.find((x) => x.id === lastId) : null;
+    const lastOff = !!(lastId && s.noSmell.includes(lastId));
     gloss.classList.toggle('is-idle', !last);
     gloss.textContent = last
-      ? `${last.zh} —— ${last.hint}`
-      : '点一下＝这个不要，再点一下收回。不点就是接受';
+      ? (lastOff
+        ? `${last.zh} —— 没闻过，这条不算数`
+        : `${last.zh} —— ${last.hint}`)
+      : '点卡＝这个不要；没闻过就点右边「没闻过」。两个都不点＝接受';
   };
 
   /* 同一条纪律（原「想要」屏的 togglePhrase 也是这一条，那屏已删）：
@@ -2619,24 +2724,56 @@ function renderAvoid() {
       const o = state.answers.wanted || [];
       const oi = o.indexOf(id);
       if (oi >= 0) o.splice(oi, 1);
+      /* 「不要」压过「没闻过」：同一张卡上更强的那个陈述说了算。
+         不清的话会留下"标了不要、同时又标了没闻过"的矛盾态。 */
+      const ns = state.answers.noSmell || (state.answers.noSmell = []);
+      const ni = ns.indexOf(id);
+      if (ni >= 0) ns.splice(ni, 1);
+    }
+    syncPhrasesToNotes();
+  };
+
+  /* 「没闻过」：只写 noSmell，不碰 unwanted / dislikedNotes。
+     这是第三态的全部实现 —— 它之所以能不扣分，是因为它**根本没有**
+     进入 syncPhrasesToNotes 的输入（那里只读 unwanted）。 */
+  const toggleNoSmell = (id) => {
+    const ns = state.answers.noSmell || (state.answers.noSmell = []);
+    const i = ns.indexOf(id);
+    if (i >= 0) {
+      ns.splice(i, 1);
+    } else {
+      ns.push(id);
+      const un = state.answers.unwanted || (state.answers.unwanted = []);
+      const ui = un.indexOf(id);
+      if (ui >= 0) un.splice(ui, 1);
     }
     syncPhrasesToNotes();
   };
 
   for (const c of plan.cards) {
-    const on = (state.answers.unwanted || []).includes(c.id);
-    /* 就地改状态，不重建整墙 —— 重建会让被点的节点消失、焦点掉回 body
-       （原「想要」屏实测过同一件事，那屏已删，纪律留在这里）。 */
+    const on = selNow().unwanted.includes(c.id);
+    const off = selNow().noSmell.includes(c.id);
+    /* 一行＝主卡（整卡＝这个不要）＋右侧一枚独立「没闻过」小键。
+       为什么不把"没闻过"塞进卡里做成循环点击：<button> 里不许再放 <button>，
+       塞进去只能做成 span 上的 click，键盘用户按不到；而"一次点击循环三态"
+       会让撤销多说一次 —— 点了不要想撤回，再点一下就变成"没闻过"，
+       用户得再点一次才回到未选，这一手最容易误伤。两个独立靶子没有这个问题，
+       而且主卡的命中面积与语义一字未改（老断言的前提仍成立）。 */
+    const row = el('div', {
+      class: 'avoid-row',
+      'data-row': c.id,
+      role: 'group',
+      'aria-label': c.zh,
+    });
     const card = el('button', {
-      class: 'avoid-card' + (on ? ' is-on' : ''),
+      class: 'avoid-card' + (on ? ' is-on' : '') + (off ? ' is-unknown' : ''),
       type: 'button',
       'data-phrase': c.id,
+      'data-state': on ? 'on' : off ? 'unknown' : 'idle',
       'aria-pressed': String(on),
       onclick: () => {
         toggle(c.id);
-        const nowOn = (state.answers.unwanted || []).includes(c.id);
-        card.classList.toggle('is-on', nowOn);
-        card.setAttribute('aria-pressed', String(nowOn));
+        paintCard(c.id);
         paintMeta();
       },
     },
@@ -2649,10 +2786,23 @@ function renderAvoid() {
       ),
       el('span', { class: 'avoid-mark', 'aria-hidden': 'true' }, '这个不要')
     );
-    wall.appendChild(card);
+    const nope = el('button', {
+      class: 'avoid-nope' + (off ? ' is-on' : ''),
+      type: 'button',
+      'data-phrase': c.id,
+      'aria-pressed': String(off),
+      title: '我没闻过这个，这条不算数',
+      onclick: () => {
+        toggleNoSmell(c.id);
+        paintCard(c.id);
+        paintMeta();
+      },
+    }, '没闻过');
+    row.append(card, nope);
+    wall.appendChild(row);
   }
 
-  wrap.append(wall, count, gloss);
+  wrap.append(wall, count, excluded, gloss);
   /* 首屏就要有提示行：paintMeta 原来只在点卡时跑，于是第一次进这一屏
      count 与 gloss 都是空字符串 —— 用户得先点一下才知道"点一下＝这个不要"。
      在挂载后补一次调用即可（不是结构调整，两个节点本来就已建好）；
@@ -3362,7 +3512,7 @@ function restart() {
      state.answers 逐键对齐（历史上两次事故都是"加字段时漏更新 restart"）。 */
   state.answers = {
     family: null, subfamily: null, direction: null, emotion: null, occasion: null, intensity: 3,
-    budget: 'any', wanted: [], unwanted: [],
+    budget: 'any', wanted: [], unwanted: [], noSmell: [],
     likedNotes: [], dislikedNotes: [], likedZh: {}, dislikedZh: {},
     /* characterNeg 与 longevityManual 是前两轮漏过的：前者是气质原型的
        「禁止标签」，不清会带着上一轮的排除项进新一轮打分（用户重选气质后
@@ -5271,6 +5421,16 @@ export const __avoid = {
   scenarios: AVOID_SCENARIOS,
   plan: avoidPlanNow,
   soft: avoidSoftNow,
+  /* 三态归并（2026-11-23）：两列互斥 + 只留屏上还存在的 id。
+     测试要用它验"没闻过不进 unwanted、也不进 dislikedNotes"。 */
+  select: avoidSelection,
+  /* 这一屏真实写进 state 的两列 —— 断言"没闻过没被折算成 -40"只能从这里看，
+     因为界面上两种态长得不一样，但引擎侧只有一个 dislikedNotes。 */
+  picked: () => ({
+    unwanted: (state.answers.unwanted || []).slice(),
+    noSmell: (state.answers.noSmell || []).slice(),
+    dislikedNotes: (state.answers.dislikedNotes || []).slice(),
+  }),
   /* 让测试把香水库/分类表塞进来，不必真 fetch（与 __art.set 同一手法）。 */
   setData: (d) => { DATA = d; avoidIndex = null; },
   setTax: (t) => { TAX = t; avoidIndex = null; },

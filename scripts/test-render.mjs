@@ -1074,6 +1074,128 @@ ok('避雷屏标题是「只问最容易踩雷的几个」',
     (appRoot.querySelectorAll('.avoid-count')[0] || {}).textContent);
 }
 
+/* ---------- ①b 避雷屏的另外两处改动（2026-11-23，Eddie 批准 QW10 诊断） ----------
+   ① 第三态「没闻过」（不扣分也不加分）② 已排除清单可点撤销 ③ 屏顶代价提示。
+   三条都要在同一屏上验 —— 它们共用一段状态，分开验会各自"绿"而合起来错。 */
+{
+  const cards = appRoot.querySelectorAll('.avoid-card');
+  /* ③ 代价提示：口径由任务书给定，这里守两件事 ——
+     ① 它在屏顶且在卡片墙之前（点第一张卡之前就能看到）；
+     ② 它不含任何内部权重数字（−40 / +14 是引擎术语，不许上屏）。 */
+  const tip = appRoot.querySelectorAll('.avoid-tip')[0];
+  ok('避雷屏顶部有代价提示（.avoid-tip）', !!tip,
+    `实际 ${appRoot.querySelectorAll('.avoid-tip').length} 条`);
+  ok('代价提示写清「点错会扣分」与「没闻过」两个口径',
+    !!tip && /扣/.test(tip.textContent) && /没闻过/.test(tip.textContent),
+    tip && tip.textContent);
+  ok('代价提示不含内部权重数字（−40 / +14 这类不许上屏）',
+    !!tip && !/[-−+]\s?\d+|40|14/.test(tip.textContent), tip && tip.textContent);
+  /* 位置：提示必须先于卡片墙出现（DOM 顺序即朗读顺序与视觉顺序）。
+     桩的选择器不支持逗号分组，所以直接读父节点的 children 顺序 ——
+     这也正是浏览器里"谁先谁后"的定义。 */
+  {
+    const wallEl = appRoot.querySelectorAll('.avoid-wall')[0];
+    const tipEl = appRoot.querySelectorAll('.avoid-tip')[0];
+    const siblings = (tipEl && tipEl.parentNode && tipEl.parentNode.children) || [];
+    ok('代价提示排在卡片墙之前（点卡前就能看见）',
+      !!tipEl && !!wallEl && siblings.indexOf(tipEl) >= 0
+      && siblings.indexOf(tipEl) < siblings.indexOf(wallEl),
+      `tip@${siblings.indexOf(tipEl)} wall@${siblings.indexOf(wallEl)}`);
+  }
+
+  /* ① 第三态：给第 2 张卡点「没闻过」。
+     关键断言不是"卡变色了"，而是"引擎侧一个字都没变" ——
+     界面上两种态长得不一样，但 dislikedNotes 只有一个来源。 */
+  const rows = appRoot.querySelectorAll('.avoid-row');
+  ok('每张卡都配一枚独立的「没闻过」键（不是嵌在卡里的 span）',
+    rows.length === cards.length
+    && rows.every((r) => r.querySelectorAll('.avoid-nope').length === 1),
+    `行 ${rows.length} / 卡 ${cards.length}`);
+  ok('「没闻过」是真 button（键盘可达，不是坐标点击）',
+    rows.every((r) => r.querySelector('.avoid-nope').tagName === 'BUTTON'),
+    rows.map((r) => r.querySelector('.avoid-nope').tagName).join(','));
+
+  const before = appMod.__avoid.picked();
+  const second = rows[1];
+  const secondId = second.attrs['data-row'];
+  const nope = second.querySelector('.avoid-nope');
+  ok('未点「没闻过」时 aria-pressed=false', nope.attrs['aria-pressed'] === 'false',
+    String(nope.attrs['aria-pressed']));
+  nope.dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  const after = appMod.__avoid.picked();
+  ok('点「没闻过」→ 该 id 进 noSmell、不进 unwanted',
+    after.noSmell.includes(secondId) && !after.unwanted.includes(secondId),
+    `noSmell=${after.noSmell.join(',')} / unwanted=${after.unwanted.join(',')}`);
+  ok('点「没闻过」→ dislikedNotes 一个字节都没变（不进打分）',
+    after.dislikedNotes.join(',') === before.dislikedNotes.join(','),
+    `${before.dislikedNotes.join(',')} → ${after.dislikedNotes.join(',')}`);
+  ok('点「没闻过」→ 「不要」那一列也没变多',
+    after.unwanted.length === before.unwanted.length,
+    `${before.unwanted.length} → ${after.unwanted.length}`);
+  ok('没闻过态在卡上可辨（is-unknown + aria-pressed 翻 true）',
+    second.querySelector('.avoid-card').classList.contains('is-unknown')
+    && nope.attrs['aria-pressed'] === 'true',
+    second.querySelector('.avoid-card').className);
+  ok('没闻过态不盖「这个不要」章（两枚章同卡＝自相矛盾的陈述）',
+    !second.querySelector('.avoid-card').classList.contains('is-on'),
+    second.querySelector('.avoid-card').className);
+  ok('计数行同时报两种态', /没闻过/.test(appRoot.querySelectorAll('.avoid-count')[0].textContent),
+    appRoot.querySelectorAll('.avoid-count')[0].textContent);
+
+  /* ② 已排除清单：上一步点的第 1 张卡已经在 unwanted 里，必须出现在清单上。 */
+  const excl = appRoot.querySelectorAll('.avoid-excluded')[0];
+  ok('屏内有「你已排除」汇总行', !!excl && /你已排除/.test(excl.textContent),
+    excl && excl.textContent);
+  const undo = excl.querySelectorAll('.avoid-undo');
+  ok('已排除清单里的名字可点（撤销入口）',
+    undo.length === before.unwanted.length && undo.length >= 1,
+    `撤销键 ${undo.length} / 已排除 ${before.unwanted.length}`);
+  ok('撤销键是真 button 且带无障碍名（读屏能说出撤销的是哪一条）',
+    undo.every((b) => b.tagName === 'BUTTON' && /取消排除/.test(b.attrs['aria-label'] || '')),
+    undo.map((b) => b.attrs['aria-label']).join(' | '));
+
+  /* 点清单里的名字 → 该条回到未选态（卡上 is-on 摘掉、计数回落）。 */
+  const undoId = undo[0].attrs['data-undo'];
+  undo[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  const afterUndo = appMod.__avoid.picked();
+  ok('点清单里的名字 → 该条取消排除（回到未选）',
+    !afterUndo.unwanted.includes(undoId) && afterUndo.unwanted.length === before.unwanted.length - 1,
+    `unwanted=${afterUndo.unwanted.join(',')}`);
+  ok('取消排除后卡上的 is-on 也摘掉了（状态与视觉同步）',
+    !appRoot.querySelectorAll(`[data-row="${undoId}"] .avoid-card`)[0].classList.contains('is-on'),
+    appRoot.querySelectorAll(`[data-row="${undoId}"] .avoid-card`)[0].className);
+  ok('取消排除后 dislikedNotes 同步清掉（否则引擎还在扣分）',
+    afterUndo.dislikedNotes.length < before.dislikedNotes.length,
+    `${before.dislikedNotes.length} → ${afterUndo.dislikedNotes.length}`);
+  /* 复原：这一段为了验撤销而真的摘掉了一条排除项，而后面几屏与结果页的断言
+     都是在"第 1 张卡已标不要"这份状态上建立的（实测过：不还原，结果页第 1 瓶
+     会从「匹配度 82%」变成「初步匹配」，虽然仍绿，但验的已经是另一条分支）。
+     点回第 1 张卡把它还原，这一段就只动它自己要验的东西。 */
+  appRoot.querySelectorAll(`[data-row="${undoId}"] .avoid-card`)[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  ok('撤销后可点回「不要」（复原测试前置状态）',
+    appMod.__avoid.picked().unwanted.includes(undoId)
+    && appMod.__avoid.picked().dislikedNotes.join(',') === before.dislikedNotes.join(','),
+    `unwanted=${appMod.__avoid.picked().unwanted.join(',')}`);
+
+  /* 互斥：把同一张卡从「没闻过」改判成「不要」，「没闻过」必须让位。 */
+  second.querySelector('.avoid-card').dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  const swapped = appMod.__avoid.picked();
+  ok('同一张卡改成「不要」后，「没闻过」让位（两列互斥）',
+    swapped.unwanted.includes(secondId) && !swapped.noSmell.includes(secondId),
+    `unwanted=${swapped.unwanted.join(',')} / noSmell=${swapped.noSmell.join(',')}`);
+  /* 收尾：把它还原成未选，后面的流程不受这一段的点击影响。 */
+  second.querySelector('.avoid-card').dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  ok('第三态可完整回到未选（不是单向锁死）',
+    !appMod.__avoid.picked().unwanted.includes(secondId)
+    && !appMod.__avoid.picked().noSmell.includes(secondId),
+    JSON.stringify(appMod.__avoid.picked()));
+}
+
 /* ---------- ② 预算 ——【已整段搬到末屏，见 ⑧ 之前的「② 预算（末屏）」】 ----------
    v7 第 3 步③ 把预算屏从第 3 位搬到末位（第 6 位）。本段原来写死「第 3 屏是预算屏」
    并按位置取 `.price-tab`，搬完之后它落到 `occasion` 上：`.price-tab` 为空数组，

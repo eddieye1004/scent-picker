@@ -9,8 +9,9 @@
    文字色只取已纳入 test-contrast 审计的 token（ink / ink-2 / ink-3 /
    danger / spec-ink），不引入新文字色。
 
-   交互只有一种：点卡＝「这个不要」（.is-on），不点＝接受。
-   所以没有"想要"态，右侧那枚 .avoid-mark 印章只在 .is-on 时落下来。
+   交互有三种态（2026-11-23 起）：未选＝接受、点卡＝「这个不要」（.is-on）、
+   点右侧小键＝「没闻过」（.is-unknown，不加分也不扣分）。
+   三态各自有可分辨的视觉，且「没闻过」不用危险色 —— 它不是否定，是"这一题先空着"。
    围栏：所有选择器都带 .avoid- 前缀，不命中圆盘、其余问卷屏与结果页。
    ============================================================ */
 
@@ -25,6 +26,18 @@
   margin: 0 auto;
   position: relative;
   z-index: 1;
+}
+
+/* 一行＝主卡 + 右侧一枚独立的「没闻过」小键。
+   为什么不做成一张卡循环三态：<button> 里不能嵌 <button>（键盘用户点不到），
+   而"再点一下才回到未选"的循环会让撤销多说一次点击，最容易误伤。
+   两个独立靶子把"这个不要"与"没闻过"分成两句不同的话，各自一次到位。
+   grid 让主卡吃掉剩余宽度、小键固定一列：窄屏时小键换到卡片下方整行。 */
+.avoid-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
 }
 
 .avoid-card {
@@ -118,6 +131,99 @@
   transform: scale(1);
 }
 
+/* ---- 第三态：没闻过（2026-11-23，Eddie 批准 QW10 诊断第 1 条）----
+   它不是"选中"，所以**不**用危险色、不划掉场景句 —— 用中性虚线边 + 一枚
+   灰底小签，读起来像"这一题先空着"，而不是"这件事被否掉了"。
+   三态必须肉眼可分：未选＝实线暖纸；不要＝红杠＋划线＋印章；没闻过＝虚线圈＋灰签。 */
+.avoid-card.is-unknown {
+  border-style: dashed;
+  border-color: var(--ink-3);
+  background: var(--bg-2);
+}
+
+.avoid-card.is-unknown .avoid-zh {
+  color: var(--ink-2);
+}
+
+.avoid-nope {
+  flex: 0 0 auto;
+  align-self: stretch;             /* 与主卡同高：读作"配对的两个靶子"，不是浮在旁边的角标 */
+  min-width: 72px;
+  min-height: 44px;                /* 触控下限；与主卡同一行时不靠主卡撑高 */
+  padding: 0 10px;
+  white-space: nowrap;
+  font: 500 13px/1 var(--font-ui, system-ui);
+  color: var(--ink-3);
+  background: var(--spec-plate);
+  border: 1px dashed var(--stroke-ui);
+  border-radius: 6px;             /* 与卡片同一档圆角；999px 在窄屏会缩成一枚圆点 */
+  cursor: pointer;
+  transition: color var(--t-hover) var(--ease),
+              border-color var(--t-hover) var(--ease),
+              background-color var(--t-hover) var(--ease);
+}
+
+.avoid-nope:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+
+.avoid-nope:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 已选「没闻过」：填成灰底墨字，与主卡的"红杠划掉"明显不是同一件事。 */
+.avoid-nope.is-on {
+  color: var(--bg);
+  background: var(--ink-2);
+  border-style: solid;
+  border-color: var(--ink-2);
+}
+
+/* ---- 屏顶代价提示 ----
+   一句轻提示，不抢题面：小一号、次级墨色、前面一道短竖线当引子。
+   措辞由任务书给定口径（点错会扣分 / 没闻过就选没闻过），**不许**出现权重数字。 */
+.avoid-tip {
+  margin: 0 auto 12px;
+  max-width: 640px;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+  font: 400 13px/1.6 var(--font-ui, system-ui);
+  color: var(--ink-2);
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- 已排除清单（Eddie 批准第 2 条）----
+   一行汇总「你已排除：X、Y」。名字本身是可点的撤销入口，所以它长得像链接，
+   但用 ink-2 + 下划线而不是主题蓝：它是个补救动作，不是主要出路。 */
+.avoid-excluded {
+  margin: 10px auto 0;
+  max-width: 640px;
+  font: 400 13px/1.7 var(--font-ui, system-ui);
+  color: var(--ink-2);
+}
+
+.avoid-excluded.is-idle { color: var(--ink-3); }
+
+.avoid-undo {
+  padding: 2px 2px;
+  font: inherit;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--ink-3);
+  cursor: pointer;
+}
+
+.avoid-undo:hover { border-bottom-color: var(--ink); }
+
+.avoid-undo:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* 计数行：常驻。没点时明说"都接受"，点了报数。 */
 .avoid-count {
   margin: 16px auto 0;
@@ -147,12 +253,25 @@
 }
 
 /* 窄屏：小图收一档、印章不挤占场景句。卡片仍是一列纵排（不分页、不横滑）；
-   390×844 放不下六张大卡＋页眉，允许纵向滚动 —— "一屏看完"在桌面档保证。 */
+   390×844 放不下六张大卡＋页眉，允许纵向滚动 —— "一屏看完"在桌面档保证。
+   「没闻过」键在窄屏收成一枚窄胶囊（仍 44px 高），不换行到卡片下方：
+   六个 44px 的整行会把这一屏拉长近 300px，而它是"顺手补一句"的次要动作。 */
 @media (max-width: 620px) {
+  /* 窄屏改成上下两行：卡片吃满宽度，「没闻过」小键右对齐挂在它下面。
+     为什么不并排：390 宽里再切出一列，卡片只剩 ~290px，场景句会被挤成
+     每行 5 个字（实测「冬天围巾裹着的脖颈那股暖甜」断成三行，标本小图被压扁）。
+     上下排会把这一屏拉长约 50px×6 —— 但窄屏本来就要滚动（见下方注释），
+     而"卡片不被挤扁"是这一屏的可读性底线。桌面档仍是并排，一屏看完的契约不变。 */
+  .avoid-row { grid-template-columns: 1fr; gap: 6px; }
   .avoid-card { gap: 12px; padding: 12px 14px; min-height: 76px; }
   .avoid-spec { width: 46px; height: 46px; }
   .avoid-zh { font-size: 16px; }
   .avoid-mark { padding: 4px 8px; }
+  .avoid-nope {
+    justify-self: end;
+    min-width: 88px; min-height: 44px; padding: 0 12px; font-size: 12px;
+  }
+  .avoid-tip { margin-bottom: 10px; font-size: 12px; }
 }
 
 /* 桌面「一屏看完」：避雷屏把页眉的封面 chrome 收起（标题缩一档、lede 隐藏），
@@ -165,11 +284,17 @@
   #app[data-step="unwanted"] .masthead .lede { display: none; }
   /* 说明句放宽到一行，省出纵向空间给卡片 */
   #app[data-step="unwanted"] .stage-lead .q-help { max-width: 46em; }
+  /* 屏顶代价提示与已排除清单都是这一屏新增的一行文字（2026-11-23）。
+     "一屏看完"这条契约（verify-qoder 的末卡不越过导航条）仍然要守，
+     所以两行都收紧到单行高度、去掉多余外边距，把空间还给卡片。 */
+  #app[data-step="unwanted"] .avoid-tip { margin-bottom: 8px; line-height: 1.5; }
   #app[data-step="unwanted"] .avoid-wall { gap: 8px; }
   /* 卡片收一档密度（仍是大卡：整宽 640、70px 高），保证第六张完整落在
      sticky 导航条之上 —— 导航贴底时会盖住超出的内容。 */
+  #app[data-step="unwanted"] .avoid-row { gap: 8px; }
   #app[data-step="unwanted"] .avoid-card { min-height: 70px; padding: 10px 18px; }
   #app[data-step="unwanted"] .avoid-spec { width: 48px; height: 48px; }
   #app[data-step="unwanted"] .avoid-count { margin-top: 10px; }
+  #app[data-step="unwanted"] .avoid-excluded { margin-top: 4px; line-height: 1.5; }
   #app[data-step="unwanted"] .avoid-gloss { margin-top: 4px; min-height: 24px; }
 }

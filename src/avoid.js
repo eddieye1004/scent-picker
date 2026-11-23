@@ -95,6 +95,38 @@ function directionOf(answers, taxonomy) {
 }
 
 /**
+ * 三态的归并（2026-11-23，Eddie 批准 QW10 诊断第一条）。
+ *
+ * 避雷卡多出第三态「没闻过」：不扣分也不加分。它**不能**写进 unwanted
+ * （那是 -40 的硬惩罚），也不能被当成"接受"的证据（引擎侧没有 accepted 这一档，
+ * 不点本来就是接受）。所以它单独存一列，只在归并时保证两件事：
+ *   ① 同一个 id 不可能既「不要」又「没闻过」—— 「不要」优先（更强的陈述）；
+ *   ② 已经不在屏上的 id（方向变了）直接丢弃，两个列表都丢，
+ *      否则会带着界面上看不见的元素继续打分（pruneAvoid 的老事故）。
+ * 纯函数，不读 state：写入口与测试共用同一份判据，避免两处各写一遍。
+ *
+ * @param {{unwanted?:string[], noSmell?:string[]}} sel 两列的短语 id
+ * @param {string[]} cardIds 当前屏上真实存在的卡 id
+ */
+export function avoidSelection(sel, cardIds) {
+  const onScreen = new Set(cardIds || []);
+  const pick = (list, taken) => {
+    const out = [];
+    const seen = new Set();
+    for (const id of list || []) {
+      if (!onScreen.has(id) || seen.has(id) || taken.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+    }
+    return out;
+  };
+  const unwanted = pick(sel?.unwanted, new Set());
+  /* 「不要」优先：已进 unwanted 的 id 不再进 noSmell，两列天然互斥。 */
+  const noSmell = pick(sel?.noSmell, new Set(unwanted));
+  return { unwanted, noSmell };
+}
+
+/**
  * 现算一屏的候选。
  * @returns {null|{key:string, cards:Array, softNotes:string[]}}
  *   null = 还没有方向（第 1 步没点完），屏先占位；
