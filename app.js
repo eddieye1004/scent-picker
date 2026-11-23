@@ -29,6 +29,11 @@ import {
    avoid.js 是按 perfumes.json 频次现算候选的三条硬规则。两者都不碰 DOM。 */
 import { AVOID_SCENARIOS } from './src/avoid-map.js';
 import { buildAvoidIndex, avoidPlan, avoidSelection } from './src/avoid.js';
+/* 季节屏的「方向 × 季节」24 句（定版 2026-11-23）。抽成独立模块而不是塞进下面的
+   SEASONS：那 24 句的来源是一份 md，逐字比对是这条改动的验收线，句子集中在
+   一个文件里才能一眼对完。查不到组合时 seasonScene() 返回空串，renderSeason
+   回退到该季原有的 desc —— 用情绪入口进来的人没有 family，那一屏必须照常渲染。 */
+import { seasonScene } from './src/season-copy.js';
 
 const state = {
   step: 0,
@@ -2974,6 +2979,13 @@ const SEASONS = [
   { id: 'winter', zh: '冬', desc: '冷。需要能压住冷风的厚度', temp: -1 },
 ];
 
+/* 季节屏的「重画一次」句柄（测试专用，见 renderSeason 里的赋值）。
+   方向在第 1 屏改、季节在第 4 屏读，中间隔着整屏重建，所以产品路径里
+   不需要这个口子；但"方向变了情境句跟着变"这条断言要能在同一屏内验，
+   否则只能靠走完整流程，测起来既慢又脆。 */
+let seasonRepaint = null;
+
+
 function renderSeason() {
   const wrap = el('div', { class: 'fade-in' });
   const head = stepHead('season');
@@ -3004,6 +3016,25 @@ function renderSeason() {
   const stopPos = (temp) => (STOP_INSET + ((temp + 1) / 2) * (1 - STOP_INSET * 2)) * 100;
 
   const gloss = el('p', { class: 'temp-gloss is-idle' });
+
+  /* ==== 情境句（2026-11-23 定版 24 句）====
+     上面那行 gloss 说的是"这个季节的身体经验"（温度、风、闷不闷），
+     它对四季成立、与用户选的方向无关。下面这一行说的是**这一刻具体在做什么**：
+     「围炉煮茶，顺手烤几颗砂糖橘」——它同时绑住一个方向（美食）与一个季节（冬），
+     所以只有两者都选过之后才出现。
+
+     为什么是新增一行而不是替换 gloss：
+       gloss 是「温度读数的译文」，它随光带一起解释**季节**这个量；
+       情境句解释的是「你选的这个方向，在这个季节里的一个画面」。
+       合成一行会让"没选方向"的人看到一个跟方向无关的画面，或者反过来
+       让"只选了方向"的人提前读到一句只对某个季节成立的话。
+
+     查不到就退回该季原有的 desc（SEASONS[].desc），不白屏、不留空行：
+       · 没选季节 → 整行不出现（还没到那一步，不假装有内容）；
+       · 选了季节、方向来自情绪入口（answers.family 为空）→ 用该季 desc，
+         因为情绪入口的答案与"6 个方向"不是同一根轴，硬凑会给出误导画面。 */
+  const scene = el('p', { class: 'season-scene' });
+  scene.hidden = true;
 
   /* 每档配一句"温度 + 身体感受"。这是译文行（规格 5），不是装饰文案：
      它把「冬」这个字翻译成"冷、要压得住的风"。 */
@@ -3063,11 +3094,26 @@ function renderSeason() {
     gloss.textContent = it
       ? FEEL[it.id]
       : '按你打算主要在哪个季节用选一个；不确定就跳过，不答不扣分';
+
+    /* 情境句：方向 × 季节 都有才出现，否则退回该季 desc（仍是有内容的一行）。
+       回退只发生在"选了季节"的前提下 —— 没选季节就整行不出现，
+       因为屏幕上还没有任何一个季节可以解释，塞一句默认文案等于替用户选了。 */
+    const line = it ? (seasonScene(state.answers.family, it.id) || it.desc) : '';
+    scene.hidden = !line;
+    scene.textContent = line;
   };
+
+  /* 把 paint 的句柄留给测试（__seasonRepaint）：方向是在**第 1 屏**改的，
+     季节屏只重建一次，所以要验"方向变了这一句跟着变"必须能在不重画整屏的
+     前提下再 paint 一次。真流程里不会走到（改方向要走回第 1 屏，回来时整屏重建），
+     所以这是测试专用的口子，不是产品路径。 */
+  seasonRepaint = () => paint(state.answers.season);
+
 
   paint(state.answers.season);
   wrap.appendChild(band);
   wrap.appendChild(gloss);
+  wrap.appendChild(scene);
 
   /* 这段数字是**用户可见**的，必须跟数据同步（1388 瓶实测，D56）。
      写错等于自拆台 —— 这类文字恰恰靠"说得具体"建立可信度。 */
@@ -5467,6 +5513,24 @@ export const __derivePreset = deriveFromPreset;
 /* 重开一局。测试要验「情绪入口 7 步」必须能从干净状态走一遍，
    否则只能验到纯函数、验不到 navBar / render / 进度条。 */
 export const __restart = restart;
+
+/* 季节屏「方向 × 季节」那一句的取值函数（定版 2026-11-23）。
+   测试要用它把"屏上那句话"与"该方向该季的那句话"对齐 ——
+   断言里不该再抄一份 24 句：抄一份就等于有第二个来源，
+   而本任务的验收线正是"只有一个来源、逐字一致"。 */
+export { seasonScene as __seasonScene } from './src/season-copy.js';
+
+/* 24 格的完整表（含 family 反查）。测试用它验"上屏那句 = 表里那一格"，
+   不需要读仓库外的定版 md —— check-head 会把 HEAD 干净导出到临时目录，
+   那种地方读不到本机路径，断言会退化成"只有本机能绿"的假门。 */
+export { SEASON_SCENE_CELLS as __seasonCells } from './src/season-copy.js';
+
+/* 问卷答案（只读用途：测试要临时把 family 置空，验"没有方向时回退 desc"
+   这条降级路径。真渲染才看得见，纯函数验不到）。 */
+export const __state = state;
+
+/* 季节屏重画一次（见 renderSeason 里 seasonRepaint 的赋值与注释）。 */
+export const __seasonRepaint = () => { if (seasonRepaint) seasonRepaint(); };
 
 
 /* 测试用：把推导函数挂到 #app 上，供 test-render 直接调用。

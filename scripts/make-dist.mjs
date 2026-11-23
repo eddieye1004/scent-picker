@@ -19,7 +19,7 @@ const FILES = [
 ];
 const DIRS = [
   ['src', ['scoring.js', 'notes.js', 'ambient.js', 'history.js', 'share-card.js',
-    'avoid.js', 'avoid-map.js']],
+    'avoid.js', 'avoid-map.js', 'season-copy.js']],
   ['data', ['perfumes.json', 'taxonomy.json', 'price-bands.json', 'photos.json',
     'affiliate-links.json', 'tmall-shops.json', 'avoid-scenarios.json']],
   ['fonts', null],

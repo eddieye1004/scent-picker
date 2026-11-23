@@ -11,8 +11,11 @@
 /* 2026-11-19：中文 webfont 退场（DECISIONS D71），CORE 去掉
    fonts/noto-sans-sc-subset.woff2；VERSION 跟着进一位，让旧缓存整套失效 ——
    静态资源是 cache-first + ignoreSearch，只改文件不换缓存名会一直吐旧副本。
-   同日 CORE 瘦身：perfumes.json 与 24 枚标本 SVG 移出预缓存 → v2-20261119b。 */
-const VERSION = 'v2-20261119b';
+   同日 CORE 瘦身：perfumes.json 与 24 枚标本 SVG 移出预缓存 → v2-20261119b。
+   2026-11-23：CORE 加入 src/season-copy.js（季节屏 24 句）。它是 app.js
+   的静态导入，缺了会让整个 module 图加载失败 —— 离线时不是"少一行文案"，
+   是白屏。VERSION 跟一位。 */
+const VERSION = 'v2-20261123a';
 const CACHE_PREFIX = 'scent-picker-v7-1-';
 const CACHE = CACHE_PREFIX + VERSION;
 
@@ -39,6 +42,7 @@ const CORE = [
   './src/share-card.js',
   './src/avoid.js',
   './src/avoid-map.js',
+  './src/season-copy.js',
   './fonts/inter-var-latin.woff2',
   './fonts/inter-var-latin-ext.woff2',
   './icons/icon-192.png',

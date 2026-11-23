@@ -176,7 +176,11 @@ const sample = (names = ['A', 'B', 'C']) => ({
   const CORE = (sw.match(/const CORE = \[([\s\S]*?)\n\];/)?.[1] || '')
     .split('\n').map((line) => line.trim().match(/^'([^']+)',?$/)?.[1]).filter(Boolean);
   for (const asset of ['./index.html', './styles.css', './app.js', './manifest.json',
-    './src/scoring.js', './src/history.js', './src/share-card.js', './data/taxonomy.json']) {
+    './src/scoring.js', './src/history.js', './src/share-card.js', './data/taxonomy.json',
+    /* 2026-11-23：季节屏 24 句。它是 app.js 的静态导入 —— 不进 CORE 的话，
+       离线首访会因 module 图加载失败而整页白屏，不是"少一行文案"。
+       加进这条清单就跟着这条断言一起守。 */
+    './src/season-copy.js']) {
     ok(`SW 预缓存了 ${asset}`, CORE.includes(asset));
   }
   /* 断言总数与历史回执对齐（这一组仍是 10 条）：8 条预缓存 + 2 条改为

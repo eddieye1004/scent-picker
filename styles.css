@@ -5284,6 +5284,13 @@ font: 400 14px/1.65 var(--font-ui, system-ui);
 color: var(--ink-2);
 }
 .temp-gloss.is-idle { color: var(--ink-3); }
+.season-scene {
+margin: 10px 0 0;
+font: 500 16px/1.55 var(--font-display, Georgia, serif);
+color: var(--ink);
+letter-spacing: .01em;
+}
+.season-scene[hidden] { display: none; }
 .diffuse {
 position: relative;
 z-index: 1;

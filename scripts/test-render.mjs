@@ -1307,6 +1307,71 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
     String(appRoot.querySelectorAll('.temp-band')[0].style['--band-temp']));
   await new Promise((r) => setTimeout(r, 60));
   ok('点一季后落点亮起', stops[3].attrs['aria-checked'] === 'true', String(stops[3].attrs['aria-checked']));
+
+  /* ---- 情境句（2026-11-23 定版 24 句）----
+     这一屏现在有两行译文，分工不同，所以**四件事分开验**：
+       ① 未选季节时情境句不存在（不替用户选一个季节来解释）；
+       ② 选了季节、也有方向时，出现的是「该方向 × 该季」那一句（不是别的格）；
+       ③ 换了季节，句子跟着换（不是渲染一次就冻住）；
+       ④ 没有方向（情绪入口）时退回该季 desc —— 不许留空、不许白屏。
+     ③④ 都要真渲染才看得见，所以放在这个块里而不是纯函数断言里。 */
+  {
+    /* 走到这一屏时家族是 citrus（本文件前面点的是 sectorGroups[0]，见 940 行）。
+       定版表里 citrus 对应「果香」—— 这一层映射在 src/season-copy.js 里，
+       这里不重抄那张表，只验"上屏的那句 = seasonScene 算出的那句"。 */
+    const cell = (fam, s) => appMod.__seasonScene(fam, s);
+    ok('情境句与 seasonScene 同源（不是渲染层另写了一份文案）',
+      typeof cell('citrus', 'winter') === 'string' && cell('citrus', 'winter').length > 0,
+      String(cell('citrus', 'winter')));
+
+    const sceneEl = () => appRoot.querySelectorAll('.season-scene')[0];
+    ok('季节屏有情境句这一行（只有一个）', appRoot.querySelectorAll('.season-scene').length === 1,
+      `实际 ${appRoot.querySelectorAll('.season-scene').length}`);
+
+    /* 此刻 stops[3]（冬）已被点上，家族是 citrus —— 应是「果香 × 冬」那句。 */
+    const wantWinter = cell('citrus', 'winter');
+    ok('选了季节 + 有方向时，屏上是该方向 × 该季那一句',
+      !!sceneEl() && sceneEl().hidden === false && sceneEl().textContent === wantWinter,
+      `期望「${wantWinter}」实得「${sceneEl() ? sceneEl().textContent : '(无节点)'}」`);
+
+    /* 这句话必须真的是季节表里的那一格，而不是碰巧非空 ——
+       直接把它与 SEASON_SCENES 逐字对一次。
+       为什么不在这里读定版 md：md 不在仓库里，check-head 会把 HEAD 干净导出到
+       临时目录再跑，那边读不到本机路径，这条断言就会变成"只有本机能绿"的假门。
+       "与 md 逐字一致"由 scripts/verify-season-copy.mjs 单独守（它是本任务的
+       验收脚本，允许读本机路径，且可用 SEASON_COPY_MD 覆盖）。 */
+    const cellTable = appMod.__seasonCells;
+    const cellOf = (fam, s) => (cellTable.find((c) => c.family === fam && c.season === s) || {}).sentence;
+    ok('上屏的这句逐字等于季节表里那一格（不是渲染层另写的文案）',
+      cellOf('citrus', 'winter') === wantWinter,
+      `表「${cellOf('citrus', 'winter')}」屏「${wantWinter}」`);
+
+    /* 换一季：句子必须跟着换，且仍然来自同一张表。 */
+    stops[0].dispatch('click');
+    await new Promise((r) => setTimeout(r, 60));
+    const wantSpring = cell('citrus', 'spring');
+    ok('换季后情境句跟着换（不是渲染一次就冻住）',
+      !!sceneEl() && sceneEl().textContent === wantSpring && wantSpring !== wantWinter,
+      `期望「${wantSpring}」实得「${sceneEl() ? sceneEl().textContent : '(无节点)'}」`);
+    ok('换季后的这句也逐字等于表里那一格',
+      cellOf('citrus', 'spring') === wantSpring, String(cellOf('citrus', 'spring')));
+
+    /* ④ 回退：把方向清掉（等价于从情绪入口进来的人），句子退回该季 desc。
+       desc 是 SEASONS 里原有的那句，它必须还在 —— 这是"不许白屏"的判据。 */
+    const keepFam = appMod.__state.answers.family;
+    appMod.__state.answers.family = null;
+    appMod.__seasonRepaint();
+    const fallback = sceneEl();
+    ok('没有方向时退回该季原有的 desc（不留空行）',
+      !!fallback && fallback.hidden === false && fallback.textContent.length > 0
+      && fallback.textContent !== wantSpring,
+      fallback ? `「${fallback.textContent}」` : '(无节点)');
+    appMod.__state.answers.family = keepFam;
+    appMod.__seasonRepaint();
+    ok('恢复方向后重新回到该方向那一句',
+      !!sceneEl() && sceneEl().textContent === wantSpring,
+      sceneEl() ? sceneEl().textContent : '(无节点)');
+  }
 }
 
 /* ---------- ⑦ 浓淡（扩散场，定版范例之三） ----------
