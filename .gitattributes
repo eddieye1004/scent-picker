@@ -15,3 +15,7 @@
 *.ico  binary
 *.woff binary
 *.woff2 binary
+
+# lore 审计证据原样入库：这些是搜索引擎返回的原始输出，属于审计底账，
+# 一个字节都不许被 eol 规范化改写，否则「引文逐字命中 raw」的校验失去意义。
+docs/lore/evidence-*/** -text
