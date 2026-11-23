@@ -1,0 +1,828 @@
+{
+ "generatedAt": "2026-11-18",
+ "batch_no": 4,
+ "batch_size": 100,
+ "rule": "缺口=perfumes.json−photos.json；有淘宝链接优先，组内按 popularityRank 升序，null rank 按品牌+名称字母序排组尾",
+ "missing_total": 751,
+ "missing_with_taobao": 51,
+ "composition": {
+  "with_taobao": 51,
+  "without_taobao": 49,
+  "carryover_rejected": 2,
+  "carryover_skipped": 4
+ },
+ "batch": [
+  {
+   "id": "kayali-lovefest-burning-cherry-48",
+   "brand": "Kayali",
+   "name": "Love Fest Burning Cherry 48",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": 264,
+   "carryover": "skipped",
+   "carryover_reason": "第三批跳过：perfumeonline / fragranceoutlet / intensoud / oudstore / perfumepalace 均无货号；Kayali 官方站（hudabeauty）拒绝抓取，未找到可用实物图。"
+  },
+  {
+   "id": "nina-ricci-nina-fantasy",
+   "brand": "Nina Ricci",
+   "name": "Nina Fantasy",
+   "concentration": "淡香水 EDT",
+   "taobao": true,
+   "popularityRank": 516,
+   "carryover": "skipped",
+   "carryover_reason": "第三批跳过：限量款，perfumeonline / fragranceoutlet / perfumepalace 均只有 Nina、Nina Illusion、Nina Rouge 等，无 Fantasy 本款。"
+  },
+  {
+   "id": "issey-miyake-a-drop-dissey",
+   "brand": "Issey Miyake",
+   "name": "A Drop d'Issey",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": 591,
+   "carryover": "skipped",
+   "carryover_reason": "第三批跳过：各渠道只有 L'Eau d'Issey 系列与 A Drop d'Issey 的其它衍生，未找到本款。另注意现图候选里有一张灰底、瓶身裁掉一半的不合格图（见 photo-report.md §3），不要拿来顶替。"
+  },
+  {
+   "id": "creed-spice-and-wood",
+   "brand": "Creed",
+   "name": "Spice and Wood",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": 805,
+   "carryover": "skipped",
+   "carryover_reason": "第三批跳过：Creed 官方店（creedboutique）已无 Spice and Wood（Royal Exclusives 停售），其它渠道仅 Spicebomb/Vetiver 等近似款。"
+  },
+  {
+   "id": "ajmal-aurum-elixir",
+   "brand": "Ajmal",
+   "name": "Aurum Elixir",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null,
+   "carryover": "rejected",
+   "carryover_reason": "第三批验收驳回：瓶身对版（AURUM ELIXIR 本尊），但抠图底部残留原墨绿背景的绿色碎边，白底上一眼可见。重找原生浅底图或重抠。"
+  },
+  {
+   "id": "armaf-miss-armaf-attitude",
+   "brand": "Armaf",
+   "name": "Miss Armaf Attitude",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null,
+   "carryover": "rejected",
+   "carryover_reason": "第三批验收驳回：瓶身对版，但抠图边缘全周锯齿阶梯（原图纯黑底粗抠），低于原生干净底标准。重找或重抠。"
+  },
+  {
+   "id": "azzaro-chrome-legend-toilette",
+   "brand": "Azzaro",
+   "name": "Chrome Legend",
+   "concentration": "淡香水 EDT",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "azzaro-forever-wanted-elixir",
+   "brand": "Azzaro",
+   "name": "Forever Wanted Elixir",
+   "concentration": "浓缩香精",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "bvlgari-allegra-baciami",
+   "brand": "Bvlgari",
+   "name": "Allegra Baciami",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "calvin-klein-defy-toilette",
+   "brand": "Calvin Klein",
+   "name": "Defy",
+   "concentration": "淡香水 EDT",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "calvin-klein-eternity-moment",
+   "brand": "Calvin Klein",
+   "name": "Eternity Moment",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "calvin-klein-my-euphoria",
+   "brand": "Calvin Klein",
+   "name": "My Euphoria",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "carolina-herrera-chic",
+   "brand": "Carolina Herrera",
+   "name": "Chic",
+   "concentration": "淡香水 EDT",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "clinique-happy",
+   "brand": "Clinique",
+   "name": "Happy",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "creed-acqua-fiorentina",
+   "brand": "Creed",
+   "name": "Acqua Fiorentina",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "creed-neroli-sauvage",
+   "brand": "Creed",
+   "name": "Neroli Sauvage",
+   "concentration": "",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "creed-original-santal-parfum",
+   "brand": "Creed",
+   "name": "Original Santal",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "creed-wind-flowers",
+   "brand": "Creed",
+   "name": "Wind Flowers",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "dior-homme",
+   "brand": "Dior",
+   "name": "Homme",
+   "concentration": "淡香水 EDT",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "dior-poison-girl",
+   "brand": "Dior",
+   "name": "Poison Girl",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "diptyque-leau-des-hesperides",
+   "brand": "Diptyque",
+   "name": "L'Eau des Hesperides",
+   "concentration": "淡香水 EDT",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "diptyque-vetyverio-toilette",
+   "brand": "Diptyque",
+   "name": "Vetyverio",
+   "concentration": "淡香水 EDT",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "ellis-brooklyn-myth",
+   "brand": "Ellis Brooklyn",
+   "name": "Myth",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "frederic-malle-the-moon",
+   "brand": "Frédéric Malle",
+   "name": "The Moon",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "french-avenue-liquid-brun",
+   "brand": "French Avenue",
+   "name": "Liquid Brun",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "givenchy-ange-ou-demon-parfum",
+   "brand": "Givenchy",
+   "name": "Ange ou Démon",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "gucci-flora-gorgeous-jasmine",
+   "brand": "Gucci",
+   "name": "Flora Gorgeous Jasmine",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "jean-paul-gaultier-la-belle-paradise-garden",
+   "brand": "Jean Paul Gaultier",
+   "name": "La Belle Paradise Garden",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "jean-paul-gaultier-le-beau-narcisse",
+   "brand": "Jean Paul Gaultier",
+   "name": "Le Beau Narcisse",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "jean-paul-gaultier-le-beau-paradise-garden",
+   "brand": "Jean Paul Gaultier",
+   "name": "Le Beau Paradise Garden",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "jean-paul-gaultier-scandal-absolu",
+   "brand": "Jean Paul Gaultier",
+   "name": "Scandal Absolu",
+   "concentration": "香水",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "joop-joop-homme",
+   "brand": "Joop",
+   "name": "Joop Homme",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "juicy-couture-viva-la-juicy-gold-couture",
+   "brand": "Juicy Couture",
+   "name": "Viva La Juicy Gold Couture",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "kajal-lamar",
+   "brand": "Kajal",
+   "name": "Lamar",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "kayali-eden-juicy-apple",
+   "brand": "Kayali",
+   "name": "Eden Juicy Apple",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "kayali-elixir-11-parfum",
+   "brand": "Kayali",
+   "name": "Elixir 11",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "kayali-oudgasm-rose-oud",
+   "brand": "Kayali",
+   "name": "Oudgasm Rose Oud",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "kayali-oudgasm-vanilla-oud",
+   "brand": "Kayali",
+   "name": "Oudgasm Vanilla Oud",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "kilian-dark-lord",
+   "brand": "Kilian Paris",
+   "name": "Dark Lord",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "maison-crivelli-musc-nurasana",
+   "brand": "Maison Crivelli",
+   "name": "Musc Nurasana",
+   "concentration": "香精",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "maison-margiela-sailing-day",
+   "brand": "Maison Margiela Fragrances",
+   "name": "Sailing Day",
+   "concentration": "淡香水 EDT",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "matiere-premiere-radical-rose",
+   "brand": "Matière Première",
+   "name": "Radical Rose",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "montale-intense-roses-musk",
+   "brand": "Montale",
+   "name": "INTENSE Roses Musk :",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "montale-intense-starry-nights",
+   "brand": "Montale",
+   "name": "Intense Starry Nights :",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "montale-wood-and-spices",
+   "brand": "Montale",
+   "name": "Wood and Spices",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "narciso-rodriguez-all-of-me-intense",
+   "brand": "Narciso Rodriguez",
+   "name": "all of me intense",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "narciso-rodriguez-for-him-bleu-noir-toilette",
+   "brand": "Narciso Rodriguez",
+   "name": "For Him Bleu Noir",
+   "concentration": "淡香水 EDT",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "nasomatto-blamage",
+   "brand": "Nasomatto",
+   "name": "Blamage",
+   "concentration": "香精",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "rayhaan-pacific-aura",
+   "brand": "Rayhaan",
+   "name": "Pacific Aura",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "tom-ford-black-lacquer",
+   "brand": "Tom Ford",
+   "name": "Black Lacquer",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "valentino-vendetta-uomo",
+   "brand": "Valentino",
+   "name": "Vendetta Uomo",
+   "concentration": "淡香精 EDP",
+   "taobao": true,
+   "popularityRank": null
+  },
+  {
+   "id": "amouage-honour-man",
+   "brand": "Amouage",
+   "name": "Honour Man",
+   "concentration": "",
+   "taobao": false,
+   "popularityRank": 225
+  },
+  {
+   "id": "dolce-gabbana-k-by-dolce-and-gabbana",
+   "brand": "Dolce&Gabbana",
+   "name": "K by Dolce&Gabbana",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 226
+  },
+  {
+   "id": "viktor-rolf-spicebomb-extreme",
+   "brand": "Viktor&Rolf",
+   "name": "Spicebomb Extreme",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 238
+  },
+  {
+   "id": "michael-kors-wonderlust",
+   "brand": "Michael Kors",
+   "name": "Wonderlust",
+   "concentration": "",
+   "taobao": false,
+   "popularityRank": 245
+  },
+  {
+   "id": "byredo-sunday-cologne",
+   "brand": "Byredo",
+   "name": "Sunday Cologne",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 262
+  },
+  {
+   "id": "cartier-baiser-vole",
+   "brand": "Cartier",
+   "name": "Baiser Volé",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 281
+  },
+  {
+   "id": "floris-no-89",
+   "brand": "Floris London",
+   "name": "No.89",
+   "concentration": "淡香水 EDT",
+   "taobao": false,
+   "popularityRank": 284
+  },
+  {
+   "id": "mancera-instant-crush",
+   "brand": "Mancera",
+   "name": "Instant Crush",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 286
+  },
+  {
+   "id": "burberry-brit-rhythm",
+   "brand": "Burberry",
+   "name": "Brit Rhythm",
+   "concentration": "淡香水 EDT",
+   "taobao": false,
+   "popularityRank": 289
+  },
+  {
+   "id": "lacoste-l-12-12-rouge",
+   "brand": "Lacoste",
+   "name": "L.12.12 Rouge",
+   "concentration": "淡香水 EDT",
+   "taobao": false,
+   "popularityRank": 292
+  },
+  {
+   "id": "nishane-ege",
+   "brand": "Nishane",
+   "name": "Ege",
+   "concentration": "香精",
+   "taobao": false,
+   "popularityRank": 294
+  },
+  {
+   "id": "dolce-gabbana-devotion",
+   "brand": "Dolce&Gabbana",
+   "name": "Devotion",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 298
+  },
+  {
+   "id": "guerlain-vetiver",
+   "brand": "Guerlain",
+   "name": "Vétiver",
+   "concentration": "淡香水 EDT",
+   "taobao": false,
+   "popularityRank": 299
+  },
+  {
+   "id": "memo-paris-irish-leather",
+   "brand": "Memo Paris",
+   "name": "Irish Leather",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 300
+  },
+  {
+   "id": "tiziana-terenzi-andromeda",
+   "brand": "Tiziana Terenzi",
+   "name": "Andromeda",
+   "concentration": "香精",
+   "taobao": false,
+   "popularityRank": 304
+  },
+  {
+   "id": "marc-jacobs-daisy-eau-so-fresh",
+   "brand": "Marc Jacobs",
+   "name": "Daisy Eau So Fresh",
+   "concentration": "淡香水 EDT",
+   "taobao": false,
+   "popularityRank": 309
+  },
+  {
+   "id": "jo-malone-blackberry-and-bay",
+   "brand": "Jo Malone London",
+   "name": "Blackberry & Bay",
+   "concentration": "",
+   "taobao": false,
+   "popularityRank": 323
+  },
+  {
+   "id": "kenzo-kenzo-world",
+   "brand": "Kenzo",
+   "name": "Kenzo World",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 324
+  },
+  {
+   "id": "moschino-toy-2-bubble-gum",
+   "brand": "Moschino",
+   "name": "Toy 2 Bubble Gum",
+   "concentration": "淡香水 EDT",
+   "taobao": false,
+   "popularityRank": 326
+  },
+  {
+   "id": "armani-emporio-armani-she",
+   "brand": "Giorgio Armani",
+   "name": "Emporio Armani She",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 338
+  },
+  {
+   "id": "azzaro-wanted-by-night",
+   "brand": "Azzaro",
+   "name": "Wanted by Night",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 339
+  },
+  {
+   "id": "davidoff-cool-water-intense",
+   "brand": "Davidoff",
+   "name": "Cool Water Intense",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 345
+  },
+  {
+   "id": "gucci-rush",
+   "brand": "Gucci",
+   "name": "Rush",
+   "concentration": "淡香水 EDT",
+   "taobao": false,
+   "popularityRank": 346
+  },
+  {
+   "id": "heeley-cardinal",
+   "brand": "James Heeley",
+   "name": "Cardinal",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 347
+  },
+  {
+   "id": "prada-luna-rossa-black",
+   "brand": "Prada",
+   "name": "Luna Rossa Black",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 351
+  },
+  {
+   "id": "hugo-boss-boss-orange",
+   "brand": "Hugo Boss",
+   "name": "Boss Orange",
+   "concentration": "淡香水 EDT",
+   "taobao": false,
+   "popularityRank": 355
+  },
+  {
+   "id": "jovoy-private-label",
+   "brand": "Jovoy Paris",
+   "name": "Private Label",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 356
+  },
+  {
+   "id": "montale-wild-aoud",
+   "brand": "Montale",
+   "name": "Wild Aoud",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 357
+  },
+  {
+   "id": "mancera-black-gold",
+   "brand": "Mancera",
+   "name": "Black Gold",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 366
+  },
+  {
+   "id": "montblanc-explorer-ultra-blue",
+   "brand": "Montblanc",
+   "name": "Explorer Ultra Blue",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 367
+  },
+  {
+   "id": "nishane-nanshe",
+   "brand": "Nishane",
+   "name": "Nanshe",
+   "concentration": "香精",
+   "taobao": false,
+   "popularityRank": 374
+  },
+  {
+   "id": "roja-parfums-danger-pour-femme",
+   "brand": "Roja Parfums",
+   "name": "Danger Pour Femme",
+   "concentration": "香水",
+   "taobao": false,
+   "popularityRank": 376
+  },
+  {
+   "id": "amouage-lyric-woman",
+   "brand": "Amouage",
+   "name": "Lyric Woman",
+   "concentration": "",
+   "taobao": false,
+   "popularityRank": 378
+  },
+  {
+   "id": "dolce-gabbana-dolce",
+   "brand": "Dolce&Gabbana",
+   "name": "Dolce",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 379
+  },
+  {
+   "id": "guerlain-aqua-allegoria-herba-fresca",
+   "brand": "Guerlain",
+   "name": "Aqua Allegoria Herba Fresca",
+   "concentration": "淡香水 EDT",
+   "taobao": false,
+   "popularityRank": 380
+  },
+  {
+   "id": "santa-maria-novella-acqua-della-regina",
+   "brand": "Santa Maria Novella",
+   "name": "Acqua della Regina",
+   "concentration": "古龙水 EDC",
+   "taobao": false,
+   "popularityRank": 385
+  },
+  {
+   "id": "frederic-malle-french-lover",
+   "brand": "Frédéric Malle",
+   "name": "French Lover",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 388
+  },
+  {
+   "id": "issey-miyake-pleats-please",
+   "brand": "Issey Miyake",
+   "name": "Pleats Please",
+   "concentration": "淡香水 EDT",
+   "taobao": false,
+   "popularityRank": 401
+  },
+  {
+   "id": "michael-kors-sexy-ruby",
+   "brand": "Michael Kors",
+   "name": "Sexy Ruby",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 403
+  },
+  {
+   "id": "zoologist-bat",
+   "brand": "Zoologist Perfumes",
+   "name": "Bat",
+   "concentration": "",
+   "taobao": false,
+   "popularityRank": 404
+  },
+  {
+   "id": "jo-malone-nectarine-blossom-and-honey",
+   "brand": "Jo Malone London",
+   "name": "Nectarine Blossom & Honey",
+   "concentration": "",
+   "taobao": false,
+   "popularityRank": 408
+  },
+  {
+   "id": "boucheron-quatre-en-rouge",
+   "brand": "Boucheron",
+   "name": "Quatre En Rouge",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 414
+  },
+  {
+   "id": "nicolai-patchouli-intense",
+   "brand": "Nicolaï",
+   "name": "Patchouli Intense",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 421
+  },
+  {
+   "id": "annick-goutal-petite-cherie",
+   "brand": "Annick Goutal",
+   "name": "Petite Chérie",
+   "concentration": "",
+   "taobao": false,
+   "popularityRank": 423
+  },
+  {
+   "id": "roberto-cavalli-paradiso-azzurro",
+   "brand": "Roberto Cavalli",
+   "name": "Paradiso Azzurro",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 430
+  },
+  {
+   "id": "gucci-memoire-dune-odeur",
+   "brand": "Gucci",
+   "name": "Memoire d'une Odeur",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 433
+  },
+  {
+   "id": "heeley-sel-marin",
+   "brand": "James Heeley",
+   "name": "Sel Marin",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 434
+  },
+  {
+   "id": "jovoy-rouge",
+   "brand": "Jovoy Paris",
+   "name": "Rouge Assassin",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 444
+  },
+  {
+   "id": "matiere-premiere-encens-suave",
+   "brand": "Matière Première",
+   "name": "Encens Suave",
+   "concentration": "淡香精 EDP",
+   "taobao": false,
+   "popularityRank": 445
+  }
+ ]
+}
