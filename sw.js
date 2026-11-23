@@ -12,7 +12,15 @@
    fonts/noto-sans-sc-subset.woff2；VERSION 跟着进一位，让旧缓存整套失效 ——
    静态资源是 cache-first + ignoreSearch，只改文件不换缓存名会一直吐旧副本。
    同日 CORE 瘦身：perfumes.json 与 24 枚标本 SVG 移出预缓存 → v2-20261119b。 */
-const VERSION = 'v2-20261119b';
+/* 2026-11-23：心仪清单 L2 上线（结果页 ♡ 入口），app.js 与 styles.css
+   都变了 —— VERSION 进一位，让旧缓存整套失效。
+   （这条纪律的原因见上一段：静态资源 cache-first + ignoreSearch。） */
+/* 2026-11-23：试香盖章上线（档案每瓶盖章位 + 五档面板），app.js 与 styles.css
+   都变了、并新增 src/stamp.js / src/stamp-ui.js 两个模块 —— VERSION 再进一位，
+   两个新模块同时加进 CORE（它们是盖章的唯一实现，缺了就只剩未盖章态）。 */
+/* 2026-11-23：盖章入口补到心仪清单每行（复用同一枚 stampSlot），app.js 与
+   styles.css 再变一次 —— VERSION 跟着进一位。没有新增模块，CORE 不动。 */
+const VERSION = 'v2-20261123d';
 const CACHE_PREFIX = 'scent-picker-v7-1-';
 const CACHE = CACHE_PREFIX + VERSION;
 
@@ -39,6 +47,8 @@ const CORE = [
   './src/share-card.js',
   './src/avoid.js',
   './src/avoid-map.js',
+  './src/stamp.js',
+  './src/stamp-ui.js',
   './fonts/inter-var-latin.woff2',
   './fonts/inter-var-latin-ext.woff2',
   './icons/icon-192.png',

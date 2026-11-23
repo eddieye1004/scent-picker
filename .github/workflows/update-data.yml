@@ -94,12 +94,20 @@ jobs:
       - name: 数据体检
         run: node scripts/qa-data.mjs
 
-      - name: 四套测试
+      - name: 测试套件
         run: |
           node scripts/test-render.mjs
           node scripts/test-contrast.mjs
           node scripts/test-scoring.mjs
           node scripts/test-compliance.mjs
+          node scripts/test-wishlist.mjs
+          node scripts/test-wishlist-ui.mjs
+          node scripts/test-wishlist-page.mjs
+          # 盖章三套（2026-11-23）：本体数据层 / UI 层 / 清单行入口。
+          # 第三套守的是"清单行与档案行读写同一条记录"，没有它这条契约只在本地。
+          node scripts/test-stamp.mjs
+          node scripts/test-stamp-ui.mjs
+          node scripts/test-stamp-wishlist.mjs
 
       # ---------- 只在真的有变化时提交 ----------
       # 大部分周次上游不会变。空提交会把提交历史填满噪音，
