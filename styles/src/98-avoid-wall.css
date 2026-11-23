@@ -13,6 +13,19 @@
    点右侧小键＝「没闻过」（.is-unknown，不加分也不扣分）。
    三态各自有可分辨的视觉，且「没闻过」不用危险色 —— 它不是否定，是"这一题先空着"。
    围栏：所有选择器都带 .avoid- 前缀，不命中圆盘、其余问卷屏与结果页。
+
+   ==== 胶囊语言定版（2026-11-24，qoder/avoid-capsule）====
+   这一屏与第 1 屏圆盘走同一套胶囊语法（95 层 Block 10）：可点控件一律
+   999px 全圆角、纸底 --spec-plate、控件字 13px/500 + .04em、44px 触控高。
+   三态用胶囊的状态变化区分，一眼能分清 ——
+     未选   ＝ 纸底胶囊 + --stroke-ui 实线边（Block 10 默认态同款边界）
+     不要   ＝ 危险色描边胶囊 + 左缘红杠 + 场景句划掉 + 危险色胶囊章
+     没闻过 ＝ 虚线边胶囊（凹一档）+「没闻过」键填成灰底胶囊
+   只动视觉层：DOM 结构、类名钩子（is-on / is-unknown / data-state /
+   aria-pressed）、点击行为与三条硬规则一行未改。
+   屏顶另有一枚「已选方向」锚点胶囊（.avoid-anchor，纯展示、不新增交互）：
+   把圆盘上刚选中的方向（图标 + 名字）原样带过来 —— 避雷题是按这个方向
+   现算的，锚点就是两屏之间的过渡元素（有过渡、没有过渡页）。
    ============================================================ */
 
 /* 一列大卡片。限宽让桌面端不至于把一张卡拉成一条横幅；
@@ -47,11 +60,13 @@
   gap: 16px;
   width: 100%;
   min-height: 84px;               /* 触控目标远超 44px 下限 */
-  padding: 14px 18px;
+  padding: 14px 22px;
   text-align: left;
   background: var(--spec-plate);
   border: 1px solid var(--stroke-ui);
-  border-radius: 6px;
+  /* 胶囊语法（95 层 Block 10 同款）：999px 全圆角。左右内边距跟着加到 22px ——
+     圆角吃掉两端的可视宽度，18px 会让图标/印章看起来贴边。 */
+  border-radius: 999px;
   cursor: pointer;
   transition: background-color var(--t-hover) var(--ease),
               border-color var(--t-hover) var(--ease),
@@ -98,15 +113,16 @@
 }
 
 /* 「这个不要」印章：平时隐去，点下去才落下。
-   做成一枚描边小章（危险色），不是红底警告块 —— 它是"划掉"，不是"报错"。 */
+   做成一枚描边小章（危险色），不是红底警告块 —— 它是"划掉"，不是"报错"。
+   胶囊定版：章也跟按钮语言走，999px 圆角读作一枚小胶囊章。 */
 .avoid-mark {
   flex: 0 0 auto;
-  padding: 5px 10px;
+  padding: 5px 12px;
   font: 600 12px/1 var(--font-ui, system-ui);
   letter-spacing: .06em;
   color: var(--danger);
   border: 1px solid var(--danger);
-  border-radius: 3px;
+  border-radius: 999px;
   opacity: 0;
   transform: scale(.9);
   transition: opacity var(--t-hover) var(--ease), transform var(--t-hover) var(--ease);
@@ -145,28 +161,43 @@
   color: var(--ink-2);
 }
 
+/* 「没闻过」键：胶囊定版后就是 Block 10 的**次操作**同款 ——
+   纸底 --spec-plate + 盘口线 --spec-rim + 暖墨字 13px/500 + .04em、999px、44px 高。
+   虚线留给「已选没闻过」的卡面去说（那一态的既有语义），键本身不再虚线：
+   同一屏里虚线只出现一次，才不会读成"这个键不可点"。 */
 .avoid-nope {
   flex: 0 0 auto;
   align-self: stretch;             /* 与主卡同高：读作"配对的两个靶子"，不是浮在旁边的角标 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 72px;
   min-height: 44px;                /* 触控下限；与主卡同一行时不靠主卡撑高 */
-  padding: 0 10px;
+  padding: 0 16px;
   white-space: nowrap;
-  font: 500 13px/1 var(--font-ui, system-ui);
-  color: var(--ink-3);
+  font-family: var(--font-body, var(--font-ui, system-ui));
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  line-height: 1;
+  color: var(--spec-ink);
   background: var(--spec-plate);
-  border: 1px dashed var(--stroke-ui);
-  border-radius: 6px;             /* 与卡片同一档圆角；999px 在窄屏会缩成一枚圆点 */
+  border: 1px solid var(--spec-rim);
+  border-radius: 999px;
   cursor: pointer;
   transition: color var(--t-hover) var(--ease),
               border-color var(--t-hover) var(--ease),
               background-color var(--t-hover) var(--ease);
 }
 
+/* hover / active：与 Block 10 次操作（.hub-skip / .btn.ghost）同一套反馈。 */
 .avoid-nope:hover {
-  color: var(--ink);
-  border-color: var(--ink-3);
+  background: var(--spec-plate-2);
+  border-color: var(--spec-ink);
+  color: var(--spec-ink);
 }
+
+.avoid-nope:active { transform: scale(.97); }
 
 .avoid-nope:focus-visible {
   outline: 2px solid var(--accent);
@@ -179,6 +210,53 @@
   background: var(--ink-2);
   border-style: solid;
   border-color: var(--ink-2);
+}
+
+/* ---- 「已选方向」锚点（qoder/avoid-capsule）----
+   过渡元素，不是过渡页：避雷题是按用户刚在圆盘上选的方向现算的，
+   把那个方向胶囊（图标 + 名字）原样带到屏顶，一眼接上"接着你的选择在问"。
+   与 Block 10 次操作同一套面（纸底 + 盘口线 + 暖墨字），但它**不是按钮** ——
+   纯展示、不新增交互，所以没有 hover / active / 指针，aria-hidden 交给
+   正文里已有的方向语义（help 句），图标与小字都是装饰层。 */
+.avoid-anchor {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 44px;                /* 与 Block 10 胶囊同一档高度 */
+  margin: 0 auto 10px;
+  padding: 0 18px;
+  background: var(--spec-plate);
+  border: 1px solid var(--spec-rim);
+  border-radius: 999px;
+  position: relative;
+  z-index: 1;
+}
+
+/* 引导小字：先说这枚胶囊是什么，再给方向名（胶囊语法里的 kicker 档）。 */
+.avoid-anchor-kicker {
+  flex: 0 0 auto;
+  font: 500 12px/1 var(--font-ui, system-ui);
+  letter-spacing: .08em;
+  color: var(--ink-3);
+}
+
+/* 方向图标：与小类标本/大类徽记同一套 24×24 上色 SVG，不新造图标。 */
+.avoid-anchor .avoid-anchor-icon {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+}
+
+.avoid-anchor-name {
+  font: 500 13px/1 var(--font-body, var(--font-ui, system-ui));
+  letter-spacing: .04em;
+  color: var(--spec-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ============================================================
@@ -210,8 +288,32 @@
    ============================================================ */
 @media (prefers-color-scheme: dark) {
   .avoid-card,
-  .avoid-nope {
+  .avoid-nope,
+  .avoid-anchor {
     background: var(--bg-3);
+  }
+
+  /* 次操作胶囊的浅色语法（--spec-ink 字 + --spec-rim 边）到深色会翻车：
+     两个 token 都没有深色版（#2A2620 字压 #2A2620 底 = 1.0）。字回 --ink、
+     边回 --stroke-ui（深色版 #767676，冻结修复实测 4.05 对页底）——
+     与主卡未选态同一套深色边界，锚点（纯展示）一并跟上。 */
+  .avoid-nope,
+  .avoid-anchor-name {
+    color: var(--ink);
+  }
+  .avoid-nope,
+  .avoid-anchor {
+    border-color: var(--stroke-ui);
+  }
+  .avoid-nope:hover {
+    background: #2E2A23;           /* 与主卡 hover 同一档提亮（余量见上） */
+    border-color: var(--stroke-ui);
+    color: var(--ink);
+  }
+  .avoid-nope.is-on {
+    color: var(--bg);              /* 灰底墨字在深色下仍成立：--ink-2 底 + --bg 字 */
+    background: var(--ink-2);
+    border-color: var(--ink-2);
   }
 
   /* hover 在浅色里是「提到 --spec-tint-hot #FFFDF8」（比卡面更亮）。
@@ -314,15 +416,18 @@
      上下排会把这一屏拉长约 50px×6 —— 但窄屏本来就要滚动（见下方注释），
      而"卡片不被挤扁"是这一屏的可读性底线。桌面档仍是并排，一屏看完的契约不变。 */
   .avoid-row { grid-template-columns: 1fr; gap: 6px; }
-  .avoid-card { gap: 12px; padding: 12px 14px; min-height: 76px; }
+  .avoid-card { gap: 12px; padding: 12px 18px; min-height: 76px; }
   .avoid-spec { width: 46px; height: 46px; }
   .avoid-zh { font-size: 16px; }
-  .avoid-mark { padding: 4px 8px; }
+  .avoid-mark { padding: 4px 10px; }
   .avoid-nope {
     justify-self: end;
-    min-width: 88px; min-height: 44px; padding: 0 12px; font-size: 12px;
+    min-width: 88px; min-height: 44px; padding: 0 16px; font-size: 12px;
   }
   .avoid-tip { margin-bottom: 10px; font-size: 12px; }
+  /* 锚点在窄屏保持 44px 触控档高度（它不省这一处空间：窄屏本来就滚动）。 */
+  .avoid-anchor { gap: 8px; padding: 0 14px; margin-bottom: 8px; }
+  .avoid-anchor .avoid-anchor-icon { width: 22px; height: 22px; }
 }
 
 /* 桌面「一屏看完」：避雷屏把页眉的封面 chrome 收起（标题缩一档、lede 隐藏），
@@ -338,14 +443,22 @@
   /* 屏顶代价提示与已排除清单都是这一屏新增的一行文字（2026-11-23）。
      "一屏看完"这条契约（verify-qoder 的末卡不越过导航条）仍然要守，
      所以两行都收紧到单行高度、去掉多余外边距，把空间还给卡片。 */
-  #app[data-step="unwanted"] .avoid-tip { margin-bottom: 8px; line-height: 1.5; }
-  #app[data-step="unwanted"] .avoid-wall { gap: 8px; }
-  /* 卡片收一档密度（仍是大卡：整宽 640、70px 高），保证第六张完整落在
+  #app[data-step="unwanted"] .avoid-tip { margin-bottom: 6px; line-height: 1.5; }
+  /* 锚点在桌面档压到 32px 高 + 4px 下边距。它是纯展示（tabindex=-1、不是控件），
+     44px 触控档不适用，32px 读作一枚小胶囊签刚好。让空间的原因：基线末卡底
+     762 / 导航顶 818 余量 56px，锚点进来后只剩 14px —— 计数行与「已排除」
+     撤销入口会被压到 sticky 导航条后面（改前截图这两行在导航上方可见，改后
+     看不见：那是回退，不是定版）。压锚点＋下面卡片/间距的让幅合起来，把这两行
+     收回导航条之上，与基线同视。 */
+  #app[data-step="unwanted"] .avoid-anchor { min-height: 32px; margin-bottom: 4px; padding: 0 14px; gap: 8px; }
+  #app[data-step="unwanted"] .avoid-anchor .avoid-anchor-icon { width: 20px; height: 20px; }
+  #app[data-step="unwanted"] .avoid-wall { gap: 6px; }
+  /* 卡片收一档密度（仍是大卡：整宽 640、66px 高，远超 44px 触控下限），保证第六张完整落在
      sticky 导航条之上 —— 导航贴底时会盖住超出的内容。 */
   #app[data-step="unwanted"] .avoid-row { gap: 8px; }
-  #app[data-step="unwanted"] .avoid-card { min-height: 70px; padding: 10px 18px; }
+  #app[data-step="unwanted"] .avoid-card { min-height: 66px; padding: 9px 22px; }
   #app[data-step="unwanted"] .avoid-spec { width: 48px; height: 48px; }
-  #app[data-step="unwanted"] .avoid-count { margin-top: 10px; }
-  #app[data-step="unwanted"] .avoid-excluded { margin-top: 4px; line-height: 1.5; }
+  #app[data-step="unwanted"] .avoid-count { margin-top: 8px; }
+  #app[data-step="unwanted"] .avoid-excluded { margin-top: 2px; line-height: 1.5; }
   #app[data-step="unwanted"] .avoid-gloss { margin-top: 4px; min-height: 24px; }
 }

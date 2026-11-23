@@ -60,8 +60,13 @@ const SUITES = [
   2 条、has-emblem 类 2 条、图元数与 24×24 视框 2 条、渐变 id 实例后缀 1 条、
   资产自检 7 条（映射不缺格 / 不多余 / 文件都在磁盘 / title 与族名逐字相同 /
   图元数够 / 带渐变）。
-  +0 条既有断言被动。 */
-  ['test-render.mjs', 387],
+  +0 条既有断言被动。
+
+  387 → 393（2026-11-24 qoder/avoid-capsule：避雷屏「已选方向」锚点）。+6 条：
+  锚点恰好在位 1 / 名字与圆盘选择同源 1 / 族名只进 aria-label（无术语底线）1 /
+  方向图标存在且是 svg 1 / 排在卡片墙之前 1 / 不是可点控件（div+tabindex=-1）1。
+  +0 条既有断言被动 —— 锚点是纯展示节点，三态与出题逻辑一行未改。 */
+  ['test-render.mjs', 393],
   ['test-contrast.mjs', 42],
   ['test-scoring.mjs', 153],
   ['test-compliance.mjs', 10],
