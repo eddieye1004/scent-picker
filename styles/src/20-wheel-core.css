@@ -1840,17 +1840,29 @@
 
 /* ---------------- 一、大圈：明确的消失 ---------------- */
 
-/* 展开态：大圈退到 0。pointer-events 仍是 auto —— 命中区还在，
-   鼠标一进来 hover 就把它整块拉回 1（见下一条），
-   所以"看不见"和"点不到"是两件分开的事。 */
+/* 展开态：大圈退到 0，**命中区一起收回**。
+   为什么不能只收 opacity：`pointer-events` 是逐元素生效的，子元素/同层元素
+   只要自己声明 auto 就仍然是命中目标。大圈在展开态的截图里一个像素也没有，
+   但 r=158–228 那圈仍然是"看不见却能点"的区域 —— 子弧带 `scale(1.43)`
+   把弧段拉到 168.7–217.4，两条弧之间的缝正好漏出家族扇区，点一下就换大类。
+   1440 实测：5 个其它大类的标签中心里，1 个（amber，6 点钟）落在缝上，
+   修掉标签层之后仍然换类 —— 症状与"隐形标签"一模一样，只是经手的是扇区。
+   窄屏 v15 早就这么收了（见本文件后段 `@media (max-width: 620px)` 与
+   `docs/DECISIONS.md:1122`：「留着就是'看不见却能点'的盲区，误触就换了大类；
+   换大类走左上角常驻的『← 重选大类』」）—— 桌面这次补上同一条。
+   连带影响（事件层推导，不是视觉改动）：pointer-events: none 之后
+   `mouseenter` 不会触发，下面那条 hover 浮回 1 在桌面展开态不再可达。
+   它原本只为"点一下换到"这个入口服务，而换大类已定走「← 重选大类」。 */
 .wheel.is-open .sector-g {
   opacity: 0;
-  pointer-events: auto;
+  pointer-events: none;
   cursor: pointer;
   transition: opacity var(--t-fade) var(--ease-std);
 }
 /* 悬停 / 键盘聚焦 / 盘心正在讲的那一块：整块浮回满亮度。
    这是"大圈已消失"之后唯一的回看点，也是换大类的入口提示。
+   （2026-11-23 冻结修复 3 起：展开态命中区已收回，这一档在桌面不可达，
+    保留是因为它同时服务 `.is-hot` 与 `.is-on` 的既有视觉定义。）
 
    **必须显式写 animation: none**：`.wheel.is-lifting .sector-g`（2 类 1 元素）
    挂着 `fanVanish … both`，动画的终帧会把 opacity 钉在 0，普通声明
@@ -2182,6 +2194,18 @@
 .wheel.is-open .label-layer,
 .wheel.is-open.disc .label-layer {
   opacity: 0;
+  pointer-events: none;
+}
+
+/* 展开态：家族标签连自己也放弃事件。
+   父层写 `pointer-events: none` 挡不住子元素 —— 这是**逐元素生效**的属性：
+   子元素自己声明 auto（`10-foundation.css:1279` 的
+   `.wheel .label-layer .disc-sector { pointer-events: auto }`）就仍然是命中目标。
+   于是展开态（整层 opacity 0）点到标签盒的位置会莫名其妙换大类：
+   1440 实测 5 个其它大类里有 1 个（amber，6 点钟）中招，其余几个落到子弧上。
+   收起态不受影响 —— 那时没有 `is-open`，基类的 auto 照常生效，
+   点标签照旧展开（本轮探针 2/2 复测）。 */
+.wheel.is-open .label-layer .disc-sector {
   pointer-events: none;
 }
 

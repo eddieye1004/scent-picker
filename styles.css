@@ -2346,7 +2346,7 @@ letter-spacing: -0.03em;
 }
 .wheel.is-open .sector-g {
 opacity: 0;
-pointer-events: auto;
+pointer-events: none;
 cursor: pointer;
 transition: opacity var(--t-fade) var(--ease-std);
 }
@@ -2523,6 +2523,9 @@ animation: none;
 .wheel.is-open .label-layer,
 .wheel.is-open.disc .label-layer {
 opacity: 0;
+pointer-events: none;
+}
+.wheel.is-open .label-layer .disc-sector {
 pointer-events: none;
 }
 .wheel.is-lifting .label-layer .disc-sector.lvl1 {
