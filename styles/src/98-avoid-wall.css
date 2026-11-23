@@ -443,19 +443,22 @@
   /* 屏顶代价提示与已排除清单都是这一屏新增的一行文字（2026-11-23）。
      "一屏看完"这条契约（verify-qoder 的末卡不越过导航条）仍然要守，
      所以两行都收紧到单行高度、去掉多余外边距，把空间还给卡片。 */
-  #app[data-step="unwanted"] .avoid-tip { margin-bottom: 8px; line-height: 1.5; }
-  /* 锚点在桌面档压到 36px 高 + 6px 下边距：基线末卡底 762 / 导航顶 818，
-     余量 56px，44px 档的锚点（含边距 54px）会把 verify-qoder 的
-     「一屏看完」逼到像素级贴边。36px 仍高于文字可读下限，图标不受影响。 */
-  #app[data-step="unwanted"] .avoid-anchor { min-height: 36px; margin-bottom: 6px; padding: 0 14px; gap: 8px; }
+  #app[data-step="unwanted"] .avoid-tip { margin-bottom: 6px; line-height: 1.5; }
+  /* 锚点在桌面档压到 32px 高 + 4px 下边距。它是纯展示（tabindex=-1、不是控件），
+     44px 触控档不适用，32px 读作一枚小胶囊签刚好。让空间的原因：基线末卡底
+     762 / 导航顶 818 余量 56px，锚点进来后只剩 14px —— 计数行与「已排除」
+     撤销入口会被压到 sticky 导航条后面（改前截图这两行在导航上方可见，改后
+     看不见：那是回退，不是定版）。压锚点＋下面卡片/间距的让幅合起来，把这两行
+     收回导航条之上，与基线同视。 */
+  #app[data-step="unwanted"] .avoid-anchor { min-height: 32px; margin-bottom: 4px; padding: 0 14px; gap: 8px; }
   #app[data-step="unwanted"] .avoid-anchor .avoid-anchor-icon { width: 20px; height: 20px; }
-  #app[data-step="unwanted"] .avoid-wall { gap: 8px; }
-  /* 卡片收一档密度（仍是大卡：整宽 640、70px 高），保证第六张完整落在
+  #app[data-step="unwanted"] .avoid-wall { gap: 6px; }
+  /* 卡片收一档密度（仍是大卡：整宽 640、66px 高，远超 44px 触控下限），保证第六张完整落在
      sticky 导航条之上 —— 导航贴底时会盖住超出的内容。 */
   #app[data-step="unwanted"] .avoid-row { gap: 8px; }
-  #app[data-step="unwanted"] .avoid-card { min-height: 70px; padding: 10px 22px; }
+  #app[data-step="unwanted"] .avoid-card { min-height: 66px; padding: 9px 22px; }
   #app[data-step="unwanted"] .avoid-spec { width: 48px; height: 48px; }
-  #app[data-step="unwanted"] .avoid-count { margin-top: 10px; }
-  #app[data-step="unwanted"] .avoid-excluded { margin-top: 4px; line-height: 1.5; }
+  #app[data-step="unwanted"] .avoid-count { margin-top: 8px; }
+  #app[data-step="unwanted"] .avoid-excluded { margin-top: 2px; line-height: 1.5; }
   #app[data-step="unwanted"] .avoid-gloss { margin-top: 4px; min-height: 24px; }
 }

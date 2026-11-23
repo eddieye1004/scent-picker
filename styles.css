@@ -6558,14 +6558,14 @@ min-width: 88px; min-height: 44px; padding: 0 16px; font-size: 12px;
 #app[data-step="unwanted"] .masthead h1 { font-size: 26px; }
 #app[data-step="unwanted"] .masthead .lede { display: none; }
 #app[data-step="unwanted"] .stage-lead .q-help { max-width: 46em; }
-#app[data-step="unwanted"] .avoid-tip { margin-bottom: 8px; line-height: 1.5; }
-#app[data-step="unwanted"] .avoid-anchor { min-height: 36px; margin-bottom: 6px; padding: 0 14px; gap: 8px; }
+#app[data-step="unwanted"] .avoid-tip { margin-bottom: 6px; line-height: 1.5; }
+#app[data-step="unwanted"] .avoid-anchor { min-height: 32px; margin-bottom: 4px; padding: 0 14px; gap: 8px; }
 #app[data-step="unwanted"] .avoid-anchor .avoid-anchor-icon { width: 20px; height: 20px; }
-#app[data-step="unwanted"] .avoid-wall { gap: 8px; }
+#app[data-step="unwanted"] .avoid-wall { gap: 6px; }
 #app[data-step="unwanted"] .avoid-row { gap: 8px; }
-#app[data-step="unwanted"] .avoid-card { min-height: 70px; padding: 10px 22px; }
+#app[data-step="unwanted"] .avoid-card { min-height: 66px; padding: 9px 22px; }
 #app[data-step="unwanted"] .avoid-spec { width: 48px; height: 48px; }
-#app[data-step="unwanted"] .avoid-count { margin-top: 10px; }
-#app[data-step="unwanted"] .avoid-excluded { margin-top: 4px; line-height: 1.5; }
+#app[data-step="unwanted"] .avoid-count { margin-top: 8px; }
+#app[data-step="unwanted"] .avoid-excluded { margin-top: 2px; line-height: 1.5; }
 #app[data-step="unwanted"] .avoid-gloss { margin-top: 4px; min-height: 24px; }
 }
