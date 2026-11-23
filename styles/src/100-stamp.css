@@ -1,0 +1,269 @@
+/* ============================================================
+   100-stamp.css — 试香盖章（2026-11-23）
+   ------------------------------------------------------------
+   只服务档案面板每瓶右端那一格，以及点开后的五档面板。所有选择器都带
+   .qw-stamp 前缀 / .qw-history-name-row，不命中圆盘、问卷六屏、结果卡、
+   购买按钮与清单页。
+
+   为什么另开一层：styles.css 是源层按顺序拼接的产物，直接改产物会在下一次
+   build-css 时静默丢失（见 scripts/build-css.mjs 的文件头）。本层放在最后。
+
+   ---- 四条硬约束（都有来源，不是随手定的）----
+   ① 五档一眼可辨、可点：每颗章 44px 高（与 .btn / .chip / .disc-sector 同档），
+      390px 下五个一行放得下（目标宽度 342px，实测 5×64px + 4×6px gap）。
+   ② 未盖章的入口必须"轻"：它挂在每瓶名字右端，抢了瓶名的重量就等于
+      让人先看见按钮、后看见瓶子。所以只用描边 + 次级墨色。
+   ③ 颜色全部取既有 token，且**只用已审计的那几种承载文字**
+      （ink / ink-2 / ink-3 / bg / bg-2 / bg-3 / warn / danger）——
+      所以 test-contrast 的 48 条断言不需要为新组件放宽任何一条。
+   ④ 不做任何"盖章后自动加心仪"的样式暗示：这一层里不出现 ♡ 的形状与色。
+   ============================================================ */
+
+/* ---------- 档案里每一瓶一行：瓶名 / 品牌 / 右端盖章位 ---------- */
+.qw-history-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* wrap 是必须的：点开面板后面板占满一行（flex:1 1 100%），
+     没有 wrap 它会挤在 slot 那 130px 里 —— 390 下五颗章被折成 2 列（实测踩到）。 */
+  flex-wrap: wrap;
+  /* 盖章位靠右、名字可收缩：`Super Cedar` 这类长名在 390px 下要能折行，
+     而不是把盖章位挤出面板。 */
+  min-width: 0;
+}
+
+.qw-history-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.qw-stamp-slot {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- 未盖章：一枚轻量文字按钮 ----------
+   44px 命中框靠伪元素撑（视觉上是 24px 高的文字），
+   这样它不会把档案行顶高 —— 档案是"回看"，不该因为新增操作位变松。 */
+.qw-stamp-open {
+  position: relative;
+  min-height: 44px;
+  padding: 0 10px;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--t-hover) var(--ease-std),
+              background-color var(--t-hover) var(--ease-std),
+              border-color var(--t-hover) var(--ease-std);
+}
+.qw-stamp-open:hover {
+  color: var(--ink);
+  background: var(--bg-3);
+  border-color: var(--line);
+}
+.qw-stamp-open:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* ---------- 已盖章：一枚 chip ----------
+   形态是「✓ 11-23 · 喜欢 · 共 2 次」。
+   用实心淡底而不是彩色：盖章是记录，不是徽章；五档各有措辞就够了，
+   再给五档五种颜色会把档案面板变成调色板。 */
+.qw-stamp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 10px;
+  color: var(--ink);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--t-hover) var(--ease-std);
+}
+.qw-stamp-chip:hover {
+  border-color: var(--edge);
+}
+.qw-stamp-chip:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.qw-stamp-tick {
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.qw-stamp-sum {
+  white-space: nowrap;
+}
+
+/* 行内「撤销」：与 chip 并排的第二枚动作。它比 chip 更轻 ——
+   撤销是补救，不是主操作。触控仍是 44px。 */
+.qw-stamp-undo-inline {
+  min-height: 44px;
+  padding: 0 6px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* ---------- 五档面板 ----------
+   就地展开在那一瓶下方（不是弹窗）：盖章是"这一瓶"的事，弹层会遮住瓶名，
+   用户得记住自己点的是哪一瓶 —— 档案里同品牌近似款多，这是真实风险。 */
+.qw-stamp-panel {
+  flex: 1 1 100%;
+  margin: 6px 0 2px;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.qw-stamp-hint {
+  margin: 0 0 10px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 五颗章：固定 5 等分，一行永远五个。
+   为什么不用 auto-fit + minmax：实测 390×844 下（面板可用宽 282px）
+   auto-fit 只排得下 4 列，第五颗「劝退」被挤到第二行 —— 而"五档一眼可辨"
+   是这条功能的验收线，档位折行看的人会以为只有四档。
+   等分后每颗 53px（390）/ 40px（320），「一闻钟情」在窄屏折成两行，
+   44px 高度装得下（12px 字号是 test-contrast 的下限，不能靠缩字号去塞）。 */
+.qw-stamp-tiers {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.qw-stamp-tier {
+  min-height: 44px;
+  padding: 0 8px;
+  color: var(--ink-2);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 12px;
+  line-height: 1.2;
+  /* 不写 word-break: keep-all —— 它禁止 CJK 字符间断行，
+     窄屏下"一闻钟情"会直接溢出格子（实测 40px 格里放不下 48px 的字）。 */
+  text-align: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--t-hover) var(--ease-std),
+              background-color var(--t-hover) var(--ease-std),
+              border-color var(--t-hover) var(--ease-std);
+}
+.qw-stamp-tier:hover {
+  color: var(--ink);
+  background: var(--bg-3);
+  border-color: var(--edge);
+}
+/* 选中态 = 墨块纸字，与 `.chip[aria-pressed="true"]` 同一条约定
+   （选中 = 墨），不给五档另发明一套色。 */
+.qw-stamp-tier.is-picked {
+  color: var(--bg);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.qw-stamp-tier:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.qw-stamp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* 保存键沿用 .btn 的字号与高度，这里只收窄横向留白：
+   它是这一格里唯一的实心键，不该和五颗章抢宽度。 */
+.qw-stamp-save {
+  padding: 0 18px;
+  min-height: 44px;
+  font-size: 13px;
+}
+/* 没选档时置灰但**不消失**：消失会让用户以为面板坏了；
+   置灰 + 不可点，说的是"还差一步"。 */
+.qw-stamp-save[disabled] {
+  color: var(--ink-3);
+  background: var(--bg-3);
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+.qw-stamp-cancel,
+.qw-stamp-undo {
+  min-height: 44px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.qw-stamp-undo {
+  color: var(--danger);
+}
+.qw-stamp-undo:focus-visible {
+  outline-color: var(--danger);
+}
+
+/* ---------- 窄屏 ----------
+   390px 下五颗章必须**一行**放得下（任务书要求「五档展开」一眼可辨）。
+   实测（390×844 DPR2）：面板可用宽 282px，auto-fit + minmax(58px) 只排得下
+   4 列，第五颗「劝退」被挤到第二行（截图里一眼能看出来）。
+   所以窄屏改成显式 5 等分 + 收窄 gap 与内边距：282 − 4×4 = 266 → 每颗 53.2px，
+   「一闻钟情」折成两行（44px 高仍装得下，字号不变 —— 12px 是 test-contrast
+   的下限，不能靠缩字号来塞）。 */
+@media (max-width: 620px) {
+  /* 面板向两侧各借 12px：它挂在瓶名行里，而瓶名行左右已经各让出了 18px
+     面板内边距 + 8px 行间距 —— 实测可用宽只剩 304px，5 等分后每颗 54px，
+     「一闻钟情」四个 12px 字（48px）+ padding 正好顶格，视觉上贴着边。
+     借这 24px 之后每颗 58px，那一档能排成一行、不贴边。 */
+  .qw-stamp-panel {
+    margin-left: -12px;
+    margin-right: -12px;
+    padding: 10px;
+  }
+  .qw-stamp-tiers {
+    gap: 4px;
+  }
+  .qw-stamp-tier {
+    padding: 0 3px;
+  }
+  .qw-stamp-sum {
+    /* chip 在 390px 下与瓶名同行，次数那一格允许省略号 ——
+       但"共 N 次"是任务书要求显示的，所以只允许日期格收缩，
+       数字那一格不收缩（见下面的 nowrap）。 */
+    max-width: 22ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* ---------- 打印 ----------
+   盖章是交互件，纸上没有入口可言；但保留空位会让瓶名行右边多一截空白，
+   所以整格不显示，瓶名回到整行宽度。 */
+@media print {
+  .qw-stamp-slot {
+    display: none;
+  }
+  .qw-stamp-panel {
+    display: none;
+  }
+  .qw-history-name-row {
+    display: block;
+  }
+}

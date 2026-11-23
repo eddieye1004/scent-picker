@@ -83,6 +83,17 @@ const GUARDED = [
     'savedLabel', 'CLEAR_LABEL', 'CLEAR_ARM_LABEL', 'nextClearState', 'removableOf',
     'wishRowOf', 'priceBandOf']],
   ['wish-ui.js', ['WISH_MSG', 'createMemoryStore', 'createWishSession', 'wishMessage', 'wishReasonOf']],
+  /* 试香盖章（2026-11-23）。stamp-ui.js 与 stamp.js 的专有名字都要在这里 ——
+     上一次 `removableOf` 用了没 import 就是这么漏过去的，而这里的新模块
+     恰好是"渲染层调纯逻辑层"的同一形态。 */
+  ['stamp-ui.js', ['STAMP_MSG', 'createStampSession', 'stampViewOf', 'stampMessage',
+    'stampTiers', 'stampKeyOf', 'stampDateLabel', 'createMemoryStore', 'STAMP_TIERS',
+    'STAMP_TIER_ZH', 'STAMP_MAX']],
+  /* stamp.js 只列「必须直接从它 import」的名字。stampKeyOf / STAMP_TIERS 等
+     由 stamp-ui.js 转出，app.js 走的是 stamp-ui 那条 import ——
+     列在这里会把它判成"用了没 import"（假阳性），所以它们的归属只写在上面那条。 */
+  ['stamp.js', ['STAMP_KEY', 'STAMP_ITEM_FIELDS', 'STAMP_LOG_FIELDS', 'tierZhOf',
+    'createStamps', 'stamps']],
   ['ambient.js', ['ambientOf', 'ambientVars']],
   ['avoid.js', ['buildAvoidIndex', 'avoidPlan']],
   ['share-card.js', ['buildShareModel', 'drawShareCard', 'SHARE_W', 'SHARE_H']],

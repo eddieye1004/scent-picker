@@ -41,6 +41,14 @@ import {
   WISH_PAGE_MSG, wishListModel, perfumeIndex, priceLabelOf, savedLabel,
   CLEAR_LABEL, CLEAR_ARM_LABEL, nextClearState, removableOf,
 } from './src/wish-page.js';
+/* 试香盖章（2026-11-23）。数据层 src/stamp.js 只认传入的 storage，
+   编排与展示模型在 src/stamp-ui.js —— 两者都不碰 DOM，所以「五档回读」
+   「重复盖章计数」「撤销退回上一次」「存储不可用降级」都能在 node 里直接验
+   （scripts/test-stamp.mjs / test-stamp-ui.mjs）。这里只负责画与点。 */
+import { createStamps } from './src/stamp.js';
+import {
+  createStampSession, stampViewOf, stampMessage, stampTiers, stampKeyOf, STAMP_MSG,
+} from './src/stamp-ui.js';
 
 const state = {
   step: 0,
@@ -4299,6 +4307,215 @@ function formatHistoryTime(t) {
   }
 }
 
+/* ============================================================
+   试香盖章（2026-11-23）
+   ------------------------------------------------------------
+   主入口在**香水档案的每一瓶**上（任务书第 2 条）：档案面板展开后，
+   每个瓶名行右端一个轻量操作位 —— 未盖章是「试过？盖章」，
+   已盖章换成状态 chip（`✓ 11-23 · 喜欢 · 共 2 次`）。
+
+   五档口径（Eddie 2026-11-23 拍板，仓库里旧提案写的三档作废）：
+     一闻钟情 / 喜欢 / 还行 / 无感 / 劝退 —— 顺序与文案都在 src/stamp.js，
+     这里只按 stampTiers() 铺按钮，不另抄一份。
+
+   三条不作为（任务书明确要求，写成注释免得下一腿顺手加上）：
+     ① 盖了高档位**不**自动把该瓶加进心仪清单，不做任何一键联动；
+     ② 历史**只显示最近一次 + 共 N 次**，不铺全量列表（stampViewOf 连
+        数组都不交出来，调用方想铺也没有数据可铺）；
+     ③ 盖章记录不参与推荐打分、不写进档案键、不改档案旧字段。
+
+   两段式：点入口只打开面板，必须在面板里显式选一档再按「保存」才落记录 ——
+   单击永远不等于盖章（与档案的两段式清空同一条克制口径）。
+   ============================================================ */
+
+/* 盖章会话：真存储是 localStorage 上的盖章实例，存储不可用时自动换一份
+   页面内存介质（逻辑全在 src/stamp-ui.js，node 里可喂内存测）。
+   介质**显式**交给数据层（`createStamps(() => localStorageSafe())`），
+   不用 src/stamp.js 那个默认实例 —— 默认实例绑的是 globalThis.localStorage，
+   而全站其余存储（档案、心仪）都走 localStorageSafe()（window.localStorage）。
+   两者在浏览器里恰好是同一个对象，但一旦不是（Node 的全局 localStorage、
+   嵌入 WebView 的隔离 window），档案与盖章就会落到两个不同的介质上，
+   表现成"档案里有这瓶、盖章说没盖过"。写入介质只能有一个来源。 */
+const stampSession = createStampSession(
+  createStamps(() => localStorageSafe()),
+  undefined,
+  () => localStorageSafe(),
+);
+
+/**
+ * 一行提示（复用档案/清单同一条单例提示条，不另造 toast）。
+ * 为什么复用：全站只有一个"提示"的样子，用户不必重新学"这条会不会自己消失"。
+ */
+let STAMP_TIMER = 0;
+function stampSay(msg) {
+  const bar = ensureWishBar();
+  if (!bar) return;
+  clearTimeout(STAMP_TIMER);
+  bar.textContent = '';
+  bar.appendChild(document.createTextNode(String(msg)));
+  bar.removeAttribute('hidden');
+  STAMP_TIMER = setTimeout(() => {
+    bar.setAttribute('hidden', '');
+    bar.textContent = '';
+  }, 2400);
+}
+
+/** 给 CSS/测试认的一个稳定身份：瓶的身份键（归一化 name|brand）。 */
+function stampDataKey(bottle) {
+  return stampKeyOf(bottle);
+}
+
+/**
+ * 五档面板。档位按钮是 role=radio（一组互斥选项，不是五个开关）——
+ * 读屏用户听到的是「单选组 试香评价」而不是五个独立按钮。
+ */
+function stampPanel(bottle, done) {
+  const view = stampViewOf(stampSession.get(bottle));
+  const name = bottle.name || '这一瓶';
+  const panel = el('div', {
+    class: 'qw-stamp-panel',
+    role: 'group',
+    'aria-label': `给${name}盖章`,
+    'data-stamp-panel': stampDataKey(bottle),
+  });
+
+  panel.appendChild(el('p', { class: 'qw-stamp-hint' }, '这瓶试过之后感觉如何？'));
+
+  let picked = view.has ? view.tier : '';
+  const group = el('div', { class: 'qw-stamp-tiers', role: 'radiogroup', 'aria-label': '试香评价' });
+  const btns = stampTiers().map((t) => {
+    const b = el('button', {
+      class: 'qw-stamp-tier' + (picked === t.id ? ' is-picked' : ''),
+      type: 'button',
+      role: 'radio',
+      'aria-checked': picked === t.id ? 'true' : 'false',
+      'data-tier': t.id,
+      onclick: () => {
+        picked = t.id;
+        btns.forEach((x) => {
+          const on = x.getAttribute('data-tier') === t.id;
+          x.classList.toggle('is-picked', on);
+          x.setAttribute('aria-checked', on ? 'true' : 'false');
+        });
+        save.removeAttribute('disabled');
+      },
+    }, t.zh);
+    return b;
+  });
+  btns.forEach((b) => group.appendChild(b));
+  panel.appendChild(group);
+
+  const save = el('button', {
+    class: 'btn qw-stamp-save',
+    type: 'button',
+    /* 没选档就按不了「保存」：空着保存等于盖一枚没有评价的章。 */
+    disabled: picked ? null : '',
+    onclick: () => {
+      if (!picked) return;
+      const res = stampSession.stamp(bottle, picked);
+      stampSay(stampMessage(res));
+      done();
+    },
+  }, '保存');
+
+  const actions = el('div', { class: 'qw-stamp-actions' }, save,
+    el('button', {
+      class: 'link-btn qw-stamp-cancel',
+      type: 'button',
+      onclick: () => done(),
+    }, '取消'));
+
+  /* 撤销只在真的盖过时出现：没有记录却给一个「撤销」，用户点下去只会
+     得到一句「已撤销」，而他其实什么都没撤销过。 */
+  if (view.canUndo) {
+    actions.appendChild(el('button', {
+      class: 'link-btn qw-stamp-undo',
+      type: 'button',
+      onclick: () => {
+        const res = stampSession.undo(bottle);
+        stampSay(stampMessage(res));
+        done();
+      },
+    }, '撤销上次盖章'));
+  }
+  panel.appendChild(actions);
+  return panel;
+}
+
+/**
+ * 档案某一瓶的盖章位：未盖 → 「试过？盖章」；已盖 → 状态 chip + 撤销。
+ * 两种形态都由 stampViewOf 决定（`has`），所以"显示什么"与"存了什么"同源。
+ */
+function stampSlot(bottle, repaint) {
+  const slot = el('span', {
+    class: 'qw-stamp-slot',
+    'data-stamp-key': stampDataKey(bottle),
+  });
+  const view = stampViewOf(stampSession.get(bottle));
+  const name = bottle.name || '这一瓶';
+
+  const openPanel = () => {
+    slot.textContent = '';
+    /* 面板挂在**瓶名行**上、不是挂在 slot 里（实测踩到）：slot 是
+       `flex: 0 0 auto` 的窄格子，面板塞进去只能分到 130px 宽 ——
+       390px 下五颗章被折成 2 列三行（截图一眼能看出来）。
+       挂到行上并占满一行（CSS 里 .qw-stamp-panel 是 flex:1 1 100%），
+       五档才是任务书要求的"一行五个、一眼可辨"。 */
+    const host = slot.parentNode || slot;
+    /* 同一行只允许一个面板：面板挂在行上（不在 slot 里），所以清 slot 清不掉
+       上一次的面板 —— 先摘掉旧的，否则连点几次 chip 会叠出好几份五档按钮
+       （每份都能点、都能保存，等于同一个动作有多个入口）。 */
+    const stale = host.querySelectorAll ? host.querySelectorAll('.qw-stamp-panel') : [];
+    for (const n of stale) {
+      if (n.parentNode) n.parentNode.removeChild(n);
+    }
+    const panel = stampPanel(bottle, () => {
+      /* 保存/取消/撤销之后整块档案面板重画：计数、chip、撤销按钮三者的
+         存在与否都由存储算出，重画才不会出现"chip 变了、撤销按钮还在"。 */
+      repaint();
+    });
+    host.appendChild(panel);
+    return panel;
+  };
+
+  if (!view.has) {
+    slot.appendChild(el('button', {
+      class: 'qw-stamp-open',
+      type: 'button',
+      'aria-label': `给${name}盖章：记录试香评价`,
+      onclick: openPanel,
+    }, '试过？盖章'));
+    return slot;
+  }
+
+  /* 已盖章：一枚 chip（日期 · 档位 · 共 N 次）。整枚可点，点开就是改档/再盖 ——
+     同一瓶可以重复盖章，新盖章覆盖"最近一次"，计数 +1（任务书第 5 条）。 */
+  slot.appendChild(el('button', {
+    class: 'qw-stamp-chip',
+    type: 'button',
+    'aria-label': `修改${name}的试香记录（${view.tierZh}，${view.countLabel}）`,
+    'data-stamp-count': String(view.count),
+    onclick: openPanel,
+  },
+  el('span', { class: 'qw-stamp-tick', 'aria-hidden': 'true' }, '✓'),
+  el('span', { class: 'qw-stamp-sum' }, view.summary)
+  ));
+
+  /* 撤销单独一枚小按钮：不进 panel 也能一步退回（用户刚盖错时不该先点开面板）。
+     panel 里也有一枚 —— 两处都走同一个 session.undo，语义完全一致。 */
+  slot.appendChild(el('button', {
+    class: 'link-btn qw-stamp-undo-inline',
+    type: 'button',
+    'aria-label': `撤销${name}最近一次盖章`,
+    onclick: () => {
+      const res = stampSession.undo(bottle);
+      stampSay(stampMessage(res));
+      repaint();
+    },
+  }, '撤销'));
+  return slot;
+}
+
 /** 历史面板的空态/列表/清空都在这一个函数里重画，保证计数与列表同源。 */
 function paintHistoryPanel(panel, toggle) {
   panel.innerHTML = '';
@@ -4317,6 +4534,10 @@ function paintHistoryPanel(panel, toggle) {
   }
 
   const ol = el('ol', { class: 'qw-history-list' });
+  /* 盖章位保存/撤销之后重画这一整块面板（不是整页）：计数、chip、撤销按钮
+     三者的存在与否都由存储算出，重画才不会出现"chip 变了、撤销按钮还在"。
+     只重画面板也保住了展开态与滚动位置 —— 盖个章把用户弹回页顶是很糟的。 */
+  const repaintPanel = () => paintHistoryPanel(panel, toggle);
   list.forEach((h) => {
     const when = new Date(h.t);
     const meta = el('div', { class: 'qw-history-meta' },
@@ -4326,10 +4547,14 @@ function paintHistoryPanel(panel, toggle) {
       }, formatHistoryTime(h.t)),
       el('span', { class: 'qw-history-entry' }, entryLabel(h.entry))
     );
+    /* 每一瓶一行：左边瓶名/品牌，右端是这一瓶的盖章位（见 stampSlot）。
+       盖章的**主入口就在这里**——档案是用户试完香回来唯一会打开的地方，
+       而这里的每一行天然是"具体的那一瓶"，不会出现"给谁盖章"的歧义。 */
     const names = el('ul', { class: 'qw-history-names' },
-      ...h.results.map((p) => el('li', {},
-        p.name,
-        p.brand ? el('span', { class: 'qw-history-brand' }, p.brand) : null
+      ...h.results.map((p) => el('li', { class: 'qw-history-name-row' },
+        el('span', { class: 'qw-history-name' }, p.name),
+        p.brand ? el('span', { class: 'qw-history-brand' }, p.brand) : null,
+        stampSlot(p, repaintPanel)
       ))
     );
     ol.appendChild(el('li', { class: 'qw-history-item' }, meta, names));

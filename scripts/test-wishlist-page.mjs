@@ -317,7 +317,8 @@ console.log('\n===== ⑧ 撤销与已入手：真的落到存储上（走会话�
   ok('取消标记不动心仪清单本身', w.list().length === 2, String(w.list().length));
   ok('取消一个没标记过的 id 也不抛', s.unmarkOwned('never-marked') === true);
 
-  /* 已入手与盖章（尚未实现）互不干扰，与心仪也互不干扰 —— 三个键各自独立 */
+  /* 已入手与盖章互不干扰，与心仪也互不干扰 —— 三个键各自独立
+     （盖章 2026-11-23 已实现，键 scent-picker.tasting.v1，见 test-stamp.mjs） */
   ok('心仪键与已入手键是两个键',
     store.getItem('sp_wishlist_v1') !== store.getItem('sp_wishlist_owned_v1'));
 }

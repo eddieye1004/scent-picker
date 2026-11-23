@@ -80,6 +80,12 @@ const PARTS = [
      放在最后；选择器只有 .pick-name-row / .qw-wish*，
      不命中圆盘、问卷各屏、购买按钮与档案区块。 */
   '99-wishlist.css',
+  /* 试香盖章（2026-11-23）：档案面板每瓶右端的盖章位 + 五档面板。
+     放在最后；选择器只有 .qw-stamp* / .qw-history-name-row，
+     不命中圆盘、问卷六屏、结果卡、购买按钮与清单页。
+     （97 层已占 .qw-history-*，所以这里只新增 .qw-history-name-row 一条，
+     不改 97 层任何既有规则。） */
+  '100-stamp.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');
