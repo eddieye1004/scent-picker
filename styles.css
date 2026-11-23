@@ -2848,6 +2848,9 @@ color: var(--blue-lift);
 }
 .choice.is-on .choice-zh { color: var(--blue-lift); }
 .choice.is-on .choice-desc { color: var(--ink-3); }
+.choice {
+background: var(--bg-3);
+}
 }
 .term-note {
 margin: 2px 0 14px;
@@ -6408,6 +6411,15 @@ color: var(--bg);
 background: var(--ink-2);
 border-style: solid;
 border-color: var(--ink-2);
+}
+@media (prefers-color-scheme: dark) {
+.avoid-card,
+.avoid-nope {
+background: var(--bg-3);
+}
+.avoid-card:not(.is-on):not(.is-unknown):hover {
+background: #2E2A23;
+}
 }
 .avoid-tip {
 margin: 0 auto 12px;
