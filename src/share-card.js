@@ -77,7 +77,7 @@ export function buildShareModel({ profile = {}, results = [], budgetZh = null } 
         reason: summarizeReason(r && r.reasons && r.reasons[0]),
       };
     }).filter((x) => x.name),
-    foot: '从 1388 瓶里按规则打分选出 · 选品不调用大模型',
+    foot: '这 3 瓶从 1388 瓶里按规则打分选出，没让大模型插手',
   };
 }
 
@@ -100,18 +100,22 @@ function wrapLines(ctx, text, maxWidth) {
   return lines;
 }
 
-/** 画一段会自动换行的文字；返回下一行的 y。超出 maxLines 时在末行加省略号。 */
-function drawWrapped(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+/** 切行后只保留前 maxLines 行；被截断时在末行加省略号（不会把整词切掉半截再续行）。 */
+function clipLines(ctx, text, maxWidth, maxLines) {
   const lines = wrapLines(ctx, text, maxWidth);
   const shown = lines.slice(0, maxLines);
   if (lines.length > maxLines && shown.length) {
-    let last = shown[shown.length - 1];
     const widthOf = (s) => (ctx.measureText ? ctx.measureText(s).width : Array.from(s).length * 18);
+    let last = shown[shown.length - 1];
     while (last && widthOf(last + '…') > maxWidth) last = last.slice(0, -1);
     shown[shown.length - 1] = last + '…';
   }
-  shown.forEach((line, i) => ctx.fillText(line, x, y + i * lineHeight));
-  return y + shown.length * lineHeight;
+  return shown;
+}
+
+function drawLines(ctx, lines, x, y, lineHeight) {
+  lines.forEach((line, i) => ctx.fillText(line, x, y + i * lineHeight));
+  return y + lines.length * lineHeight;
 }
 
 function rule(ctx, x1, y, x2, color = C.line, width = 1) {
@@ -152,32 +156,64 @@ export function drawShareCard(ctx, model, w = SHARE_W, h = SHARE_H) {
   ctx.font = `${S(64)}px ${SERIF}`;
   ctx.fillText(model.title || '我的三瓶候选', M, S(224));
 
+  /* 答案行正常一行放下；极少数长组合（上限预算 + 长场合）会顶到右边线，
+     这里把字号往下收一档，而不是折行去挤下面那条粗线。 */
+  const answers = String(model.answers || '');
+  const widthOf = (s) => (ctx.measureText ? ctx.measureText(s).width : Array.from(s).length * (S(26) * 0.6));
+  let answerSize = S(26);
+  ctx.font = `${answerSize}px ${SANS}`;
+  while (answerSize > S(19) && widthOf(answers) > innerW) {
+    answerSize -= S(2);
+    ctx.font = `${answerSize}px ${SANS}`;
+  }
   ctx.fillStyle = C.ink3;
-  ctx.font = `${S(26)}px ${SANS}`;
-  ctx.fillText(model.answers || '', M, S(286));
+  ctx.fillText(answers, M, S(286));
 
   rule(ctx, M, S(342), w - M, C.hair, Math.max(1, S(1)));
 
   /* ==== v2：1 瓶主推 + 2 瓶备选 ====
      结果本来就按匹配度排好：第 1 瓶是主推，第 2/3 瓶是备选。
-     主推给一块标本签底板（暖白 + 左侧主蓝条 + 上下发丝线），字号 54/28；
-     备选不加底板、字号 34/23、编号退成灰墨 —— 层级靠字号与颜色，
-     不靠再画一个框。只用 fillRect / 线，不引新依赖。 */
+     主推给一块标本签底板（暖白 + 左侧主蓝条 + 上下发丝线）。
+     层级靠字号、颜色与「间距分组」：
+       品名 54 衬线墨色 > 理由 27 墨色二级 > 品牌 23 灰色（贴住品名，算同一个名字块）；
+     底板高度跟着内容走，1 行名与 2 行名不再共用 420px，
+     理由末尾不会悬在一大片空底板上。只用 fillRect / 线，不引新依赖。 */
   const items = Array.isArray(model.items) ? model.items : [];
   const primary = items[0] || null;
   const alternates = items.slice(1);
+  const px = M + S(46);
+  const pw = innerW - S(92);
+  const panelY = S(372);
+  let panelBottom = panelY + S(340);
 
   if (primary) {
-    const panelY = S(372);
-    const panelH = S(420);
-    const px = M + S(46);
-    const pw = innerW - S(92);
+    ctx.font = `${S(54)}px ${SERIF}`;
+    const nameLines = clipLines(ctx, primary.name, pw, 2);
+    let brandLines = [];
+    if (primary.brand) {
+      ctx.font = `${S(23)}px ${SANS}`;
+      brandLines = clipLines(ctx, primary.brand, pw, 1);
+    }
+    let reasonLines = [];
+    if (primary.reason) {
+      ctx.font = `${S(27)}px ${SANS}`;
+      reasonLines = clipLines(ctx, primary.reason, pw, 3);
+    }
+
+    const nameY = panelY + S(150);
+    const nameBottom = nameY + (nameLines.length - 1) * S(62);
+    const brandY = nameBottom + S(58);
+    const reasonY = brandLines.length ? brandY + S(56) : nameBottom + S(56);
+    const reasonBottom = reasonY + Math.max(0, reasonLines.length - 1) * S(43);
+    const panelH = Math.max(S(320), Math.min(S(540), reasonBottom + S(54) - panelY));
+    panelBottom = panelY + panelH;
+
     ctx.fillStyle = '#FFFCF6';
     ctx.fillRect(M, panelY, innerW, panelH);
     ctx.fillStyle = C.accent;
     ctx.fillRect(M, panelY, S(6), panelH);
     rule(ctx, M, panelY, w - M, C.hair, Math.max(1, S(1)));
-    rule(ctx, M, panelY + panelH, w - M, C.hair, Math.max(1, S(1)));
+    rule(ctx, M, panelBottom, w - M, C.hair, Math.max(1, S(1)));
 
     ctx.fillStyle = C.accent;
     ctx.font = `${S(22)}px ${MONO}`;
@@ -185,65 +221,101 @@ export function drawShareCard(ctx, model, w = SHARE_W, h = SHARE_H) {
 
     ctx.fillStyle = C.ink;
     ctx.font = `${S(54)}px ${SERIF}`;
-    let py = drawWrapped(ctx, primary.name, px, panelY + S(150), pw, S(62), 2);
+    drawLines(ctx, nameLines, px, nameY, S(62));
 
-    if (primary.brand) {
+    if (brandLines.length) {
       ctx.fillStyle = C.ink3;
-      ctx.font = `${S(25)}px ${SANS}`;
-      ctx.fillText(primary.brand, px, py + S(14));
-      py += S(38);
+      ctx.font = `${S(23)}px ${SANS}`;
+      drawLines(ctx, brandLines, px, brandY, S(30));
     }
-    if (primary.reason) {
+    if (reasonLines.length) {
       ctx.fillStyle = C.ink2;
-      ctx.font = `${S(28)}px ${SANS}`;
-      drawWrapped(ctx, primary.reason, px, py + S(54), pw, S(42), 3);
+      ctx.font = `${S(27)}px ${SANS}`;
+      drawLines(ctx, reasonLines, px, reasonY, S(43));
     }
   }
 
+  const footTopMax = h - S(150);
+  let contentBottom = panelBottom;
+
   if (alternates.length) {
-    const labelY = S(900);
+    const labelY = panelBottom + S(108);
     ctx.fillStyle = C.ink3;
     ctx.font = `${S(20)}px ${MONO}`;
     ctx.fillText(alternates.length > 1 ? '备选 · 另外两瓶' : '备选', M, labelY);
     rule(ctx, M, labelY + S(24), w - M, C.line, Math.max(1, S(1)));
 
-    let ay = S(980);
-    alternates.forEach((item, i) => {
+    /* 备选块先量高度再落位：条与条之间用固定 120px 的呼吸位，
+       页脚则跟着内容走（见下方 footTop），不让空白全堆在最后一条和页脚之间。 */
+    const textX2 = M + S(84);
+    const textW2 = innerW - S(84);
+    const blocks = alternates.map((item) => {
+      let nameLines = [];
+      if (item.name) {
+        ctx.font = `${S(34)}px ${SERIF}`;
+        nameLines = clipLines(ctx, item.name, textW2, 1);
+      }
+      let brandLines = [];
+      if (item.brand) {
+        ctx.font = `${S(21)}px ${SANS}`;
+        brandLines = clipLines(ctx, item.brand, textW2, 1);
+      }
+      let reasonLines = [];
+      if (item.reason) {
+        ctx.font = `${S(23)}px ${SANS}`;
+        reasonLines = clipLines(ctx, item.reason, textW2, 2);
+      }
+      const reasonY = brandLines.length ? S(100) : S(64);
+      const bottom = reasonLines.length
+        ? reasonY + (reasonLines.length - 1) * S(34) + S(24)
+        : (brandLines.length ? S(84) : S(34));
+      return { item, nameLines, brandLines, reasonLines, reasonY, height: bottom };
+    });
+
+    const gap = S(120);
+    let ay = labelY + S(76);
+
+    blocks.forEach((b, i) => {
       ctx.fillStyle = C.ink3;
       ctx.font = `${S(24)}px ${MONO}`;
-      ctx.fillText(item.rank || String(i + 2).padStart(2, '0'), M, ay);
+      ctx.fillText(b.item.rank || String(i + 2).padStart(2, '0'), M, ay);
 
-      const textX2 = M + S(84);
-      const textW2 = innerW - S(84);
       ctx.fillStyle = C.ink;
       ctx.font = `${S(34)}px ${SERIF}`;
-      const nameEnd = drawWrapped(ctx, item.name, textX2, ay, textW2, S(44), 1);
+      drawLines(ctx, b.nameLines, textX2, ay, S(44));
 
-      if (item.brand) {
+      if (b.brandLines.length) {
         ctx.fillStyle = C.ink3;
-        ctx.font = `${S(22)}px ${SANS}`;
-        ctx.fillText(item.brand, textX2, nameEnd + S(12));
+        ctx.font = `${S(21)}px ${SANS}`;
+        drawLines(ctx, b.brandLines, textX2, ay + S(56), S(30));
       }
-      if (item.reason) {
+      if (b.reasonLines.length) {
         ctx.fillStyle = C.ink2;
         ctx.font = `${S(23)}px ${SANS}`;
-        drawWrapped(ctx, item.reason, textX2, nameEnd + S(54), textW2, S(34), 2);
+        drawLines(ctx, b.reasonLines, textX2, ay + b.reasonY, S(34));
       }
-      ay += S(190);
-      if (i < alternates.length - 1) {
-        rule(ctx, M, ay - S(52), w - M, C.line, Math.max(1, S(1)));
+
+      ay += b.height;
+      contentBottom = ay;
+      if (i < blocks.length - 1) {
+        rule(ctx, M, ay + gap / 2, w - M, C.line, Math.max(1, S(1)));
+        ay += gap;
       }
     });
   }
 
-  const footTop = h - S(150);
+  /* 三瓶齐时，页脚浮在最后一条理由下方约 150px，而不是钉死在卡底 ——
+     理由只有一两行时，底部就不会出现一大块空场；瓶数不足时仍钉在卡底。 */
+  const footTop = alternates.length >= 2
+    ? Math.min(footTopMax, contentBottom + S(150))
+    : footTopMax;
   rule(ctx, M, footTop, w - M, C.hair, Math.max(1, S(1)));
   ctx.fillStyle = C.ink2;
   ctx.font = `${S(22)}px ${SANS}`;
   ctx.fillText(model.foot || '', M, footTop + S(46));
   ctx.fillStyle = C.ink3;
   ctx.font = `${S(19)}px ${MONO}`;
-  ctx.fillText('零基础香水选择器 · 1388 瓶 · 规则可复算', M, footTop + S(86));
+  ctx.fillText('零基础香水选择器 · 按感觉挑就行', M, footTop + S(86));
 
   ctx.restore();
 }

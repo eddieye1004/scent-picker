@@ -4856,7 +4856,7 @@ function renderResult() {
     });
     card.appendChild(ol);
     card.appendChild(el('p', { class: 'share-foot' },
-      '从 1388 瓶里按规则打分选出，选品不调用大模型'
+      '这 3 瓶从 1388 瓶里按规则打分选出，没让大模型插手'
     ));
     wrap.appendChild(card);
 
