@@ -855,7 +855,15 @@ function scentPlate(sub) {
    文字放什么：这一族的小类名 + 个数。两件事都是数据里来的，不是编的；
    盘心因此在说"这一族由这四格组成"，而不只是一句风格描述。
    为什么不做成"·"串一行就完：小类名之间要能一眼数清有几格，
-   所以名字之间用间隔点，个数单独一行小字（与盘心其它小字同一档）。 */
+   所以名字之间用间隔点，个数单独一行小字（与盘心其它小字同一档）。
+
+   ==== 小类名取哪个字段（2026-11-24 裁定 A）====
+   口径 = `label || zh || id`，与中圈弧段标签（第 1711 行）、盘心主词
+   （第 1924 行区）三处同源。原先是 `zh || id`，于是柑橘调这一族在
+   只选大类时列出"古龙水型/青绿柑橘/柑橘花香/芳香柑橘"——与用户点中圈
+   看到的"纯柑橘/苦橙叶/橙花柑橘/皂感柑橘"对不上，同一个盘心两种状态
+   说两套名字。label 是 4 字以内的直白词，zh 是正式名：**数据两个字段都
+   不动**，表单、推荐理由、无障碍名继续用 zh，只有盘心这两处显示改口径。 */
 function familyText(fam) {
   const subs = (fam.subfamilies || []);
   if (!subs.length) return null;
@@ -867,7 +875,11 @@ function familyText(fam) {
       /* 间隔点只是排版记号，不该被读屏念成内容 */
       list.appendChild(el('span', { class: 'fam-text-sep', 'aria-hidden': 'true' }, '·'));
     }
-    list.appendChild(el('span', { class: 'fam-text-item' }, s.zh || s.id));
+    /* 取词口径与中圈弧段、盘心主词同源：label 优先、zh 兜底。
+       柑橘调那 4 项的 zh 全是"××柑橘"，只选大类时并排列在这里分不出差别
+       （与 1711 行中圈改名同一个理由）；label 缺省时回退 zh，再缺省用 id。
+       数据本身不动 —— 表单、推荐理由、无障碍名里仍用 zh。 */
+    list.appendChild(el('span', { class: 'fam-text-item' }, s.label || s.zh || s.id));
   });
   wrap.appendChild(list);
   wrap.appendChild(el('span', { class: 'fam-text-count' }, subs.length + ' 个小类'));
@@ -1921,7 +1933,10 @@ function buildWheel(cfg) {
     } else if (focusSub) {
       picked = !!(sub && sub.id === focusSub.id);
       kick = picked ? '已选定' : '正在看';
-      zh = focusSub.zh;
+      /* 盘心小类名与中圈统一：中圈写的是 `item.label || item.zh`（见 1710 行），
+         盘心原来只读 `zh`，于是柑橘调 4 项出现"中圈点纯柑橘、盘心说古龙水型"。
+         同一套回退链搬过来：有 label 用 label，没有的 20 类行为逐字不变。 */
+      zh = focusSub.label || focusSub.zh;
       desc = focusSub.descWheel || focusSub.short || focusSub.desc;
     } else {
       kick = hoverFam && !selFamily ? '正在看' : '已选定大类';
