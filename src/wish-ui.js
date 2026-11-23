@@ -17,7 +17,9 @@
  * 为这件事留的注入口。
  */
 
-import { createWishlist, WISHLIST_MAX } from './wishlist.js';
+import {
+  createWishlist, WISHLIST_MAX, WISHLIST_ID_MAX, WISHLIST_REASON_MAX, WISHLIST_OWNED_KEY,
+} from './wishlist.js';
 
 /** 四句提示，逐字对应任务书。 */
 export const WISH_MSG = Object.freeze({
@@ -47,17 +49,46 @@ export function createMemoryStore() {
  *
  * @param {object}   primary         真存储上的清单实例（浏览器里是 wishlist）
  * @param {function} [makeMemoryWish] 造内存清单实例的工厂，测试可注入
+ * @param {object|function} [realStorage]
+ *   真存储介质本身（localStorage 或返回它的函数）。
+ *   为什么要显式传：会话里有两个动作（撤销移除、取消已入手）不属于 L1 的
+ *   API，得自己读写那个键。它们必须写在**这个实例真正用的介质**上 ——
+ *   测试里注入的是内存对象，浏览器里是 localStorage。不去猜 globalThis，
+ *   否则测试与浏览器会走两条不同的路（那正是"测试全绿、线上不对"的成因）。
  */
-export function createWishSession(primary, makeMemoryWish) {
+export function createWishSession(primary, makeMemoryWish, realStorage) {
+  /* 兜底介质要留一个句柄出来（L3 加）。
+     原因：清单页的「已入手」开关与「移除后撤销」都要写存储，而存储不可用
+     时整页已经切到这份内存介质上了。若这两个动作还去直接摸 localStorage，
+     就会变成「移除是内存里的事、撤销写进磁盘」这种一半真一半假的状态。
+     留出 memoryStore() 让上层能拿到**当前真正在用的**那一份。 */
+  let memStore = null;
   const makeMemory = typeof makeMemoryWish === 'function'
     ? makeMemoryWish
-    : () => createWishlist(createMemoryStore());
+    : () => {
+      memStore = createMemoryStore();
+      return createWishlist(memStore);
+    };
 
   /* 降级后不再回头试真存储：反复试写一个已知失败的介质，
      只会在每次点击上多一次配额异常，而且状态会来回抖（一会儿真一会儿假）。 */
   let fallback = null;
 
   const active = () => fallback || primary;
+
+  /** 真存储介质：优先用调用方给的，其次才回落到浏览器全局。 */
+  function realStore() {
+    const src = realStorage;
+    if (src) {
+      try {
+        const v = typeof src === 'function' ? src() : src;
+        if (v) return v;
+      } catch {
+        /* 取存储本身抛（隐私模式）：当作不可用。 */
+      }
+    }
+    return browserStorage();
+  }
 
   function has(id) {
     try {
@@ -70,6 +101,60 @@ export function createWishSession(primary, makeMemoryWish) {
 
   function degraded() {
     return fallback != null;
+  }
+
+  /** 已入手回显也要跟着介质走 —— 否则降级时打了标记却读不出来。 */
+  function isOwned(id) {
+    try {
+      return active().isOwned(id);
+    } catch {
+      return false;
+    }
+  }
+
+  /** 当前真正在用的兜底介质（没降级时是 null，上层该用真存储）。 */
+  function memoryStore() {
+    return fallback ? memStore : null;
+  }
+
+  /**
+   * 把一条被移除的条目**原样**写回（savedAt 不刷新）。
+   *
+   * 为什么不用 add()：add 会把 savedAt 刷成"现在"，于是撤销之后那瓶
+   * 跳到清单最前面 —— 用户点了撤销却发现瓶子换了位置，比不给撤销更糟。
+   *
+   * 为什么可以直接写 JSON 而不是又造一个实例：L1 的落盘形状就是
+   * `[{id, savedAt, reason}]`，且它**读时也会归一化**（normalizeItem +
+   * sortDesc）。这里写进去的三项已按 L1 自己的常量（ID_MAX / REASON_MAX）
+   * 夹过、键序一致，所以即便绕过一次 add()，磁盘上的形状与 L1 写的仍然同构，
+   * 下一次读回来仍是三条键、仍按 savedAt 倒序。上限不用管：这是把刚删掉的
+   * 一条放回去，长度只会回到删除前的值（≤50）。
+   *
+   * @returns {boolean} 是否写回成功
+   */
+  function undoRemove(item) {
+    const id = cleanIdOf(item && item.id, WISHLIST_ID_MAX);
+    if (!id) return false;
+    const storage = degraded() ? memStore : realStore();
+    if (!storage) return false;
+    try {
+      const raw = storage.getItem('sp_wishlist_v1');
+      const cur = raw ? JSON.parse(raw) : [];
+      const arr = Array.isArray(cur) ? cur : [];
+      /* 已经在里面（比如别的标签页刚存回）→ 当作成功，不重复写。 */
+      if (arr.some((x) => x && String(x.id) === id)) return true;
+      const savedAt = Number(item.savedAt);
+      storage.setItem('sp_wishlist_v1', JSON.stringify([...arr, {
+        id,
+        /* 原 savedAt 照抄；坏值退回 0（L1 对 0 的处理是排最后）——
+           塞一个当前时间会把"没有可信时间"伪装成"刚刚存过"。 */
+        savedAt: Number.isFinite(savedAt) && savedAt > 0 ? savedAt : 0,
+        reason: cleanReasonOf(item.reason),
+      }]));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -95,7 +180,78 @@ export function createWishSession(primary, makeMemoryWish) {
     return { ...res, saved: has(id), degraded: degraded() };
   }
 
-  return { has, toggle, degraded, msg: WISH_MSG };
+  /**
+   * 取消一条「已入手」。
+   *
+   * 为什么不走数据层新 API：src/wishlist.js 是 L1 已验收件，任务书明确
+   * 「不许动三键白名单与上限逻辑」，而 L1 的守卫测试**正面比对**了它的
+   * 全部 export 名 —— 加一个导出就会让那条守卫变红。它的已入手键语义很简单
+   * （纯 id 数组、读时去重），这里按同一形状读写，不引入第二种形态。
+   *
+   * 介质同 undoRemove：降级时写兜底介质，不碰磁盘。
+   *
+   * @returns {boolean} 是否写成功
+   */
+  function unmarkOwned(id) {
+    const sid = cleanIdOf(id, WISHLIST_ID_MAX);
+    if (!sid) return false;
+    const storage = degraded() ? memStore : realStore();
+    if (!storage) return false;
+    try {
+      const raw = storage.getItem(WISHLIST_OWNED_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(arr)) return false;
+      const next = arr.map((v) => String(v == null ? '' : v)).filter((v) => v && v !== sid);
+      storage.setItem(WISHLIST_OWNED_KEY, JSON.stringify([...new Set(next)]));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * 「已入手」标记一次（幂等）。存储不可用时写进兜底介质，与存/删同一条路。
+   * @returns {{ok:boolean, status:string, degraded:boolean}}
+   */
+  function toggleOwned(id) {
+    let res = active().markOwned(id);
+    if (res && res.status === 'unavailable') {
+      if (!fallback) fallback = makeMemory();
+      res = fallback.markOwned(id);
+      return { ...res, degraded: true };
+    }
+    return { ...res, degraded: degraded() };
+  }
+
+  return {
+    has, toggle, toggleOwned, unmarkOwned, isOwned, degraded, memoryStore, undoRemove, msg: WISH_MSG,
+  };
+}
+
+/** 浏览器全局那份 localStorage（拿不到就是不可用）。 */
+function browserStorage() {
+  try {
+    return typeof globalThis !== 'undefined' && globalThis.localStorage
+      ? globalThis.localStorage
+      : null;
+  } catch {
+    /* 隐私模式下访问 localStorage 本身就抛 SecurityError。 */
+    return null;
+  }
+}
+
+/* 撤销要按 L1 的同一套夹取规则重建三项 —— 常量与清理函数都从 L1 取，
+   不在这里另写一份（另写一份就会在 L1 改规则时静默分叉）。 */
+function cleanIdOf(v, max) {
+  if (typeof v === 'string') {
+    return String(v).replace(/\s+/g, ' ').trim().slice(0, max);
+  }
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  return '';
+}
+
+function cleanReasonOf(v) {
+  return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, WISHLIST_REASON_MAX);
 }
 
 /**

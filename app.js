@@ -34,6 +34,13 @@ import { buildAvoidIndex, avoidPlan } from './src/avoid.js';
    靠 createWishlist(storage) 这个既有注入口完成，不给数据层开洞。 */
 import { wishlist } from './src/wishlist.js';
 import { createWishSession, wishMessage, wishReasonOf } from './src/wish-ui.js';
+/* 清单页的解析层（L3）。它只把「心仪条目 + 现有数据」算成「一行该显示什么」，
+   不碰 DOM —— 所以「没有价格就不显示价格」「没有链接就不显示链接」这两条
+   最容易被写成兜底值的判据，能在 node 里一格一格地验（scripts/test-wishlist-page.mjs）。 */
+import {
+  WISH_PAGE_MSG, wishListModel, perfumeIndex, priceLabelOf, savedLabel,
+  CLEAR_LABEL, CLEAR_ARM_LABEL, nextClearState, removableOf,
+} from './src/wish-page.js';
 
 const state = {
   step: 0,
@@ -142,6 +149,15 @@ const state = {
   /* 避雷屏当前候选的方向键（family|subfamily）。方向变了就清掉
      不在新清单里的旧「不要」，见 pruneAvoid。不进 answers：它是视图状态。 */
   avoidKey: null,
+  /* ==== 清单页视图（L3，2026-11-23）====
+     全站是单页 + 内存 state 的形态，没有路由表，也没有 history API ——
+     结果页、问卷各屏都是"改 state 再 render()"。
+     清单页沿用同一条路，理由：
+       · 引入 hash 路由会多出一套需要同步的地址状态，而这一页的所有数据
+         本来就在 localStorage 里，刷新后重新读一次即可；
+       · 从结果页的 toast「在香水档案里看」跳过来，只需改一个字段 + 重画，
+         不必把整页导航写成异步。 */
+  wishPage: false,
 };
 
 let DATA = null;
@@ -3430,6 +3446,12 @@ function renderProgress() {
 
 function renderMasthead() {
   const isResult = state.step >= curSteps().length;
+  /* 清单页是独立视图，不是"结果页的延续"。
+     若这里沿用 isResult 的文案，用户会在「心仪清单」上方读到
+     「你的三瓶候选 / 每一瓶的理由都能反推回你刚才的选择」——
+     标题在说另一页的事（实测截图里一眼就是错的）。
+     所以判据排在 isResult 之前：进了清单页，页头就先认这一页。 */
+  const isWish = state.wishPage === true;
   /* 边距仪器区（规格 5 的"留白深度"）。
      叶标题不变，页眉右侧那枚 .amb-tick 是**这一程走到哪儿的刻度**
      （方向 + 档位，如「亮·起」）。它不算装饰：没有它，"底噪随进程增强"
@@ -3441,16 +3463,20 @@ function renderMasthead() {
     // 封面标题里的「第一瓶」是全站唯一的高分量蓝色。
     // 用 em 而不是 span：它承载的是语义强调（"第一瓶"才是这个产品的承诺），
     // 顺带让 .masthead h1 em 这条样式有真实落点。
-    isResult
-      ? el('h1', {}, '你的三瓶候选')
-      : el('h1', {}, '从零开始，找到', el('em', {}, '第一瓶'), '香水'),
+    isWish
+      ? el('h1', {}, '我的', el('em', {}, '心仪'), '清单')
+      : isResult
+        ? el('h1', {}, '你的三瓶候选')
+        : el('h1', {}, '从零开始，找到', el('em', {}, '第一瓶'), '香水'),
     el('p', { class: 'lede' },
-      isResult
-        ? '每一瓶的理由都能反推回你刚才的选择，没有一句是编的'
-        /* 首屏那句 lede 原来写「转盘选香型，再定场合和浓度」（a39e498），
-           v6 撤盘时改成「先说预算和想要的感觉」，v7 圆盘回来了 ——
-           现在这句必须同时说准两件事：**第一件事是转盘**，而且不问术语。 */
-        : '不用懂前中后调。先在转盘上挑一个大方向，再定场合和浓度'
+      isWish
+        ? '存过的瓶子都在这台设备上，点开就能看理由、参考价和去哪买'
+        : isResult
+          ? '每一瓶的理由都能反推回你刚才的选择，没有一句是编的'
+          /* 首屏那句 lede 原来写「转盘选香型，再定场合和浓度」（a39e498），
+             v6 撤盘时改成「先说预算和想要的感觉」，v7 圆盘回来了 ——
+             现在这句必须同时说准两件事：**第一件事是转盘**，而且不问术语。 */
+          : '不用懂前中后调。先在转盘上挑一个大方向，再定场合和浓度'
     ),
     /* 印��：纯装饰（aria-hidden），字取「香」—— 这个应用唯一的主题字。 */
     el('span', { class: 'seal', 'aria-hidden': 'true' }, '香')
@@ -4152,8 +4178,12 @@ function localStorageSafe() {
    ============================================================ */
 
 /* 一次页面会话：真存储实例 + 内存兜底（兜底逻辑全在 src/wish-ui.js，
-   那里能在 node 里直接喂内存存储测「满 50」「隐私模式」两条路径）。 */
-const wishSession = createWishSession(wishlist);
+   那里能在 node 里直接喂内存存储测「满 50」「隐私模式」两条路径）。
+   第三个参数把真存储介质**显式**交给会话：撤销移除与取消已入手这两个动作
+   不在 L1 的 API 里，得自己读写那个键 —— 写谁必须由调用方指定，
+   不能让会话去猜 globalThis（否则测试与浏览器走两条路，正是"测试全绿、
+   线上不对"的典型成因）。 */
+const wishSession = createWishSession(wishlist, undefined, () => localStorageSafe());
 
 /** 初始化与回显都走这条：空心 = 未存，实心 = 已存。 */
 function wishIsSaved(id) {
@@ -4363,9 +4393,402 @@ function renderHistoryBlock() {
     ),
     toggle
   ));
+  /* ---- 心仪清单入口（L3，2026-11-23）----
+     挂在档案区块内而不是另起一块：设计稿 §7.4 要求「首页与结果页都够得着」，
+     而档案区块是回访用户唯一会先看到的东西。带计数 —— 没计数时用户不知道
+     里面有没有东西，等于每次都要点进去确认一次。 */
+  let wishCount = 0;
+  try {
+    wishCount = wishlist.list().length;
+  } catch {
+    wishCount = 0;
+  }
+  box.appendChild(el('div', { class: 'qw-history-wish' },
+    el('button', {
+      class: 'qw-wl-entry',
+      type: 'button',
+      'data-wish-count': String(wishCount),
+      onclick: () => openWishPage(),
+    },
+    el('span', { class: 'qw-wl-entry-label' }, '心仪清单'),
+    el('span', { class: 'qw-wl-entry-count' }, String(wishCount)),
+    el('span', { class: 'qw-wl-entry-go' }, '打开 →')),
+    el('span', { class: 'hint' }, wishCount
+      ? '存过的瓶子都在这里，换设备或清缓存就没了'
+      : '在结果页点 ♡ 就能把喜欢的瓶子存到这里')
+  ));
   box.appendChild(panel);
   return box;
 }
+
+/* ---------- 进/出清单页 ----------
+   两个动作都只改一个字段再重画，与结果页「换一批」同一条路。
+   进页面前把香水表、链接表、实物图表拉齐（都是既有加载器，幂等）——
+   清单行要现查这四样，缺一样就会少一格。 */
+function openWishPage() {
+  state.wishPage = true;
+  WISH_SCROLL = 0;
+  Promise.all([
+    ensurePerfumes().catch(() => DATA),
+    ensureAffLinks().catch(() => AFF_LINKS),
+    ensurePhotos().catch(() => PHOTOS),
+  ]).then(() => {
+    if (state.wishPage) render();
+  });
+  render();
+}
+
+/* ============================================================
+   心仪清单 · 清单页本体（L3，2026-11-23）
+   ------------------------------------------------------------
+   这一块只做渲染与一次点击的去向。判据全在 src/wish-page.js：
+     · 哪些字段有、哪些没有（没有价格就不显示价格，没有链接就不显示链接）；
+     · 空态 / 满 50 / 存储不可用三句话；
+     · 清空的两段式与移除后的撤销。
+   这里**不 import 任何新存储**：已入手与移除都走 L2 那个 wishSession
+   背后的同一个 wishlist 实例 —— 心仪、已入手、盖章（将来）必须共用一个
+   存储，另起一套就会出现"清单里有、档案里没有"的分叉。
+
+   ---- 与结果页 ♡ 的位置关系（不是审美，是防误触）----
+   结果卡上「存」在瓶名行（卡顶）、「买」在页脚（卡底），一上一下两端。
+   清单行沿用同一条约定：移除与购买键分列两端，已入手在左侧信息区、
+   与购买键隔着一整行的宽度。见 99-wishlist.css 里 .qw-wl-* 的注释。
+   ============================================================ */
+
+/** 清单页当前的滚动锚点：重画后回到原位，避免点一下「已入手」被弹回页顶。 */
+let WISH_SCROLL = 0;
+
+/** 已入手集合：从**会话**读（不是数据层）—— 降级时标记落在兜底介质上，
+ *  直接问 wishlist 会读不到，于是用户点过之后那一行不亮。 */
+function wishOwnedSet(items) {
+  const set = new Set();
+  for (const it of items) {
+    if (wishSession.isOwned(it.id)) set.add(it.id);
+  }
+  return set;
+}
+
+/** 清单页的一行。五要素 + 已入手 + 移除，全部挂在 .qw-wl-row 下。 */
+function wishRowNode(row, ctx) {
+  const { say, repaint } = ctx;
+  const li = el('li', { class: 'qw-wl-row' + (row.owned ? ' is-owned' : ''), 'data-wish-id': row.id });
+
+  /* ① 瓶图。有照片用照片（与结果卡同一个 .pick-art 走法），没有就画瓶形 ——
+        两者尺寸由同一个 .qw-wl-art 盒控制，换图不会让各行基线错开。 */
+  const art = el('div', { class: 'qw-wl-art' });
+  if (row.photo) {
+    art.appendChild(el('img', {
+      src: row.photo, alt: '', role: 'presentation', loading: 'lazy', decoding: 'async', draggable: 'false',
+    }));
+  } else {
+    /* 瓶形走既有的 bottleArt：它按 id 稳定散列出色相，所以同一瓶在结果页
+       与清单页画出来是同一个颜色。没有照片时这是"同一瓶"的视觉连续性。 */
+    const p = ctx.perfumeOf(row.id);
+    art.appendChild(p ? bottleArt(p) : el('div', { class: 'qw-wl-art-ph' }));
+  }
+
+  const main = el('div', { class: 'qw-wl-main' });
+
+  /* ② 品名 + 品牌 */
+  main.appendChild(el('div', { class: 'qw-wl-name-row' },
+    el('h3', { class: 'qw-wl-name' }, row.name),
+    /* 「已入手」是**可切换**的标记，不是一次性动作 —— 点错了要能取消。
+       aria-pressed 跟着状态走，读屏用户听到的是「切换按钮 已按下」。 */
+    el('button', {
+      class: 'qw-wl-owned' + (row.owned ? ' is-on' : ''),
+      type: 'button',
+      'aria-pressed': row.owned ? 'true' : 'false',
+      'aria-label': row.owned ? `取消「已入手」标记：${row.name}` : `标记为已入手：${row.name}`,
+      onclick: (ev) => {
+        ev.stopPropagation();
+        WISH_SCROLL = pageScrollY();
+        const was = wishSession.isOwned(row.id);
+        if (was) {
+          /* 取消标记走会话（src/wish-ui.js 的 unmarkOwned）：数据层没有
+             "取消单条"的公开 API，而 L1 是已验收件、不许加导出（它的守卫
+             测试正面比对全部 export 名）。会话里那一份按 L1 的同一个键形状
+             读写，且降级时写兜底介质 —— 不会出现「清单在内存、标记在磁盘」的分叉。 */
+          const ok = wishSession.unmarkOwned(row.id);
+          say(ok ? `已取消「已入手」：${row.name}` : `取消不了「已入手」：${row.name}`);
+        } else {
+          const res = wishSession.toggleOwned(row.id);
+          say(res && res.ok ? `已标记「已入手」：${row.name}` : `标记不了「已入手」：${row.name}`);
+        }
+        repaint();
+      },
+    }, row.owned ? '已入手' : '标记已入手')
+  ));
+
+  if (row.brand) main.appendChild(el('p', { class: 'qw-wl-brand' }, row.brand));
+
+  /* ③ 存入理由：L2 存下的那一句原文，只读展示。空就整格不出 ——
+        补一句「暂无理由」是替用户编一句他没说过的话。 */
+  if (row.reason) main.appendChild(el('p', { class: 'qw-wl-reason' }, row.reason));
+
+  /* ④ 价格带（有数据才显示，标「参考价」） + 日期 */
+  const meta = el('div', { class: 'qw-wl-meta' });
+  if (row.price) meta.appendChild(el('span', { class: 'qw-wl-price' }, row.price));
+  meta.appendChild(el('span', { class: 'qw-wl-date' }, row.savedAtLabel));
+  main.appendChild(meta);
+  li.appendChild(art);
+  li.appendChild(main);
+
+  /* ⑤ 购买链接（有才显示） + 移除。两个动作分列这一行的右端与底端，
+        与「已入手」在左侧信息区 —— 三个动作互不相邻。 */
+  const tail = el('div', { class: 'qw-wl-tail' });
+  if (row.buy && row.buy.length) {
+    const link = row.buy[0];
+    tail.appendChild(el('a', {
+      class: 'qw-wl-buy' + (link.kind === 'direct' ? '' : ' is-search'),
+      href: link.href,
+      target: '_blank',
+      /* 与结果页同一条合规口径：有佣金关系才挂 sponsored，无佣金绝不能挂。 */
+      rel: link.kind === 'direct' ? 'sponsored noopener noreferrer' : 'noopener noreferrer',
+      'data-affiliate': link.kind === 'direct' ? 'true' : 'false',
+      'data-kind': link.kind,
+      'data-platform': link.platform,
+    }, link.label));
+  }
+  tail.appendChild(el('button', {
+    class: 'qw-wl-remove',
+    type: 'button',
+    'aria-label': `从心仪清单移除${row.name}`,
+    onclick: (ev) => {
+      ev.stopPropagation();
+      WISH_SCROLL = pageScrollY();
+      /* 撤销要还原的是**存储里的原条目**（含原 savedAt），而 `row` 是
+         wish-page 算出来的**展示模型** —— 它的时间字段叫 savedAtLabel
+         （"最近存入 11-23"），没有 savedAt。拿 row 去撤销会把 savedAt 写成 0，
+         那一瓶随即掉到清单最末（实测踩到：撤销后顺序变了）。
+         所以从数据层取回那一条再交给会话。 */
+      const stored = (() => {
+        try {
+          return wishlist.list().find((x) => x.id === row.id) || null;
+        } catch {
+          return null;
+        }
+      })();
+      wishlist.remove(row.id);
+      /* 撤销窗口：把**原条目**留着，撤销时原样写回（含原 savedAt）。 */
+      say(`已移除：${row.name}`, { undo: removableOf(stored) || removableOf({ id: row.id, savedAt: 0, reason: row.reason }) });
+      repaint();
+    },
+  }, '移除'));
+  li.appendChild(tail);
+  return li;
+}
+
+function pageScrollY() {
+  try {
+    return typeof window !== 'undefined' && Number(window.scrollY) ? Number(window.scrollY) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * 清单页整页。
+ *
+ * 三件事按顺序：先算模型（wish-page.js）、再决定要不要出三条状态提示、
+ * 最后逐行渲染。**任何一个环节都不许抛到 render() 之外** ——
+ * 存储坏掉时这一页要显示降级提示，而不是把整站变成错误页（任务书第 5 条）。
+ */
+function renderWishPage() {
+  const wrap = el('div', { class: 'fade-in qw-wl-page' });
+
+  let items = [];
+  let degraded = false;
+  try {
+    items = wishlist.list();
+    degraded = wishSession.degraded();
+  } catch {
+    /* 连读都抛（极端环境）：按"存储不可用"处理，与 degraded 同一条口径。 */
+    items = [];
+    degraded = true;
+  }
+
+  /* 香水表与链接表都是按需加载的（性能腿的既定做法，见 ensurePerfumes）。
+     清单页要拿它们现查瓶名/图/价格/链接，所以这里 await 一次。
+     数据没到货不能等于"瓶子丢了"：模型对查不到的 id 仍然出行（见 wishRowOf）。 */
+  const repaint = () => {
+    render();
+    try {
+      window.scrollTo(0, WISH_SCROLL);
+    } catch { /* 没有 window（测试桩）：不滚即可，不影响内容 */ }
+  };
+
+  const say = (msg, opts) => sayWishPage(msg, opts, repaint);
+
+  const build = (data, links, photos) => {
+    const perfumes = perfumeIndex(data);
+    const aff = affiliateConfig();
+    const owned = wishOwnedSet(items);
+    const model = wishListModel(items, {
+      perfumes,
+      priceIndex: PRICE_INDEX,
+      photos: photos && typeof photos === 'object' ? photos : null,
+      owned,
+      degraded,
+      linksOf: (id, p) => (p ? affiliateLinks(p, aff) : []),
+    });
+
+    const head = el('div', { class: 'qw-wl-head' },
+      el('h2', { class: 'qw-wl-sub' },
+        model.count ? `共 ${model.count} 瓶 · 存在这台设备上` : WISH_PAGE_MSG.deviceOnly),
+      /* 回结果页：清单页是"档案里的一个视图"，不是全站首页，
+         所以出口写「返回」而不是「首页」。 */
+      el('button', {
+        class: 'link-btn qw-wl-back',
+        type: 'button',
+        onclick: () => { state.wishPage = false; render(); },
+      }, '← 返回')
+    );
+    wrap.appendChild(head);
+
+    /* 降级提示：L2 已定的那句话，逐字沿用。它排在最前 ——
+       "存不下"这件事会影响用户对这一页所有内容的理解。 */
+    if (model.degraded) {
+      wrap.appendChild(el('p', { class: 'qw-wl-note is-warn', role: 'note', 'data-note': 'unavailable' },
+        WISH_PAGE_MSG.unavailable));
+    }
+    /* 满 50：与 L2 同一句口径，数字取 WISHLIST_MAX 不另写。 */
+    if (model.full) {
+      wrap.appendChild(el('p', { class: 'qw-wl-note', role: 'note', 'data-note': 'full' },
+        WISH_PAGE_MSG.full));
+    }
+
+    /* ---- 空态：一句引导 + 一个回结果页的动作，不白屏 ---- */
+    if (model.empty) {
+      wrap.appendChild(el('div', { class: 'qw-wl-empty' },
+        el('p', { class: 'qw-wl-empty-title' }, WISH_PAGE_MSG.emptyTitle),
+        el('p', { class: 'qw-wl-empty-hint' }, WISH_PAGE_MSG.emptyHint),
+        el('button', {
+          class: 'btn qw-wl-empty-cta',
+          type: 'button',
+          onclick: () => { state.wishPage = false; render(); },
+        }, WISH_PAGE_MSG.emptyCta)
+      ));
+      return wrap;
+    }
+
+    const ol = el('ol', { class: 'qw-wl-list' });
+    for (const row of model.rows) {
+      ol.appendChild(wishRowNode(row, { say, repaint, perfumeOf: (id) => perfumes.get(id) || null }));
+    }
+    wrap.appendChild(ol);
+
+    /* 清空全部：两段式（与档案区块同一套交互），放在最下面 ——
+       它代价最大，不该和逐行操作抢注意力。 */
+    let armed = false;
+    const clearBtn = el('button', { class: 'link-btn qw-wl-clear', type: 'button' }, CLEAR_LABEL);
+    let timer = 0;
+    clearBtn.addEventListener('click', () => {
+      const next = nextClearState({ armed });
+      if (!next.changed) {
+        armed = true;
+        clearBtn.textContent = next.label;
+        /* 第二段视觉要能看出来（否则它和第一次点击前长得一样，
+           用户不知道自己已经在确认态）—— 类名 + 文案两重信号。 */
+        clearBtn.classList.add('is-armed');
+        timer = setTimeout(() => {
+          armed = false;
+          clearBtn.textContent = CLEAR_LABEL;
+          clearBtn.classList.remove('is-armed');
+        }, 4000);
+        return;
+      }
+      clearTimeout(timer);
+      armed = false;
+      clearBtn.classList.remove('is-armed');
+      clearBtn.textContent = CLEAR_LABEL;
+      WISH_SCROLL = pageScrollY();
+      wishlist.clear();
+      repaint();
+    });
+    wrap.appendChild(el('div', { class: 'qw-wl-actions' },
+      clearBtn,
+      el('span', { class: 'hint' }, '只存本机，清空后无法恢复')
+    ));
+    return wrap;
+  };
+
+  /* 数据可能还没到货。到了就重画一次；不到就按"查不到"渲染 ——
+     这一页的瓶名会退成 id，但列表本身照常可读可操作，
+     不会卡在空白等一个可能失败的请求。 */
+  const ready = DATA && PHOTOS !== null && AFF_LINKS !== null;
+  if (ready) return build(DATA, AFF_LINKS, PHOTOS);
+
+  Promise.all([
+    ensurePerfumes().catch(() => DATA),
+    ensureAffLinks().catch(() => AFF_LINKS),
+    ensurePhotos().catch(() => PHOTOS),
+  ]).then(() => {
+    if (state.wishPage) repaint();
+  });
+
+  return build(DATA, AFF_LINKS, PHOTOS);
+}
+
+/**
+ * 清单页的一条提示（复用 L2 那条单例提示条，不另造 toast）。
+ *
+ * 为什么复用：两个页面出现两种"提示"会让"这条会不会自己消失"变成
+ * 需要重新学习的事。同一条 .qw-wish-bar、同一个 hidden 语义、
+ * 同样 2 秒消失 —— 只有"撤销"这一种带动作，所以它多挂一个按钮。
+ */
+function sayWishPage(msg, opts, onUndo) {
+  const bar = ensureWishBar();
+  // eslint-disable-next-line no-use-before-define
+  clearTimeout(WISH_PAGE_TIMER);
+  bar.textContent = '';
+  bar.appendChild(document.createTextNode(msg));
+  bar.removeAttribute('hidden');
+
+  if (opts && opts.undo) {
+    /* 撤销：把原条目原样写回（savedAt 不变，位置不变）。
+       按钮本身要能点 —— 而 .qw-wish-bar 是 pointer-events:none（不挡操作），
+       所以这里把按钮单独放行 pointer-events:auto。
+       opts.undo 是 removableOf() 的产物 { id, item }：解出 item 再写回，
+       不能把外层的包裹对象直接当条目用（那样 id/savedAt 都会丢）。 */
+    const item = opts.undo.item || opts.undo;
+    const undoBtn = el('button', {
+      class: 'qw-wl-undo',
+      type: 'button',
+      onclick: (ev) => {
+        ev.stopPropagation();
+        /* 走会话：降级时它会写到兜底介质上，与「移除」是同一个介质 ——
+           否则会出现"移除是内存的事、撤销写进磁盘"这种一半真一半假的状态。
+           undoRemove 保留原 savedAt，所以撤销后那瓶回到原来的位置，
+           不会被顶到清单最前面（那是 add() 的语义，不是撤销的语义）。 */
+        const ok = wishSession.undoRemove
+          ? wishSession.undoRemove(item)
+          : false;
+        bar.setAttribute('hidden', '');
+        bar.textContent = '';
+        if (ok) {
+          if (typeof onUndo === 'function') onUndo();
+        } else if (typeof onUndo === 'function') {
+          /* 写不回就别假装成功：重画一次让界面与存储保持一致，
+             用户看到的是"确实没回来"，而不是"消失了又出现又消失"。 */
+          onUndo();
+        }
+      },
+    }, '撤销');
+    bar.appendChild(undoBtn);
+    /* 撤销窗口 5 秒（设计稿 §11.1），比普通提示长 —— 它要给人留出反应时间。 */
+    WISH_PAGE_TIMER = setTimeout(() => {
+      bar.setAttribute('hidden', '');
+      bar.textContent = '';
+    }, 5000);
+    return;
+  }
+
+  WISH_PAGE_TIMER = setTimeout(() => {
+    bar.setAttribute('hidden', '');
+    bar.textContent = '';
+  }, 2000);
+}
+let WISH_PAGE_TIMER = 0;
 
 async function waitForShareFonts() {
   if (!document.fonts || !document.fonts.ready) return;
@@ -4499,7 +4922,36 @@ function renderResult() {
   const wishBar = ensureWishBar();
   let wishTimer = 0;
   const sayWish = (msg) => {
-    wishBar.textContent = msg;
+    /* ---- 「在香水档案里看」要真的能点（L3，2026-11-23）----
+       L2 的这句提示当时只有文字，用户读完仍不知道去哪找 —— 提示里指了
+       一个地方却没有入口，等于把"存完不知道去哪找"这个问题留给用户。
+       这里把 ' · ' 之后的那半句做成按钮：前半句是结果（存了没），
+       后半句是去向（去哪看），两者本来就该由同一条提示给出。
+       桩里没有 querySelector 分区能力也不影响：拆的是字符串，不是 DOM 结构。 */
+    const parts = String(msg).split(' · ');
+    wishBar.textContent = '';
+    if (parts.length === 2 && /^在香水档案里看/.test(parts[1])) {
+      /* 只把「在香水档案里看」这四个字做成按钮。
+         降级时 wishMessage 会在整句后面追加「（本机存储不可用，收藏仅本次有效）」，
+         那个括号是**说明**，不是去向 —— 整段塞进按钮会让按钮变成一句话
+         （实测截图里按钮被撑成一长条，句子读起来像「点这里（存不下）」）。
+         所以后半句按「在香水档案里看」+「其余」拆开，其余留在按钮外面。 */
+      const tail = parts[1].slice('在香水档案里看'.length);
+      wishBar.appendChild(document.createTextNode(parts[0] + ' · '));
+      wishBar.appendChild(el('button', {
+        class: 'qw-wish-go',
+        type: 'button',
+        onclick: (ev) => {
+          ev.stopPropagation();
+          wishBar.setAttribute('hidden', '');
+          wishBar.textContent = '';
+          openWishPage();
+        },
+      }, '在香水档案里看'));
+      if (tail) wishBar.appendChild(document.createTextNode(tail));
+    } else {
+      wishBar.appendChild(document.createTextNode(String(msg)));
+    }
     wishBar.removeAttribute('hidden');
     /* 2000ms：够读完一行 12 字，也不至于在下一次点击前还占着位置。 */
     clearTimeout(wishTimer);
@@ -5146,6 +5598,15 @@ function render() {
 
   app.innerHTML = '';
   app.appendChild(renderMasthead());
+  /* 清单页是一个**顶层视图**：它没有进度尺（不是问卷的一步），
+     但保留页头 —— 页头是全站的锚，去掉会让这一页看着像另一个站。 */
+  if (state.wishPage) {
+    app.dataset.step = 'wishlist';
+    app.appendChild(renderWishPage());
+    app.appendChild(renderFooter(true));
+    applyAmbient();
+    return;
+  }
   app.appendChild(renderProgress());
   if (isResult) {
     app.appendChild(renderResult());

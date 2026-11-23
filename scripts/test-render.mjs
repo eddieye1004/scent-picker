@@ -133,7 +133,17 @@ class TNode {
   getAttribute(k) { return this.attrs[k] ?? null; }
   removeAttribute(k) { delete this.attrs[k]; }
   appendChild(n) {
-    if (typeof n !== 'string') { n.parentNode = this; this._text = null; }
+    if (typeof n !== 'string') { n.parentNode = this; }
+    /* `textContent = ''` 之后再 appendChild 是**合法且常见**的写法
+       （L3 的清单页提示条就这么做：先清空，再把文字与按钮拼回去）。
+       真实 DOM 里先前那段文字仍是一个文本节点，追加内容排在它后面；
+       桩把 textContent 存进 `_text`、把文本节点存成裸字符串 ——
+       两者混在一起时若不清 `_text`，getter 会一直返回那句空串，
+       于是页面在浏览器里正常、在测试里"文案是空的"。补桩，不改断言。 */
+    if (this._text != null) {
+      if (this._text !== '') this.children.push(this._text);
+      this._text = null;
+    }
     this.children.push(n);
     return n;
   }
@@ -1663,9 +1673,96 @@ ok('结果含数据来源链接',
   ok('存入后的提示说清「仅本次有效」（桩里无 localStorage，走兜底）',
     /已存入心仪清单/.test(bar.textContent) && /仅本次有效/.test(bar.textContent),
     bar.textContent);
+
+  /* ---- L3 补的跳转：toast 的「在香水档案里看」必须是个能点的按钮 ----
+     L2 当时那句话只有文字，用户读完仍不知道去哪找（存完就丢是新用户
+     最常卡住的地方）。必须在**存入态**查：切成移出态之后这句就不在提示里了。 */
+  {
+    const go = bar.querySelectorAll('.qw-wish-go');
+    ok('toast 里的「在香水档案里看」是可点按钮（不是纯文字）',
+      go.length === 1 && go[0].tagName === 'BUTTON',
+      `${go.length} 个`);
+    ok('那个按钮的文案只是去向本身（不带括号说明）',
+      go.length === 1 && go[0].textContent === '在香水档案里看',
+      go.length ? go[0].textContent : '(无)');
+    /* 降级时整句后面会追加「（本机存储不可用，收藏仅本次有效）」。
+       那段是**说明**，必须留在按钮外面 —— 塞进按钮会让按钮撑成一长条，
+       读起来像「点这里（存不下）」。 */
+    ok('「仅本次有效」的括号说明落在按钮外面',
+      go.length === 1 && !/仅本次有效/.test(go[0].textContent),
+      go.length ? go[0].textContent : '(无)');
+    ok('整句仍完整（说明没被吞掉）', /仅本次有效/.test(bar.textContent), bar.textContent);
+  }
+
   hearts[0].dispatch('click');
   ok('删存的提示是「已移出心仪清单」',
     /已移出心仪清单/.test(bar.textContent), bar.textContent);
+}
+
+/* ---------- 心仪清单 L3：清单页本体（2026-11-23）----------
+   这里守的是**渲染结构**：入口带计数、点进去是清单页、空态不白屏、
+   返回能回结果页。判据本身（没有价格就不显示价格等）在
+   scripts/test-wishlist-page.mjs 里用纯函数测 —— 两边的分工与 L2 那套一致。 */
+{
+  /* ① 档案区块里有带计数的心仪入口 */
+  const entry = appRoot.querySelectorAll('.qw-wl-entry');
+  ok('档案区块里有「心仪清单」入口', entry.length === 1, `${entry.length} 个`);
+  ok('入口带计数（data-wish-count 是数字）',
+    entry.length === 1 && /^\d+$/.test(String(entry[0].getAttribute('data-wish-count') || '')),
+    entry.length ? String(entry[0].getAttribute('data-wish-count')) : '(无)');
+  ok('入口可见文案含「心仪清单」与那个数字',
+    entry.length === 1 && /心仪清单/.test(entry[0].textContent)
+    && new RegExp(String(entry[0].getAttribute('data-wish-count') || 'x')).test(entry[0].textContent),
+    entry.length ? entry[0].textContent : '(无)');
+
+  /* ② 点入口 → 进清单页。桩里没有 localStorage，list() 是空的，
+     所以这一屏应当是**空态**（而不是白屏，也不是错误页）。 */
+  if (entry.length === 1) {
+    entry[0].dispatch('click');
+    ok('点入口后进入清单页（data-step=wishlist）', stepId() === 'wishlist', stepId());
+
+    const page = appRoot.querySelectorAll('.qw-wl-page');
+    ok('清单页有容器 .qw-wl-page', page.length === 1, `${page.length} 个`);
+
+    /* 页头必须认这一页（实测缺陷：进清单页后页头仍是「你的三瓶候选 /
+       每一瓶的理由都能反推回你刚才的选择」—— 标题在说另一页的事）。
+       这是截图才看得出来的那类错误：DOM 结构全对、文案全错。 */
+    ok('清单页页头不再是结果页文案（说的是这一页）', (() => {
+      const h1 = appRoot.querySelectorAll('.masthead h1')[0];
+      const t = h1 ? h1.textContent : '';
+      return /心仪/.test(t) && !/三瓶候选/.test(t);
+    })(), (appRoot.querySelectorAll('.masthead h1')[0] || {}).textContent);
+    ok('清单页页头副文案也不再说"推荐结果"',
+      (() => {
+        const lede = appRoot.querySelectorAll('.masthead .lede')[0];
+        const t = lede ? lede.textContent : '';
+        return /设备|理由|参考价/.test(t) && !/反推回你刚才的选择/.test(t);
+      })(),
+      (appRoot.querySelectorAll('.masthead .lede')[0] || {}).textContent);
+
+    /* 空态三件套：标题 / 引导 / 回结果页的动作 */
+    ok('空清单显示空态标题（不白屏）',
+      appRoot.querySelectorAll('.qw-wl-empty-title').length === 1);
+    ok('空态有引导文案（讲清怎么存）',
+      appRoot.querySelectorAll('.qw-wl-empty-hint').some((n) => /♡/.test(n.textContent)),
+      appRoot.querySelectorAll('.qw-wl-empty-hint').map((n) => n.textContent).join(' | '));
+    const cta = appRoot.querySelectorAll('.qw-wl-empty-cta');
+    ok('空态有回结果页的动作', cta.length === 1 && /→/.test(cta[0].textContent),
+      cta.length ? cta[0].textContent : '(无)');
+
+    /* ③ 空态里不许出现列表（空清单还渲染 <ol> 会让页面上多一条空线） */
+    ok('空清单不渲染列表', appRoot.querySelectorAll('.qw-wl-list').length === 0);
+
+    /* ④ 返回能回结果页 */
+    const back = appRoot.querySelectorAll('.qw-wl-back');
+    ok('清单页有返回按钮', back.length === 1);
+    if (back.length === 1) {
+      back[0].dispatch('click');
+      ok('点返回回到结果页（data-step=result）', stepId() === 'result', stepId());
+      ok('回到结果页后三张卡还在', appRoot.querySelectorAll('.pick').length === 3,
+        `${appRoot.querySelectorAll('.pick').length} 张`);
+    }
+  }
 }
 /* v6 结果页有三个出路（规格底线：保留「换一批 / 改一题重推」）。
    断言的是"三个出路都在，且代价最大的那个不与主按钮并列"——

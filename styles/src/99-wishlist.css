@@ -197,3 +197,454 @@
     display: none;
   }
 }
+
+/* ============================================================
+   清单页本体（L3，2026-11-23）
+   ------------------------------------------------------------
+   只服务 .qw-wl-* 这一组选择器。挂在档案区块内部（入口）与清单页顶层层
+   （.qw-wl-page），不命中圆盘、问卷八屏、结果卡与购买按钮。
+
+   ---- 三条来自任务书、不是审美的结构约束 ----
+   ① 一行里三个动作**互不相邻**（与结果卡同一条约定）：
+        「已入手」在左侧信息区（名字右侧紧邻）
+        「移除」在这一行的右下
+        「购买」在右端、与移除隔开
+      手指要从一个动作滑到另一个，得跨过半行宽度。
+   ② 触控目标 ≥ 44px：.qw-wl-owned / .qw-wl-remove / .qw-wl-buy / .qw-wl-entry
+      全部 min-height:44px，与 .btn / .chip / .disc-sector 同一档。
+   ③ 零硬编码色值：全部走既有 token，所以 test-contrast 的 48 条不需要
+      为新组件放宽任何一条。
+   ============================================================ */
+
+/* ---------- 档案区块里的入口 ---------- */
+.qw-history-wish {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.qw-wl-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  color: var(--ink);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--t-hover) var(--ease-std),
+              border-color var(--t-hover) var(--ease-std);
+}
+.qw-wl-entry:hover {
+  background: var(--bg-3);
+  border-color: var(--edge);
+}
+.qw-wl-entry:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+/* 计数：一枚小方牌，数字本身就是信息（里面有几瓶）。
+   0 时仍显示 0 而不是隐藏 —— 隐藏会让"这个入口是做什么的"变得含糊。 */
+.qw-wl-entry-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  color: var(--bg);
+  background: var(--ink);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.qw-wl-entry-go {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* ---------- 清单页容器 ---------- */
+.qw-wl-page {
+  /* 与 .result-head 同一条宽度纪律：正文不超过 --maxw，长行不跑到天边。 */
+  max-width: var(--maxw);
+}
+/* 这一行只有「共 N 瓶 · 存在这台设备上」与「← 返回」。
+   标题不在这里重复 —— 页头已经写着「我的心仪清单」，
+   页内再写一遍「心仪清单」就是同一句话说两次（390 截图里一眼能看出来）。 */
+.qw-wl-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 8px;
+}
+.qw-wl-sub {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+.qw-wl-back {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 8px;
+}
+
+/* 三条状态提示（降级 / 满 50）：都是 <p role="note">，不是卡片 ——
+   它们是"说一句"，不该长成需要被关掉的弹窗。 */
+.qw-wl-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  color: var(--ink-2);
+  background: var(--bg-2);
+  border-left: 2px solid var(--edge);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.6;
+}
+/* 降级用警示色描边：它影响的是"你存的东西还在不在"，比满额更该被看见。 */
+.qw-wl-note.is-warn {
+  color: var(--warn);
+  border-left-color: var(--warn);
+}
+
+/* ---------- 一行 ---------- */
+.qw-wl-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.qw-wl-row {
+  display: grid;
+  /* 图 / 主信息 / 动作列。动作列定宽，所以三行的「移除」按钮上下对齐。 */
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+/* 已入手的行：整行降一档对比，让它从"待办"里退出去 ——
+   但仍然完整可读可操作（不是 disabled，只是视觉上不那么急）。 */
+.qw-wl-row.is-owned .qw-wl-name {
+  color: var(--ink-2);
+}
+
+/* ① 瓶图：有照片铺满，没有就画瓶形。两种都守同一个 56×72 盒，
+   所以换图不会让各行基线错开。 */
+.qw-wl-art {
+  width: 56px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.qw-wl-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+/* 瓶形 SVG 撑满盒子高度（它自带 viewBox，等比缩放即可）。 */
+.qw-wl-art svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+/* 数据里查不到这瓶时的占位：一块淡灰，不画假瓶子。 */
+.qw-wl-art-ph {
+  width: 40px;
+  height: 56px;
+  background: var(--bg-3);
+  border-radius: var(--radius-sm);
+}
+
+/* ② 主信息 */
+.qw-wl-main {
+  min-width: 0;
+}
+.qw-wl-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.qw-wl-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.qw-wl-brand {
+  margin: 2px 0 0;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+/* 理由：L2 存下的原句。它是这一行里最该被读到的东西，所以给正文色、
+   不给注释色 —— 用户回来就是为了看"当时为什么存它"。 */
+.qw-wl-reason {
+  margin: 6px 0 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.qw-wl-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+/* 价格带：标「参考价」。不给它加粗放大 —— 它是参考，不是报价。 */
+.qw-wl-price {
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.qw-wl-date {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* ③ 「已入手」开关：读起来是个状态 chip，点得动。
+   未标记时是描边（低对比，不抢瓶名）；标记后是墨底纸字，
+   与 `.chip[aria-pressed="true"]` 的"选中 = 墨"同一条约定。 */
+.qw-wl-owned {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: -10px 0;
+  padding: 0 10px;
+  color: var(--ink-3);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--t-hover) var(--ease-std),
+              background-color var(--t-hover) var(--ease-std),
+              border-color var(--t-hover) var(--ease-std);
+}
+.qw-wl-owned:hover {
+  color: var(--ink);
+  border-color: var(--edge);
+}
+.qw-wl-owned.is-on {
+  color: var(--bg);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.qw-wl-owned:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* ④ 右端动作列：购买在上、移除在下。两者之间留 8px，
+   并且购买键本身 ≥44px —— 手指落在任何一个上都不会滑到另一个。 */
+.qw-wl-tail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.qw-wl-buy {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  color: var(--bg);
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--t-hover) var(--ease-std),
+              border-color var(--t-hover) var(--ease-std);
+}
+.qw-wl-buy:hover {
+  background: var(--blue-deep);
+  border-color: var(--blue-deep);
+}
+/* 搜索兜底链接：不是这一瓶的商品页，所以不装成主按钮 ——
+   与结果页 .buy-link.is-search 同一条约定（描边而非实心）。 */
+.qw-wl-buy.is-search {
+  color: var(--ink);
+  background: transparent;
+  border-color: var(--edge);
+}
+.qw-wl-buy.is-search:hover {
+  background: var(--bg-2);
+}
+.qw-wl-buy:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+/* 移除：文字按钮，不抢视觉重量；但命中区仍 44px。 */
+.qw-wl-remove {
+  min-height: 44px;
+  padding: 0 6px;
+  color: var(--ink-3);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--t-hover) var(--ease-std);
+}
+.qw-wl-remove:hover {
+  color: var(--danger);
+}
+.qw-wl-remove:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* ---------- 空态：不白屏 ----------
+   一句引导 + 一个能立刻做的动作。留白给足，让它读起来像"这里本来就空"，
+   而不是"加载失败所以什么都没有"。 */
+.qw-wl-empty {
+  padding: 48px 0 40px;
+  text-align: center;
+}
+.qw-wl-empty-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 600;
+}
+.qw-wl-empty-hint {
+  margin: 8px 0 20px;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.qw-wl-empty-cta {
+  min-height: 44px;
+}
+
+/* ---------- 清空全部 ---------- */
+.qw-wl-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.qw-wl-clear {
+  min-height: 44px;
+  padding: 0 4px;
+}
+/* 两段式的第二段（「再点一次确认清空」）用警示色标出来 ——
+   否则它看起来和第一次点击前完全一样，用户不知道自己已经在确认态。 */
+.qw-wl-clear.is-armed {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* 提示条里的「在香水档案里看」/「撤销」按钮。
+   .qw-wish-bar 是 pointer-events:none（不挡操作 —— 见上方注释），
+   所以按钮必须自己放行，否则整条提示上的按钮都点不动。 */
+.qw-wish-go,
+.qw-wl-undo {
+  margin-left: 6px;
+  min-height: 28px;
+  padding: 0 8px;
+  color: var(--bg);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  /* 单独放行：父级是 none，这里必须 auto 才能被点到。 */
+  pointer-events: auto;
+  cursor: pointer;
+}
+.qw-wish-go:hover,
+.qw-wl-undo:hover {
+  background: var(--bg-2);
+  color: var(--ink);
+}
+.qw-wish-go:focus-visible,
+.qw-wl-undo:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* ---------- 窄屏：图缩、动作列改到下一行 ----------
+   390px 下三列并排会把名字挤成一列竖排字。改成两列（图 + 主信息），
+   动作列整行下移并左右分开 —— 仍然是"买在右、移除在左"的分列关系。 */
+@media (max-width: 620px) {
+  .qw-wl-row {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .qw-wl-art {
+    width: 48px;
+    height: 62px;
+  }
+  .qw-wl-tail {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+  }
+  .qw-wl-page {
+    max-width: 100%;
+  }
+  /* 窄屏这行仍是一行（计数在左、返回在右）：
+     改成竖排会让页头凭空多出 44px 高，把第一行挤到首屏之下。 */
+  .qw-wl-head {
+    align-items: baseline;
+    flex-direction: row;
+    gap: 8px;
+  }
+  .qw-wl-back {
+    padding-right: 0;
+  }
+}
+
+/* 打印：清单页是一份可打印的"我要买这几瓶"清单。
+   动作件（已入手 / 移除 / 购买 / 清空 / 返回）全部隐去，只留信息。 */
+@media print {
+  .qw-wl-owned,
+  .qw-wl-remove,
+  .qw-wl-buy,
+  .qw-wl-clear,
+  .qw-wl-back,
+  .qw-wl-entry,
+  .qw-wl-empty-cta,
+  .qw-wl-note {
+    display: none;
+  }
+  .qw-wl-row {
+    break-inside: avoid;
+  }
+}
+

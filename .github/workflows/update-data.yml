@@ -102,6 +102,7 @@ jobs:
           node scripts/test-compliance.mjs
           node scripts/test-wishlist.mjs
           node scripts/test-wishlist-ui.mjs
+          node scripts/test-wishlist-page.mjs
 
       # ---------- 只在真的有变化时提交 ----------
       # 大部分周次上游不会变。空提交会把提交历史填满噪音，
