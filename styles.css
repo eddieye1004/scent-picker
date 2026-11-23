@@ -6103,6 +6103,49 @@ display: block;
 display: none;
 }
 }
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+display: inline-block;
+overflow: visible;
+padding: 0 4px;
+max-width: 2.9em;
+text-align: center;
+border: 1px solid var(--spec-hair);
+border-radius: 999px;
+background: var(--spec-plate);
+box-shadow: 0 1px 3px -1px var(--spec-sh);
+font-size: 13px;
+font-weight: 600;
+line-height: 1.05;
+letter-spacing: 0;
+white-space: normal;
+word-break: break-all;
+color: var(--spec-ink);
+transition: background-color 200ms var(--ease-std), border-color 200ms var(--ease-std),
+color 200ms var(--ease-std);
+}
+#app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn:hover .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-hot .zh {
+background: var(--spec-tint-hot);
+border-color: var(--spec-rim);
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-on .zh {
+background: var(--spec-pill);
+border-color: var(--spec-pill);
+color: var(--spec-pill-ink);
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn:focus-visible .zh {
+outline: 2px solid var(--blue);
+outline-offset: 2px;
+}
+@media (max-width: 620px) {
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+padding: 0 4px;
+max-width: 3em;
+font-size: 12px;
+line-height: 1.05;
+transform: scale(.72);
+}
+}
 .qw-share-row {
 display: flex;
 flex-wrap: wrap;

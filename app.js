@@ -907,14 +907,21 @@ function buildWheel(cfg) {
      且把标签推到家族环外沿会越出盘外，所以不取。 */
   const LABEL_R = 193;
   const LABEL_R_NARROW = 200;
-  /* 窄屏中圈标签半径 = 130（容器自身放大 1.43 之后 = 186 单位）。
-     v15 曾经把它外移到 152，是为了避开"标签压在盘心半径 78.7px 内"；
-     v16 起整个 .sub-ring 放大 1.43，152×1.43 = 217 单位会越出盘外
-     （实测窄屏 3 处 outBox），所以收回 130 —— 放大后落在 186 单位，
-     360 视口（盘 312px，k=0.65）实测：130 → 中心 121px + 半宽 31.5px = 152.5px，
-     而盘半径 156px、四字标签右缘实际越界 3px；收到 120 后中心 111.5px、
-     右缘 143px，留 13px 余量，同时内沿 80px 仍在盘心半径 72px 之外。 */
-  const SUB_LABEL_R_NARROW = 120;
+  /* 中圈标签半径（弧带中线 135 之外另立一档）。
+     .sub-ring 在展开态整体放大 1.43，所以这里的数是**放大前**的单位。
+     判据用 Range 量出来的胶囊外框四角到盘心的最近距离，不是按钮盒：
+     盘心在 95-quiz-v7-design 里涨到 66% 直径（半径 158.4 单位）之后，
+     135 单位的落点让胶囊内沿压进盘心圆 —— 文字被盘心盖掉半截。
+     138 × 1.05 × 1.43 = 207.2px，1440 档（盘 504px、盘心半径 166.3px）
+     实测 24 枚两行胶囊最小净空 +7.1px、墨迹最小 +12.9px。
+     再往外就顶到盘口线（232 单位 × 1.05 = 243.6px，实测最外一枚 241.1px）。 */
+  const SUB_LABEL_R = 138;
+  /* 窄屏同值但另一本账：390 档（盘 342px、盘心半径 112.9px、盘沿 171px）
+     环带只有 58.1px，138 × 0.7125 × 1.43 = 140.6px 是环带中线。
+     胶囊靠 95-quiz-v7-design Block 14 的 `scale(.72)` 反放大才塞得下，
+     实测最小净空 +4.8px、墨迹最小 +9.1px、最外一枚距盘沿 7.4px。
+     半径与桌面同值，但两档各自成立，改动其中一档不影响另一档。 */
+  const SUB_LABEL_R_NARROW = 138;
 
   const root = el('div', { class: 'disc wheel', role: 'group', 'aria-label': '香型轮盘' });
 
@@ -1608,10 +1615,9 @@ function buildWheel(cfg) {
       svg.appendChild(g);
       subGs.push(g);
 
-      const px = polar(rMid, mid);
-      /* 窄屏半径 = 124（实测网格的最佳值）。弧带中线是 135，
-         窄屏把标签往里收 11 单位，是为了让它与家族标签之间留出
-         两个半高的间隙 —— 详见 _wheel8.css 第七节的实测数字。 */
+      const px = polar(SUB_LABEL_R, mid);
+      /* 窄屏半径见 SUB_LABEL_R / SUB_LABEL_R_NARROW 两处注释：胶囊要整枚
+         落在盘心圆之外，所以两档都比弧带中线（135）更往外。 */
       const pxm = polar(SUB_LABEL_R_NARROW, mid);
       const btn = el('button', {
         class: 'disc-sector lvl2 sub-arc-btn',

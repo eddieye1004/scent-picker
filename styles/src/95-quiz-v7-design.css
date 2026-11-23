@@ -1023,3 +1023,90 @@
   }
 }
 
+
+/* ============================================================
+   Block 14 · 中圈标签胶囊化（direct-r11，2026-11-24）
+   ------------------------------------------------------------
+   第一屏定调批准的是「胶囊 + 圆形」：返回、盘心出口、步骤条、编号
+   都已经穿胶囊，唯独中圈 24 枚标签还是裸字。裸字读不全有两处原因，
+   都在运行时量出来，不是看代码猜的：
+     ① 10-foundation.css:1314 给 `.lvl2 .zh` 上了 `-webkit-line-clamp: 2`
+        + `overflow: hidden`，四字一行放不下就被自己的盒子切掉半截；
+     ② 盘心在 Block 3 涨到 66% 直径（1440 档半径 166.3px、390 档 112.9px），
+        标签落点 135 单位 × 1.43 之后内沿压进盘心圆，盘心 `z-index: 3`
+        盖在标签层之上 —— 于是「只露半截」。
+   本块只补排版与胶囊底，弧带、图标、盘心、交互一律不动。
+
+   胶囊画在 `.zh` 上而不是按钮上：按钮盒要留着当 44px 触控区
+   （test-render 守着 `min-height: 44px` 与 `::before` 透明垫），
+   给它上底会把一整块 44×64 的方块糊在瓦片上。
+   `display` 从 flex 改回块级：全局 `box-sizing: border-box`，
+   flex 项又不肯缩到 min-content 以下，`max-width` 会只卡住盒子、
+   文字整行溢出胶囊外（实测 1440 档墨迹 52px、盒子 31px）。
+
+   尺寸账（1440 档，盘 504px，落点 138 单位 × 1.05 × 1.43 = 207.2px，
+   盘心半径 166.3px，盘口线 243.6px，盘沿 252px）：
+     13px 汉字字宽实测 1em（每字 13.1px），四字单行 52px 必压盘心，
+     所以 `max-width: 2.9em`（37.7px 盒子）一行只放两字：四字 2×2、三字 2+1。
+     两行胶囊 53.9×41.9px、单行 51.5×22.4px。
+     实测 24 枚最小净空 +7.1px（「纯柑橘」「香根草」），墨迹最小 +12.9px；
+     最外一枚距盘口线还差 2.5px，全部在盘内，胶囊互叠 0。
+   窄屏（390 档，盘 342px，落点 138 × 0.7125 × 1.43 = 140.6px，
+   盘心半径 112.9px，盘沿 171px → 环带只有 58.1px）：
+     胶囊不放大不成立：12px 两行的布局盒 36×27.2px，被环带的 1.43
+     放大成 51.5×38.9px，对角 64px > 58.1px，怎么调内边距都塞不下。
+     于是给 `.zh` 自己 `scale(.72)`（≈ 1/1.43 × 1.03）反放大一档，
+     落点半径、按钮触控盒、弧带都不跟着变。
+     实测两行 37.1×28px、单行 35×15px；最小净空 +4.8px、墨迹最小 +9.1px；
+     最外一枚距盘沿还差 7.4px，胶囊互叠 0。
+   ============================================================ */
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+  display: inline-block;
+  overflow: visible;
+  padding: 0 4px;
+  max-width: 2.9em;
+  text-align: center;
+  border: 1px solid var(--spec-hair);
+  border-radius: 999px;
+  background: var(--spec-plate);
+  box-shadow: 0 1px 3px -1px var(--spec-sh);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: 0;
+  white-space: normal;
+  word-break: break-all;
+  color: var(--spec-ink);
+  transition: background-color 200ms var(--ease-std), border-color 200ms var(--ease-std),
+              color 200ms var(--ease-std);
+}
+/* 悬停/键盘聚焦：胶囊提亮一档、描边加深一档，字色不动 ——
+   与瓦片的 hot 态同一瞬间，不额外引入第三种反馈。 */
+#app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn:hover .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-hot .zh {
+  background: var(--spec-tint-hot);
+  border-color: var(--spec-rim);
+}
+/* 确认：胶囊转暖墨（与盘心主按钮同一支），白字 12.4:1。
+   选中不再靠"蓝瓦 + 浅字"表达，蓝瓦仍在，胶囊同时定色。 */
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-on .zh {
+  background: var(--spec-pill);
+  border-color: var(--spec-pill);
+  color: var(--spec-pill-ink);
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn:focus-visible .zh {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+@media (max-width: 620px) {
+  /* 窄屏环带只有 58.1px（盘心边 112.9 → 盘沿 171），放大后的两行胶囊对角 64px
+     塞不下，所以 `.zh` 自己 scale(.72) 反放大一档；账见本块开头。
+     字号 12px 是 test-contrast 的地板，不再往下。 */
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+    padding: 0 4px;
+    max-width: 3em;
+    font-size: 12px;
+    line-height: 1.05;
+    transform: scale(.72);
+  }
+}
