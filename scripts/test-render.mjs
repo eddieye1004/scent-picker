@@ -248,8 +248,14 @@ class TNode {
 
 /* ---------- 环境桩 ---------- */
 const appRoot = new TNode('main', { id: 'app' });
+/* document.body：心仪清单 L2 的存入轻提示挂在这里（见 app.js 的 ensureWishBar）。
+   真实浏览器一定有 body —— app.js 里那条 try/catch 只是防御，
+   桩不提供的话就变成"只有测试走降级分支"，而浏览器走另一条路。
+   桩缺能力就补桩（本文件开头那条规则）。 */
+const bodyRoot = new TNode('body');
 globalThis.document = {
   _nodes: { '#app': appRoot },
+  body: bodyRoot,
   /* app.js 在 boot() 里往 documentElement.dataset.build 写构建标记。
      桩缺 documentElement 会抛，被 boot() 的 try/catch 吞成"加载失败"，
      测试就只能看到空白页 —— 桩要补齐，不能让被测代码为桩让路。 */
@@ -1558,6 +1564,109 @@ ok('每条理由含至少一条结构性理由（家族/浓度）',
 
 ok('结果含数据来源链接',
   appRoot.querySelectorAll('a').some((a) => String(a.attrs.href || '').includes('scento')));
+
+/* ---------- 心仪清单 L2：结果页 ♡ 入口（2026-11-23）----------
+   这一组只守**结构**（♡ 在哪、买在哪、状态怎么变），不守存储 ——
+   存储语义在 scripts/test-wishlist-ui.mjs 里用内存介质测（那里能造出
+   "满 50""配额满"两种真实浏览器里很难复现的路径，这里造不出来）。
+
+   为什么"♡ 在瓶名行、购买在页脚"必须是断言而不是注释：
+   任务书那条「购买按钮与 ♡ 必须分列两端、不相邻（防误触买/存）」
+   是一条**布局约束**，而布局会被下一次改版悄悄改掉 ——
+   注释不会红，断言会。 */
+{
+  const hearts = appRoot.querySelectorAll('.qw-wish');
+  ok('三瓶各有一颗 ♡', hearts.length === 3, `实际 ${hearts.length}`);
+
+  /* ♡ 必须挂在 .pick-name-row 里（瓶名行），而不是卡片页脚 */
+  const inNameRow = hearts.filter((h) => {
+    let n = h.parentNode;
+    while (n) {
+      if (n.classList && n.classList.contains('pick-name-row')) return true;
+      n = n.parentNode;
+    }
+    return false;
+  });
+  ok('♡ 都在瓶名行（.pick-name-row）里', inNameRow.length === 3, `${inNameRow.length}/3`);
+
+  /* 反向：♡ 不许出现在页脚那一行（那里是购买按钮的地盘） */
+  const inFoot = hearts.filter((h) => {
+    let n = h.parentNode;
+    while (n) {
+      if (n.classList && n.classList.contains('pick-foot')) return true;
+      n = n.parentNode;
+    }
+    return false;
+  });
+  ok('♡ 不在任何 .pick-foot 里（与购买按钮分列两端）', inFoot.length === 0, `${inFoot.length} 颗落在页脚`);
+
+  /* 顺序：瓶名行里 h3 在前、♡ 在后 —— "瓶名行右侧"的字面含义 */
+  const row = appRoot.querySelectorAll('.pick-name-row')[0];
+  const kids = row ? row.children.filter((c) => typeof c !== 'string') : [];
+  ok('瓶名行里 h3 在 ♡ 之前',
+    kids.length === 2
+    && kids[0].tagName === 'H3'
+    && kids[1].classList.contains('qw-wish'),
+    kids.map((c) => c.tagName + '.' + c.className).join(' | '));
+
+  /* 初始态：空心（aria-pressed=false、无 is-on）。桩里没有真实 localStorage，
+     所以 has() 走降级返回 false —— 这正是"未存"的期望值。 */
+  ok('初始三颗都是空心（aria-pressed=false）',
+    hearts.every((h) => h.getAttribute('aria-pressed') === 'false'),
+    hearts.map((h) => h.getAttribute('aria-pressed')).join(','));
+  ok('初始没有一颗带 is-on', hearts.every((h) => !h.classList.contains('is-on')));
+
+  /* 可访问名与读屏语义：按钮要有「收藏 X / 从心仪清单移除 X」这种能独立听懂的名字 */
+  ok('♡ 有按钮语义与状态',
+    hearts.every((h) => h.tagName === 'BUTTON'
+      && h.attrs.type === 'button'
+      && /^(收藏.+到心仪清单|从心仪清单移除.+)$/.test(h.getAttribute('aria-label') || '')),
+    hearts.map((h) => h.getAttribute('aria-label')).join(' | '));
+  ok('♡ 带 data-wish 记着是哪一瓶（回显要按 id 比对）',
+    hearts.every((h) => !!h.getAttribute('data-wish')),
+    hearts.map((h) => h.getAttribute('data-wish')).join(','));
+
+  /* 心形是矢量：空心 / 实心只差 fill，不靠系统字体的 ♡/♥ 字符 */
+  ok('♡ 是内联 SVG（尺寸由 CSS 决定，不受系统字体影响）',
+    hearts.every((h) => {
+      const svg = h.querySelectorAll('svg')[0];
+      return !!svg && !!svg.querySelectorAll('path')[0];
+    }));
+
+  /* 点一下：桩里没有真 storage，会走内存兜底 —— 状态仍然必须翻成实心。
+     这条同时守住「兜底时 ♡ 照常工作」这件任务书明确要求的事。 */
+  hearts[0].dispatch('click');
+  ok('点一下 → 这颗变实心（is-on + aria-pressed=true）',
+    hearts[0].classList.contains('is-on') && hearts[0].getAttribute('aria-pressed') === 'true',
+    `${hearts[0].className} / ${hearts[0].getAttribute('aria-pressed')}`);
+  ok('点一下不影响另外两颗',
+    !hearts[1].classList.contains('is-on') && !hearts[2].classList.contains('is-on'));
+
+  /* 再点一下 → 回到空心（切换语义） */
+  hearts[0].dispatch('click');
+  ok('再点一下 → 回到空心（切换存/删）',
+    !hearts[0].classList.contains('is-on') && hearts[0].getAttribute('aria-pressed') === 'false');
+
+  /* 提示条：挂 body（不是结果区 DOM —— 那里会被 .fade-in 的 transform 收成
+     fixed 包含块，实测 y=2698 / 视口 900，整条跑到屏幕外）。 */
+  const bar = globalThis.document.body.querySelector('.qw-wish-bar');
+  ok('轻提示挂在 document.body 上（躲开 .fade-in 的 transform 包含块）', !!bar,
+    bar ? 'ok' : 'body 里没有 .qw-wish-bar');
+  ok('轻提示带 role=status + aria-live=polite', !!bar
+    && bar.getAttribute('role') === 'status'
+    && bar.getAttribute('aria-live') === 'polite');
+  ok('轻提示只在页面里存在一份（单例，翻几轮不会攒成一堆）',
+    globalThis.document.body.querySelectorAll('.qw-wish-bar').length === 1,
+    String(globalThis.document.body.querySelectorAll('.qw-wish-bar').length));
+  /* 提示文案：桩里没有真 storage → 走内存兜底 → 文案要带「仅本次有效」 */
+  hearts[0].dispatch('click');
+  ok('存入后的提示说清「仅本次有效」（桩里无 localStorage，走兜底）',
+    /已存入心仪清单/.test(bar.textContent) && /仅本次有效/.test(bar.textContent),
+    bar.textContent);
+  hearts[0].dispatch('click');
+  ok('删存的提示是「已移出心仪清单」',
+    /已移出心仪清单/.test(bar.textContent), bar.textContent);
+}
 /* v6 结果页有三个出路（规格底线：保留「换一批 / 改一题重推」）。
    断言的是"三个出路都在，且代价最大的那个不与主按钮并列"——
    「重新来一次」已从三颗主按钮退成一行 .link-btn，但仍必须可点可读。 */

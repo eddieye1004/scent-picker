@@ -6363,3 +6363,125 @@ color: var(--ink-3);
 #app[data-step="unwanted"] .avoid-count { margin-top: 10px; }
 #app[data-step="unwanted"] .avoid-gloss { margin-top: 4px; min-height: 24px; }
 }
+.pick-name-row {
+display: flex;
+align-items: center;
+gap: 12px;
+}
+.pick-name-row h3 {
+flex: 1 1 auto;
+min-width: 0;
+}
+.qw-wish {
+flex: 0 0 auto;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+width: 44px;
+height: 44px;
+min-height: 44px;
+margin-left: auto;
+margin-top: -4px;
+margin-bottom: -4px;
+padding: 0;
+color: var(--ink-2);
+background: transparent;
+border: 1px solid transparent;
+border-radius: var(--radius);
+cursor: pointer;
+-webkit-tap-highlight-color: transparent;
+transition: color var(--t-hover) var(--ease-std),
+background-color var(--t-hover) var(--ease-std),
+border-color var(--t-hover) var(--ease-std);
+}
+.qw-wish-glyph {
+display: block;
+}
+.qw-wish-glyph svg {
+display: block;
+width: 22px;
+height: 22px;
+overflow: visible;
+}
+.qw-wish-glyph path {
+fill: none;
+stroke: currentColor;
+stroke-width: 1.7;
+stroke-linejoin: round;
+}
+.qw-wish.is-on {
+color: var(--ink);
+}
+.qw-wish.is-on .qw-wish-glyph path {
+fill: currentColor;
+stroke: currentColor;
+}
+.qw-wish:hover {
+color: var(--ink);
+background: var(--bg-2);
+border-color: var(--line);
+}
+.qw-wish:active {
+background: var(--bg-3);
+}
+.qw-wish:focus-visible {
+outline: 2px solid var(--blue);
+outline-offset: 2px;
+}
+.qw-wish.is-pop .qw-wish-glyph {
+animation: wish-pop var(--t-long) var(--ease-out) both;
+}
+@keyframes wish-pop {
+0%   { transform: scale(1); }
+38%  { transform: scale(1.18); }
+100% { transform: scale(1); }
+}
+.qw-wish-bar {
+position: fixed;
+left: 50%;
+bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+transform: translateX(-50%);
+z-index: 30;
+margin: 0;
+width: max-content;
+max-width: calc(100vw - 32px);
+padding: 9px 16px;
+color: var(--bg);
+background: var(--ink);
+border-radius: var(--radius);
+font-size: 13px;
+line-height: 1.5;
+text-align: center;
+text-wrap: balance;
+pointer-events: none;
+box-shadow: var(--sh-2);
+animation: wish-bar-in var(--t-fade) var(--ease-out) both;
+}
+.qw-wish-bar[hidden] {
+display: none;
+}
+@keyframes wish-bar-in {
+from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+@media (max-width: 620px) {
+.pick-name-row {
+gap: 10px;
+}
+.qw-wish-bar {
+bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+font-size: 12px;
+padding: 8px 14px;
+}
+}
+@media print {
+.pick-name-row {
+display: block;
+}
+.qw-wish {
+display: none;
+}
+.qw-wish-bar {
+display: none;
+}
+}

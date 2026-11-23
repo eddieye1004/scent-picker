@@ -12,7 +12,10 @@
    fonts/noto-sans-sc-subset.woff2；VERSION 跟着进一位，让旧缓存整套失效 ——
    静态资源是 cache-first + ignoreSearch，只改文件不换缓存名会一直吐旧副本。
    同日 CORE 瘦身：perfumes.json 与 24 枚标本 SVG 移出预缓存 → v2-20261119b。 */
-const VERSION = 'v2-20261119b';
+/* 2026-11-23：心仪清单 L2 上线（结果页 ♡ 入口），app.js 与 styles.css
+   都变了 —— VERSION 进一位，让旧缓存整套失效。
+   （这条纪律的原因见上一段：静态资源 cache-first + ignoreSearch。） */
+const VERSION = 'v2-20261123a';
 const CACHE_PREFIX = 'scent-picker-v7-1-';
 const CACHE = CACHE_PREFIX + VERSION;
 

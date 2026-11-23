@@ -29,6 +29,11 @@ import {
    avoid.js 是按 perfumes.json 频次现算候选的三条硬规则。两者都不碰 DOM。 */
 import { AVOID_SCENARIOS } from './src/avoid-map.js';
 import { buildAvoidIndex, avoidPlan } from './src/avoid.js';
+/* 心仪清单数据层（L1，2026-11-23）。这里只用它的公开 API 与注入点，
+   不改它的任何语义 —— 存储不可用时的内存兜底写在 src/wish-ui.js，
+   靠 createWishlist(storage) 这个既有注入口完成，不给数据层开洞。 */
+import { wishlist } from './src/wishlist.js';
+import { createWishSession, wishMessage, wishReasonOf } from './src/wish-ui.js';
 
 const state = {
   step: 0,
@@ -4132,6 +4137,116 @@ function localStorageSafe() {
   }
 }
 
+/* ============================================================
+   心仪清单 · 结果页入口（L2，2026-11-23）
+   ------------------------------------------------------------
+   数据层在 src/wishlist.js（L1，已冻结）：它只认「存进去的那三键」，
+   存储不可用时返回 status:'unavailable' 而不是抛错。这一层（app.js）
+   只负责画：一颗 ♡、一次点击、一行提示。
+
+   判断与编排全在 src/wish-ui.js（纯逻辑、不碰 DOM），这里只剩渲染：
+     · 初始化与回显都读 wishIsSaved(id)（空心 = 未存，实心 = 已存）；
+     · 点击 → wishSession.toggle(id, wishReasonOf(r)) → 重画 ♡ → say(...)
+     · reason 取「本轮结果里引擎给的那句原文」（r.reasons[0]），不重算、不改写；
+     · status:'full' / 降级提示的文案由 wishMessage() 统一给出，逐字对应任务书。
+   ============================================================ */
+
+/* 一次页面会话：真存储实例 + 内存兜底（兜底逻辑全在 src/wish-ui.js，
+   那里能在 node 里直接喂内存存储测「满 50」「隐私模式」两条路径）。 */
+const wishSession = createWishSession(wishlist);
+
+/** 初始化与回显都走这条：空心 = 未存，实心 = 已存。 */
+function wishIsSaved(id) {
+  return wishSession.has(id);
+}
+
+/**
+ * 存入提示的**单例**（挂 document.body，见 renderResult 里的原因）。
+ *
+ * 为什么是单例而不是每次渲染新建：结果页会因「换一批」「改一题」反复重建，
+ * 每次往 body 追加一条的话，翻几轮就攒出一堆重叠的旧提示；而且旧提示的
+ * 定时器还会把**新**提示提前关掉（它们共用同一个 hidden 语义）。
+ * 单例让"当前该显示什么"只有一个宿主。
+ */
+let WISH_BAR = null;
+function ensureWishBar() {
+  if (WISH_BAR && WISH_BAR.isConnected) return WISH_BAR;
+  WISH_BAR = el('p', {
+    class: 'qw-wish-bar',
+    role: 'status',
+    /* aria-live=polite：只在读屏空闲时播报，不打断用户正在读的卡片内容。 */
+    'aria-live': 'polite',
+    hidden: '',
+  });
+  try {
+    document.body.appendChild(WISH_BAR);
+  } catch {
+    /* 没有 body（测试桩 / 极端环境）：结果页照常渲染，提示降级为不显示。
+       提示是锦上添花，不该成为"整页白屏"的原因。 */
+    WISH_BAR = null;
+    return el('p', { class: 'qw-wish-bar', hidden: '', 'aria-live': 'polite' });
+  }
+  return WISH_BAR;
+}
+
+/**
+ * 一颗 ♡。空心 = 未存，实心 = 已存；点击切换存/删。
+ *
+ * 位置：瓶名行右端（`.pick-name-row` 的末尾）。购买按钮在卡片页脚
+ * （`.pick-foot`），与这里隔着三调表、理由、标签三块 —— 一上一下两端，
+ * 手滑点不到对方。这不是靠间距凑的，是两块本来就在卡片的两头。
+ */
+function wishHeart(p, r, say) {
+  const id = String(p && p.id || '');
+  const saved0 = wishIsSaved(id);
+  const glyph = el('span', { class: 'qw-wish-glyph', 'aria-hidden': 'true' });
+  /* 心形用内联 SVG 而不是 ♡/♥ 两个字符：字符的字形与基线由系统字体决定，
+     390px 下不同设备能差出一档大小，而这里要求"可辨"是硬指标。
+     SVG 的尺寸完全由 CSS 说了算，空心/实心只差一个 fill。 */
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('focusable', 'false');
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3'
+    + 'c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5'
+    + 'c0 3.78-3.4 6.86-8.55 11.54L12 21.35z');
+  svg.appendChild(path);
+  glyph.appendChild(svg);
+
+  const name = (p && p.name) || '这一瓶';
+  const labelSaved = `从心仪清单移除${name}`;
+  const labelUnsaved = `收藏${name}到心仪清单`;
+  const btn = el('button', {
+    class: 'qw-wish' + (saved0 ? ' is-on' : ''),
+    type: 'button',
+    'aria-pressed': saved0 ? 'true' : 'false',
+    'aria-label': saved0 ? labelSaved : labelUnsaved,
+    title: saved0 ? '从心仪清单移除' : '存入心仪清单',
+    'data-wish': id,
+  }, glyph);
+
+  btn.addEventListener('click', (ev) => {
+    /* 结果卡里没有卡片级点击，但 ♡ 挨着可选的文字，停一下冒泡更稳：
+       将来若给卡片加了整体点击，也不会变成"存了还顺带跳走"。 */
+    ev.stopPropagation();
+    const res = wishSession.toggle(id, wishReasonOf(r));
+    const on = wishIsSaved(id);
+
+    btn.classList.toggle('is-on', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.setAttribute('aria-label', on ? labelSaved : labelUnsaved);
+    btn.setAttribute('title', on ? '从心仪清单移除' : '存入心仪清单');
+    /* 一次短脉冲：手指点在按钮上，除了心形变实心，还要有一点"收下了"的动静。 */
+    btn.classList.remove('is-pop');
+    void btn.offsetWidth;
+    btn.classList.add('is-pop');
+
+    say(wishMessage(res));
+  });
+
+  return btn;
+}
+
 /* 结果页摘要卡与分享 PNG 共用这一份价格档文案：
    两处必须一字不差，否则用户会以为自己下载错了卡片。 */
 function currentBudgetZh() {
@@ -4360,6 +4475,40 @@ function renderResult() {
   );
   wrap.appendChild(head);
 
+  /* 存入反馈：一条**不挡操作、自动消失**的轻提示。
+     为什么不用 toast 框架：本页只有这一处需要"说过就完"的短句，
+     为它引入定位层、队列与堆叠规则，代价远大于收益。
+
+     两条形态约束都是有理由的，不是随手定的：
+       · `position: fixed` 贴视口底部 —— 用户点哪张卡的 ♡ 都看得见。
+         若改成文档流里的一行，点第 2/3 张卡时它已经在屏幕上方，等于没提示。
+       · `pointer-events: none`（见 99-wishlist.css）—— 它悬在内容之上，
+         但任何点击都穿过去。这是"不挡操作"的字面实现：不是靠挪开，
+         而是它根本不在命中测试里。
+     另一条隐性好处：fixed 不参与布局，所以提示出现/消失时
+     下面那颗购买按钮不会跳位 —— 手指还没来得及离开就换位置是最容易误触的。
+
+     **必须挂到 document.body，不能留在结果区的 DOM 里**（实测踩到）：
+     `.fade-in` / `#app[data-scene] .fade-in` 上挂着 rise-in / sceneSettleIn /
+     sceneRiseIn 三个带 transform 的动画。带 transform 的祖先会成为
+     fixed 定位的**包含块**，于是 `bottom: 20px` 变成"贴在那个动画块底部"——
+     实测提示的 y 是 2698（视口高 900），整条落在屏幕外，用户什么都看不到。
+     挂 body 之后不受任何祖先的 transform 影响，才是真的贴视口。
+     （这也是把提示做成**单例**的理由：每次 render 都往 body 追加一条，
+     翻几轮结果页就会攒出一堆叠在一起的旧提示。见 ensureWishBar。） */
+  const wishBar = ensureWishBar();
+  let wishTimer = 0;
+  const sayWish = (msg) => {
+    wishBar.textContent = msg;
+    wishBar.removeAttribute('hidden');
+    /* 2000ms：够读完一行 12 字，也不至于在下一次点击前还占着位置。 */
+    clearTimeout(wishTimer);
+    wishTimer = setTimeout(() => {
+      wishBar.setAttribute('hidden', '');
+      wishBar.textContent = '';
+    }, 2000);
+  };
+
   results.forEach((r, i) => {
     const p = r.perfume;
     /* 第 1 名要有独立于百分比的视觉身份。
@@ -4403,7 +4552,14 @@ function renderResult() {
        一张大图会把三张卡的节奏打断，也让"读理由"这件事被图片挤下去。
        88px 的小图只做"这三瓶长得不一样"的视觉锚点。 */
     const headText = el('div', { class: 'pick-head-text' });
-    headText.appendChild(el('h3', {}, p.name));
+    /* 瓶名一行：左边名字（占满剩余宽度），右端一颗 ♡。
+       为什么 ♡ 在这一行而不是页脚：页脚是「去哪买」的地盘，购买按钮在
+       那里贴右。存/买是两个不该挨着的动作 —— 一上一下两端，
+       手指不可能在同一个动作里滑到对方（下方注释与 99-wishlist.css 有实测数）。 */
+    headText.appendChild(el('div', { class: 'pick-name-row' },
+      el('h3', {}, p.name),
+      wishHeart(p, r, sayWish)
+    ));
     // 数据源有 24 瓶没标浓度 → 不编，直接不显示那一格
     const metaBits = [p.brand];
     if (p.concentrationLabelZh) metaBits.push(p.concentrationLabelZh);

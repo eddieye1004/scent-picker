@@ -94,13 +94,14 @@ jobs:
       - name: 数据体检
         run: node scripts/qa-data.mjs
 
-      - name: 五套测试
+      - name: 六套测试
         run: |
           node scripts/test-render.mjs
           node scripts/test-contrast.mjs
           node scripts/test-scoring.mjs
           node scripts/test-compliance.mjs
           node scripts/test-wishlist.mjs
+          node scripts/test-wishlist-ui.mjs
 
       # ---------- 只在真的有变化时提交 ----------
       # 大部分周次上游不会变。空提交会把提交历史填满噪音，

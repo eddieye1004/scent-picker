@@ -1,0 +1,199 @@
+/* ============================================================
+   99-wishlist.css — 心仪清单 · 结果页 ♡ 入口（L2，2026-11-23）
+   ------------------------------------------------------------
+   只服务结果卡上的两颗东西：瓶名行右端的 ♡、以及点击后那行轻提示。
+   不碰清单页本体、不碰档案区、不碰圆盘与问卷各屏。
+
+   为什么另开一层：styles.css 是源层按顺序拼接的产物，直接改产物会在
+   下一次 build-css 时静默丢失（见 scripts/build-css.mjs 的文件头）。
+   本层放在最后，且所有选择器都带 .qw-wish 前缀 / .pick-name-row，
+   不会命中圆盘、问卷八屏与档案区块。
+
+   ---- 三条硬约束（都有来源，不是随手定的）----
+   ① ♡ 与购买按钮必须分列两端、不相邻（任务书「防误触买/存」）。
+      不靠 margin 凑间距：♡ 在瓶名行（卡片顶部），购买按钮在 .pick-foot
+      （卡片底部），中间隔着三调表 / 理由 / 标签三块。两者之间是
+      **卡片本身的高度**，手指做不出跨越它的滑动。
+   ② 触控目标 ≥ 44×44（与 .btn / .chip / .disc-sector 同一档）。
+      390px 下 ♡ 的心形本体取 22px，实测在 2× DPR 截图里边界清楚、可辨。
+   ③ 颜色全部取既有 token，不新增色值 —— 所以 test-contrast 的 48 条
+      断言不需要为新组件放宽任何一条。
+      已存态用 --ink 实心，与 `.chip[aria-pressed="true"]` 的选中语义同一条
+      约定（选中 = 墨），不给心形另发明一套色。
+   ============================================================ */
+
+/* ---------- 瓶名行：左边名字，右端 ♡ ---------- */
+.pick-name-row {
+  display: flex;
+  /* center 而不是 flex-start：♡ 的命中区是 44px 的方框，而名字行只有
+     22–26px 高。按顶对齐会让心形看着比名字高半格；居中后心形与名字
+     的中线重合，读起来是"这一行的一部分"。 */
+  align-items: center;
+  gap: 12px;
+}
+
+/* 名字必须可收缩：`Super Cedar` 这类长名在 390px 下要能折行，
+   而不是把 ♡ 挤出卡片（h3 在 flex 里默认 min-width:auto 会拒绝收缩）。 */
+.pick-name-row h3 {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ---------- ♡ 本体 ----------
+   margin-left:auto 把它推到这一行的右端；它右边界正好停在瓶形图左侧，
+   不会压到图（.pick-head 的 gap 仍生效）。 */
+.qw-wish {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  margin-left: auto;
+  /* 命中区 44px，但视觉上别把卡片顶高度撑起来：上下各收 4px。
+     收缩只作用于外边距，不影响 44px 的命中方框本身。 */
+  margin-top: -4px;
+  margin-bottom: -4px;
+  padding: 0;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--t-hover) var(--ease-std),
+              background-color var(--t-hover) var(--ease-std),
+              border-color var(--t-hover) var(--ease-std);
+}
+
+/* 心形用内联 SVG 画，不写 ♡/♥ 字符：字符的字形与基线由系统字体决定，
+   390px 下不同设备能差出一档大小，而"可辨"是这次的硬指标。
+   22px 是实测值：再小到 18px 时，390px 截图里的空心描边会被纸底吃掉半根线。 */
+.qw-wish-glyph {
+  display: block;
+}
+.qw-wish-glyph svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+  overflow: visible;
+}
+/* 空心 = 未存 */
+.qw-wish-glyph path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+}
+/* 实心 = 已存。用 currentColor 同时填满与描边，避免出现"实心却带一圈浅色缝" */
+.qw-wish.is-on {
+  color: var(--ink);
+}
+.qw-wish.is-on .qw-wish-glyph path {
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+/* 悬停：只给一层极淡的纸底，不换色 —— 心形变蓝会与"蓝只留两处"打架 */
+.qw-wish:hover {
+  color: var(--ink);
+  background: var(--bg-2);
+  border-color: var(--line);
+}
+.qw-wish:active {
+  background: var(--bg-3);
+}
+
+/* 焦点环：与 .btn / .chip / .disc-sector 同一条蓝环，2px + 2px 偏移 */
+.qw-wish:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* 点下去的一次短脉冲：除了心形变实心，还给一点"收下了"的动静。
+   位移与缩放都在 8px / 1.18 之内，不制造布局跳动（transform 不参与布局）。 */
+.qw-wish.is-pop .qw-wish-glyph {
+  animation: wish-pop var(--t-long) var(--ease-out) both;
+}
+@keyframes wish-pop {
+  0%   { transform: scale(1); }
+  38%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- 轻提示：不挡操作、自动消失 ----------
+   position: fixed 贴视口底部 —— 用户点第 1 张卡还是第 3 张卡都看得见；
+   若做成文档流里的一行，点下面两张时它已经在屏幕上方，等于没提示。
+   pointer-events: none 是"不挡操作"的字面实现：它悬在内容之上，
+   但根本不在命中测试里，任何点击都穿过去。
+   fixed 不参与布局，所以提示出现/消失时下面那颗购买按钮不会跳位 ——
+   手指还没离开就换位置是最容易误触的。 */
+.qw-wish-bar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 30;
+  margin: 0;
+  /* width:max-content 是必须的，不能只靠 max-width（实测踩到）：
+     fixed 元素 `left:50%` 之后，它的**可用宽度只剩视口右半边**（390 下是 195px），
+     于是 shrink-to-fit 把 17 个字的提示压成两行 —— 第一版截图里
+     「…在香水档案里 / 看」就断在了半个词上。写死 max-content 再让
+     max-width 兜住窄屏，才是"一行放得下就一行，放不下才折"。 */
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 9px 16px;
+  /* 墨底纸字：与 `.chip[aria-pressed="true"]` 的"选中 = 墨"同一条约定，
+     深浅两套主题各自成立（两个 token 都随主题翻转）。 */
+  color: var(--bg);
+  background: var(--ink);
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  /* 兜底生效时提示会变长（追加「本机存储不可用，收藏仅本次有效」）——
+     两行时按词平衡折行，不留孤字。 */
+  text-wrap: balance;
+  pointer-events: none;
+  box-shadow: var(--sh-2);
+  animation: wish-bar-in var(--t-fade) var(--ease-out) both;
+}
+/* hidden 必须显式压回 none：上面的 display 一旦被写死，浏览器默认的
+   [hidden]{display:none} 就会被层叠掉（.qw-history-panel 踩过同一条）。 */
+.qw-wish-bar[hidden] {
+  display: none;
+}
+@keyframes wish-bar-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ---------- 窄屏 ----------
+   390px 下卡内可用宽 342px，名字最长的仍要能折两行。
+   心形保持 22px：再收到 18px 时空心描边会糊；放大到 24px 则与 22px 的名字
+   抢重量 —— 名字是这张卡的主信息。 */
+@media (max-width: 620px) {
+  .pick-name-row {
+    gap: 10px;
+  }
+  .qw-wish-bar {
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    font-size: 12px;
+    padding: 8px 14px;
+  }
+}
+
+/* 打印：♡ 是交互件，纸上没有意义；但保留占位会让名字行左边多一截空白，
+   所以连行一起退回普通块，名字按原样排。 */
+@media print {
+  .pick-name-row {
+    display: block;
+  }
+  .qw-wish {
+    display: none;
+  }
+  .qw-wish-bar {
+    display: none;
+  }
+}

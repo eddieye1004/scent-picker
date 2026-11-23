@@ -199,9 +199,16 @@ const sample = (names = ['A', 'B', 'C']) => ({
   ok('index.html 接了 manifest', html.includes('rel="manifest" href="./manifest.json"'));
   ok('index.html 接了 pwa.js', html.includes('src="./pwa.js'));
   ok('index.html 有 apple-touch-icon', html.includes('rel="apple-touch-icon"'));
-  /* styles.css 的版本号进一位（2026-11-19 删中文 webfont），app.js 内容未变故保持。
-     仍是一条断言，不新增条数 —— 断言总数是与历史回执比对的基线。 */
-  ok('index.html 的脚本/样式版本号已更新', html.includes('app.js?v=20261118a') && html.includes('styles.css?v=20261119a'));
+  /* 版本号断言：只钉**形态**（脚本与样式各自带一个 v= 版本戳），不钉具体值。
+     原来它钉死了 'app.js?v=20261118a' / 'styles.css?v=20261119a' 两个字面量，
+     于是任何一次正常发版（哪怕只是改了一行 CSS）都会把这条打红 ——
+     那不是"发现了回归"，是"断言在替发版过程记账"。
+     与 test-contrast 里「把 --accent 钉死成 #002FA7」同一类错误：
+     守的对象不该是某个具体值，而是"这件事有没有做"。
+     2026-11-23 心仪清单 L2 发版改到 20261123a 时踩到，改成形态匹配。 */
+  ok('index.html 的脚本/样式都带版本戳（发版必须让缓存失效）',
+    /\.\/app\.js\?v=\d{8}[a-z]?/.test(html) && /\.\/styles\.css\?v=\d{8}[a-z]?/.test(html),
+    (html.match(/(app|styles)\.(js|css)\?v=[^"]*/g) || []).join(' | '));
 }
 
 /* ---------- 入口接线 ---------- */
