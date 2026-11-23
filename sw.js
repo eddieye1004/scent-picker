@@ -21,13 +21,11 @@
 /* 2026-11-23：盖章入口补到心仪清单每行（复用同一枚 stampSlot），app.js 与
    styles.css 再变一次 —— VERSION 跟着进一位。没有新增模块，CORE 不动。 */
 const VERSION = 'v2-20261124a';
-   同日 CORE 瘦身：perfumes.json 与 24 枚标本 SVG 移出预缓存 → v2-20261119b。
-   2026-11-23：CORE 加入 src/season-copy.js（季节屏 24 句）。它是 app.js
+/* 2026-11-23（冻结线）：CORE 加入 src/season-copy.js（季节屏 24 句）。它是 app.js
    的静态导入，缺了会让整个 module 图加载失败 —— 离线时不是"少一行文案"，
    是白屏。VERSION 跟一位。
    2026-11-23（C 腿）：盘心大类图标上线，app.js 与 styles.css 都改了，
-   VERSION 再跟一位。6 枚大类 SVG 与小类那 24 枚一样**不进** CORE：
-   它们只在选中大类时取一次，进 CORE 会让安装期多拉 40KB。 */
+   VERSION 再跟一位。6 枚大类 SVG 与小类那 24 枚一样不进 CORE：
    它们只在选中大类时取一次，进 CORE 会让安装期多拉 40KB。
    2026-11-24（qoder/avoid-capsule）：避雷屏胶囊语言定版 + 「已选方向」锚点，
    app.js 与 styles.css 都改了，VERSION 再跟一位。锚点复用已有的小类标本/

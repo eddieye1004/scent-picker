@@ -48,7 +48,6 @@ import { createStamps } from './src/stamp.js';
 import {
   createStampSession, stampViewOf, stampMessage, stampTiers, stampKeyOf, STAMP_MSG,
 } from './src/stamp-ui.js';
-import { buildAvoidIndex, avoidPlan, avoidSelection } from './src/avoid.js';
 import { buildAvoidIndex, avoidPlan, avoidSelection, avoidDirection } from './src/avoid.js';
 /* 季节屏的「方向 × 季节」24 句（定版 2026-11-23）。抽成独立模块而不是塞进下面的
    SEASONS：那 24 句的来源是一份 md，逐字比对是这条改动的验收线，句子集中在
