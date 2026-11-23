@@ -32,7 +32,6 @@ const VERSION = 'v2-20261124a';
    2026-11-24（qoder/avoid-capsule）：避雷屏胶囊语言定版 + 「已选方向」锚点，
    app.js 与 styles.css 都改了，VERSION 再跟一位。锚点复用已有的小类标本/
    大类徽记 SVG，不新增预缓存资产。 */
-const VERSION = 'v2-20261124a';
 const CACHE_PREFIX = 'scent-picker-v7-1-';
 const CACHE = CACHE_PREFIX + VERSION;
 
