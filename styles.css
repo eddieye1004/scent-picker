@@ -44,6 +44,7 @@ position: relative;
 #app { padding: 72px 32px 120px; }
 }
 .masthead {
+position: relative;
 border-top: 8px solid var(--ink);
 padding-top: 20px;
 margin-bottom: 40px;
@@ -5803,8 +5804,8 @@ padding-top: 30px;
 top: 8px;
 }
 #app[data-step="family"] .wheel .wheel-back {
-left: var(--bl, 11%);
-top: var(--bt, 20%);
+left: calc(var(--bl, 11%) + 0.51%);
+top: calc(var(--bt, 20%) + 0.66%);
 transform: translate(-50%, -50%);
 background: var(--spec-plate);
 border: 1px solid var(--stroke-ui);
@@ -5824,8 +5825,8 @@ background: var(--spec-tint-on);
 #app[data-step="family"] .wheel .wheel-back {
 padding: 0 12px;
 font-size: 12px;
-left: var(--bl-n, 14%);
-top: var(--bt-n, 24%);
+left: calc(var(--bl-n, 14%) + 2.32%);
+top: calc(var(--bt-n, 24%) + 2.96%);
 border-color: var(--stroke-ui);
 }
 }
