@@ -750,13 +750,37 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
     `盘心 SVG ${hubSvgs.length} 枚`);
   const famText = appRoot.querySelector('.fam-text');
   const famItems = appRoot.querySelectorAll('.fam-text-item');
-  ok('只选大类时盘心给出小类名（纯文字）', !!famText && famItems.length > 0,
-    `文字项 ${famItems.length}`);
-  /* 个数那行必须是数字推出来的，不是写死的 —— 与实际列出的小类数一致 */
+  /* 名字口径（2026-11-24 裁定 A）：`.fam-text-item` 与中圈弧段标签同源，
+     取 `label || zh || id` —— 不是只读 zh。期望值不在这里另抄一份常量：
+     ① 从 taxonomy 按当前中圈的小类 id 算出 label 优先的名字；
+     ② 再与中圈实际渲染出来的 `.zh` 逐字对照。
+     两路都断，既守住"用哪个字段"（抄错口径这条会立刻红：柑橘调会读成
+     古龙水型而不是纯柑橘），也守住"盘心与中圈说同一套名字"。 */
+  const TAXA_FAM = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/taxonomy.json'), 'utf8'));
+  const subById = new Map(TAXA_FAM.families.flatMap((f) => f.subfamilies).map((s) => [s.id, s]));
+  const midSecs = appRoot.querySelectorAll('.disc-sector.lvl2').filter((b) => b.getAttribute('data-sub'));
+  const midIds = midSecs.map((b) => b.getAttribute('data-sub'));
+  const midLabels = midSecs.map((b) => {
+    const z = b.querySelector('.zh');
+    return z ? z.textContent.trim() : '';
+  });
+  const famNames = famItems.map((n) => n.textContent.trim());
+  const expectNames = midIds.map((id) => {
+    const s = subById.get(id) || {};
+    return (s.label || s.zh || s.id || '').trim();
+  });
+  ok('只选大类时盘心小类名 = 中圈标签（label 优先、zh 兜底）',
+    !!famText && famNames.length > 0
+      && famNames.length === midIds.length
+      && famNames.every((n, i) => n === expectNames[i] && n === midLabels[i]),
+    `盘心 ${famNames.join('/')} ｜ 中圈 ${midLabels.join('/')} ｜ 期望 ${expectNames.join('/')}`);
+  /* 个数那行必须是数字推出来的，不是写死的 —— 与实际列出的小类数一致，
+    且这个数要等于中圈展开的段数（否则两边各说各的） */
   const famCount = appRoot.querySelector('.fam-text-count');
-  ok('盘心报的小类数与列出的名字一致',
-    !!famCount && famCount.textContent === `${famItems.length} 个小类`,
-    famCount && famCount.textContent);
+  ok('盘心报的小类数与列出的名字、中圈段数一致',
+    !!famCount && famCount.textContent === `${famItems.length} 个小类`
+      && famItems.length === midIds.length,
+    `${famCount && famCount.textContent} ｜ 列出 ${famItems.length} ｜ 中圈 ${midIds.length}`);
 }
 /* 悬停某一段：只加深那一段的描边，盘心一个字都不许改。
    v15 改成"左键点击才确认"之后，这条从"悬停画标本"反转成"悬停不许动状态"
