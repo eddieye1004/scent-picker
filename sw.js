@@ -18,7 +18,9 @@
 /* 2026-11-23：试香盖章上线（档案每瓶盖章位 + 五档面板），app.js 与 styles.css
    都变了、并新增 src/stamp.js / src/stamp-ui.js 两个模块 —— VERSION 再进一位，
    两个新模块同时加进 CORE（它们是盖章的唯一实现，缺了就只剩未盖章态）。 */
-const VERSION = 'v2-20261123c';
+/* 2026-11-23：盖章入口补到心仪清单每行（复用同一枚 stampSlot），app.js 与
+   styles.css 再变一次 —— VERSION 跟着进一位。没有新增模块，CORE 不动。 */
+const VERSION = 'v2-20261123d';
 const CACHE_PREFIX = 'scent-picker-v7-1-';
 const CACHE = CACHE_PREFIX + VERSION;
 

@@ -4443,13 +4443,25 @@ function stampPanel(bottle, done) {
 }
 
 /**
- * 档案某一瓶的盖章位：未盖 → 「试过？盖章」；已盖 → 状态 chip + 撤销。
+ * 某一瓶的盖章位：未盖 → 「试过？盖章」；已盖 → 状态 chip + 撤销。
  * 两种形态都由 stampViewOf 决定（`has`），所以"显示什么"与"存了什么"同源。
+ *
+ * **一处实现、两处挂载**（2026-11-23 补：心仪清单每行也要这个入口）：
+ * 档案的瓶名行与清单行的瓶名行共用这同一个函数，`opts.surface` 只用来
+ * 让 CSS/测试认出"这个章位挂在哪一屏"，不改变任何行为。复制一份到清单侧
+ * 是这一腿最容易走上的错路 —— 那样五档文案、撤销语义、降级提示会各自演化，
+ * 用户在两个页面看到两套口径。
+ *
+ * @param {{name:string, brand?:string}} bottle 瓶的身份（name|brand 即落盘键）
+ * @param {function} repaint 动作完成后重画**所在容器**（不是整站）
+ * @param {{surface?:'archive'|'wish'}} [opts]
  */
-function stampSlot(bottle, repaint) {
+function stampSlot(bottle, repaint, opts = {}) {
+  const surface = opts.surface === 'wish' ? 'wish' : 'archive';
   const slot = el('span', {
     class: 'qw-stamp-slot',
     'data-stamp-key': stampDataKey(bottle),
+    'data-stamp-surface': surface,
   });
   const view = stampViewOf(stampSession.get(bottle));
   const name = bottle.name || '这一瓶';
@@ -4698,6 +4710,14 @@ function wishRowNode(row, ctx) {
   const { say, repaint } = ctx;
   const li = el('li', { class: 'qw-wl-row' + (row.owned ? ' is-owned' : ''), 'data-wish-id': row.id });
 
+  /* 盖章位的重画入口：先记住滚动位置再整页重画（与「移除」「已入手」同一条路）。
+     不记的话，在清单靠下的一行盖章会被弹回页顶 —— 用户刚点的是"给这瓶盖章"，
+     不该顺带丢掉他正在看的位置。 */
+  const repaintKeepScroll = () => {
+    WISH_SCROLL = pageScrollY();
+    repaint();
+  };
+
   /* ① 瓶图。有照片用照片（与结果卡同一个 .pick-art 走法），没有就画瓶形 ——
         两者尺寸由同一个 .qw-wl-art 盒控制，换图不会让各行基线错开。 */
   const art = el('div', { class: 'qw-wl-art' });
@@ -4745,6 +4765,29 @@ function wishRowNode(row, ctx) {
   ));
 
   if (row.brand) main.appendChild(el('p', { class: 'qw-wl-brand' }, row.brand));
+
+  /* ②b 盖章位（2026-11-23 补 L3 欠的第 4 项）：**同一枚 stampSlot**，
+     与档案面板逐字同一套 —— 五档文案、chip 口径、撤销语义、降级提示
+     全部来自 src/stamp.js / src/stamp-ui.js 那一份实现，这里只是换个挂载点。
+
+     bottle 只给 name/brand：盖章的身份键就是「归一化(name)|归一化(brand)」，
+     所以清单里的这一瓶与档案里的同一瓶算出**同一个键**，读写的是同一条记录
+     （两屏共用 scent-picker.tasting.v1，不需要任何同步逻辑）。
+
+     **为什么不塞进上面那行瓶名**（实测踩到，390 截图一眼可见）：那一行已经有
+     瓶名 + 「标记已入手」两个动作，再挤进 chip + 「撤销」会把它挤到第二行，
+     于是「Aventus  /  标记已入手  /  Creed」三行的顺序整个错位 —— 品牌跑到了
+     标记按钮下面。单独一行在 390 下更稳，也让"盖章"与"已入手"两个动作分开。
+
+     **数据里查不到这瓶时不给入口**（`row.missing`）：wishRowOf 在查不到时
+     把 name 退成 id（见 src/wish-page.js 第③条的注释），而 id 不是瓶名 ——
+     拿它盖章会写出一条「键 = id|」的记录，档案侧那瓶永远对不上，
+     等于制造一份两处都不认的孤立记录。宁可少一个入口，不写脏记录。 */
+  if (!row.missing) {
+    main.appendChild(el('div', { class: 'qw-wl-stamp-row' },
+      stampSlot({ name: row.name, brand: row.brand }, repaintKeepScroll, { surface: 'wish' })
+    ));
+  }
 
   /* ③ 存入理由：L2 存下的那一句原文，只读展示。空就整格不出 ——
         补一句「暂无理由」是替用户编一句他没说过的话。 */

@@ -7031,6 +7031,23 @@ overflow: hidden;
 text-overflow: ellipsis;
 }
 }
+.qw-wl-stamp-row {
+display: flex;
+align-items: center;
+flex-wrap: wrap;
+gap: 6px;
+margin-top: 2px;
+min-width: 0;
+}
+.qw-wl-stamp-row .qw-stamp-sum {
+max-width: none;
+overflow: visible;
+white-space: nowrap;
+}
+.qw-wl-stamp-row .qw-stamp-panel {
+margin-left: 0;
+margin-right: 0;
+}
 @media print {
 .qw-stamp-slot {
 display: none;
