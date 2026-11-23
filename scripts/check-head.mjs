@@ -43,7 +43,7 @@ const SUITES = [
   ['test-wishlist.mjs', 96],
   /* 心仪清单 L2 结果页入口：纯逻辑（存/删/满额/降级）+ 接线与产物守卫。
      不 import app.js（那是 test-render 的活），所以跑得比渲染套件快一个量级。 */
-  ['test-wishlist-ui.mjs', 91],
+  ['test-wishlist-ui.mjs', 92],
 ];
 
 /* 金标准套件走另一套判据：它报的是命中率，不是断言条数。

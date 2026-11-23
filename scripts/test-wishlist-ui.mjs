@@ -321,6 +321,15 @@ console.log('\n===== ⑨ L1 数据层零改动守卫 =====');
   ok('数据层仍然没有任何上传路径', !/fetch\(|XMLHttpRequest|sendBeacon/.test(wl));
   ok('数据层仍然不 import UI 层（依赖方向只能 app → wish-ui → wishlist）',
     !/wish-ui/.test(wl));
+  /* 本腿的硬约束：数据层一个字节都不该动。用「源码里没有本腿新增的标识」
+     是间接的；更直接的是这条 —— 数据层的全部导出符号仍是 L1 那一组。 */
+  ok('数据层导出的符号与 L1 完全一致（没有为 L2 加过任何口子）',
+    ['add', 'remove', 'toggle', 'list', 'has', 'clear', 'markOwned', 'isOwned', 'clearOwned']
+      .every((n) => typeof createWishlist({ getItem: () => null, setItem() {}, removeItem() {} })[n] === 'function')
+    && /export function createWishlist/.test(wl)
+    && (wl.match(/^export const (\w+)/gm) || []).join(',')
+      === 'export const WISHLIST_KEY,export const WISHLIST_OWNED_KEY,export const WISHLIST_MAX,export const WISHLIST_REASON_MAX,export const WISHLIST_ID_MAX,export const wishlist,export const add,export const remove,export const toggle,export const list,export const has,export const clear,export const markOwned,export const isOwned,export const WISHLIST_ITEM_FIELDS',
+    (wl.match(/^export const (\w+)/gm) || []).join(','));
   ok('键名与上限仍与约定一致',
     wl.includes("'sp_wishlist_v1'") && wl.includes("'sp_wishlist_owned_v1'") && WISHLIST_MAX === 50);
   ok('三键白名单导出仍是 id,savedAt,reason',
