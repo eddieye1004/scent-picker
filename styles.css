@@ -1783,11 +1783,7 @@ background: var(--bg-2);
 border-color: var(--ink);
 color: var(--ink);
 }
-.wheel .wheel-back {
-position: absolute;
-left: 0;
-top: 0;
-z-index: 3;
+.wheel-back {
 display: inline-flex;
 align-items: center;
 gap: 4px;
@@ -1808,25 +1804,22 @@ border-color var(--t-hover) var(--ease-std),
 background-color var(--t-hover) var(--ease-std),
 transform var(--t-press) var(--ease-std);
 }
-.wheel .wheel-back:hover {
+.wheel-back:hover {
 color: var(--ink);
 border-color: var(--edge);
 background: var(--bg-2);
 }
-.wheel .wheel-back:active {
+.wheel-back:active {
 transform: translateY(1px);
 color: var(--ink);
 border-color: var(--ink);
 background: var(--bg-3);
 }
-.wheel .wheel-back:focus-visible {
+.wheel-back:focus-visible {
 outline: 2px solid var(--blue);
 outline-offset: 2px;
 }
-.wheel .wheel-back[hidden] { display: none; }
-@media (max-width: 620px) {
-.wheel .wheel-back { left: -2px; top: -6px; }
-}
+.wheel-back[hidden] { display: none; }
 .wheel.is-open .sub-ring { pointer-events: none; }
 .wheel.is-open .sector-g {
 pointer-events: auto;
@@ -1866,7 +1859,7 @@ opacity: 1;
 .wheel .disc-hub.has-glyph:not(.is-picked) .hub-kicker { display: block; }
 .wheel .disc-hub.has-glyph.is-picked .hub-kicker { display: none; }
 @media (prefers-reduced-motion: reduce) {
-.wheel .wheel-back:active { transform: none; }
+.wheel-back:active { transform: none; }
 .wheel .sub-arc { animation: none; }
 .wheel .sub-arc-btn { animation: none; }
 }
@@ -2252,13 +2245,6 @@ stroke-width: 1.4;
 fill: var(--blue);
 stroke: var(--blue);
 stroke-width: 1.2;
-}
-.wheel-back {
-left: 3.5%;
-top: 4.5%;
-}
-@media (max-width: 620px) {
-.wheel-back { left: 2%; top: 3%; }
 }
 .wheel .disc-hub::after {
 content: '';
@@ -3720,7 +3706,7 @@ html,
 body {
 overflow-x: clip;
 }
-.wheel .wheel-back {
+.wheel-back {
 border-color: var(--stroke-ui);
 }
 .long-btn {
@@ -4083,7 +4069,7 @@ background: transparent;
 border-color: var(--edge);
 border-style: dashed;
 }
-.wheel .wheel-back:hover {
+.wheel-back:hover {
 color: var(--ink-2);
 background: var(--bg);
 border-color: var(--stroke-ui);
@@ -5731,7 +5717,7 @@ fill: var(--spec-rim);
 }
 #app[data-step="family"] .wheel .hub-go[hidden],
 #app[data-step="family"] .wheel .hub-skip[hidden],
-#app[data-step="family"] .wheel .wheel-back[hidden] {
+#app[data-step="family"] .stage-top .wheel-back[hidden] {
 display: none;
 }
 #app[data-step="family"] .wheel .sub-arc {
@@ -5802,36 +5788,39 @@ padding-top: 30px;
 #app[data-step="family"] .masthead .amb-tick {
 top: 8px;
 }
-#app[data-step="family"] .wheel .wheel-back {
-left: var(--bl, 11%);
-top: var(--bt, 20%);
-transform: translate(-50%, -50%);
+#app[data-step="family"] .stage-top {
+display: flex;
+align-items: center;
+justify-content: flex-start;
+margin: 0;
+}
+#app[data-step="family"] .stage-top .wheel-back {
+margin: 0 0 8px;
 background: var(--spec-plate);
 border: 1px solid var(--stroke-ui);
 border-color: var(--stroke-ui);
 color: var(--spec-ink);
 box-shadow: 0 6px 16px -12px var(--spec-sh);
 }
-#app[data-step="family"] .wheel .wheel-back:hover {
+#app[data-step="family"] .stage-top .wheel-back:hover {
 background: var(--spec-plate-2);
 border-color: var(--spec-ink);
 }
-#app[data-step="family"] .wheel .wheel-back:active {
-transform: translate(-50%, -50%) scale(.97);
+#app[data-step="family"] .stage-top .wheel-back:active {
+transform: translateY(1px);
 background: var(--spec-tint-on);
 }
 @media (max-width: 620px) {
-#app[data-step="family"] .wheel .wheel-back {
+#app[data-step="family"] .stage-top .wheel-back {
 padding: 0 12px;
 font-size: 12px;
-left: var(--bl-n, 14%);
-top: var(--bt-n, 24%);
+margin-bottom: 6px;
 border-color: var(--stroke-ui);
 }
 }
 #app[data-step="family"] .actions .btn,
 #app[data-step="family"] .wheel .hub-go,
-#app[data-step="family"] .wheel .wheel-back {
+#app[data-step="family"] .stage-top .wheel-back {
 appearance: none;
 display: inline-flex;
 align-items: center;
@@ -5901,7 +5890,7 @@ cursor: not-allowed;
 #app[data-step="family"] .actions .btn:focus-visible,
 #app[data-step="family"] .wheel .hub-go:focus-visible,
 #app[data-step="family"] .wheel .hub-skip:focus-visible,
-#app[data-step="family"] .wheel .wheel-back:focus-visible,
+#app[data-step="family"] .stage-top .wheel-back:focus-visible,
 #app[data-step="family"] .wheel .disc-sector:focus-visible {
 outline: 2px solid var(--spec-ink);
 outline-offset: 3px;

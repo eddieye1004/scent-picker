@@ -878,7 +878,10 @@ function hubOrnament(families) {
 }
 
 function buildWheel(cfg) {
-  const { families, onChange } = cfg;
+  /* backHost：返回胶囊的挂载点。2026-11-24 裁决 A 之后它不在 .wheel 里了
+     （那枚胶囊压住了 −120° 的中圈标签），由调用方给一个页顶流的容器把它接走。
+     不给时退回老位置（root），只为兼容/自检脚本单点调用时不会抛。 */
+  const { families, onChange, backHost } = cfg;
   let selFamily = cfg.selFamily || null;
   let selSub = cfg.selSub || null;
   let hoverFam = null;      // 指针停在外圈哪个家族（只改盘心预览，不改变层数）
@@ -1083,12 +1086,14 @@ function buildWheel(cfg) {
   }, '中圈可不选');
   hubSkip.hidden = true;
   hubGo.hidden = true;
-  /* ② 返回入口挪出盘心。
-     原来盘心底部有一颗 12px 下划线的「换一个大类」，26px 高 ——
-     低于 44px 触控下限，而且和「直接下一步」挤在同一列里，
-     主操作与退路挨在一起，手指再准也会点错。
-     改到盘外左上角：圆盘在方框里是个圆，四个角是空的，
-     按钮落在那里既不压盘面，也不和底部那条主按钮抢位置。 */
+  /* ② 返回入口：不在盘心上、也不在盘面上 —— 现在挂在页顶流里。
+     历史：v7 把它从盘心（12px 下划线、26px 高，低于 44px 触控下限）挪到
+     盘外左上角，v7 第 1.5 步又钉到 218° 盘沿上。
+     钉在盘沿上的代价在 2026-11 中圈标签胶囊化之后暴露出来：展开态
+     −120° 那枚标签（花香调「单一花」）被它压掉 36–46%，而圆盘上
+     再没有一处能同时避开六个大类的标签（见 docs/DECISIONS.md 同轮记录）。
+     所以按 Eddie 2026-11-24 01:48 裁决 A，它整体移出圆盘、进页顶流
+     （.stage-top）——显隐与点击行为一个字没改，改的只是它待在哪。 */
   const backBtn = el('button', {
     class: 'wheel-back',
     type: 'button',
@@ -1100,7 +1105,7 @@ function buildWheel(cfg) {
     },
   }, '← 重选大类');
   backBtn.hidden = true;
-  root.appendChild(backBtn);
+  (backHost || root).appendChild(backBtn);
   /* 空态纹样（缺陷 ③）：六枚定位点就是外圈六族的位置，空盘也在讲盘的结构。
      单独一棵节点而不是塞进 hubGlyph：hubGlyph 归标本管，两者互斥，
      混用会让 paint() 里"清空标本"那一步顺手把纹样也删掉。 */
@@ -1256,50 +1261,20 @@ function buildWheel(cfg) {
     rippleTimer = setTimeout(() => { ripple.classList.remove('is-on'); rippleTimer = 0; }, 680);
   };
 
-  /* ---- 盘沿几何：返回胶囊与盘底共同依赖的两个量 ----
-     ① --bl/--bt：返回胶囊要在盘沿上（缺陷 ⑧）。JS 算是因为 CSS 拿不到
-        "半径 236 单位在 218° 处对应盘盒的百分之几" —— 百分比定位相对的是
-        外接方框，而盘是内切圆。
-     ② --plate-cx/--plate-cy：页面底纹（.plate-bg）的同心圆环必须以这盘
-        的圆心为圆心（缺陷 ⑨）。那是 fixed 层，圆心要的是**视口坐标**，
-        只能量。
-     两者都绑在 resize 上重算：横竖屏切换、窗口拖动都会让圆心移动。 */
+  /* ---- 盘沿几何：盘心底纹同心圆环的圆心 ----
+     --plate-cx/--plate-cy：页面底纹（.plate-bg）的同心圆环必须以这盘
+     的圆心为圆心（缺陷 ⑨）。那是 fixed 层，圆心要的是**视口坐标**，
+     只能量。
+     绑在 resize 上重算：横竖屏切换、窗口拖动都会让圆心移动。
+
+     ==== 2026-11-24：这里原来还算 --bl/--bt（返回胶囊在盘沿上的落点）====
+     胶囊搬进页顶流之后，它的位置由常规流决定，再没有"盘box 的百分比"
+     这回事 —— 那两行 setProperty 连同 at() 一起删了。留着不报错，
+     但它们会让人以为胶囊还在盘上，下一轮又会照着算。 */
   const layoutRim = () => {
     if (typeof root.getBoundingClientRect !== 'function') return;
     const r = root.getBoundingClientRect();
     if (!r || !r.width) return;
-    /* ==== 返回胶囊的落点（缺陷 ⑧）====
-       原来写死 `left:0; top:0` —— 那是盘的**外接方框**左上角，而盘是圆的，
-       那个角落在盘外 84px 的空白里，读起来是一颗漂在页面上的按钮。
-
-       现在的落点不是猜的，是扫出来的：scripts/probe-rim.mjs 把六族逐个
-       点进第二层，量出 6 枚 lvl1 + n 枚 lvl2 的盒子，然后在极坐标上
-       按 2° × 0.02 倍半径扫一遍，要求「与所有可点标签都不相交」且
-       「不越出页面左右留白」。三个视口（1440/390/360）的无碰撞区间
-       交集只有一处：角度 −128°、半径 1.12 倍盘半径。
-       1.12 的含义正是"别在盘口线上"—— 胶囊半高 22px 折算 0.087 个盘半径，
-       所以它的内沿落在 1.03、外沿落在 1.21：**一半压在盘沿上，一半在纸面上**。
-       这正是缺陷 ⑧ 要的"锚进标本盘构图，不漂在盘外"。
-       −128° 落在「美食调」与「柑橘调」两块之间的接缝带里（接缝在 −120°），
-       那里本来就只有一条缝，没有别的字。 */
-    /* 极角 → 控件盒百分比。注意半径是**盘半径的倍数**（1 = 盘口线），
-       而 left/top 的百分比相对控件盒宽度（= 盘直径），所以这里乘 50
-       而不是 100。乘 100 会让胶囊跑到盘外一倍的半径处 —— 实测过，
-       probe-design 报 onRim 2.24。 */
-    const at = (deg, rad) => [
-      50 + rad * 50 * Math.cos((deg * Math.PI) / 180),
-      50 + rad * 50 * Math.sin((deg * Math.PI) / 180),
-    ];
-    const [bx, by] = at(-128, 1.00);
-    backBtn.style.setProperty('--bl', bx.toFixed(2) + '%');
-    backBtn.style.setProperty('--bt', by.toFixed(2) + '%');
-    /* 窄屏：盘 312–342px，胶囊占比更大（44/312 = 0.141R），
-       要让内沿落在盘口线上，中心要在 1.07R；这一档仍落在
-       probe-rim 报的无碰撞区间内（360 上 −128° 的自由半径是 1.04–1.26）。 */
-    const [nbx, nby] = at(-128, 1.07);
-    backBtn.style.setProperty('--bl-n', nbx.toFixed(2) + '%');
-    backBtn.style.setProperty('--bt-n', nby.toFixed(2) + '%');
-
     /* 底纹圆心 = 盘心的视口坐标（fixed 层用视口坐标，不是文档坐标） */
     const bg = document.querySelector('.plate-bg');
     if (bg) {
@@ -1965,7 +1940,23 @@ function renderFamily() {
      圆心由 buildWheel 的 layoutRim() 量出来写进 --plate-cx/--plate-cy。 */
   wrap.appendChild(el('div', { class: 'plate-bg', 'aria-hidden': 'true' }));
 
+  /* ==== 页顶流：「← 重选大类」的容器（2026-11-24 裁决 A）====
+     它原来是 .wheel 的子节点、用 JS 算出的百分比钉在 218° 盘沿上。
+     中圈标签胶囊化之后，那个位置在展开态压住 −120° 的标签 36–46%，
+     而圆盘上没有第二个能避开六个大类标签的落点 —— 所以胶囊出盘、进这一行。
+
+     这一行为什么是 .stage-lead 的**第一个孩子**、而不是它的前一个兄弟：
+     10-foundation 在 ≤620 给 .stage-lead 写了 margin-top: 14px，它与
+     .progress-meta 的 margin-bottom 是**折叠**关系（取 24）。在两者之间插一个
+     空块会切断折叠，多出 14px —— 实测 390 宽 idle 页高 1451 → 1465。
+     放进 stage-lead 里面就没有这段折叠可切：同一行，idle 逐像素不变。
+
+     行的顺序在 stage-lead 内部：胶囊 → 第 1 步 → 先闻方向，
+     读起来是"回上一层"在前，标题在后。 */
+  const stageTop = el('div', { class: 'stage-top' });
+
   wrap.appendChild(el('div', { class: 'stage-lead' },
+    stageTop,
     el('div', { class: 'q-kicker' }, stepHead('family').kicker),
     el('h2', { class: 'q-title' }, stepHead('family').title),
     el('p', { class: 'q-help' }, stepHead('family').help)
@@ -1973,6 +1964,7 @@ function renderFamily() {
 
   wrap.appendChild(buildWheel({
     families: Object.values(TAX.families),
+    backHost: stageTop,
     selFamily: state.answers.family,
     selSub: state.answers.subfamily,
     onChange: (fam, sub) => {

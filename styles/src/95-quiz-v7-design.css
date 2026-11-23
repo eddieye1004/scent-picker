@@ -446,7 +446,7 @@
    谁的 display 更强，谁就负责把 hidden 压回去。 */
 #app[data-step="family"] .wheel .hub-go[hidden],
 #app[data-step="family"] .wheel .hub-skip[hidden],
-#app[data-step="family"] .wheel .wheel-back[hidden] {
+#app[data-step="family"] .stage-top .wheel-back[hidden] {
   display: none;
 }
 
@@ -550,18 +550,36 @@
 }
 
 /* ============================================================
-   Block 9 · 返回胶囊钉进标本盘（缺陷 ⑧下半）
+   Block 9 · 返回胶囊进页顶流（2026-11-24 裁决 A）
    ------------------------------------------------------------
-   以前 `left: 0; top: 0` —— 落在盘的**外接方框**左上角，而盘是圆的，
-   那个角在盘外 84px 的空白里，读起来是"漂在页面上的一颗按钮"。
-   现在坐标由 app.js 按盘沿算出（--bl/--bt，218° 半径 236 = 盘口线上），
-   胶囊以盘口线为中心压上去，底色用 --spec-plate 把那条线"打断" ——
-   它就成了别在盘沿上的一枚签，而不是浮在旁边的一颗按钮。
+   这一枚原来是"别在盘沿上的一枚签"：坐标由 app.js 按盘沿算出
+   （--bl/--bt，218°、半径 1.00R），底色用 --spec-plate 把盘口线打断。
+   中圈 24 枚标签胶囊化（a356237）之后，那个位置在展开态压住 −120°
+   的标签 36–46%，而盘上再无第二个落点能同时避开六个大类的标签
+   （盘沿外是页边留白，盘沿内是标签环，挪 1–2° 就压到隔壁的「美食调」）。
+   所以按 Eddie 2026-11-24 01:48 的裁决 A：胶囊出盘，进页面顶部的内容流。
+
+   落点：.stage-top —— 由 app.js 建、作为 .stage-lead 的第一个孩子，
+   与步骤指示（第 1 步 · 先闻方向）同一列、内容列左对齐。
+   显隐规则（仅展开态出现）与点击行为（收起当前大类）一个字没改。
+
+   为什么独立一行、不塞进 kicker那一行：
+   塞进同一行会把「第 1 步 / 共 8 步」整体右移半个胶囊 —— 那是挪了
+   步骤指示，不是给它旁边加了个东西。独立一行只多 44px 高，指示不动。
+
+   为什么行不带外边距、间距挂在胶囊上：
+   未选大类时胶囊 hidden，行必须是 0 高 0 边距，否则 idle 版面
+   会凭空多出一条 8px 的缝 —— "idle 版面无变化"是这一轮的验收项。
    ============================================================ */
-#app[data-step="family"] .wheel .wheel-back {
-  left: var(--bl, 11%);
-  top: var(--bt, 20%);
-  transform: translate(-50%, -50%);
+#app[data-step="family"] .stage-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 0;
+}
+#app[data-step="family"] .stage-top .wheel-back {
+  /* 只留"离开步骤指示 8px"这一条间距；它随胶囊一起消失。 */
+  margin: 0 0 8px;
   background: var(--spec-plate);
   /* 边框用 --stroke-ui 而不是 --spec-rim：这枚胶囊的底（#FFFCF6）与页面
      纸底（#FAF7F1）只差 1.9%，**边框就是它的全部边界** —— 按 WCAG 1.4.11
@@ -572,25 +590,21 @@
   color: var(--spec-ink);
   box-shadow: 0 6px 16px -12px var(--spec-sh);
 }
-#app[data-step="family"] .wheel .wheel-back:hover {
+#app[data-step="family"] .stage-top .wheel-back:hover {
   background: var(--spec-plate-2);
   border-color: var(--spec-ink);
 }
-#app[data-step="family"] .wheel .wheel-back:active {
-  transform: translate(-50%, -50%) scale(.97);
+#app[data-step="family"] .stage-top .wheel-back:active {
+  transform: translateY(1px);
   background: var(--spec-tint-on);
 }
-/* 窄屏：盘只有 312–342px，胶囊 118×44 贴在同一个角度会压到标签。
-   落点仍由 JS 给（--bl/--bt 桌面 / --bl-n/--bt-n 窄屏），换的是半径：
-   窄屏胶囊占 0.129R 高（44/342），要让它的**内沿**正好压在盘口线
-   （0.9825R）上，中心就得落在 1.03R —— 桌面同理落在 1.00R。
-   这样两档都是"一半在盘沿上、一半在纸面上"，而不是浮在盘外一格。 */
+/* 窄屏：它现在在常规流里，没有"贴不贴盘沿"的问题了 ——
+   这一档只保留字号/内边距，并且把边界色再写一次。 */
 @media (max-width: 620px) {
-  #app[data-step="family"] .wheel .wheel-back {
+  #app[data-step="family"] .stage-top .wheel-back {
     padding: 0 12px;
     font-size: 12px;
-    left: var(--bl-n, 14%);
-    top: var(--bt-n, 24%);
+    margin-bottom: 6px;
     /* 边界色要在这里再写一次：这是层叠里**最后**一条 .wheel-back 规则，
        窄屏最终生效的 border-color 就是它。test-contrast 逐规则核对
        "1px 边、无填充的控件必须用 --stroke-ui"，读的也是这一条 ——
@@ -613,7 +627,7 @@
    ============================================================ */
 #app[data-step="family"] .actions .btn,
 #app[data-step="family"] .wheel .hub-go,
-#app[data-step="family"] .wheel .wheel-back {
+#app[data-step="family"] .stage-top .wheel-back {
   appearance: none;
   display: inline-flex;
   align-items: center;
@@ -702,7 +716,7 @@
 #app[data-step="family"] .actions .btn:focus-visible,
 #app[data-step="family"] .wheel .hub-go:focus-visible,
 #app[data-step="family"] .wheel .hub-skip:focus-visible,
-#app[data-step="family"] .wheel .wheel-back:focus-visible,
+#app[data-step="family"] .stage-top .wheel-back:focus-visible,
 #app[data-step="family"] .wheel .disc-sector:focus-visible {
   outline: 2px solid var(--spec-ink);
   outline-offset: 3px;
