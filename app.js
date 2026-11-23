@@ -28,7 +28,7 @@ import {
    avoid-map.js 是「元素 → 场景句 → 所属香型」映射表（原 LIFE_NOTES 抽出来的），
    avoid.js 是按 perfumes.json 频次现算候选的三条硬规则。两者都不碰 DOM。 */
 import { AVOID_SCENARIOS } from './src/avoid-map.js';
-import { buildAvoidIndex, avoidPlan, avoidSelection } from './src/avoid.js';
+import { buildAvoidIndex, avoidPlan, avoidSelection, avoidDirection } from './src/avoid.js';
 /* 季节屏的「方向 × 季节」24 句（定版 2026-11-23）。抽成独立模块而不是塞进下面的
    SEASONS：那 24 句的来源是一份 md，逐字比对是这条改动的验收线，句子集中在
    一个文件里才能一眼对完。查不到组合时 seasonScene() 返回空串，renderSeason
@@ -709,6 +709,19 @@ function avoidSpecimen(specimenPath) {
   const ready = artSvgReady(sub);
   if (ready) box.innerHTML = ready;
   else artInner(sub).then((inner) => { if (inner) box.innerHTML = artNs(inner, 'a' + (++artSeq)); });
+  return box;
+}
+/* 「已选方向」锚点的图标（qoder/avoid-capsule）：与圆盘同一套上色 SVG ——
+   落到小类用那 24 枚标本（artPath 通路），只选大类用 6 枚大类徽记
+   （famArtPath 通路，与盘心徽章同源）。不新造图标，也不新造取图通路。 */
+function anchorArt(path_) {
+  const box = svgEl('svg', {
+    class: 'avoid-anchor-icon', viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false',
+  });
+  if (!path_) return box;
+  const ready = ART_READY.get(path_);
+  if (ready) box.innerHTML = artNs(ready, 'a' + (++artSeq));
+  else artInnerPath(path_).then((inner) => { if (inner) box.innerHTML = artNs(inner, 'a' + (++artSeq)); });
   return box;
 }
 /* 原先这里还有一处 `artWarmAll()`（"尽早开始预热：不等 taxonomy、不等 DOMContentLoaded"）。
@@ -2746,6 +2759,34 @@ function renderAvoid() {
     return wrap;
   }
   pruneAvoid(plan);
+
+  /* ---- 「已选方向」锚点（qoder/avoid-capsule，纯展示）----
+     过渡元素，不是过渡页：这一屏的题是按用户刚在圆盘上选的方向现算的，
+     把那个方向胶囊（图标 + 名字）原样带到屏顶，一眼接上"接着你的选择在问"。
+     方向判据与出题**同源** —— avoidDirection 就是 avoidPlan 内部用的那个
+     directionOf，锚点显示的方向和题目依据的方向不可能分叉。
+     不新增交互：没有 onclick / href，tabindex="-1" 让它退出 Tab 序，
+     名字进 aria-label（读屏能听到方向），图标与小字引导是装饰层。
+     图标与盘心同一套：落到小类＝那枚代表香材标本，只选大类＝大类徽记
+     （盘心徽章同款，方向 B）；情绪入口没有落点时退到大类徽记。 */
+  const dir = avoidDirection(state.answers, TAX);
+  const dirFam = dir ? (TAX?.families || []).find((f) => f.id === dir.family) : null;
+  if (dir && dirFam) {
+    const dirSub = dir.subfamily
+      ? (dirFam.subfamilies || []).find((s) => s.id === dir.subfamily) : null;
+    const zh = dirSub ? (dirSub.zh || dirSub.id) : (dirFam.zh || dirFam.id);
+    const art = dirSub ? artPath(dirSub.id) : famArtPath(dirFam.id);
+    wrap.appendChild(el('div', {
+      class: 'avoid-anchor',
+      'data-dir': dir.family + (dir.subfamily ? '|' + dir.subfamily : ''),
+      'aria-label': '已选方向：' + zh,
+      tabindex: '-1',
+    },
+      el('span', { class: 'avoid-anchor-kicker', 'aria-hidden': 'true' }, '已选方向'),
+      anchorArt(art),
+      el('span', { class: 'avoid-anchor-name' }, zh)
+    ));
+  }
 
   const wall = el('div', { class: 'avoid-wall', role: 'group', 'aria-label': '最容易踩雷的几个' });
   const count = el('p', { class: 'avoid-count' });
