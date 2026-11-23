@@ -5684,6 +5684,38 @@ line-height: 1.55;
 margin: 0 3px;
 }
 }
+#app[data-step="family"] .wheel .hub-emblem {
+position: absolute;
+inset: 0;
+display: none;
+place-items: center;
+width: 62%;
+height: 62%;
+margin: auto;
+pointer-events: none;
+opacity: .5;
+filter: brightness(1.1) saturate(.5);
+transition: opacity 260ms var(--ease-std);
+}
+#app[data-step="family"] .wheel .disc-hub.has-emblem .hub-emblem { display: grid; }
+#app[data-step="family"] .wheel .hub-emblem .emblem-svg {
+width: 100%;
+height: 100%;
+fill: none;
+stroke-width: .7;
+stroke-linecap: round;
+stroke-linejoin: round;
+}
+#app[data-step="family"] .wheel .disc-hub > *:not(.hub-emblem) {
+position: relative;
+z-index: 1;
+}
+@media (prefers-color-scheme: dark) {
+#app[data-step="family"] .wheel .hub-emblem {
+opacity: .55;
+filter: brightness(1.45) saturate(.5);
+}
+}
 #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
 gap: 0;
 padding: 6px 8px;

@@ -612,6 +612,26 @@ const ART_FILE = {
   'vanilla-gourmand': 'gourmand-vanilla-gourmand',
   'fruity-gourmand': 'gourmand-fruity-gourmand',
 };
+/* ---------- 6 枚大类图标（PR #10 抢救进主线的那一套） ----------
+   与小类那 24 枚同一目录、同一 24×24 视框、同一线宽，所以两者能并排出现在
+   同一块盘心上而不打架 —— 这正是"风格统一"唯一可控的实现方式（自绘、同规格）。
+
+   为什么单独一张表而不是塞进 ART_FILE：
+     ART_FILE 的键是**小类** id，`scripts/test-render.mjs` 有一条断言要求它
+     "不缺格、不多余"（与 taxonomy 的 subfamilies 一一对应）。把 6 个大类 id
+     混进去，那条断言立刻失败，而它守的东西（24 枚小类全覆盖）是对的。
+     两张表各自对应数据里的一层，互不污染。
+
+   文件名后缀 `-family` 是抢救时定下的（`citrus-family.svg` 与
+   `citrus-cologne.svg` 之类的小类文件同目录），不是这里命名的。 */
+const FAM_ART_FILE = {
+  citrus: 'citrus-family',
+  floral: 'floral-family',
+  woody: 'woody-family',
+  amber: 'amber-family',
+  fresh: 'fresh-family',
+  gourmand: 'gourmand-family',
+};
 const ART_CACHE = new Map();
 /* 已解析完成的内容单独记一份：artInner() 返回 Promise，微任务里替换图元会
    让"先画线稿、再换彩图"多出一帧 —— 实测用户能看见约 1s 的旧线稿闪现。
@@ -621,8 +641,13 @@ function artPath(subId) {
   const f = ART_FILE[subId];
   return f ? './icon-specimen/svg/' + f + '.svg' : '';
 }
-function artInner(subId) {
-  const p = artPath(subId);
+function famArtPath(famId) {
+  const f = FAM_ART_FILE[famId];
+  return f ? './icon-specimen/svg/' + f + '.svg' : '';
+}
+/* 取图与就绪判定都按**路径**做：两张表（大类 / 小类）共用一份缓存，
+   键是路径本身，所以同名冲突不可能发生，也不必写两套 fetch。 */
+function artInnerPath(p) {
   if (!p) return Promise.resolve('');
   if (!ART_CACHE.has(p)) {
     ART_CACHE.set(p, fetch(p).then((r) => (r.ok ? r.text() : '')).then((t) => {
@@ -635,6 +660,9 @@ function artInner(subId) {
     }).catch(() => ''));
   }
   return ART_CACHE.get(p);
+}
+function artInner(subId) {
+  return artInnerPath(artPath(subId));
 }
 /* ==== 24 枚标本的「启动即全量预热」已删除（性能腿，2026-11-19）====
    原先这里有一个 artWarmAll()，在模块求值时就把 24 个 SVG 全拉一遍，
@@ -660,6 +688,10 @@ function artNs(inner, ns) {
 /* 彩图已就绪就直接返回可写进 <svg> 的内部内容；没就绪返回 ''。 */
 function artSvgReady(subId) {
   const inner = ART_READY.get(artPath(subId));
+  return inner ? artNs(inner, 'a' + (++artSeq)) : '';
+}
+function famArtReady(famId) {
+  const inner = ART_READY.get(famArtPath(famId));
   return inner ? artNs(inner, 'a' + (++artSeq)) : '';
 }
 /* 避雷墙的标本小图复用同一套彩图缓存（ART_FILE 的反向：文件名 → 子家族 id）。
@@ -840,6 +872,53 @@ function familyText(fam) {
   wrap.appendChild(list);
   wrap.appendChild(el('span', { class: 'fam-text-count' }, subs.length + ' 个小类'));
   return wrap;
+}
+
+/* ---------- 盘心大类徽记（2026-11-23 方向 B，Eddie 拍板）----------
+   选中一个大类时，把**这一大类自己的图标**放到盘心；取消选择就恢复原样。
+
+   图标是哪来的：`icon-specimen/svg/<fam>-family.svg`，就是 PR #10 抢救进主线
+   的那 6 枚（`f0dafdf`），与小类那 24 枚同一目录、同一 24×24 视框、同一线宽。
+   「与扇区上用的是同一套图」这句只有对得上文件才算数，所以路径集中在
+   FAM_ART_FILE 一张表里，测试直接读它做断言，不另抄一份文件名。
+
+   ==== 为什么它是**背衬**，而不是又一个 flex 行 ====
+   盘心是圆，内容按 justify-content:center 竖排，四个断点实测：
+     1440  盘心 332.6px，内高 292.6，内容 5 行用掉 227.8 → 两侧余 52.4
+      390  盘心 225.7px，内高 185.7，内容 4 行用掉 141.7 → 两侧余 22
+      360  盘心 205.9px，内高 165.9，内容 4 行用掉 160.3 → 余 2.8，已经贴底
+      320  盘心 179.5px，内高 139.5，内容 160.3 → **已经溢出内边距**
+   也就是说 390 以下再插一行（哪怕 34px）就会把内容顶出圆外、压到中圈弧段上。
+   而本腿的围栏是「只动盘心这一处，既有元素与文案一律不动」——
+   既不能删 .fam-text 的哪一行来腾地方，也不能把盘心放大（66% 被
+   test-render 的「闭合态盘心填满内孔」守着）。
+   所以图标走绝对定位的背衬层：不占 flex 空间 → 任何断点都不会溢出，
+   也不改动任何既有元素的位置与字号。文字画在它上面（见 CSS 里那条
+   `> *:not(.hub-emblem)` 的 z-index），主词与说明的对比度不受影响。
+
+   什么时候出现：选中/预览某个大类、且还没落到小类时。
+   落到小类时盘心已经有一枚代表香材（.plate-svg），那时再叠一层徽记
+   等于两个物体抢同一个位置 —— 那一路保持原样，本腿不碰。 */
+function familyEmblem(fam) {
+  const box = svgEl('svg', {
+    class: 'emblem-svg is-art',
+    viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+  const ready = famArtReady(fam.id);
+  if (ready) box.innerHTML = ready;
+  /* 与 scentPlate 同一条按需通路：没就绪就等它到，到了再写进来。
+     迟到的图不会写到"换掉之后"的徽记上：外层 .hub-emblem 是常驻节点，
+     paint() 换族时做的是 `innerHTML = ''` —— 旧 <svg> 已经被摘下来了，
+     回调写的是一个离屏节点，不影响眼前这一枚。 */
+  if (!ready) {
+    artInnerPath(famArtPath(fam.id)).then((inner) => {
+      if (!inner) return;
+      box.innerHTML = artNs(inner, 'a' + (++artSeq));
+    });
+  }
+  return box;
 }
 
 /* ---------- 盘心空态纹样（缺陷 ③ 的另一半）----------   还没选大类时，盘心是一块空圆 + 两行小字。补一枚与盘同构的纹样：
@@ -1095,8 +1174,13 @@ function buildWheel(cfg) {
      单独一棵节点而不是塞进 hubGlyph：hubGlyph 归标本管，两者互斥，
      混用会让 paint() 里"清空标本"那一步顺手把纹样也删掉。 */
   const hubOrn = hubOrnament(families);
+  /* 大类徽记（方向 B）：绝对定位的背衬层，不占 flex 空间。
+     为什么必须是独立的一层：见 familyEmblem 上方那段 —— 390 以下盘心已经
+     贴满，任何进 flow 的一行都会顶出圆外。它同时与 hubOrn / hubGlyph 各自
+     独立，paint() 里三条清理路径互不牵连。 */
+  const hubEmblem = el('div', { class: 'hub-emblem', 'aria-hidden': 'true' });
   const hub = el('div', { class: 'disc-hub is-idle' },
-    hubOrn, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
+    hubEmblem, hubOrn, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
   root.appendChild(hub);
 
   /* ---- 液态玻璃交互层（B 段）----
@@ -1719,6 +1803,10 @@ function buildWheel(cfg) {
   /* 盘心标本当前画的是哪一个。`sub:<id>` / `fam:<id>` / `none`。
      只在这个 key 变化时重建盘心 DOM（paint 由 hover 高频调用）。 */
   let builtGlyphKey = null;
+  /* 盘心大类徽记当前画的是哪一族（方向 B）。与 builtGlyphKey 分开记：
+     两者在同一帧里会走不同的门（落到小类时徽记退场、标本上场），
+     共用一个 key 会让其中一路永远不重建。 */
+  let builtEmblemKey = null;
   /* 上一层是不是"展开"状态。只用来判断这次 paint 是不是一次换层 ——
      hover 引起的重绘每天几十次，不能每次都重播一遍进出场动画。 */
   let wasOpen = null;
@@ -1890,6 +1978,43 @@ function buildWheel(cfg) {
       if (glyph) hubGlyph.appendChild(glyph);
     }
     hub.classList.toggle('has-glyph', glyphKey !== 'none');
+
+    /* ==== 大类徽记（方向 B，2026-11-23）====
+       盘心显示"这一大类的图标"，跟随 showFam —— 与盘心主词同一个来源，
+       所以图标和文字永远讲同一件事（悬停预览「点一下换到 X」时，
+       图标也一起换成 X，不会出现"字说花香、图还是柑橘"）。
+
+       落到小类（focusSub 为真）时不出徽记：那一路盘心已经有一枚代表香材
+       （.plate-svg），再叠一层就是两个物体抢同一个圆心 —— 那是既有观感，
+       本腿的围栏是"不许借机改盘心既有元素"，所以保持原样。
+       未选中（showFam 为空）时同样不出 —— 盘心恢复空态纹样，逐位原样。
+
+       重建只在 key 变化时发生：paint() 被 hover 高频调用，每次重建会让
+       图标闪一帧（artInner 走缓存，但仍然是一次 innerHTML 写入）。
+
+       取哪一族：与盘心主词同源（`hoverFam || selFamily`），但**必须已经有
+       选中的大类**才出图。理由两条：
+         · 未选中时盘心是空态（纹样 + 「还没选」），任务书要求"不选中时盘心
+           保持原样"。空态下把指针划过扇区就让徽记浮出来，等于改了空态。
+         · 已选中之后悬停另一族，盘心主词已经在说「点一下换到 X」——
+           图标跟着换到 X，字与图才讲同一件事（否则读起来像没跟上）。 */
+    const emblemFam = (!focusSub && selFamily)
+      ? (famById.get(hoverFam || selFamily) || null) : null;
+    const emblemKey = emblemFam ? emblemFam.id : 'none';
+    if (emblemKey !== builtEmblemKey) {
+      builtEmblemKey = emblemKey;
+      hubEmblem.innerHTML = '';
+      if (emblemFam) {
+        hubEmblem.appendChild(familyEmblem(emblemFam));
+        /* data-fam 挂在常驻节点上而不是每次重建的那层：它同时是
+           CSS 的钩子与测试的读数（"盘心上现在是谁的图标"），
+           不需要去 <svg> 里翻渐变 id 才知道。 */
+        hubEmblem.setAttribute('data-fam', emblemFam.id);
+      } else {
+        hubEmblem.removeAttribute('data-fam');
+      }
+    }
+    hub.classList.toggle('has-emblem', emblemKey !== 'none');
 
     // 只选了大类时给快捷出口；已落到小项就没必要再催一次
     const canSkip = !!(selFamily && !selSub);

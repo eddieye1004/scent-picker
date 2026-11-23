@@ -944,6 +944,179 @@ ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textCon
 }
 }
 
+/* ============================================================
+   盘心大类图标（冻结前 C 腿，方向 B）
+   ------------------------------------------------------------
+   验收线三条状态，缺一条这件事就落空：
+     ① 选中 → 盘心出现该大类的图标（且是**那一族**的，不是随便一枚）
+     ② 切换 → 图标跟着换（不是渲染一次就冻住）
+     ③ 取消 → 盘心恢复原样（徽记退场、空态纹样回来、文字回到「还没选」）
+
+   为什么走真实点击而不注入 state：图标挂在 paint() 里，而 paint() 由
+   onChange / 扇区点击驱动。注入 state 就把要验的那一段绕掉了 ——
+   本仓已有的圆盘断言块（上面那一整段）也是为同一个原因写成点击驱动的。
+
+   为什么断言读 data-fam 而不是去认图形：图形是 24×24 的上色稿，
+   认清它需要像素比对；而"盘心上现在挂的是哪一族"这件事，代码里本来
+   就有一个明确的答案（.hub-emblem 的 data-fam），断言它才是断言契约。
+   图形是否**真的**画进去了，由下面那条图元数断言守（空 svg 也是 svg）。
+   ============================================================ */
+{
+  const emblemOf = () => {
+    const em = appRoot.querySelector('.hub-emblem');
+    if (!em) return null;
+    const svgs = em.querySelectorAll('svg');
+    /* 渐变 id 只能走子节点读，不能读 innerHTML：桩的 innerHTML getter 返回的是
+       文本内容（标签被剥掉），在这里读会永远拿到空串 —— 那会变成一条
+       永远失败的假断言。桩缺能力就换一条真能读的路径。 */
+    const gradIds = [];
+    const walk = (n) => {
+      if (!n || typeof n === 'string') return;
+      const id = n.getAttribute && n.getAttribute('id');
+      if (id) gradIds.push(id);
+      (n.children || []).forEach(walk);
+    };
+    if (svgs[0]) walk(svgs[0]);
+    return {
+      fam: em.getAttribute('data-fam'),
+      svgCount: svgs.length,
+      shapes: svgs[0] ? svgs[0].querySelectorAll('path').length
+        + svgs[0].querySelectorAll('circle').length
+        + svgs[0].querySelectorAll('ellipse').length : 0,
+      viewBox: svgs[0] ? svgs[0].getAttribute('viewBox') : null,
+      gradientIds: gradIds,
+      wrap: em,
+    };
+  };
+
+  /* ① 选中 → 出现对应图标。此刻盘心已落到小类（上一段最后一步），
+     徽记应当退场 —— 那一路盘心有自己的标本，两者互斥。 */
+  const atSub = emblemOf();
+  const hubAtSub = appRoot.querySelector('.disc-hub');
+  ok('落到小类时盘心不出大类徽记（让位给标本）',
+    atSub && atSub.fam === null && atSub.svgCount === 0,
+    `data-fam=${atSub && atSub.fam} svg=${atSub && atSub.svgCount}`);
+  ok('落到小类时盘心不挂 has-emblem', !!hubAtSub && !hubAtSub.classList.contains('has-emblem'),
+    hubAtSub && hubAtSub.className);
+
+  /* 回到「只选大类」：点返回清空，再点第一个扇区。 */
+  appRoot.querySelector('.wheel-back').dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+
+  /* ③ 取消 → 恢复原样。此处是最干净的一次"未选中"，先验它。 */
+  {
+    const em = emblemOf();
+    const hub = appRoot.querySelector('.disc-hub');
+    const orn = appRoot.querySelector('.hub-orn');
+    ok('取消选择后盘心徽记退场', !!em && em.fam === null && em.svgCount === 0,
+      `data-fam=${em && em.fam} svg=${em && em.svgCount}`);
+    ok('取消选择后盘心不挂 has-emblem', !!hub && !hub.classList.contains('has-emblem'),
+      hub && hub.className);
+    ok('取消选择后空态纹样回来（原样，不是新的东西）', !!orn,
+      orn ? orn.className : 'no .hub-orn');
+    ok('取消选择后盘心回到「还没选」', appRoot.querySelector('.hub-zh').textContent === '还没选',
+      appRoot.querySelector('.hub-zh').textContent);
+    ok('取消选择后盘心没有留下任何标本/徽记图形',
+      appRoot.querySelectorAll('.hub-glyph svg').length === 0
+        && appRoot.querySelectorAll('.hub-emblem svg').length === 0,
+      `glyph=${appRoot.querySelectorAll('.hub-glyph svg').length} emblem=${appRoot.querySelectorAll('.hub-emblem svg').length}`);
+  }
+
+  /* ① 选中第一个大类 → 盘心出现那一族的图标。 */
+  const famIdOfSector = (g) => g.getAttribute('data-fam');
+  const firstSector = appRoot.querySelectorAll('.sector-g')[0];
+  const firstFam = famIdOfSector(firstSector);
+  firstSector.dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+  const sel1 = emblemOf();
+  const hubSel1 = appRoot.querySelector('.disc-hub');
+  ok('选中大类后盘心出现该类图标', !!sel1 && sel1.fam === firstFam && sel1.svgCount === 1,
+    `期望 ${firstFam}，实际 ${sel1 && sel1.fam}／svg ${sel1 && sel1.svgCount}`);
+  ok('盘心图标是那一族的那一枚（不是任何一枚）', !!sel1 && sel1.fam === firstFam,
+    `data-fam=${sel1 && sel1.fam}`);
+  ok('盘心图标挂上 has-emblem', !!hubSel1 && hubSel1.classList.contains('has-emblem'),
+    hubSel1 && hubSel1.className);
+  /* 空 svg 也是 svg：图元数为 0 就等于"画了个空白"，必须抓住。 */
+  ok('盘心图标里真画了几何', !!sel1 && sel1.shapes >= 6, `图元数 ${sel1 && sel1.shapes}`);
+  ok('盘心图标是 24×24 同一视框（与小类那 24 枚同规格）',
+    !!sel1 && sel1.viewBox === '0 0 24 24', sel1 && sel1.viewBox);
+  /* 渐变 id 必须带实例后缀：两枚图标同时进 DOM 时，第二枚会引用第一枚的 defs。
+     这一条守的是 artNs() 那条重写，盘心与避雷卡共用同一个缓存。 */
+  ok('盘心图标的渐变 id 带实例后缀（多实例不串 defs）',
+    !!sel1 && sel1.gradientIds.length > 0 && sel1.gradientIds.every((s) => /-a\d+$/.test(s)),
+    sel1 && sel1.gradientIds.slice(0, 3).join(' '));
+
+  /* ② 切换 → 图标跟着换。点第四个大类（与第一个不同族）。 */
+  const fourthSector = appRoot.querySelectorAll('.sector-g')[3];
+  const fourthFam = famIdOfSector(fourthSector);
+  fourthSector.dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+  const sel2 = emblemOf();
+  ok('切换大类后盘心图标跟着换', !!sel2 && sel2.fam === fourthFam && sel2.fam !== firstFam,
+    `${firstFam} → ${sel2 && sel2.fam}（期望 ${fourthFam}）`);
+  ok('切换后仍是恰好一枚图标（没有叠图）', !!sel2 && sel2.svgCount === 1,
+    `svg ${sel2 && sel2.svgCount}`);
+  ok('切换后图标里仍真画了几何', !!sel2 && sel2.shapes >= 6, `图元数 ${sel2 && sel2.shapes}`);
+
+  /* 每一族都要有徽记资产：渲染不出图时用户看到的是"选了没反应"。
+     这条读的是 app.js 里的 FAM_ART_FILE 表 + 磁盘上的文件，不另抄一份清单。 */
+  {
+    const appSrc2 = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+    const s0 = appSrc2.indexOf('const FAM_ART_FILE = {');
+    let depth = 0; let e0 = -1;
+    for (let i = appSrc2.indexOf('{', s0); i < appSrc2.length; i += 1) {
+      if (appSrc2[i] === '{') depth += 1;
+      else if (appSrc2[i] === '}') { depth -= 1; if (depth === 0) { e0 = i + 1; break; } }
+    }
+    ok('能从 app.js 里切出 FAM_ART_FILE 块', s0 > 0 && e0 > s0);
+    const FAMS = new Function(appSrc2.slice(s0, e0) + '; return FAM_ART_FILE;')();
+    const taxa2 = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'taxonomy.json'), 'utf8'));
+    const famIds = taxa2.families.map((f) => f.id);
+    const missingMap = famIds.filter((id) => typeof FAMS[id] !== 'string');
+    ok('六个大类都有图标映射（不缺格）', missingMap.length === 0, missingMap.join(','));
+    const extraMap = Object.keys(FAMS).filter((k) => !famIds.includes(k));
+    ok('没有多余的大类图标映射', extraMap.length === 0, extraMap.join(','));
+    const goneFiles = Object.values(FAMS)
+      .filter((f) => !fs.existsSync(path.join(ROOT, 'icon-specimen', 'svg', f + '.svg')));
+    ok('映射到的 6 枚大类 SVG 都在磁盘上', goneFiles.length === 0, goneFiles.join(','));
+    /* 与扇区上"同一套图"这句话要能核：文件里自带的 title 必须等于那一族的中文名。
+       逐字节比 title 而不是比文件名 —— 文件名是搬运动作定的，title 是画的时候写的。 */
+    const titleMismatch = famIds.filter((id) => {
+      const p = path.join(ROOT, 'icon-specimen', 'svg', (FAMS[id] || '') + '.svg');
+      if (!fs.existsSync(p)) return true;
+      const t = fs.readFileSync(p, 'utf8');
+      const title = (t.match(/<title>([^<]*)<\/title>/) || [])[1] || '';
+      const fam = taxa2.families.find((x) => x.id === id);
+      return title !== (fam && fam.zh);
+    });
+    ok('6 枚大类 SVG 的 title 与 taxonomy 的族名逐字相同', titleMismatch.length === 0,
+      titleMismatch.join(','));
+    /* 大类图不能是空壳：与小类那 24 枚同一档门槛（>= 6 个图元、带渐变）。 */
+    const thinFam = [];
+    const noGradFam = [];
+    for (const id of famIds) {
+      const p = path.join(ROOT, 'icon-specimen', 'svg', (FAMS[id] || '') + '.svg');
+      if (!fs.existsSync(p)) continue;
+      const t = fs.readFileSync(p, 'utf8');
+      const shapes = (t.match(/<(path|circle|ellipse|rect|polygon)\b/g) || []).length;
+      if (shapes < 6) thinFam.push(`${id}:${shapes}`);
+      if (!/url\(#/.test(t)) noGradFam.push(id);
+    }
+    ok('每枚大类 SVG 的图元数都够（>= 6）', thinFam.length === 0, thinFam.join(','));
+    ok('每枚大类 SVG 都带渐变（不是单色块）', noGradFam.length === 0, noGradFam.join(','));
+  }
+
+  /* 把状态还原成「有大类 + 有小类」：后面的流程断言要靠它继续往下走。
+     必须**先点回第 1 个扇区**再点小类 —— 上面切换留在了第 4 族，直接点小类
+     会让家族停在第 4 族，而下游的季节屏断言假设的是 citrus（见 1486 行）。
+     这条不是可有可无的收尾：漏了它，四条季节断言会连着红，而红的原因
+     与季节文案毫无关系（第一版就踩了这一下）。 */
+  appRoot.querySelectorAll('.sector-g')[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 500));
+  appRoot.querySelectorAll('.disc-sector.lvl2')[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 400));
+}
+
 /* ==== 圆盘 → 底噪的接线（v7 第 1 步的增量，不是取回的那块）====
    取自回那一块之后，圆盘上已经选了「柑橘调 + 古龙水型」（见上面「把状态还原成…」）。
    这里验三件事，每件都能否定一种"看起来接上了"的假实现：
