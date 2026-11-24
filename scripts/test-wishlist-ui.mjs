@@ -263,8 +263,15 @@ console.log('\n===== ⑦ 接线守卫：app.js 真的接到了它们 =====');
     /document\.body\.appendChild\(WISH_BAR\)/.test(app));
   ok('提示条带 role=status + aria-live=polite（读屏播报不打断）',
     /'aria-live': 'polite'/.test(app) && /role: 'status'/.test(app));
-  ok('提示自动消失（setTimeout 里 setAttribute hidden）',
-    /setTimeout\(\(\) => \{[\s\S]{0,160}setAttribute\('hidden', ''\)/.test(app));
+  /* 断言原来钉的是实现形状：`setTimeout(() => { … setAttribute('hidden','') })`
+     必须字面相邻。2026-11-24 追加项 4 把三套互相清除的定时器收成一套
+     （WISH_BAR_TIMER + hideWishBar / scheduleWishBarHide），
+     收条的语句从各自的闭包里搬进了 hideWishBar —— 形状变了，行为没变。
+     这里改成钉「行为链」：到点调 hideWishBar，hideWishBar 负责置 hidden。
+     两条都成立才算过，断言强度不低于原版（原版连 scheduleWishBarHide 都不查）。 */
+  ok('提示自动消失（计时器到点调 hideWishBar，由它置 hidden）',
+    /setTimeout\(hideWishBar/.test(app)
+    && /function hideWishBar\(\) \{[\s\S]{0,240}setAttribute\('hidden', ''\)/.test(app));
 
   /* 心形是 SVG 而不是 ♡ 字符：390 下字形大小由系统字体决定，不可控 */
   ok('心形用内联 SVG（空心/实心只差 fill）',
