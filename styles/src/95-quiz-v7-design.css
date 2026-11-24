@@ -446,7 +446,7 @@
    谁的 display 更强，谁就负责把 hidden 压回去。 */
 #app[data-step="family"] .wheel .hub-go[hidden],
 #app[data-step="family"] .wheel .hub-skip[hidden],
-#app[data-step="family"] .wheel .wheel-back[hidden] {
+#app[data-step="family"] .stage-top .wheel-back[hidden] {
   display: none;
 }
 
@@ -550,23 +550,36 @@
 }
 
 /* ============================================================
-   Block 9 · 返回胶囊钉进标本盘（缺陷 ⑧下半）
+   Block 9 · 返回胶囊进页顶流（2026-11-24 裁决 A）
    ------------------------------------------------------------
-   以前 `left: 0; top: 0` —— 落在盘的**外接方框**左上角，而盘是圆的，
-   那个角在盘外 84px 的空白里，读起来是"漂在页面上的一颗按钮"。
-   现在坐标由 app.js 按盘沿算出（--bl/--bt，218° 半径 236 = 盘口线上），
-   胶囊以盘口线为中心压上去，底色用 --spec-plate 把那条线"打断" ——
-   它就成了别在盘沿上的一枚签，而不是浮在旁边的一颗按钮。
+   这一枚原来是"别在盘沿上的一枚签"：坐标由 app.js 按盘沿算出
+   （--bl/--bt，218°、半径 1.00R），底色用 --spec-plate 把盘口线打断。
+   中圈 24 枚标签胶囊化（a356237）之后，那个位置在展开态压住 −120°
+   的标签 36–46%，而盘上再无第二个落点能同时避开六个大类的标签
+   （盘沿外是页边留白，盘沿内是标签环，挪 1–2° 就压到隔壁的「美食调」）。
+   所以按 Eddie 2026-11-24 01:48 的裁决 A：胶囊出盘，进页面顶部的内容流。
+
+   落点：.stage-top —— 由 app.js 建、作为 .stage-lead 的第一个孩子，
+   与步骤指示（第 1 步 · 先闻方向）同一列、内容列左对齐。
+   显隐规则（仅展开态出现）与点击行为（收起当前大类）一个字没改。
+
+   为什么独立一行、不塞进 kicker那一行：
+   塞进同一行会把「第 1 步 / 共 8 步」整体右移半个胶囊 —— 那是挪了
+   步骤指示，不是给它旁边加了个东西。独立一行只多 44px 高，指示不动。
+
+   为什么行不带外边距、间距挂在胶囊上：
+   未选大类时胶囊 hidden，行必须是 0 高 0 边距，否则 idle 版面
+   会凭空多出一条 8px 的缝 —— "idle 版面无变化"是这一轮的验收项。
    ============================================================ */
-#app[data-step="family"] .wheel .wheel-back {
-  /* 落点在盘口线上，不是在外接方框的圆周上：JS 的 --bl/--bt 给的是
-     1.00 倍**控件盒**半径（桌面 504 盒 → 252px），而盘口线（ring-thin，
-     SVG r=236 / viewBox 240）在 0.983 倍处（247.8px）。差的那 4px 让
-     胶囊整体偏向盘外、只有一角压线，读起来仍是"漂在盘外的一枚按钮"
-     （2026-11-24 布局残留 ②）。这里把两档落点都校正到以盘口线为中心。 */
-  left: calc(var(--bl, 11%) + 0.51%);
-  top: calc(var(--bt, 20%) + 0.66%);
-  transform: translate(-50%, -50%);
+#app[data-step="family"] .stage-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 0;
+}
+#app[data-step="family"] .stage-top .wheel-back {
+  /* 只留"离开步骤指示 8px"这一条间距；它随胶囊一起消失。 */
+  margin: 0 0 8px;
   background: var(--spec-plate);
   /* 边框用 --stroke-ui 而不是 --spec-rim：这枚胶囊的底（#FFFCF6）与页面
      纸底（#FAF7F1）只差 1.9%，**边框就是它的全部边界** —— 按 WCAG 1.4.11
@@ -577,27 +590,21 @@
   color: var(--spec-ink);
   box-shadow: 0 6px 16px -12px var(--spec-sh);
 }
-#app[data-step="family"] .wheel .wheel-back:hover {
+#app[data-step="family"] .stage-top .wheel-back:hover {
   background: var(--spec-plate-2);
   border-color: var(--spec-ink);
 }
-#app[data-step="family"] .wheel .wheel-back:active {
-  transform: translate(-50%, -50%) scale(.97);
+#app[data-step="family"] .stage-top .wheel-back:active {
+  transform: translateY(1px);
   background: var(--spec-tint-on);
 }
-/* 窄屏：盘只有 312–342px，胶囊 118×44 贴在同一个角度会压到标签。
-   落点仍由 JS 给（--bl/--bt 桌面 / --bl-n/--bt-n 窄屏），换的是半径。
-   2026-11-24 布局残留 ②：JS 窄屏给的是 1.07 倍控件盒半径，盘口线在
-   0.983 倍 —— 胶囊 85% 的面积落在盘外，只剩内沿擦线。校正后中心落在
-   盘口线外约 0.02R：既让盘口带从胶囊中部穿过（"别在盘沿上"读得出来），
-   又给 0.83R 处的「皮革」标签留出安全距离（窄屏胶囊半高 0.129R，
-   内沿 0.89R，标签外沿实测 0.87R）。 */
+/* 窄屏：它现在在常规流里，没有"贴不贴盘沿"的问题了 ——
+   这一档只保留字号/内边距，并且把边界色再写一次。 */
 @media (max-width: 620px) {
-  #app[data-step="family"] .wheel .wheel-back {
+  #app[data-step="family"] .stage-top .wheel-back {
     padding: 0 12px;
     font-size: 12px;
-    left: calc(var(--bl-n, 14%) + 2.32%);
-    top: calc(var(--bt-n, 24%) + 2.96%);
+    margin-bottom: 6px;
     /* 边界色要在这里再写一次：这是层叠里**最后**一条 .wheel-back 规则，
        窄屏最终生效的 border-color 就是它。test-contrast 逐规则核对
        "1px 边、无填充的控件必须用 --stroke-ui"，读的也是这一条 ——
@@ -620,7 +627,7 @@
    ============================================================ */
 #app[data-step="family"] .actions .btn,
 #app[data-step="family"] .wheel .hub-go,
-#app[data-step="family"] .wheel .wheel-back {
+#app[data-step="family"] .stage-top .wheel-back {
   appearance: none;
   display: inline-flex;
   align-items: center;
@@ -709,7 +716,7 @@
 #app[data-step="family"] .actions .btn:focus-visible,
 #app[data-step="family"] .wheel .hub-go:focus-visible,
 #app[data-step="family"] .wheel .hub-skip:focus-visible,
-#app[data-step="family"] .wheel .wheel-back:focus-visible,
+#app[data-step="family"] .stage-top .wheel-back:focus-visible,
 #app[data-step="family"] .wheel .disc-sector:focus-visible {
   outline: 2px solid var(--spec-ink);
   outline-offset: 3px;
@@ -1030,3 +1037,90 @@
   }
 }
 
+
+/* ============================================================
+   Block 14 · 中圈标签胶囊化（direct-r11，2026-11-24）
+   ------------------------------------------------------------
+   第一屏定调批准的是「胶囊 + 圆形」：返回、盘心出口、步骤条、编号
+   都已经穿胶囊，唯独中圈 24 枚标签还是裸字。裸字读不全有两处原因，
+   都在运行时量出来，不是看代码猜的：
+     ① 10-foundation.css:1314 给 `.lvl2 .zh` 上了 `-webkit-line-clamp: 2`
+        + `overflow: hidden`，四字一行放不下就被自己的盒子切掉半截；
+     ② 盘心在 Block 3 涨到 66% 直径（1440 档半径 166.3px、390 档 112.9px），
+        标签落点 135 单位 × 1.43 之后内沿压进盘心圆，盘心 `z-index: 3`
+        盖在标签层之上 —— 于是「只露半截」。
+   本块只补排版与胶囊底，弧带、图标、盘心、交互一律不动。
+
+   胶囊画在 `.zh` 上而不是按钮上：按钮盒要留着当 44px 触控区
+   （test-render 守着 `min-height: 44px` 与 `::before` 透明垫），
+   给它上底会把一整块 44×64 的方块糊在瓦片上。
+   `display` 从 flex 改回块级：全局 `box-sizing: border-box`，
+   flex 项又不肯缩到 min-content 以下，`max-width` 会只卡住盒子、
+   文字整行溢出胶囊外（实测 1440 档墨迹 52px、盒子 31px）。
+
+   尺寸账（1440 档，盘 504px，落点 138 单位 × 1.05 × 1.43 = 207.2px，
+   盘心半径 166.3px，盘口线 243.6px，盘沿 252px）：
+     13px 汉字字宽实测 1em（每字 13.1px），四字单行 52px 必压盘心，
+     所以 `max-width: 2.9em`（37.7px 盒子）一行只放两字：四字 2×2、三字 2+1。
+     两行胶囊 53.9×41.9px、单行 51.5×22.4px。
+     实测 24 枚最小净空 +7.1px（「纯柑橘」「香根草」），墨迹最小 +12.9px；
+     最外一枚距盘口线还差 2.5px，全部在盘内，胶囊互叠 0。
+   窄屏（390 档，盘 342px，落点 138 × 0.7125 × 1.43 = 140.6px，
+   盘心半径 112.9px，盘沿 171px → 环带只有 58.1px）：
+     胶囊不放大不成立：12px 两行的布局盒 36×27.2px，被环带的 1.43
+     放大成 51.5×38.9px，对角 64px > 58.1px，怎么调内边距都塞不下。
+     于是给 `.zh` 自己 `scale(.72)`（≈ 1/1.43 × 1.03）反放大一档，
+     落点半径、按钮触控盒、弧带都不跟着变。
+     实测两行 37.1×28px、单行 35×15px；最小净空 +4.8px、墨迹最小 +9.1px；
+     最外一枚距盘沿还差 7.4px，胶囊互叠 0。
+   ============================================================ */
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+  display: inline-block;
+  overflow: visible;
+  padding: 0 4px;
+  max-width: 2.9em;
+  text-align: center;
+  border: 1px solid var(--spec-hair);
+  border-radius: 999px;
+  background: var(--spec-plate);
+  box-shadow: 0 1px 3px -1px var(--spec-sh);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: 0;
+  white-space: normal;
+  word-break: break-all;
+  color: var(--spec-ink);
+  transition: background-color 200ms var(--ease-std), border-color 200ms var(--ease-std),
+              color 200ms var(--ease-std);
+}
+/* 悬停/键盘聚焦：胶囊提亮一档、描边加深一档，字色不动 ——
+   与瓦片的 hot 态同一瞬间，不额外引入第三种反馈。 */
+#app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn:hover .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-hot .zh {
+  background: var(--spec-tint-hot);
+  border-color: var(--spec-rim);
+}
+/* 确认：胶囊转暖墨（与盘心主按钮同一支），白字 12.4:1。
+   选中不再靠"蓝瓦 + 浅字"表达，蓝瓦仍在，胶囊同时定色。 */
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-on .zh {
+  background: var(--spec-pill);
+  border-color: var(--spec-pill);
+  color: var(--spec-pill-ink);
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn:focus-visible .zh {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+@media (max-width: 620px) {
+  /* 窄屏环带只有 58.1px（盘心边 112.9 → 盘沿 171），放大后的两行胶囊对角 64px
+     塞不下，所以 `.zh` 自己 scale(.72) 反放大一档；账见本块开头。
+     字号 12px 是 test-contrast 的地板，不再往下。 */
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+    padding: 0 4px;
+    max-width: 3em;
+    font-size: 12px;
+    line-height: 1.05;
+    transform: scale(.72);
+  }
+}

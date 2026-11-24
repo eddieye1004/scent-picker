@@ -475,10 +475,14 @@ const screenOf = (id) => `第 ${stepNoOf(id)} 屏`;
      这些测的都是"用户能不能用"，不是"某段颜色对不对" ——
      前几轮漏掉的缺陷（返回入口没有、缩小盘点不动、图标常态没有）
      全都不在视觉参数上，而在交互路径上。 */
-  /* ② 返回入口：44px 触控下限 + 三个状态都要有 */
-  ok('返回入口是 44px 触屏尺寸', /\.wheel \.wheel-back \{[^}]*?min-height:\s*44px/.test(css));
-  ok('返回入口有按下态', /\.wheel \.wheel-back:active \{[^}]*?translateY\(1px\)/.test(css));
-  ok('返回入口能真正隐藏', /\.wheel \.wheel-back\[hidden\] \{ display: none; \}/.test(css),
+  /* ② 返回入口：44px 触控下限 + 三个状态都要有
+     2026-11-24（裁决 A）：这枚胶囊从 `.wheel` 里搬进页顶流 `.stage-top`，
+     所以三条断言的选择器跟着从 `.wheel .wheel-back` 放宽到 `.wheel-back` ——
+     断言的东西没变（44px / translateY(1px) / [hidden] 压回 display:none），
+     只是不再把"它在圆盘盒里"这件事当成前提。 */
+  ok('返回入口是 44px 触屏尺寸', /\.wheel-back \{[^}]*?min-height:\s*44px/.test(css));
+  ok('返回入口有按下态', /\.wheel-back:active \{[^}]*?translateY\(1px\)/.test(css));
+  ok('返回入口能真正隐藏', /\.wheel-back\[hidden\] \{ display: none; \}/.test(css),
     '[hidden] 的 UA display:none 会被作者的 display 顶掉，必须显式压回');
 
   /* ③ 缩小盘可点的前提：中圈那层不能再吃事件 */
