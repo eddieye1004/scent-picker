@@ -550,6 +550,11 @@
   /* 光带本体：色相由 --band-temp 插值。冷 #dbe7ef → 热 #efd3ad。
      两个端点都过对比度核算（它们只做背景，不承载文字）。 */
   --band-temp: 0;
+  /* 两端安全区（2026-11-24 复查反馈第 5 条）。这里是**兜底值**：
+     app.js 在 renderSeason 里用同名的 STOP_INSET 写一个内联值进来，
+     落点与光斑因此共用一个映射。写死在这儿只是防"JS 没跑到"时
+     光斑退回中心，而不是飞到带外。 */
+  --stop-inset: 8%;
   background: linear-gradient(90deg, #dbe7ef 0%, #e9e6dc 50%, #efd3ad 100%);
   border: 1px solid var(--stroke-ui);
   overflow: hidden;
@@ -557,13 +562,24 @@
 }
 
 /* 光带上的温度光：一团跟着选中档移动的暖光，位置由选中档的 temp 决定。
-   它让"温度"成为一个连续量而不是四个开关量。 */
+   它让"温度"成为一个连续量而不是四个开关量。
+
+   位置公式（2026-11-24 复查反馈第 5 条修的就是这一行）：
+   光斑中心 = 内缩后的温度映射 = --stop-inset + (t+1)/2 × (100% − 2×内缩)
+   与 app.js 的 stopPos() 逐字同构；`− 17%` 是半个光斑宽（34% / 2）。
+   改前用 `var(--band-temp) * 50% + 33% − 17%`：把温度当成铺满 0–100%，
+   而落点其实收进了 8% 安全区 —— 四季逐个偏 59–163px，点「春」时
+   光斑正落在冬与春之间（Eddie 报的"错位半格"）。
+   两条公式从此只有一个在算：内缩量由 JS 注入，这里只读。 */
 .temp-band .temp-glow {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 34%;
-  left: calc(var(--band-temp) * 50% + 33% - 17%);
+  left: calc(
+    (var(--stop-inset) + (var(--band-temp) + 1) / 2 * (100% - 2 * var(--stop-inset)))
+    - 17%
+  );
   background: radial-gradient(circle at 50% 50%,
     rgba(255, 255, 255, .9), rgba(255, 248, 236, .35) 46%, transparent 72%);
   transition: left .4s var(--ease, ease);

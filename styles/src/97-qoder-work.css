@@ -181,3 +181,143 @@
     align-self: flex-start;
   }
 }
+
+/* ============================================================
+   结果页吸底操作条（2026-11-24 复查反馈第 6 条）
+   ------------------------------------------------------------
+   缺陷：三个出路（心仪清单 / 换一批 / 改一题重选）排在结果页最末，
+   1440×900 实测 心仪清单 top 2567、换一批 top 2647，而视口只有 900 ——
+   要滚 2 个多屏才够得着。Eddie 要求"移到首屏可达位置"。
+
+   做法：不动视觉语言，把这三件事收进一条 **吸底** 的操作条
+   （`.result-dock`），纸底 + 一条上边线 + 一道向上的柔影 ——
+   与 60-motion.css 里问卷各屏吸底的 `.actions` 同一套写法，
+   只是这一条常驻（结果页没有"下一步"，用户随时可能想换一批）。
+
+   为什么不沿用 60-motion 那段"结果页取消吸底"（§九）：
+   那一条的理由是"结果页 .actions 只有「重新来一次」一个按钮，
+   滑到底自然会看到"—— 现在条里有三个操作，前提变了。
+   但那条的**教训**保留：吸底条不许永久压住内容。所以：
+     · `#app[data-step="result"]` 底部留出 96px（条高 72 + 24 呼吸），
+       任何内容都能滚到条上方（`_overlay.stuck` 为空是验收判据）；
+     · 条内层沿用 `.actions`（flex + 10px gap），不新造布局体系。
+   ============================================================ */
+#app[data-step="result"] {
+  /* 条高实测 92px（12 + 16 提示行 + 6 + 44 + 12）/ 390 档 64px。
+     112 留出 20px 呼吸，且大于安全区 —— 任何内容（含页脚那条链接）
+     都能滚到条上方（验收判据：`_overlay.stuck` 为空）。 */
+  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+}
+
+.result-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  /* 纸底必须实心：半透明会让滚动中的卡片从缝里穿过去（60-motion 同一条）。 */
+  background: var(--bg);
+  border-top: 1px solid var(--ink);
+  box-shadow: 0 -12px 18px -16px rgba(0, 26, 94, .28);
+  padding: 12px clamp(16px, 4.5vw, 24px) calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+/* 条内层与正文同宽同起点（正文列 1440 下 656 / 390 下 342）——
+   吸底条是视口宽，内容必须自己居中，否则按钮会贴到浏览器边上。
+   **选择器必须带 #app[data-step="result"] 前缀**：60-motion.css 里
+   `#app[data-step="result"] .actions { padding: 20px 0 0 }`（取消吸底那条）
+   特异度是 (1,1,0)，光写 `.result-dock .actions` (0,2,0) 压不住它 ——
+   实测会多出 20px，条高 122 而不是 90。 */
+#app[data-step="result"] .result-dock .actions {
+  margin: 0;
+  padding: 0;
+  border-top: 0;
+  max-width: 656px;
+  margin-left: auto;
+  margin-right: auto;
+  /* 覆盖 30-wheel-refine 的窄屏三列 grid：那套是"上一题 / 提示 / 下一步"，
+     这里的成员是"心仪清单 / 换一批 / 改一题"，排法不同（见下）。 */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 三个操作同一行，心仪清单靠左、两个按钮靠右。
+   条里**不放大**按钮：.btn 默认 14px 上下内边距 + 16px 字 → 51px 高，
+   条会到 75px；这里压成 44px（项目触控下限，test-contrast 守着），
+   条高落在 68px（12 + 44 + 12），1440/390 都不挡住内容。 */
+.result-dock .qw-history-wish {
+  margin: 0;
+  padding: 0;
+  border-top: 0;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+/* 入口自带的那句 hint（"存过的瓶子都在这里…"）在条里不出现：
+   它 300px 宽，是唯一会把条顶成两行的东西；同一句话在结果页正文里
+   仍是可读的（L3 那一段的说明没有删）。 */
+.result-dock .qw-history-wish .hint {
+  display: none;
+}
+
+.result-dock .btn {
+  min-height: 44px;
+  padding: 0 18px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* 条里的提示句：**单独占一行、排在按钮上面**。
+   放进同一行放不下（656px 内容列里 163 + 99 + 109 + 提示 ≈ 711px，
+   实测会把条顶成两行 119px 高），而这句话解释的正是这两个按钮的区别，
+   不该删 —— 折成一行 16px 比删掉更便宜。 */
+.result-dock .hint {
+  flex: 1 1 100%;
+  order: -1;
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-3);
+}
+
+.result-dock .spacer {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 620px) {
+  .result-dock {
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .result-dock .hint,
+  .result-dock .spacer {
+    display: none;
+  }
+
+  .result-dock .actions {
+    justify-content: space-between;
+  }
+
+  /* 390 档内容宽 342 − 32 内边距 = 310px，三个操作放不下（实测 371 + 20 gap，
+     会折成两行、条高 119px，超过正文留的 112px）。
+     收窄的办法只动"这件东西在这个宽度下可以少说一半"的部分：
+       · 入口尾巴「打开 →」在 390 上省掉（整颗胶囊本身就是可点的，语义没丢）；
+       · 三个控件统一 13px / 14px 内边距。
+     不缩字号下限以下的字（12px 是项目地板），也不减触控高度（44px 是下限）。 */
+  .result-dock .qw-wl-entry {
+    padding: 0 12px;
+    font-size: 13px;
+    gap: 6px;
+  }
+
+  .result-dock .qw-wl-entry-go {
+    display: none;
+  }
+
+  .result-dock .btn {
+    padding: 0 14px;
+    font-size: 13px;
+  }
+}
