@@ -817,6 +817,59 @@
   transform: scale(.97);
 }
 
+/* ============================================================
+   深色档修正（2026-11-24 复查追加项 5 / 6）
+   ------------------------------------------------------------
+   病灶同源：本层有两个 token 只在顶层 :root 写了一档，没有深色版 ——
+
+     · --spec-ink  #2A2620（暖墨）
+     · --spec-plate / --spec-plate-2 / --spec-rim（纸底与盘口）
+
+   于是深色下「深字压深底 / 纸白胶囊压在暗页上」。实测（390×844，
+   prefers-color-scheme: dark，probe-disc.mjs 取计算样式后算 WCAG）：
+
+     外圈大类名 .disc-sector.lvl1 .zh  #2A2620 on 扇区暗渐变 → **1.19 : 1**
+       （同屏小字注脚 .notes 走的是 --ink-3，5.82 : 1 —— 所以"小字反而可读"）
+     浅色同一对：11.64–13.08 : 1（六族色相实测）
+     .hub-skip 深色底 **#FFFCF6 纸白**，字 #2A2620 —— 全站唯一一块不随主题翻的面
+
+   为什么改这里而不是改 token 本身：--spec-ink 同时给盘心主词、中圈标签、
+   进度条与发丝线用，--spec-plate 还铺在瓦片与盘面上。翻 token 会连带改
+   第 1 屏圆盘的深色观感（这一轮的围栏是"不动盘面结构、字号、布局"），
+   所以按 98-avoid-wall.css 的既有做法单点钩住这两处，只动颜色：
+
+     ① 大类名回 --ink（深色 #F2F2F2）—— 与浅色同级可读（实测见回执）；
+     ② .hub-skip 回次操作胶囊的通用深色语法（与 .btn.ghost 同一对变量：
+        透明底 + --ink 字 + --edge 边），不再自带一块纸白。
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .zh,
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-on .zh {
+    color: var(--ink);
+  }
+  /* 选中态那条发丝线原来跟着 --spec-ink 走（深色下与底同色，等于没有）。 */
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-on .notes::before {
+    background: var(--ink);
+  }
+
+  /* 透明底是错的，实测 1.10 : 1 —— 这颗胶囊的父级 .disc-hub 是盘心，
+     盘心走 --spec-plate（#FFFCF6 纸白，深色下**不翻**，这是"盘面纸纹保留"
+     的一部分）。透明底 = 让浅色字直接压在纸白盘心上，等于没改。
+     深色胶囊必须自带一块暗面：--bg-2（#2a2a2a，主题里定义为"盘心浮起件"）
+     当底、--ink 当字 → 12.2 : 1；--edge 描边对纸白盘心 3.5 : 1，边界看得见。 */
+  #app[data-step="family"] .wheel .hub-skip {
+    color: var(--ink);
+    background: var(--bg-2);
+    border: 1px solid var(--edge);
+  }
+  #app[data-step="family"] .wheel .hub-skip:hover {
+    color: var(--ink);
+    background: var(--bg-3);
+    border-color: var(--ink);
+  }
+}
+
 /* 禁用：纸底 + 虚线盘口。它不是"浅米色一块"，也不假装可点。 */
 #app[data-step="family"] .actions .btn:disabled {
   color: var(--ink-3);

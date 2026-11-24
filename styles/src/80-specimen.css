@@ -20,7 +20,8 @@
    与 test-render 的既有断言追到。
 
    ==== 色板（全部实算过对比度，见 docs/UI-DIRECTION-A-20261110.md）====
-   --bg      #FAF7F1  暖米白（不是纯白：纯白在标本语境里太"屏幕"）
+   --bg      #FBF9F4  近白暖调（2026-11-24 Eddie 裁决：页底从微纸黄提亮到暖白，
+                       不要死白/冷白 —— 这是全站页面底色，圆盘盘面仍走 --bg-3 的纸纹）
    --bg-2    #F2EDE4  卡面/悬停
    --bg-3    #E7E0D4  进度底/禁用
    --ink     #14120E  17.49 : 1
@@ -35,7 +36,11 @@
 
 :root {
   /* ---- 纸面 ---- */
-  --bg: #FAF7F1;
+  /* 页底一处生效：全站页面背景只读这一个 token（body / .app 都不再各自写色）。
+     #FAF7F1 → #FBF9F4 是"近白暖调"：R-B 差 7 保留暖偏（不是冷白），
+     对纯白 #FFFFFF 只差 ΔRGB(4,6,11)，白底产品图落上去不显方块。
+     圆盘盘面（--bg-3 纸纹）与卡面（--bg-2）不动。 */
+  --bg: #FBF9F4;
   --bg-2: #F2EDE4;
   --bg-3: #E7E0D4;
   --line: #DED6C8;
@@ -82,17 +87,14 @@
   --warn: #8A5A00;
   --danger: #A4262C;
 
-  /* ---- 字体：显示层用衬线，正文保持无衬线 ----
-     为什么显示层用衬线：方向 A 的标本感主要来自"衬线标题 + 无衬线正文"
-     这组对照。Aesop / Le Labo 都用它，因为它把标题从"界面文字"里摘出来，
-     读起来像标本标签而不是按钮。
-     为什么不加载新字体文件：项目硬约束是离线可用、无外部字体（STATE.md 有记）。
-     所以只在本机已装字体里挑衬线，Windows 是 Cambria / Georgia，
-     macOS 是 Georgia / Times，取到哪个用哪个；全都没有时落回 --font-body，
-     **观感降级但不出现豆腐块**，这是与 Noto 子集同一套降级策略。 */
-  --font-serif: "Cambria", "Georgia", "Times New Roman", "Songti SC",
-                "STSong", "Noto Serif SC", serif;
-  --font-display: var(--font-serif);
+  /* ---- 字体：显示层与正文同一族无衬线 ----
+     2026-11-24 Eddie 拍板（复查追加项 0）：界面字体栈定死为
+     Inter（拉丁/数字）→ PingFang SC（Apple）→ Microsoft YaHei（Windows）
+     的 grotesque 无衬线栈，**界面层禁止任何 serif / SimSun / 宋体**。
+     原来这里把 --font-display 重定义成 --font-serif（Cambria / Songti 一支），
+     标题、印章、场景句因此一路走衬线 —— 那是本项要清掉的入口，不是要保留的对照。
+     只改字族：字号/字重/字距/行高一处未动（见 --font-body@70-final.css）。 */
+  --font-display: var(--font-body);
 
   /* ---- 圆角与阴影：标本语汇里几乎没有圆角 ----
      原来 --radius 4px / --radius-lg 8px，在暖纸 + 细线语境里显得像"卡片 UI"。
@@ -316,7 +318,7 @@ footer.foot {
   width: 30px;
   height: 30px;
   margin-left: 14px;
-  font-family: var(--font-serif);
+  font-family: var(--font-body);
   font-size: 16px;
   line-height: 1;
   color: var(--ink-3);

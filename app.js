@@ -4590,6 +4590,39 @@ function ensureWishBar() {
 }
 
 /**
+ * 提示条**唯一**的计时器（2026-11-24 复查追加项 4）。
+ *
+ * 原来有三套定时器各管一段，都往同一条 .qw-wish-bar 上写：
+ *   ① 结果页 sayWish（2000ms，自己一个 wishTimer）
+ *   ② 清单页 sayWishPage（2000 / 撤销 5000ms，WISH_PAGE_TIMER）
+ *   ③ 盖章 stampSay（2400ms，STAMP_TIMER）
+ * 每一套只 clear 自己那一个，于是 A 的计时到点会去抹 **B 刚写上去的** 文案：
+ * 谁最后写的并不重要，谁**先**挂上计时谁先到点，条子就被提前清空。
+ * 实测症状（test-render 唯一红）：清单行撤销后 250ms 读到的是空串 ——
+ * 撤销那句 2400ms 的条子被前一句遗留的计时清掉了。
+ *
+ * 现在只留一个计时器：写条子的函数排定它，收条子的函数取消它，
+ * 「这条条子什么时候消失」永远只有一个答案。
+ */
+let WISH_BAR_TIMER = 0;
+
+/** 收起提示条，并取消它身上现有的计时。 */
+function hideWishBar() {
+  clearTimeout(WISH_BAR_TIMER);
+  WISH_BAR_TIMER = 0;
+  const bar = ensureWishBar();
+  if (!bar) return;
+  bar.setAttribute('hidden', '');
+  bar.textContent = '';
+}
+
+/** 排定「多久之后收起」。清掉上一句的计时再挂新的 —— 这是唯一入口。 */
+function scheduleWishBarHide(ms) {
+  clearTimeout(WISH_BAR_TIMER);
+  WISH_BAR_TIMER = setTimeout(hideWishBar, ms);
+}
+
+/**
  * 一颗 ♡。空心 = 未存，实心 = 已存；点击切换存/删。
  *
  * 位置：瓶名行右端（`.pick-name-row` 的末尾）。购买按钮在卡片页脚
@@ -4707,19 +4740,15 @@ const stampSession = createStampSession(
 /**
  * 一行提示（复用档案/清单同一条单例提示条，不另造 toast）。
  * 为什么复用：全站只有一个"提示"的样子，用户不必重新学"这条会不会自己消失"。
+ * 计时统一交给 scheduleWishBarHide —— 这里不再持有自己的定时器。
  */
-let STAMP_TIMER = 0;
 function stampSay(msg) {
   const bar = ensureWishBar();
   if (!bar) return;
-  clearTimeout(STAMP_TIMER);
   bar.textContent = '';
   bar.appendChild(document.createTextNode(String(msg)));
   bar.removeAttribute('hidden');
-  STAMP_TIMER = setTimeout(() => {
-    bar.setAttribute('hidden', '');
-    bar.textContent = '';
-  }, 2400);
+  scheduleWishBarHide(2400);
 }
 
 /** 给 CSS/测试认的一个稳定身份：瓶的身份键（归一化 name|brand）。 */
@@ -5382,8 +5411,6 @@ function renderWishPage() {
  */
 function sayWishPage(msg, opts, onUndo) {
   const bar = ensureWishBar();
-  // eslint-disable-next-line no-use-before-define
-  clearTimeout(WISH_PAGE_TIMER);
   bar.textContent = '';
   bar.appendChild(document.createTextNode(msg));
   bar.removeAttribute('hidden');
@@ -5407,8 +5434,7 @@ function sayWishPage(msg, opts, onUndo) {
         const ok = wishSession.undoRemove
           ? wishSession.undoRemove(item)
           : false;
-        bar.setAttribute('hidden', '');
-        bar.textContent = '';
+        hideWishBar();
         if (ok) {
           if (typeof onUndo === 'function') onUndo();
         } else if (typeof onUndo === 'function') {
@@ -5420,19 +5446,12 @@ function sayWishPage(msg, opts, onUndo) {
     }, '撤销');
     bar.appendChild(undoBtn);
     /* 撤销窗口 5 秒（设计稿 §11.1），比普通提示长 —— 它要给人留出反应时间。 */
-    WISH_PAGE_TIMER = setTimeout(() => {
-      bar.setAttribute('hidden', '');
-      bar.textContent = '';
-    }, 5000);
+    scheduleWishBarHide(5000);
     return;
   }
 
-  WISH_PAGE_TIMER = setTimeout(() => {
-    bar.setAttribute('hidden', '');
-    bar.textContent = '';
-  }, 2000);
+  scheduleWishBarHide(2000);
 }
-let WISH_PAGE_TIMER = 0;
 
 async function waitForShareFonts() {
   if (!document.fonts || !document.fonts.ready) return;
@@ -5564,7 +5583,6 @@ function renderResult() {
      （这也是把提示做成**单例**的理由：每次 render 都往 body 追加一条，
      翻几轮结果页就会攒出一堆叠在一起的旧提示。见 ensureWishBar。） */
   const wishBar = ensureWishBar();
-  let wishTimer = 0;
   const sayWish = (msg) => {
     /* ---- 「在香水档案里看」要真的能点（L3，2026-11-23）----
        L2 的这句提示当时只有文字，用户读完仍不知道去哪找 —— 提示里指了
@@ -5587,8 +5605,7 @@ function renderResult() {
         type: 'button',
         onclick: (ev) => {
           ev.stopPropagation();
-          wishBar.setAttribute('hidden', '');
-          wishBar.textContent = '';
+          hideWishBar();
           openWishPage();
         },
       }, '在香水档案里看'));
@@ -5597,12 +5614,10 @@ function renderResult() {
       wishBar.appendChild(document.createTextNode(String(msg)));
     }
     wishBar.removeAttribute('hidden');
-    /* 2000ms：够读完一行 12 字，也不至于在下一次点击前还占着位置。 */
-    clearTimeout(wishTimer);
-    wishTimer = setTimeout(() => {
-      wishBar.setAttribute('hidden', '');
-      wishBar.textContent = '';
-    }, 2000);
+    /* 2000ms：够读完一行 12 字，也不至于在下一次点击前还占着位置。
+       计时不再是本闭包私有的 —— 全站只有一条提示条，因此只有一份计时
+       （见 scheduleWishBarHide 的注释）。 */
+    scheduleWishBarHide(2000);
   };
 
   results.forEach((r, i) => {

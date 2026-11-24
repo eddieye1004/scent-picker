@@ -43,9 +43,9 @@
      Swiss 的层级靠尺寸和字重，不靠换字体。标题与正文同一族无衬线，
      中文走系统黑体（宋体在 14px 以下横画会糊）。
      等宽只给编号、规格表、英文副标——那是「技术参数」的语气。 */
-  --font-body: "Inter", "Helvetica Neue", Helvetica, -apple-system,
-               "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
-               "Source Han Sans SC", Arial, sans-serif;
+  --font-body: "Inter", "InterVar", "PingFang SC", "Hiragino Sans GB",
+               "Microsoft YaHei", "Source Han Sans SC", -apple-system,
+               "Helvetica Neue", Arial, sans-serif;
   --font-display: var(--font-body);
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
 

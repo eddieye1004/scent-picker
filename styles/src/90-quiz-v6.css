@@ -258,7 +258,7 @@
 .sky-band[data-dir="lazy"]       .sky-line { background: linear-gradient(#e8dcd0, transparent); }
 
 .sky-band .sky-zh {
-  font: 500 16px/1.2 var(--font-display, Georgia, serif);
+  font: 500 16px/1.2 var(--font-display, sans-serif);
   color: var(--ink);
   letter-spacing: .02em;
 }
@@ -607,7 +607,7 @@
 }
 
 .temp-stop .temp-zh {
-  font: 500 16px/1 var(--font-display, Georgia, serif);
+  font: 500 16px/1 var(--font-display, sans-serif);
   color: var(--ink);
   letter-spacing: .06em;
 }
@@ -658,7 +658,7 @@
    ------------------------------------------------------------ */
 .season-scene {
   margin: 10px 0 0;
-  font: 500 16px/1.55 var(--font-display, Georgia, serif);
+  font: 500 16px/1.55 var(--font-display, sans-serif);
   color: var(--ink);
   letter-spacing: .01em;
 }
