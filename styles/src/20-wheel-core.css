@@ -737,22 +737,23 @@
    ============================================================ */
 
 /* ============================================================
-   ② 返回入口：盘外左上角
+   ② 返回入口：页顶流里的一枚胶囊（2026-11-24 裁决 A）
    ------------------------------------------------------------
-   原来盘心底部有一颗「换一个大类」：12px 字、26px 高、下划线样式。
-   三个问题叠在一起 ——
-     1. 26px 低于 44px 触控下限，拇指点它得瞄准；
-     2. 它和「直接下一步」「中圈可不选」挤在同一列里，
-        主操作与退路上下相邻，正是最容易点错的位置；
-     3. 盘心是圆，越靠下可用宽度越窄，它一直在被弧容卡（D33 那几条 96%/82% 就是为它让路）。
-   圆盘画在方框里是个圆，四个角是空的 —— 按钮落在那里，
-   既不压盘面，也不与底部主按钮抢位置，还顺手解掉了盘心的宽度约束。
-   ============================================================ */
-.wheel .wheel-back {
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: 3;
+   历史三步都在这条注释下面走过一遍，写清楚省得再走第四遍：
+   原来盘心底部有一颗「换一个大类」：12px 字、26px 高、下划线样式，
+      1. 26px 低于 44px 触控下限，拇指点它得瞄准；
+      2. 它和「直接下一步」「中圈可不选」挤在同一列里，主操作与退路相邻；
+      3. 盘心是圆，越靠下可用宽度越窄，它一直被弧容卡。
+   所以 v7 挪到盘外左上角（圆盘画在方框里，四个角是空的），
+   v7 第 1.5 步又钉到 218° 盘沿上，当作"别在盘沿上的一枚签"。
+   ---- 2026-11-24 ----
+   中圈 24 枚标签胶囊化（a356237）之后，那枚签在展开态压住 −120° 的标签
+   36–46%（花香调「单一花」实测 36.1%（1440）/ 45.8%（390）），
+   而盘上再无第二个落点能同时避开六个大类的标签。裁决 A：胶囊出盘，
+   进页面顶部的内容流（.stage-top，与步骤指示同一列、左对齐）。
+   于是这一层只留"这枚胶囊长什么样"，**不再有任何 position/left/top** ——
+   位置由常规流决定；上一层的 `left/top` 百分比定位整段删掉。 */
+.wheel-back {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -773,28 +774,27 @@
               background-color var(--t-hover) var(--ease-std),
               transform var(--t-press) var(--ease-std);
 }
-.wheel .wheel-back:hover {
+.wheel-back:hover {
   color: var(--ink);
   border-color: var(--edge);
   background: var(--bg-2);
 }
 /* 按下要能看见：位移 1px + 描边转墨，两个通道同时给才算"有按下态" */
-.wheel .wheel-back:active {
+.wheel-back:active {
   transform: translateY(1px);
   color: var(--ink);
   border-color: var(--ink);
   background: var(--bg-3);
 }
-.wheel .wheel-back:focus-visible {
+.wheel-back:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
 /* [hidden] 的 UA display:none 优先级低于任何作者样式，
-   这里显式压回 —— 上一轮的 .hub-skip 就是被 @media 里的 display 顶掉的。 */
-.wheel .wheel-back[hidden] { display: none; }
-@media (max-width: 620px) {
-  .wheel .wheel-back { left: -2px; top: -6px; }
-}
+   这里显式压回 —— 上一轮的 .hub-skip 就是被 @media 里的 display 顶掉的。
+   胶囊进了页顶流之后这一条更要留：它现在在常规流里，一旦漏出 display，
+   未选大类时页顶会凭空多出一行 44px。 */
+.wheel-back[hidden] { display: none; }
 
 /* ============================================================
    ③ 缩小后的盘：六个扇区直接点，换大类
@@ -868,7 +868,7 @@
 .wheel .disc-hub.has-glyph.is-picked .hub-kicker { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .wheel .wheel-back:active { transform: none; }
+  .wheel-back:active { transform: none; }
   .wheel .sub-arc { animation: none; }
   .wheel .sub-arc-btn { animation: none; }
 }
@@ -1562,15 +1562,10 @@
   stroke-width: 1.2;
 }
 
-/* 3. 返回入口：收进圆盘包围盒的空角（圆在该角本来就是空的），
-      不再飘在盘外的留白里。 */
-.wheel-back {
-  left: 3.5%;
-  top: 4.5%;
-}
-@media (max-width: 620px) {
-  .wheel-back { left: 2%; top: 3%; }
-}
+/* 3. 返回入口：**这里原来写 left/top 百分比**（收进圆盘包围盒的空角）。
+      2026-11-24 裁决 A 之后胶囊在页顶流里，位置由常规流决定 ——
+      这一整段定位（含窄屏那档）删掉，只留上面 ② 里的外观。
+      留下不生效的 left/top 会让下一个人以为它还在盘上。 */
 
 /* 4. 盘心：内圈加一道发丝环，把"表盘"这层意思做实。
    V2 改法 C1：色值从 rgba(0,26,94,.05)（对纸底约 1.03，等于没有）

@@ -28,6 +28,26 @@ import {
    avoid-map.js 是「元素 → 场景句 → 所属香型」映射表（原 LIFE_NOTES 抽出来的），
    avoid.js 是按 perfumes.json 频次现算候选的三条硬规则。两者都不碰 DOM。 */
 import { AVOID_SCENARIOS } from './src/avoid-map.js';
+/* 心仪清单数据层（L1，2026-11-23）。这里只用它的公开 API 与注入点，
+   不改它的任何语义 —— 存储不可用时的内存兜底写在 src/wish-ui.js，
+   靠 createWishlist(storage) 这个既有注入口完成，不给数据层开洞。 */
+import { wishlist } from './src/wishlist.js';
+import { createWishSession, wishMessage, wishReasonOf } from './src/wish-ui.js';
+/* 清单页的解析层（L3）。它只把「心仪条目 + 现有数据」算成「一行该显示什么」，
+   不碰 DOM —— 所以「没有价格就不显示价格」「没有链接就不显示链接」这两条
+   最容易被写成兜底值的判据，能在 node 里一格一格地验（scripts/test-wishlist-page.mjs）。 */
+import {
+  WISH_PAGE_MSG, wishListModel, perfumeIndex, priceLabelOf, savedLabel,
+  CLEAR_LABEL, CLEAR_ARM_LABEL, nextClearState, removableOf,
+} from './src/wish-page.js';
+/* 试香盖章（2026-11-23）。数据层 src/stamp.js 只认传入的 storage，
+   编排与展示模型在 src/stamp-ui.js —— 两者都不碰 DOM，所以「五档回读」
+   「重复盖章计数」「撤销退回上一次」「存储不可用降级」都能在 node 里直接验
+   （scripts/test-stamp.mjs / test-stamp-ui.mjs）。这里只负责画与点。 */
+import { createStamps } from './src/stamp.js';
+import {
+  createStampSession, stampViewOf, stampMessage, stampTiers, stampKeyOf, STAMP_MSG,
+} from './src/stamp-ui.js';
 import { buildAvoidIndex, avoidPlan, avoidSelection } from './src/avoid.js';
 /* 季节屏的「方向 × 季节」24 句（定版 2026-11-23）。抽成独立模块而不是塞进下面的
    SEASONS：那 24 句的来源是一份 md，逐字比对是这条改动的验收线，句子集中在
@@ -150,6 +170,15 @@ const state = {
   /* 避雷屏当前候选的方向键（family|subfamily）。方向变了就清掉
      不在新清单里的旧「不要」，见 pruneAvoid。不进 answers：它是视图状态。 */
   avoidKey: null,
+  /* ==== 清单页视图（L3，2026-11-23）====
+     全站是单页 + 内存 state 的形态，没有路由表，也没有 history API ——
+     结果页、问卷各屏都是"改 state 再 render()"。
+     清单页沿用同一条路，理由：
+       · 引入 hash 路由会多出一套需要同步的地址状态，而这一页的所有数据
+         本来就在 localStorage 里，刷新后重新读一次即可；
+       · 从结果页的 toast「在香水档案里看」跳过来，只需改一个字段 + 重画，
+         不必把整页导航写成异步。 */
+  wishPage: false,
 };
 
 let DATA = null;
@@ -855,15 +884,7 @@ function scentPlate(sub) {
    文字放什么：这一族的小类名 + 个数。两件事都是数据里来的，不是编的；
    盘心因此在说"这一族由这四格组成"，而不只是一句风格描述。
    为什么不做成"·"串一行就完：小类名之间要能一眼数清有几格，
-   所以名字之间用间隔点，个数单独一行小字（与盘心其它小字同一档）。
-
-   ==== 小类名取哪个字段（2026-11-24 裁定 A）====
-   口径 = `label || zh || id`，与中圈弧段标签（第 1711 行）、盘心主词
-   （第 1924 行区）三处同源。原先是 `zh || id`，于是柑橘调这一族在
-   只选大类时列出"古龙水型/青绿柑橘/柑橘花香/芳香柑橘"——与用户点中圈
-   看到的"纯柑橘/苦橙叶/橙花柑橘/皂感柑橘"对不上，同一个盘心两种状态
-   说两套名字。label 是 4 字以内的直白词，zh 是正式名：**数据两个字段都
-   不动**，表单、推荐理由、无障碍名继续用 zh，只有盘心这两处显示改口径。 */
+   所以名字之间用间隔点，个数单独一行小字（与盘心其它小字同一档）。 */
 function familyText(fam) {
   const subs = (fam.subfamilies || []);
   if (!subs.length) return null;
@@ -875,11 +896,7 @@ function familyText(fam) {
       /* 间隔点只是排版记号，不该被读屏念成内容 */
       list.appendChild(el('span', { class: 'fam-text-sep', 'aria-hidden': 'true' }, '·'));
     }
-    /* 取词口径与中圈弧段、盘心主词同源：label 优先、zh 兜底。
-       柑橘调那 4 项的 zh 全是"××柑橘"，只选大类时并排列在这里分不出差别
-       （与 1711 行中圈改名同一个理由）；label 缺省时回退 zh，再缺省用 id。
-       数据本身不动 —— 表单、推荐理由、无障碍名里仍用 zh。 */
-    list.appendChild(el('span', { class: 'fam-text-item' }, s.label || s.zh || s.id));
+    list.appendChild(el('span', { class: 'fam-text-item' }, s.zh || s.id));
   });
   wrap.appendChild(list);
   wrap.appendChild(el('span', { class: 'fam-text-count' }, subs.length + ' 个小类'));
@@ -966,7 +983,10 @@ function hubOrnament(families) {
 }
 
 function buildWheel(cfg) {
-  const { families, onChange } = cfg;
+  /* backHost：返回胶囊的挂载点。2026-11-24 裁决 A 之后它不在 .wheel 里了
+     （那枚胶囊压住了 −120° 的中圈标签），由调用方给一个页顶流的容器把它接走。
+     不给时退回老位置（root），只为兼容/自检脚本单点调用时不会抛。 */
+  const { families, onChange, backHost } = cfg;
   let selFamily = cfg.selFamily || null;
   let selSub = cfg.selSub || null;
   let hoverFam = null;      // 指针停在外圈哪个家族（只改盘心预览，不改变层数）
@@ -995,14 +1015,21 @@ function buildWheel(cfg) {
      且把标签推到家族环外沿会越出盘外，所以不取。 */
   const LABEL_R = 193;
   const LABEL_R_NARROW = 200;
-  /* 窄屏中圈标签半径 = 130（容器自身放大 1.43 之后 = 186 单位）。
-     v15 曾经把它外移到 152，是为了避开"标签压在盘心半径 78.7px 内"；
-     v16 起整个 .sub-ring 放大 1.43，152×1.43 = 217 单位会越出盘外
-     （实测窄屏 3 处 outBox），所以收回 130 —— 放大后落在 186 单位，
-     360 视口（盘 312px，k=0.65）实测：130 → 中心 121px + 半宽 31.5px = 152.5px，
-     而盘半径 156px、四字标签右缘实际越界 3px；收到 120 后中心 111.5px、
-     右缘 143px，留 13px 余量，同时内沿 80px 仍在盘心半径 72px 之外。 */
-  const SUB_LABEL_R_NARROW = 120;
+  /* 中圈标签半径（弧带中线 135 之外另立一档）。
+     .sub-ring 在展开态整体放大 1.43，所以这里的数是**放大前**的单位。
+     判据用 Range 量出来的胶囊外框四角到盘心的最近距离，不是按钮盒：
+     盘心在 95-quiz-v7-design 里涨到 66% 直径（半径 158.4 单位）之后，
+     135 单位的落点让胶囊内沿压进盘心圆 —— 文字被盘心盖掉半截。
+     138 × 1.05 × 1.43 = 207.2px，1440 档（盘 504px、盘心半径 166.3px）
+     实测 24 枚两行胶囊最小净空 +7.1px、墨迹最小 +12.9px。
+     再往外就顶到盘口线（232 单位 × 1.05 = 243.6px，实测最外一枚 241.1px）。 */
+  const SUB_LABEL_R = 138;
+  /* 窄屏同值但另一本账：390 档（盘 342px、盘心半径 112.9px、盘沿 171px）
+     环带只有 58.1px，138 × 0.7125 × 1.43 = 140.6px 是环带中线。
+     胶囊靠 95-quiz-v7-design Block 14 的 `scale(.72)` 反放大才塞得下，
+     实测最小净空 +4.8px、墨迹最小 +9.1px、最外一枚距盘沿 7.4px。
+     半径与桌面同值，但两档各自成立，改动其中一档不影响另一档。 */
+  const SUB_LABEL_R_NARROW = 138;
 
   const root = el('div', { class: 'disc wheel', role: 'group', 'aria-label': '香型轮盘' });
 
@@ -1164,12 +1191,14 @@ function buildWheel(cfg) {
   }, '中圈可不选');
   hubSkip.hidden = true;
   hubGo.hidden = true;
-  /* ② 返回入口挪出盘心。
-     原来盘心底部有一颗 12px 下划线的「换一个大类」，26px 高 ——
-     低于 44px 触控下限，而且和「直接下一步」挤在同一列里，
-     主操作与退路挨在一起，手指再准也会点错。
-     改到盘外左上角：圆盘在方框里是个圆，四个角是空的，
-     按钮落在那里既不压盘面，也不和底部那条主按钮抢位置。 */
+  /* ② 返回入口：不在盘心上、也不在盘面上 —— 现在挂在页顶流里。
+     历史：v7 把它从盘心（12px 下划线、26px 高，低于 44px 触控下限）挪到
+     盘外左上角，v7 第 1.5 步又钉到 218° 盘沿上。
+     钉在盘沿上的代价在 2026-11 中圈标签胶囊化之后暴露出来：展开态
+     −120° 那枚标签（花香调「单一花」）被它压掉 36–46%，而圆盘上
+     再没有一处能同时避开六个大类的标签（见 docs/DECISIONS.md 同轮记录）。
+     所以按 Eddie 2026-11-24 01:48 裁决 A，它整体移出圆盘、进页顶流
+     （.stage-top）——显隐与点击行为一个字没改，改的只是它待在哪。 */
   const backBtn = el('button', {
     class: 'wheel-back',
     type: 'button',
@@ -1181,7 +1210,7 @@ function buildWheel(cfg) {
     },
   }, '← 重选大类');
   backBtn.hidden = true;
-  root.appendChild(backBtn);
+  (backHost || root).appendChild(backBtn);
   /* 空态纹样（缺陷 ③）：六枚定位点就是外圈六族的位置，空盘也在讲盘的结构。
      单独一棵节点而不是塞进 hubGlyph：hubGlyph 归标本管，两者互斥，
      混用会让 paint() 里"清空标本"那一步顺手把纹样也删掉。 */
@@ -1342,50 +1371,20 @@ function buildWheel(cfg) {
     rippleTimer = setTimeout(() => { ripple.classList.remove('is-on'); rippleTimer = 0; }, 680);
   };
 
-  /* ---- 盘沿几何：返回胶囊与盘底共同依赖的两个量 ----
-     ① --bl/--bt：返回胶囊要在盘沿上（缺陷 ⑧）。JS 算是因为 CSS 拿不到
-        "半径 236 单位在 218° 处对应盘盒的百分之几" —— 百分比定位相对的是
-        外接方框，而盘是内切圆。
-     ② --plate-cx/--plate-cy：页面底纹（.plate-bg）的同心圆环必须以这盘
-        的圆心为圆心（缺陷 ⑨）。那是 fixed 层，圆心要的是**视口坐标**，
-        只能量。
-     两者都绑在 resize 上重算：横竖屏切换、窗口拖动都会让圆心移动。 */
+  /* ---- 盘沿几何：盘心底纹同心圆环的圆心 ----
+     --plate-cx/--plate-cy：页面底纹（.plate-bg）的同心圆环必须以这盘
+     的圆心为圆心（缺陷 ⑨）。那是 fixed 层，圆心要的是**视口坐标**，
+     只能量。
+     绑在 resize 上重算：横竖屏切换、窗口拖动都会让圆心移动。
+
+     ==== 2026-11-24：这里原来还算 --bl/--bt（返回胶囊在盘沿上的落点）====
+     胶囊搬进页顶流之后，它的位置由常规流决定，再没有"盘box 的百分比"
+     这回事 —— 那两行 setProperty 连同 at() 一起删了。留着不报错，
+     但它们会让人以为胶囊还在盘上，下一轮又会照着算。 */
   const layoutRim = () => {
     if (typeof root.getBoundingClientRect !== 'function') return;
     const r = root.getBoundingClientRect();
     if (!r || !r.width) return;
-    /* ==== 返回胶囊的落点（缺陷 ⑧）====
-       原来写死 `left:0; top:0` —— 那是盘的**外接方框**左上角，而盘是圆的，
-       那个角落在盘外 84px 的空白里，读起来是一颗漂在页面上的按钮。
-
-       现在的落点不是猜的，是扫出来的：scripts/probe-rim.mjs 把六族逐个
-       点进第二层，量出 6 枚 lvl1 + n 枚 lvl2 的盒子，然后在极坐标上
-       按 2° × 0.02 倍半径扫一遍，要求「与所有可点标签都不相交」且
-       「不越出页面左右留白」。三个视口（1440/390/360）的无碰撞区间
-       交集只有一处：角度 −128°、半径 1.12 倍盘半径。
-       1.12 的含义正是"别在盘口线上"—— 胶囊半高 22px 折算 0.087 个盘半径，
-       所以它的内沿落在 1.03、外沿落在 1.21：**一半压在盘沿上，一半在纸面上**。
-       这正是缺陷 ⑧ 要的"锚进标本盘构图，不漂在盘外"。
-       −128° 落在「美食调」与「柑橘调」两块之间的接缝带里（接缝在 −120°），
-       那里本来就只有一条缝，没有别的字。 */
-    /* 极角 → 控件盒百分比。注意半径是**盘半径的倍数**（1 = 盘口线），
-       而 left/top 的百分比相对控件盒宽度（= 盘直径），所以这里乘 50
-       而不是 100。乘 100 会让胶囊跑到盘外一倍的半径处 —— 实测过，
-       probe-design 报 onRim 2.24。 */
-    const at = (deg, rad) => [
-      50 + rad * 50 * Math.cos((deg * Math.PI) / 180),
-      50 + rad * 50 * Math.sin((deg * Math.PI) / 180),
-    ];
-    const [bx, by] = at(-128, 1.00);
-    backBtn.style.setProperty('--bl', bx.toFixed(2) + '%');
-    backBtn.style.setProperty('--bt', by.toFixed(2) + '%');
-    /* 窄屏：盘 312–342px，胶囊占比更大（44/312 = 0.141R），
-       要让内沿落在盘口线上，中心要在 1.07R；这一档仍落在
-       probe-rim 报的无碰撞区间内（360 上 −128° 的自由半径是 1.04–1.26）。 */
-    const [nbx, nby] = at(-128, 1.07);
-    backBtn.style.setProperty('--bl-n', nbx.toFixed(2) + '%');
-    backBtn.style.setProperty('--bt-n', nby.toFixed(2) + '%');
-
     /* 底纹圆心 = 盘心的视口坐标（fixed 层用视口坐标，不是文档坐标） */
     const bg = document.querySelector('.plate-bg');
     if (bg) {
@@ -1701,10 +1700,9 @@ function buildWheel(cfg) {
       svg.appendChild(g);
       subGs.push(g);
 
-      const px = polar(rMid, mid);
-      /* 窄屏半径 = 124（实测网格的最佳值）。弧带中线是 135，
-         窄屏把标签往里收 11 单位，是为了让它与家族标签之间留出
-         两个半高的间隙 —— 详见 _wheel8.css 第七节的实测数字。 */
+      const px = polar(SUB_LABEL_R, mid);
+      /* 窄屏半径见 SUB_LABEL_R / SUB_LABEL_R_NARROW 两处注释：胶囊要整枚
+         落在盘心圆之外，所以两档都比弧带中线（135）更往外。 */
       const pxm = polar(SUB_LABEL_R_NARROW, mid);
       const btn = el('button', {
         class: 'disc-sector lvl2 sub-arc-btn',
@@ -1933,10 +1931,7 @@ function buildWheel(cfg) {
     } else if (focusSub) {
       picked = !!(sub && sub.id === focusSub.id);
       kick = picked ? '已选定' : '正在看';
-      /* 盘心小类名与中圈统一：中圈写的是 `item.label || item.zh`（见 1710 行），
-         盘心原来只读 `zh`，于是柑橘调 4 项出现"中圈点纯柑橘、盘心说古龙水型"。
-         同一套回退链搬过来：有 label 用 label，没有的 20 类行为逐字不变。 */
-      zh = focusSub.label || focusSub.zh;
+      zh = focusSub.zh;
       desc = focusSub.descWheel || focusSub.short || focusSub.desc;
     } else {
       kick = hoverFam && !selFamily ? '正在看' : '已选定大类';
@@ -2096,7 +2091,23 @@ function renderFamily() {
      圆心由 buildWheel 的 layoutRim() 量出来写进 --plate-cx/--plate-cy。 */
   wrap.appendChild(el('div', { class: 'plate-bg', 'aria-hidden': 'true' }));
 
+  /* ==== 页顶流：「← 重选大类」的容器（2026-11-24 裁决 A）====
+     它原来是 .wheel 的子节点、用 JS 算出的百分比钉在 218° 盘沿上。
+     中圈标签胶囊化之后，那个位置在展开态压住 −120° 的标签 36–46%，
+     而圆盘上没有第二个能避开六个大类标签的落点 —— 所以胶囊出盘、进这一行。
+
+     这一行为什么是 .stage-lead 的**第一个孩子**、而不是它的前一个兄弟：
+     10-foundation 在 ≤620 给 .stage-lead 写了 margin-top: 14px，它与
+     .progress-meta 的 margin-bottom 是**折叠**关系（取 24）。在两者之间插一个
+     空块会切断折叠，多出 14px —— 实测 390 宽 idle 页高 1451 → 1465。
+     放进 stage-lead 里面就没有这段折叠可切：同一行，idle 逐像素不变。
+
+     行的顺序在 stage-lead 内部：胶囊 → 第 1 步 → 先闻方向，
+     读起来是"回上一层"在前，标题在后。 */
+  const stageTop = el('div', { class: 'stage-top' });
+
   wrap.appendChild(el('div', { class: 'stage-lead' },
+    stageTop,
     el('div', { class: 'q-kicker' }, stepHead('family').kicker),
     el('h2', { class: 'q-title' }, stepHead('family').title),
     el('p', { class: 'q-help' }, stepHead('family').help)
@@ -2104,6 +2115,7 @@ function renderFamily() {
 
   wrap.appendChild(buildWheel({
     families: Object.values(TAX.families),
+    backHost: stageTop,
     selFamily: state.answers.family,
     selSub: state.answers.subfamily,
     onChange: (fam, sub) => {
@@ -3761,6 +3773,12 @@ function renderProgress() {
 
 function renderMasthead() {
   const isResult = state.step >= curSteps().length;
+  /* 清单页是独立视图，不是"结果页的延续"。
+     若这里沿用 isResult 的文案，用户会在「心仪清单」上方读到
+     「你的三瓶候选 / 每一瓶的理由都能反推回你刚才的选择」——
+     标题在说另一页的事（实测截图里一眼就是错的）。
+     所以判据排在 isResult 之前：进了清单页，页头就先认这一页。 */
+  const isWish = state.wishPage === true;
   /* 边距仪器区（规格 5 的"留白深度"）。
      叶标题不变，页眉右侧那枚 .amb-tick 是**这一程走到哪儿的刻度**
      （方向 + 档位，如「亮·起」）。它不算装饰：没有它，"底噪随进程增强"
@@ -3772,16 +3790,20 @@ function renderMasthead() {
     // 封面标题里的「第一瓶」是全站唯一的高分量蓝色。
     // 用 em 而不是 span：它承载的是语义强调（"第一瓶"才是这个产品的承诺），
     // 顺带让 .masthead h1 em 这条样式有真实落点。
-    isResult
-      ? el('h1', {}, '你的三瓶候选')
-      : el('h1', {}, '从零开始，找到', el('em', {}, '第一瓶'), '香水'),
+    isWish
+      ? el('h1', {}, '我的', el('em', {}, '心仪'), '清单')
+      : isResult
+        ? el('h1', {}, '你的三瓶候选')
+        : el('h1', {}, '从零开始，找到', el('em', {}, '第一瓶'), '香水'),
     el('p', { class: 'lede' },
-      isResult
-        ? '每一瓶的理由都能反推回你刚才的选择，没有一句是编的'
-        /* 首屏那句 lede 原来写「转盘选香型，再定场合和浓度」（a39e498），
-           v6 撤盘时改成「先说预算和想要的感觉」，v7 圆盘回来了 ——
-           现在这句必须同时说准两件事：**第一件事是转盘**，而且不问术语。 */
-        : '不用懂前中后调。先在转盘上挑一个大方向，再定场合和浓度'
+      isWish
+        ? '存过的瓶子都在这台设备上，点开就能看理由、参考价和去哪买'
+        : isResult
+          ? '每一瓶的理由都能反推回你刚才的选择，没有一句是编的'
+          /* 首屏那句 lede 原来写「转盘选香型，再定场合和浓度」（a39e498），
+             v6 撤盘时改成「先说预算和想要的感觉」，v7 圆盘回来了 ——
+             现在这句必须同时说准两件事：**第一件事是转盘**，而且不问术语。 */
+          : '不用懂前中后调。先在转盘上挑一个大方向，再定场合和浓度'
     ),
     /* 印��：纯装饰（aria-hidden），字取「香」—— 这个应用唯一的主题字。 */
     el('span', { class: 'seal', 'aria-hidden': 'true' }, '香')
@@ -4468,6 +4490,120 @@ function localStorageSafe() {
   }
 }
 
+/* ============================================================
+   心仪清单 · 结果页入口（L2，2026-11-23）
+   ------------------------------------------------------------
+   数据层在 src/wishlist.js（L1，已冻结）：它只认「存进去的那三键」，
+   存储不可用时返回 status:'unavailable' 而不是抛错。这一层（app.js）
+   只负责画：一颗 ♡、一次点击、一行提示。
+
+   判断与编排全在 src/wish-ui.js（纯逻辑、不碰 DOM），这里只剩渲染：
+     · 初始化与回显都读 wishIsSaved(id)（空心 = 未存，实心 = 已存）；
+     · 点击 → wishSession.toggle(id, wishReasonOf(r)) → 重画 ♡ → say(...)
+     · reason 取「本轮结果里引擎给的那句原文」（r.reasons[0]），不重算、不改写；
+     · status:'full' / 降级提示的文案由 wishMessage() 统一给出，逐字对应任务书。
+   ============================================================ */
+
+/* 一次页面会话：真存储实例 + 内存兜底（兜底逻辑全在 src/wish-ui.js，
+   那里能在 node 里直接喂内存存储测「满 50」「隐私模式」两条路径）。
+   第三个参数把真存储介质**显式**交给会话：撤销移除与取消已入手这两个动作
+   不在 L1 的 API 里，得自己读写那个键 —— 写谁必须由调用方指定，
+   不能让会话去猜 globalThis（否则测试与浏览器走两条路，正是"测试全绿、
+   线上不对"的典型成因）。 */
+const wishSession = createWishSession(wishlist, undefined, () => localStorageSafe());
+
+/** 初始化与回显都走这条：空心 = 未存，实心 = 已存。 */
+function wishIsSaved(id) {
+  return wishSession.has(id);
+}
+
+/**
+ * 存入提示的**单例**（挂 document.body，见 renderResult 里的原因）。
+ *
+ * 为什么是单例而不是每次渲染新建：结果页会因「换一批」「改一题」反复重建，
+ * 每次往 body 追加一条的话，翻几轮就攒出一堆重叠的旧提示；而且旧提示的
+ * 定时器还会把**新**提示提前关掉（它们共用同一个 hidden 语义）。
+ * 单例让"当前该显示什么"只有一个宿主。
+ */
+let WISH_BAR = null;
+function ensureWishBar() {
+  if (WISH_BAR && WISH_BAR.isConnected) return WISH_BAR;
+  WISH_BAR = el('p', {
+    class: 'qw-wish-bar',
+    role: 'status',
+    /* aria-live=polite：只在读屏空闲时播报，不打断用户正在读的卡片内容。 */
+    'aria-live': 'polite',
+    hidden: '',
+  });
+  try {
+    document.body.appendChild(WISH_BAR);
+  } catch {
+    /* 没有 body（测试桩 / 极端环境）：结果页照常渲染，提示降级为不显示。
+       提示是锦上添花，不该成为"整页白屏"的原因。 */
+    WISH_BAR = null;
+    return el('p', { class: 'qw-wish-bar', hidden: '', 'aria-live': 'polite' });
+  }
+  return WISH_BAR;
+}
+
+/**
+ * 一颗 ♡。空心 = 未存，实心 = 已存；点击切换存/删。
+ *
+ * 位置：瓶名行右端（`.pick-name-row` 的末尾）。购买按钮在卡片页脚
+ * （`.pick-foot`），与这里隔着三调表、理由、标签三块 —— 一上一下两端，
+ * 手滑点不到对方。这不是靠间距凑的，是两块本来就在卡片的两头。
+ */
+function wishHeart(p, r, say) {
+  const id = String(p && p.id || '');
+  const saved0 = wishIsSaved(id);
+  const glyph = el('span', { class: 'qw-wish-glyph', 'aria-hidden': 'true' });
+  /* 心形用内联 SVG 而不是 ♡/♥ 两个字符：字符的字形与基线由系统字体决定，
+     390px 下不同设备能差出一档大小，而这里要求"可辨"是硬指标。
+     SVG 的尺寸完全由 CSS 说了算，空心/实心只差一个 fill。 */
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('focusable', 'false');
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3'
+    + 'c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5'
+    + 'c0 3.78-3.4 6.86-8.55 11.54L12 21.35z');
+  svg.appendChild(path);
+  glyph.appendChild(svg);
+
+  const name = (p && p.name) || '这一瓶';
+  const labelSaved = `从心仪清单移除${name}`;
+  const labelUnsaved = `收藏${name}到心仪清单`;
+  const btn = el('button', {
+    class: 'qw-wish' + (saved0 ? ' is-on' : ''),
+    type: 'button',
+    'aria-pressed': saved0 ? 'true' : 'false',
+    'aria-label': saved0 ? labelSaved : labelUnsaved,
+    title: saved0 ? '从心仪清单移除' : '存入心仪清单',
+    'data-wish': id,
+  }, glyph);
+
+  btn.addEventListener('click', (ev) => {
+    /* 结果卡里没有卡片级点击，但 ♡ 挨着可选的文字，停一下冒泡更稳：
+       将来若给卡片加了整体点击，也不会变成"存了还顺带跳走"。 */
+    ev.stopPropagation();
+    const res = wishSession.toggle(id, wishReasonOf(r));
+    const on = wishIsSaved(id);
+
+    btn.classList.toggle('is-on', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.setAttribute('aria-label', on ? labelSaved : labelUnsaved);
+    btn.setAttribute('title', on ? '从心仪清单移除' : '存入心仪清单');
+    /* 一次短脉冲：手指点在按钮上，除了心形变实心，还要有一点"收下了"的动静。 */
+    btn.classList.remove('is-pop');
+    void btn.offsetWidth;
+    btn.classList.add('is-pop');
+
+    say(wishMessage(res));
+  });
+
+  return btn;
+}
+
 /* 结果页摘要卡与分享 PNG 共用这一份价格档文案：
    两处必须一字不差，否则用户会以为自己下载错了卡片。 */
 function currentBudgetZh() {
@@ -4490,6 +4626,227 @@ function formatHistoryTime(t) {
   }
 }
 
+/* ============================================================
+   试香盖章（2026-11-23）
+   ------------------------------------------------------------
+   主入口在**香水档案的每一瓶**上（任务书第 2 条）：档案面板展开后，
+   每个瓶名行右端一个轻量操作位 —— 未盖章是「试过？盖章」，
+   已盖章换成状态 chip（`✓ 11-23 · 喜欢 · 共 2 次`）。
+
+   五档口径（Eddie 2026-11-23 拍板，仓库里旧提案写的三档作废）：
+     一闻钟情 / 喜欢 / 还行 / 无感 / 劝退 —— 顺序与文案都在 src/stamp.js，
+     这里只按 stampTiers() 铺按钮，不另抄一份。
+
+   三条不作为（任务书明确要求，写成注释免得下一腿顺手加上）：
+     ① 盖了高档位**不**自动把该瓶加进心仪清单，不做任何一键联动；
+     ② 历史**只显示最近一次 + 共 N 次**，不铺全量列表（stampViewOf 连
+        数组都不交出来，调用方想铺也没有数据可铺）；
+     ③ 盖章记录不参与推荐打分、不写进档案键、不改档案旧字段。
+
+   两段式：点入口只打开面板，必须在面板里显式选一档再按「保存」才落记录 ——
+   单击永远不等于盖章（与档案的两段式清空同一条克制口径）。
+   ============================================================ */
+
+/* 盖章会话：真存储是 localStorage 上的盖章实例，存储不可用时自动换一份
+   页面内存介质（逻辑全在 src/stamp-ui.js，node 里可喂内存测）。
+   介质**显式**交给数据层（`createStamps(() => localStorageSafe())`），
+   不用 src/stamp.js 那个默认实例 —— 默认实例绑的是 globalThis.localStorage，
+   而全站其余存储（档案、心仪）都走 localStorageSafe()（window.localStorage）。
+   两者在浏览器里恰好是同一个对象，但一旦不是（Node 的全局 localStorage、
+   嵌入 WebView 的隔离 window），档案与盖章就会落到两个不同的介质上，
+   表现成"档案里有这瓶、盖章说没盖过"。写入介质只能有一个来源。 */
+const stampSession = createStampSession(
+  createStamps(() => localStorageSafe()),
+  undefined,
+  () => localStorageSafe(),
+);
+
+/**
+ * 一行提示（复用档案/清单同一条单例提示条，不另造 toast）。
+ * 为什么复用：全站只有一个"提示"的样子，用户不必重新学"这条会不会自己消失"。
+ */
+let STAMP_TIMER = 0;
+function stampSay(msg) {
+  const bar = ensureWishBar();
+  if (!bar) return;
+  clearTimeout(STAMP_TIMER);
+  bar.textContent = '';
+  bar.appendChild(document.createTextNode(String(msg)));
+  bar.removeAttribute('hidden');
+  STAMP_TIMER = setTimeout(() => {
+    bar.setAttribute('hidden', '');
+    bar.textContent = '';
+  }, 2400);
+}
+
+/** 给 CSS/测试认的一个稳定身份：瓶的身份键（归一化 name|brand）。 */
+function stampDataKey(bottle) {
+  return stampKeyOf(bottle);
+}
+
+/**
+ * 五档面板。档位按钮是 role=radio（一组互斥选项，不是五个开关）——
+ * 读屏用户听到的是「单选组 试香评价」而不是五个独立按钮。
+ */
+function stampPanel(bottle, done) {
+  const view = stampViewOf(stampSession.get(bottle));
+  const name = bottle.name || '这一瓶';
+  const panel = el('div', {
+    class: 'qw-stamp-panel',
+    role: 'group',
+    'aria-label': `给${name}盖章`,
+    'data-stamp-panel': stampDataKey(bottle),
+  });
+
+  panel.appendChild(el('p', { class: 'qw-stamp-hint' }, '这瓶试过之后感觉如何？'));
+
+  let picked = view.has ? view.tier : '';
+  const group = el('div', { class: 'qw-stamp-tiers', role: 'radiogroup', 'aria-label': '试香评价' });
+  const btns = stampTiers().map((t) => {
+    const b = el('button', {
+      class: 'qw-stamp-tier' + (picked === t.id ? ' is-picked' : ''),
+      type: 'button',
+      role: 'radio',
+      'aria-checked': picked === t.id ? 'true' : 'false',
+      'data-tier': t.id,
+      onclick: () => {
+        picked = t.id;
+        btns.forEach((x) => {
+          const on = x.getAttribute('data-tier') === t.id;
+          x.classList.toggle('is-picked', on);
+          x.setAttribute('aria-checked', on ? 'true' : 'false');
+        });
+        save.removeAttribute('disabled');
+      },
+    }, t.zh);
+    return b;
+  });
+  btns.forEach((b) => group.appendChild(b));
+  panel.appendChild(group);
+
+  const save = el('button', {
+    class: 'btn qw-stamp-save',
+    type: 'button',
+    /* 没选档就按不了「保存」：空着保存等于盖一枚没有评价的章。 */
+    disabled: picked ? null : '',
+    onclick: () => {
+      if (!picked) return;
+      const res = stampSession.stamp(bottle, picked);
+      stampSay(stampMessage(res));
+      done();
+    },
+  }, '保存');
+
+  const actions = el('div', { class: 'qw-stamp-actions' }, save,
+    el('button', {
+      class: 'link-btn qw-stamp-cancel',
+      type: 'button',
+      onclick: () => done(),
+    }, '取消'));
+
+  /* 撤销只在真的盖过时出现：没有记录却给一个「撤销」，用户点下去只会
+     得到一句「已撤销」，而他其实什么都没撤销过。 */
+  if (view.canUndo) {
+    actions.appendChild(el('button', {
+      class: 'link-btn qw-stamp-undo',
+      type: 'button',
+      onclick: () => {
+        const res = stampSession.undo(bottle);
+        stampSay(stampMessage(res));
+        done();
+      },
+    }, '撤销上次盖章'));
+  }
+  panel.appendChild(actions);
+  return panel;
+}
+
+/**
+ * 某一瓶的盖章位：未盖 → 「试过？盖章」；已盖 → 状态 chip + 撤销。
+ * 两种形态都由 stampViewOf 决定（`has`），所以"显示什么"与"存了什么"同源。
+ *
+ * **一处实现、两处挂载**（2026-11-23 补：心仪清单每行也要这个入口）：
+ * 档案的瓶名行与清单行的盖章位行共用这同一个函数，`opts.surface` 只用来
+ * 让 CSS/测试认出"这个章位挂在哪一屏"，不改变任何行为。复制一份到清单侧
+ * 是这一腿最容易走上的错路 —— 那样五档文案、撤销语义、降级提示会各自演化，
+ * 用户在两个页面看到两套口径。
+ *
+ * @param {{name:string, brand?:string}} bottle 瓶的身份（name|brand 即落盘键）
+ * @param {function} repaint 动作完成后重画**所在容器**（不是整站）
+ * @param {{surface?:'archive'|'wish'}} [opts]
+ */
+function stampSlot(bottle, repaint, opts = {}) {
+  const surface = opts.surface === 'wish' ? 'wish' : 'archive';
+  const slot = el('span', {
+    class: 'qw-stamp-slot',
+    'data-stamp-key': stampDataKey(bottle),
+    'data-stamp-surface': surface,
+  });
+  const view = stampViewOf(stampSession.get(bottle));
+  const name = bottle.name || '这一瓶';
+
+  const openPanel = () => {
+    slot.textContent = '';
+    /* 面板挂在**瓶名行**上、不是挂在 slot 里（实测踩到）：slot 是
+       `flex: 0 0 auto` 的窄格子，面板塞进去只能分到 130px 宽 ——
+       390px 下五颗章被折成 2 列三行（截图一眼能看出来）。
+       挂到行上并占满一行（CSS 里 .qw-stamp-panel 是 flex:1 1 100%），
+       五档才是任务书要求的"一行五个、一眼可辨"。 */
+    const host = slot.parentNode || slot;
+    /* 同一行只允许一个面板：面板挂在行上（不在 slot 里），所以清 slot 清不掉
+       上一次的面板 —— 先摘掉旧的，否则连点几次 chip 会叠出好几份五档按钮
+       （每份都能点、都能保存，等于同一个动作有多个入口）。 */
+    const stale = host.querySelectorAll ? host.querySelectorAll('.qw-stamp-panel') : [];
+    for (const n of stale) {
+      if (n.parentNode) n.parentNode.removeChild(n);
+    }
+    const panel = stampPanel(bottle, () => {
+      /* 保存/取消/撤销之后整块档案面板重画：计数、chip、撤销按钮三者的
+         存在与否都由存储算出，重画才不会出现"chip 变了、撤销按钮还在"。 */
+      repaint();
+    });
+    host.appendChild(panel);
+    return panel;
+  };
+
+  if (!view.has) {
+    slot.appendChild(el('button', {
+      class: 'qw-stamp-open',
+      type: 'button',
+      'aria-label': `给${name}盖章：记录试香评价`,
+      onclick: openPanel,
+    }, '试过？盖章'));
+    return slot;
+  }
+
+  /* 已盖章：一枚 chip（日期 · 档位 · 共 N 次）。整枚可点，点开就是改档/再盖 ——
+     同一瓶可以重复盖章，新盖章覆盖"最近一次"，计数 +1（任务书第 5 条）。 */
+  slot.appendChild(el('button', {
+    class: 'qw-stamp-chip',
+    type: 'button',
+    'aria-label': `修改${name}的试香记录（${view.tierZh}，${view.countLabel}）`,
+    'data-stamp-count': String(view.count),
+    onclick: openPanel,
+  },
+  el('span', { class: 'qw-stamp-tick', 'aria-hidden': 'true' }, '✓'),
+  el('span', { class: 'qw-stamp-sum' }, view.summary)
+  ));
+
+  /* 撤销单独一枚小按钮：不进 panel 也能一步退回（用户刚盖错时不该先点开面板）。
+     panel 里也有一枚 —— 两处都走同一个 session.undo，语义完全一致。 */
+  slot.appendChild(el('button', {
+    class: 'link-btn qw-stamp-undo-inline',
+    type: 'button',
+    'aria-label': `撤销${name}最近一次盖章`,
+    onclick: () => {
+      const res = stampSession.undo(bottle);
+      stampSay(stampMessage(res));
+      repaint();
+    },
+  }, '撤销'));
+  return slot;
+}
+
 /** 历史面板的空态/列表/清空都在这一个函数里重画，保证计数与列表同源。 */
 function paintHistoryPanel(panel, toggle) {
   panel.innerHTML = '';
@@ -4508,6 +4865,10 @@ function paintHistoryPanel(panel, toggle) {
   }
 
   const ol = el('ol', { class: 'qw-history-list' });
+  /* 盖章位保存/撤销之后重画这一整块面板（不是整页）：计数、chip、撤销按钮
+     三者的存在与否都由存储算出，重画才不会出现"chip 变了、撤销按钮还在"。
+     只重画面板也保住了展开态与滚动位置 —— 盖个章把用户弹回页顶是很糟的。 */
+  const repaintPanel = () => paintHistoryPanel(panel, toggle);
   list.forEach((h) => {
     const when = new Date(h.t);
     const meta = el('div', { class: 'qw-history-meta' },
@@ -4517,10 +4878,14 @@ function paintHistoryPanel(panel, toggle) {
       }, formatHistoryTime(h.t)),
       el('span', { class: 'qw-history-entry' }, entryLabel(h.entry))
     );
+    /* 每一瓶一行：左边瓶名/品牌，右端是这一瓶的盖章位（见 stampSlot）。
+       盖章的**主入口就在这里**——档案是用户试完香回来唯一会打开的地方，
+       而这里的每一行天然是"具体的那一瓶"，不会出现"给谁盖章"的歧义。 */
     const names = el('ul', { class: 'qw-history-names' },
-      ...h.results.map((p) => el('li', {},
-        p.name,
-        p.brand ? el('span', { class: 'qw-history-brand' }, p.brand) : null
+      ...h.results.map((p) => el('li', { class: 'qw-history-name-row' },
+        el('span', { class: 'qw-history-name' }, p.name),
+        p.brand ? el('span', { class: 'qw-history-brand' }, p.brand) : null,
+        stampSlot(p, repaintPanel)
       ))
     );
     ol.appendChild(el('li', { class: 'qw-history-item' }, meta, names));
@@ -4584,9 +4949,433 @@ function renderHistoryBlock() {
     ),
     toggle
   ));
+  /* ---- 心仪清单入口（L3，2026-11-23）----
+     挂在档案区块内而不是另起一块：设计稿 §7.4 要求「首页与结果页都够得着」，
+     而档案区块是回访用户唯一会先看到的东西。带计数 —— 没计数时用户不知道
+     里面有没有东西，等于每次都要点进去确认一次。 */
+  let wishCount = 0;
+  try {
+    wishCount = wishlist.list().length;
+  } catch {
+    wishCount = 0;
+  }
+  box.appendChild(el('div', { class: 'qw-history-wish' },
+    el('button', {
+      class: 'qw-wl-entry',
+      type: 'button',
+      'data-wish-count': String(wishCount),
+      onclick: () => openWishPage(),
+    },
+    el('span', { class: 'qw-wl-entry-label' }, '心仪清单'),
+    el('span', { class: 'qw-wl-entry-count' }, String(wishCount)),
+    el('span', { class: 'qw-wl-entry-go' }, '打开 →')),
+    el('span', { class: 'hint' }, wishCount
+      ? '存过的瓶子都在这里，换设备或清缓存就没了'
+      : '在结果页点 ♡ 就能把喜欢的瓶子存到这里')
+  ));
   box.appendChild(panel);
   return box;
 }
+
+/* ---------- 进/出清单页 ----------
+   两个动作都只改一个字段再重画，与结果页「换一批」同一条路。
+   进页面前把香水表、链接表、实物图表拉齐（都是既有加载器，幂等）——
+   清单行要现查这四样，缺一样就会少一格。 */
+function openWishPage() {
+  state.wishPage = true;
+  WISH_SCROLL = 0;
+  Promise.all([
+    ensurePerfumes().catch(() => DATA),
+    ensureAffLinks().catch(() => AFF_LINKS),
+    ensurePhotos().catch(() => PHOTOS),
+  ]).then(() => {
+    if (state.wishPage) render();
+  });
+  render();
+}
+
+/* ============================================================
+   心仪清单 · 清单页本体（L3，2026-11-23）
+   ------------------------------------------------------------
+   这一块只做渲染与一次点击的去向。判据全在 src/wish-page.js：
+     · 哪些字段有、哪些没有（没有价格就不显示价格，没有链接就不显示链接）；
+     · 空态 / 满 50 / 存储不可用三句话；
+     · 清空的两段式与移除后的撤销。
+   这里**不 import 任何新存储**：已入手与移除都走 L2 那个 wishSession
+   背后的同一个 wishlist 实例 —— 心仪、已入手、盖章（将来）必须共用一个
+   存储，另起一套就会出现"清单里有、档案里没有"的分叉。
+
+   ---- 与结果页 ♡ 的位置关系（不是审美，是防误触）----
+   结果卡上「存」在瓶名行（卡顶）、「买」在页脚（卡底），一上一下两端。
+   清单行沿用同一条约定：移除与购买键分列两端，已入手在左侧信息区、
+   与购买键隔着一整行的宽度。见 99-wishlist.css 里 .qw-wl-* 的注释。
+   ============================================================ */
+
+/** 清单页当前的滚动锚点：重画后回到原位，避免点一下「已入手」被弹回页顶。 */
+let WISH_SCROLL = 0;
+
+/** 已入手集合：从**会话**读（不是数据层）—— 降级时标记落在兜底介质上，
+ *  直接问 wishlist 会读不到，于是用户点过之后那一行不亮。 */
+function wishOwnedSet(items) {
+  const set = new Set();
+  for (const it of items) {
+    if (wishSession.isOwned(it.id)) set.add(it.id);
+  }
+  return set;
+}
+
+/** 清单页的一行。五要素 + 已入手 + 移除，全部挂在 .qw-wl-row 下。 */
+function wishRowNode(row, ctx) {
+  const { say, repaint } = ctx;
+  const li = el('li', { class: 'qw-wl-row' + (row.owned ? ' is-owned' : ''), 'data-wish-id': row.id });
+
+  /* 盖章位的重画入口：先记住滚动位置再整页重画（与「移除」「已入手」同一条路）。
+     不记的话，在清单靠下的一行盖章会被弹回页顶 —— 用户刚点的是"给这瓶盖章"，
+     不该顺带丢掉他正在看的位置。 */
+  const repaintKeepScroll = () => {
+    WISH_SCROLL = pageScrollY();
+    repaint();
+  };
+
+  /* ① 瓶图。有照片用照片（与结果卡同一个 .pick-art 走法），没有就画瓶形 ——
+        两者尺寸由同一个 .qw-wl-art 盒控制，换图不会让各行基线错开。 */
+  const art = el('div', { class: 'qw-wl-art' });
+  if (row.photo) {
+    art.appendChild(el('img', {
+      src: row.photo, alt: '', role: 'presentation', loading: 'lazy', decoding: 'async', draggable: 'false',
+    }));
+  } else {
+    /* 瓶形走既有的 bottleArt：它按 id 稳定散列出色相，所以同一瓶在结果页
+       与清单页画出来是同一个颜色。没有照片时这是"同一瓶"的视觉连续性。 */
+    const p = ctx.perfumeOf(row.id);
+    art.appendChild(p ? bottleArt(p) : el('div', { class: 'qw-wl-art-ph' }));
+  }
+
+  const main = el('div', { class: 'qw-wl-main' });
+
+  /* ② 品名 + 品牌 */
+  main.appendChild(el('div', { class: 'qw-wl-name-row' },
+    el('h3', { class: 'qw-wl-name' }, row.name),
+    /* 「已入手」是**可切换**的标记，不是一次性动作 —— 点错了要能取消。
+       aria-pressed 跟着状态走，读屏用户听到的是「切换按钮 已按下」。 */
+    el('button', {
+      class: 'qw-wl-owned' + (row.owned ? ' is-on' : ''),
+      type: 'button',
+      'aria-pressed': row.owned ? 'true' : 'false',
+      'aria-label': row.owned ? `取消「已入手」标记：${row.name}` : `标记为已入手：${row.name}`,
+      onclick: (ev) => {
+        ev.stopPropagation();
+        WISH_SCROLL = pageScrollY();
+        const was = wishSession.isOwned(row.id);
+        if (was) {
+          /* 取消标记走会话（src/wish-ui.js 的 unmarkOwned）：数据层没有
+             "取消单条"的公开 API，而 L1 是已验收件、不许加导出（它的守卫
+             测试正面比对全部 export 名）。会话里那一份按 L1 的同一个键形状
+             读写，且降级时写兜底介质 —— 不会出现「清单在内存、标记在磁盘」的分叉。 */
+          const ok = wishSession.unmarkOwned(row.id);
+          say(ok ? `已取消「已入手」：${row.name}` : `取消不了「已入手」：${row.name}`);
+        } else {
+          const res = wishSession.toggleOwned(row.id);
+          say(res && res.ok ? `已标记「已入手」：${row.name}` : `标记不了「已入手」：${row.name}`);
+        }
+        repaint();
+      },
+    }, row.owned ? '已入手' : '标记已入手')
+  ));
+
+  if (row.brand) main.appendChild(el('p', { class: 'qw-wl-brand' }, row.brand));
+
+  /* ②b 盖章位（2026-11-23 补 L3 欠的第 4 项）：**同一枚 stampSlot**，
+     与档案面板逐字同一套 —— 五档文案、chip 口径、撤销语义、降级提示
+     全部来自 src/stamp.js / src/stamp-ui.js 那一份实现，这里只是换个挂载点。
+
+     bottle 只给 name/brand：盖章的身份键就是「归一化(name)|归一化(brand)」，
+     所以清单里的这一瓶与档案里的同一瓶算出**同一个键**，读写的是同一条记录
+     （两屏共用 scent-picker.tasting.v1，不需要任何同步逻辑）。
+
+     **为什么不塞进上面那行瓶名**（实测踩到，390 截图一眼可见）：那一行已经有
+     瓶名 + 「标记已入手」两个动作，再挤进 chip + 「撤销」会把它挤到第二行，
+     于是「Aventus  /  标记已入手  /  Creed」三行的顺序整个错位 —— 品牌跑到了
+     标记按钮下面。单独一行在 390 下更稳，也让"盖章"与"已入手"两个动作分开。
+
+     **数据里查不到这瓶时不给入口**（`row.missing`）：wishRowOf 在查不到时
+     把 name 退成 id（见 src/wish-page.js 第③条的注释），而 id 不是瓶名 ——
+     拿它盖章会写出一条「键 = id|」的记录，档案侧那瓶永远对不上，
+     等于制造一份两处都不认的孤立记录。宁可少一个入口，不写脏记录。 */
+  if (!row.missing) {
+    main.appendChild(el('div', { class: 'qw-wl-stamp-row' },
+      stampSlot({ name: row.name, brand: row.brand }, repaintKeepScroll, { surface: 'wish' })
+    ));
+  }
+
+  /* ③ 存入理由：L2 存下的那一句原文，只读展示。空就整格不出 ——
+        补一句「暂无理由」是替用户编一句他没说过的话。 */
+  if (row.reason) main.appendChild(el('p', { class: 'qw-wl-reason' }, row.reason));
+
+  /* ④ 价格带（有数据才显示，标「参考价」） + 日期 */
+  const meta = el('div', { class: 'qw-wl-meta' });
+  if (row.price) meta.appendChild(el('span', { class: 'qw-wl-price' }, row.price));
+  meta.appendChild(el('span', { class: 'qw-wl-date' }, row.savedAtLabel));
+  main.appendChild(meta);
+  li.appendChild(art);
+  li.appendChild(main);
+
+  /* ⑤ 购买链接（有才显示） + 移除。两个动作分列这一行的右端与底端，
+        与「已入手」在左侧信息区 —— 三个动作互不相邻。 */
+  const tail = el('div', { class: 'qw-wl-tail' });
+  if (row.buy && row.buy.length) {
+    const link = row.buy[0];
+    tail.appendChild(el('a', {
+      class: 'qw-wl-buy' + (link.kind === 'direct' ? '' : ' is-search'),
+      href: link.href,
+      target: '_blank',
+      /* 与结果页同一条合规口径：有佣金关系才挂 sponsored，无佣金绝不能挂。 */
+      rel: link.kind === 'direct' ? 'sponsored noopener noreferrer' : 'noopener noreferrer',
+      'data-affiliate': link.kind === 'direct' ? 'true' : 'false',
+      'data-kind': link.kind,
+      'data-platform': link.platform,
+    }, link.label));
+  }
+  tail.appendChild(el('button', {
+    class: 'qw-wl-remove',
+    type: 'button',
+    'aria-label': `从心仪清单移除${row.name}`,
+    onclick: (ev) => {
+      ev.stopPropagation();
+      WISH_SCROLL = pageScrollY();
+      /* 撤销要还原的是**存储里的原条目**（含原 savedAt），而 `row` 是
+         wish-page 算出来的**展示模型** —— 它的时间字段叫 savedAtLabel
+         （"最近存入 11-23"），没有 savedAt。拿 row 去撤销会把 savedAt 写成 0，
+         那一瓶随即掉到清单最末（实测踩到：撤销后顺序变了）。
+         所以从数据层取回那一条再交给会话。 */
+      const stored = (() => {
+        try {
+          return wishlist.list().find((x) => x.id === row.id) || null;
+        } catch {
+          return null;
+        }
+      })();
+      wishlist.remove(row.id);
+      /* 撤销窗口：把**原条目**留着，撤销时原样写回（含原 savedAt）。 */
+      say(`已移除：${row.name}`, { undo: removableOf(stored) || removableOf({ id: row.id, savedAt: 0, reason: row.reason }) });
+      repaint();
+    },
+  }, '移除'));
+  li.appendChild(tail);
+  return li;
+}
+
+function pageScrollY() {
+  try {
+    return typeof window !== 'undefined' && Number(window.scrollY) ? Number(window.scrollY) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * 清单页整页。
+ *
+ * 三件事按顺序：先算模型（wish-page.js）、再决定要不要出三条状态提示、
+ * 最后逐行渲染。**任何一个环节都不许抛到 render() 之外** ——
+ * 存储坏掉时这一页要显示降级提示，而不是把整站变成错误页（任务书第 5 条）。
+ */
+function renderWishPage() {
+  const wrap = el('div', { class: 'fade-in qw-wl-page' });
+
+  let items = [];
+  let degraded = false;
+  try {
+    items = wishlist.list();
+    degraded = wishSession.degraded();
+  } catch {
+    /* 连读都抛（极端环境）：按"存储不可用"处理，与 degraded 同一条口径。 */
+    items = [];
+    degraded = true;
+  }
+
+  /* 香水表与链接表都是按需加载的（性能腿的既定做法，见 ensurePerfumes）。
+     清单页要拿它们现查瓶名/图/价格/链接，所以这里 await 一次。
+     数据没到货不能等于"瓶子丢了"：模型对查不到的 id 仍然出行（见 wishRowOf）。 */
+  const repaint = () => {
+    render();
+    try {
+      window.scrollTo(0, WISH_SCROLL);
+    } catch { /* 没有 window（测试桩）：不滚即可，不影响内容 */ }
+  };
+
+  const say = (msg, opts) => sayWishPage(msg, opts, repaint);
+
+  const build = (data, links, photos) => {
+    const perfumes = perfumeIndex(data);
+    const aff = affiliateConfig();
+    const owned = wishOwnedSet(items);
+    const model = wishListModel(items, {
+      perfumes,
+      priceIndex: PRICE_INDEX,
+      photos: photos && typeof photos === 'object' ? photos : null,
+      owned,
+      degraded,
+      linksOf: (id, p) => (p ? affiliateLinks(p, aff) : []),
+    });
+
+    const head = el('div', { class: 'qw-wl-head' },
+      el('h2', { class: 'qw-wl-sub' },
+        model.count ? `共 ${model.count} 瓶 · 存在这台设备上` : WISH_PAGE_MSG.deviceOnly),
+      /* 回结果页：清单页是"档案里的一个视图"，不是全站首页，
+         所以出口写「返回」而不是「首页」。 */
+      el('button', {
+        class: 'link-btn qw-wl-back',
+        type: 'button',
+        onclick: () => { state.wishPage = false; render(); },
+      }, '← 返回')
+    );
+    wrap.appendChild(head);
+
+    /* 降级提示：L2 已定的那句话，逐字沿用。它排在最前 ——
+       "存不下"这件事会影响用户对这一页所有内容的理解。 */
+    if (model.degraded) {
+      wrap.appendChild(el('p', { class: 'qw-wl-note is-warn', role: 'note', 'data-note': 'unavailable' },
+        WISH_PAGE_MSG.unavailable));
+    }
+    /* 满 50：与 L2 同一句口径，数字取 WISHLIST_MAX 不另写。 */
+    if (model.full) {
+      wrap.appendChild(el('p', { class: 'qw-wl-note', role: 'note', 'data-note': 'full' },
+        WISH_PAGE_MSG.full));
+    }
+
+    /* ---- 空态：一句引导 + 一个回结果页的动作，不白屏 ---- */
+    if (model.empty) {
+      wrap.appendChild(el('div', { class: 'qw-wl-empty' },
+        el('p', { class: 'qw-wl-empty-title' }, WISH_PAGE_MSG.emptyTitle),
+        el('p', { class: 'qw-wl-empty-hint' }, WISH_PAGE_MSG.emptyHint),
+        el('button', {
+          class: 'btn qw-wl-empty-cta',
+          type: 'button',
+          onclick: () => { state.wishPage = false; render(); },
+        }, WISH_PAGE_MSG.emptyCta)
+      ));
+      return wrap;
+    }
+
+    const ol = el('ol', { class: 'qw-wl-list' });
+    for (const row of model.rows) {
+      ol.appendChild(wishRowNode(row, { say, repaint, perfumeOf: (id) => perfumes.get(id) || null }));
+    }
+    wrap.appendChild(ol);
+
+    /* 清空全部：两段式（与档案区块同一套交互），放在最下面 ——
+       它代价最大，不该和逐行操作抢注意力。 */
+    let armed = false;
+    const clearBtn = el('button', { class: 'link-btn qw-wl-clear', type: 'button' }, CLEAR_LABEL);
+    let timer = 0;
+    clearBtn.addEventListener('click', () => {
+      const next = nextClearState({ armed });
+      if (!next.changed) {
+        armed = true;
+        clearBtn.textContent = next.label;
+        /* 第二段视觉要能看出来（否则它和第一次点击前长得一样，
+           用户不知道自己已经在确认态）—— 类名 + 文案两重信号。 */
+        clearBtn.classList.add('is-armed');
+        timer = setTimeout(() => {
+          armed = false;
+          clearBtn.textContent = CLEAR_LABEL;
+          clearBtn.classList.remove('is-armed');
+        }, 4000);
+        return;
+      }
+      clearTimeout(timer);
+      armed = false;
+      clearBtn.classList.remove('is-armed');
+      clearBtn.textContent = CLEAR_LABEL;
+      WISH_SCROLL = pageScrollY();
+      wishlist.clear();
+      repaint();
+    });
+    wrap.appendChild(el('div', { class: 'qw-wl-actions' },
+      clearBtn,
+      el('span', { class: 'hint' }, '只存本机，清空后无法恢复')
+    ));
+    return wrap;
+  };
+
+  /* 数据可能还没到货。到了就重画一次；不到就按"查不到"渲染 ——
+     这一页的瓶名会退成 id，但列表本身照常可读可操作，
+     不会卡在空白等一个可能失败的请求。 */
+  const ready = DATA && PHOTOS !== null && AFF_LINKS !== null;
+  if (ready) return build(DATA, AFF_LINKS, PHOTOS);
+
+  Promise.all([
+    ensurePerfumes().catch(() => DATA),
+    ensureAffLinks().catch(() => AFF_LINKS),
+    ensurePhotos().catch(() => PHOTOS),
+  ]).then(() => {
+    if (state.wishPage) repaint();
+  });
+
+  return build(DATA, AFF_LINKS, PHOTOS);
+}
+
+/**
+ * 清单页的一条提示（复用 L2 那条单例提示条，不另造 toast）。
+ *
+ * 为什么复用：两个页面出现两种"提示"会让"这条会不会自己消失"变成
+ * 需要重新学习的事。同一条 .qw-wish-bar、同一个 hidden 语义、
+ * 同样 2 秒消失 —— 只有"撤销"这一种带动作，所以它多挂一个按钮。
+ */
+function sayWishPage(msg, opts, onUndo) {
+  const bar = ensureWishBar();
+  // eslint-disable-next-line no-use-before-define
+  clearTimeout(WISH_PAGE_TIMER);
+  bar.textContent = '';
+  bar.appendChild(document.createTextNode(msg));
+  bar.removeAttribute('hidden');
+
+  if (opts && opts.undo) {
+    /* 撤销：把原条目原样写回（savedAt 不变，位置不变）。
+       按钮本身要能点 —— 而 .qw-wish-bar 是 pointer-events:none（不挡操作），
+       所以这里把按钮单独放行 pointer-events:auto。
+       opts.undo 是 removableOf() 的产物 { id, item }：解出 item 再写回，
+       不能把外层的包裹对象直接当条目用（那样 id/savedAt 都会丢）。 */
+    const item = opts.undo.item || opts.undo;
+    const undoBtn = el('button', {
+      class: 'qw-wl-undo',
+      type: 'button',
+      onclick: (ev) => {
+        ev.stopPropagation();
+        /* 走会话：降级时它会写到兜底介质上，与「移除」是同一个介质 ——
+           否则会出现"移除是内存的事、撤销写进磁盘"这种一半真一半假的状态。
+           undoRemove 保留原 savedAt，所以撤销后那瓶回到原来的位置，
+           不会被顶到清单最前面（那是 add() 的语义，不是撤销的语义）。 */
+        const ok = wishSession.undoRemove
+          ? wishSession.undoRemove(item)
+          : false;
+        bar.setAttribute('hidden', '');
+        bar.textContent = '';
+        if (ok) {
+          if (typeof onUndo === 'function') onUndo();
+        } else if (typeof onUndo === 'function') {
+          /* 写不回就别假装成功：重画一次让界面与存储保持一致，
+             用户看到的是"确实没回来"，而不是"消失了又出现又消失"。 */
+          onUndo();
+        }
+      },
+    }, '撤销');
+    bar.appendChild(undoBtn);
+    /* 撤销窗口 5 秒（设计稿 §11.1），比普通提示长 —— 它要给人留出反应时间。 */
+    WISH_PAGE_TIMER = setTimeout(() => {
+      bar.setAttribute('hidden', '');
+      bar.textContent = '';
+    }, 5000);
+    return;
+  }
+
+  WISH_PAGE_TIMER = setTimeout(() => {
+    bar.setAttribute('hidden', '');
+    bar.textContent = '';
+  }, 2000);
+}
+let WISH_PAGE_TIMER = 0;
 
 async function waitForShareFonts() {
   if (!document.fonts || !document.fonts.ready) return;
@@ -4696,6 +5485,69 @@ function renderResult() {
   );
   wrap.appendChild(head);
 
+  /* 存入反馈：一条**不挡操作、自动消失**的轻提示。
+     为什么不用 toast 框架：本页只有这一处需要"说过就完"的短句，
+     为它引入定位层、队列与堆叠规则，代价远大于收益。
+
+     两条形态约束都是有理由的，不是随手定的：
+       · `position: fixed` 贴视口底部 —— 用户点哪张卡的 ♡ 都看得见。
+         若改成文档流里的一行，点第 2/3 张卡时它已经在屏幕上方，等于没提示。
+       · `pointer-events: none`（见 99-wishlist.css）—— 它悬在内容之上，
+         但任何点击都穿过去。这是"不挡操作"的字面实现：不是靠挪开，
+         而是它根本不在命中测试里。
+     另一条隐性好处：fixed 不参与布局，所以提示出现/消失时
+     下面那颗购买按钮不会跳位 —— 手指还没来得及离开就换位置是最容易误触的。
+
+     **必须挂到 document.body，不能留在结果区的 DOM 里**（实测踩到）：
+     `.fade-in` / `#app[data-scene] .fade-in` 上挂着 rise-in / sceneSettleIn /
+     sceneRiseIn 三个带 transform 的动画。带 transform 的祖先会成为
+     fixed 定位的**包含块**，于是 `bottom: 20px` 变成"贴在那个动画块底部"——
+     实测提示的 y 是 2698（视口高 900），整条落在屏幕外，用户什么都看不到。
+     挂 body 之后不受任何祖先的 transform 影响，才是真的贴视口。
+     （这也是把提示做成**单例**的理由：每次 render 都往 body 追加一条，
+     翻几轮结果页就会攒出一堆叠在一起的旧提示。见 ensureWishBar。） */
+  const wishBar = ensureWishBar();
+  let wishTimer = 0;
+  const sayWish = (msg) => {
+    /* ---- 「在香水档案里看」要真的能点（L3，2026-11-23）----
+       L2 的这句提示当时只有文字，用户读完仍不知道去哪找 —— 提示里指了
+       一个地方却没有入口，等于把"存完不知道去哪找"这个问题留给用户。
+       这里把 ' · ' 之后的那半句做成按钮：前半句是结果（存了没），
+       后半句是去向（去哪看），两者本来就该由同一条提示给出。
+       桩里没有 querySelector 分区能力也不影响：拆的是字符串，不是 DOM 结构。 */
+    const parts = String(msg).split(' · ');
+    wishBar.textContent = '';
+    if (parts.length === 2 && /^在香水档案里看/.test(parts[1])) {
+      /* 只把「在香水档案里看」这四个字做成按钮。
+         降级时 wishMessage 会在整句后面追加「（本机存储不可用，收藏仅本次有效）」，
+         那个括号是**说明**，不是去向 —— 整段塞进按钮会让按钮变成一句话
+         （实测截图里按钮被撑成一长条，句子读起来像「点这里（存不下）」）。
+         所以后半句按「在香水档案里看」+「其余」拆开，其余留在按钮外面。 */
+      const tail = parts[1].slice('在香水档案里看'.length);
+      wishBar.appendChild(document.createTextNode(parts[0] + ' · '));
+      wishBar.appendChild(el('button', {
+        class: 'qw-wish-go',
+        type: 'button',
+        onclick: (ev) => {
+          ev.stopPropagation();
+          wishBar.setAttribute('hidden', '');
+          wishBar.textContent = '';
+          openWishPage();
+        },
+      }, '在香水档案里看'));
+      if (tail) wishBar.appendChild(document.createTextNode(tail));
+    } else {
+      wishBar.appendChild(document.createTextNode(String(msg)));
+    }
+    wishBar.removeAttribute('hidden');
+    /* 2000ms：够读完一行 12 字，也不至于在下一次点击前还占着位置。 */
+    clearTimeout(wishTimer);
+    wishTimer = setTimeout(() => {
+      wishBar.setAttribute('hidden', '');
+      wishBar.textContent = '';
+    }, 2000);
+  };
+
   results.forEach((r, i) => {
     const p = r.perfume;
     /* 第 1 名要有独立于百分比的视觉身份。
@@ -4739,7 +5591,14 @@ function renderResult() {
        一张大图会把三张卡的节奏打断，也让"读理由"这件事被图片挤下去。
        88px 的小图只做"这三瓶长得不一样"的视觉锚点。 */
     const headText = el('div', { class: 'pick-head-text' });
-    headText.appendChild(el('h3', {}, p.name));
+    /* 瓶名一行：左边名字（占满剩余宽度），右端一颗 ♡。
+       为什么 ♡ 在这一行而不是页脚：页脚是「去哪买」的地盘，购买按钮在
+       那里贴右。存/买是两个不该挨着的动作 —— 一上一下两端，
+       手指不可能在同一个动作里滑到对方（下方注释与 99-wishlist.css 有实测数）。 */
+    headText.appendChild(el('div', { class: 'pick-name-row' },
+      el('h3', {}, p.name),
+      wishHeart(p, r, sayWish)
+    ));
     // 数据源有 24 瓶没标浓度 → 不编，直接不显示那一格
     const metaBits = [p.brand];
     if (p.concentrationLabelZh) metaBits.push(p.concentrationLabelZh);
@@ -5326,6 +6185,15 @@ function render() {
 
   app.innerHTML = '';
   app.appendChild(renderMasthead());
+  /* 清单页是一个**顶层视图**：它没有进度尺（不是问卷的一步），
+     但保留页头 —— 页头是全站的锚，去掉会让这一页看着像另一个站。 */
+  if (state.wishPage) {
+    app.dataset.step = 'wishlist';
+    app.appendChild(renderWishPage());
+    app.appendChild(renderFooter(true));
+    applyAmbient();
+    return;
+  }
   app.appendChild(renderProgress());
   if (isResult) {
     app.appendChild(renderResult());

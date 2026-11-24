@@ -11,6 +11,16 @@
 /* 2026-11-19：中文 webfont 退场（DECISIONS D71），CORE 去掉
    fonts/noto-sans-sc-subset.woff2；VERSION 跟着进一位，让旧缓存整套失效 ——
    静态资源是 cache-first + ignoreSearch，只改文件不换缓存名会一直吐旧副本。
+   同日 CORE 瘦身：perfumes.json 与 24 枚标本 SVG 移出预缓存 → v2-20261119b。 */
+/* 2026-11-23：心仪清单 L2 上线（结果页 ♡ 入口），app.js 与 styles.css
+   都变了 —— VERSION 进一位，让旧缓存整套失效。
+   （这条纪律的原因见上一段：静态资源 cache-first + ignoreSearch。） */
+/* 2026-11-23：试香盖章上线（档案每瓶盖章位 + 五档面板），app.js 与 styles.css
+   都变了、并新增 src/stamp.js / src/stamp-ui.js 两个模块 —— VERSION 再进一位，
+   两个新模块同时加进 CORE（它们是盖章的唯一实现，缺了就只剩未盖章态）。 */
+/* 2026-11-23：盖章入口补到心仪清单每行（复用同一枚 stampSlot），app.js 与
+   styles.css 再变一次 —— VERSION 跟着进一位。没有新增模块，CORE 不动。 */
+const VERSION = 'v2-20261124a';
    同日 CORE 瘦身：perfumes.json 与 24 枚标本 SVG 移出预缓存 → v2-20261119b。
    2026-11-23：CORE 加入 src/season-copy.js（季节屏 24 句）。它是 app.js
    的静态导入，缺了会让整个 module 图加载失败 —— 离线时不是"少一行文案"，
@@ -18,7 +28,6 @@
    2026-11-23（C 腿）：盘心大类图标上线，app.js 与 styles.css 都改了，
    VERSION 再跟一位。6 枚大类 SVG 与小类那 24 枚一样**不进** CORE：
    它们只在选中大类时取一次，进 CORE 会让安装期多拉 40KB。 */
-const VERSION = 'v2-20261123b';
 const CACHE_PREFIX = 'scent-picker-v7-1-';
 const CACHE = CACHE_PREFIX + VERSION;
 
@@ -45,6 +54,8 @@ const CORE = [
   './src/share-card.js',
   './src/avoid.js',
   './src/avoid-map.js',
+  './src/stamp.js',
+  './src/stamp-ui.js',
   './src/season-copy.js',
   './fonts/inter-var-latin.woff2',
   './fonts/inter-var-latin-ext.woff2',

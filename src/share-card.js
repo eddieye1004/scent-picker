@@ -160,24 +160,43 @@ export function drawShareCard(ctx, model, w = SHARE_W, h = SHARE_H) {
 
   /* ==== v2：1 瓶主推 + 2 瓶备选 ====
      结果本来就按匹配度排好：第 1 瓶是主推，第 2/3 瓶是备选。
-     主推给一块标本签底板（暖白 + 左侧主蓝条 + 上下发丝线），字号 54/28；
-     备选不加底板、字号 34/23、编号退成灰墨 —— 层级靠字号与颜色，
-     不靠再画一个框。只用 fillRect / 线，不引新依赖。 */
+     主推给一块标本签底板（暖白 + 左侧主蓝条 + 上下发丝线）；
+     备选不加底板、编号退成灰墨 —— 层级靠字号与颜色，不靠再画一个框。
+     本轮版式收敛（只动绘制层）：
+     ① 底板先量行再定高，不再悬着 420px 的固定空底；
+     ② 品牌 23px 贴住品名（同一名字块），理由 28px 另起一段；
+     ③ 备选区从底板下沿起排，长理由换行不再撞页脚。
+     只用 fillRect / 线，不引新依赖。 */
   const items = Array.isArray(model.items) ? model.items : [];
   const primary = items[0] || null;
   const alternates = items.slice(1);
+  const panelY = S(372);
+  let panelBottom = panelY + S(420);
 
   if (primary) {
-    const panelY = S(372);
-    const panelH = S(420);
     const px = M + S(46);
     const pw = innerW - S(92);
+    ctx.font = `${S(54)}px ${SERIF}`;
+    const nameLines = wrapLines(ctx, primary.name, pw).slice(0, 2);
+    ctx.font = `${S(23)}px ${SANS}`;
+    const brandLine = primary.brand ? wrapLines(ctx, primary.brand, pw)[0] : '';
+    ctx.font = `${S(28)}px ${SANS}`;
+    const reasonLines = primary.reason ? wrapLines(ctx, primary.reason, pw).slice(0, 3) : [];
+
+    const nameY = panelY + S(150);
+    const nameBottom = nameY + (nameLines.length - 1) * S(62);
+    const brandY = nameBottom + S(40);
+    const reasonY = (primary.brand ? brandY + S(60) : nameBottom + S(60));
+    const reasonBottom = reasonY + Math.max(0, reasonLines.length - 1) * S(42);
+    const panelH = Math.max(S(300), reasonBottom + S(52) - panelY);
+    panelBottom = panelY + panelH;
+
     ctx.fillStyle = '#FFFCF6';
     ctx.fillRect(M, panelY, innerW, panelH);
     ctx.fillStyle = C.accent;
     ctx.fillRect(M, panelY, S(6), panelH);
     rule(ctx, M, panelY, w - M, C.hair, Math.max(1, S(1)));
-    rule(ctx, M, panelY + panelH, w - M, C.hair, Math.max(1, S(1)));
+    rule(ctx, M, panelBottom, w - M, C.hair, Math.max(1, S(1)));
 
     ctx.fillStyle = C.accent;
     ctx.font = `${S(22)}px ${MONO}`;
@@ -185,53 +204,62 @@ export function drawShareCard(ctx, model, w = SHARE_W, h = SHARE_H) {
 
     ctx.fillStyle = C.ink;
     ctx.font = `${S(54)}px ${SERIF}`;
-    let py = drawWrapped(ctx, primary.name, px, panelY + S(150), pw, S(62), 2);
+    nameLines.forEach((line, i) => ctx.fillText(line, px, nameY + i * S(62)));
 
-    if (primary.brand) {
+    if (brandLine) {
       ctx.fillStyle = C.ink3;
-      ctx.font = `${S(25)}px ${SANS}`;
-      ctx.fillText(primary.brand, px, py + S(14));
-      py += S(38);
+      ctx.font = `${S(23)}px ${SANS}`;
+      ctx.fillText(brandLine, px, brandY);
     }
-    if (primary.reason) {
+    if (reasonLines.length) {
       ctx.fillStyle = C.ink2;
       ctx.font = `${S(28)}px ${SANS}`;
-      drawWrapped(ctx, primary.reason, px, py + S(54), pw, S(42), 3);
+      reasonLines.forEach((line, i) => ctx.fillText(line, px, reasonY + i * S(42)));
     }
   }
 
   if (alternates.length) {
-    const labelY = S(900);
+    const labelY = panelBottom + S(96);
     ctx.fillStyle = C.ink3;
     ctx.font = `${S(20)}px ${MONO}`;
     ctx.fillText(alternates.length > 1 ? '备选 · 另外两瓶' : '备选', M, labelY);
     rule(ctx, M, labelY + S(24), w - M, C.line, Math.max(1, S(1)));
 
-    let ay = S(980);
+    const textX2 = M + S(84);
+    const textW2 = innerW - S(84);
+    let ay = labelY + S(106);
     alternates.forEach((item, i) => {
       ctx.fillStyle = C.ink3;
       ctx.font = `${S(24)}px ${MONO}`;
       ctx.fillText(item.rank || String(i + 2).padStart(2, '0'), M, ay);
 
-      const textX2 = M + S(84);
-      const textW2 = innerW - S(84);
       ctx.fillStyle = C.ink;
       ctx.font = `${S(34)}px ${SERIF}`;
-      const nameEnd = drawWrapped(ctx, item.name, textX2, ay, textW2, S(44), 1);
+      const nameLines = wrapLines(ctx, item.name, textW2).slice(0, 1);
+      nameLines.forEach((line, j) => ctx.fillText(line, textX2, ay + j * S(44)));
+      const nameEnd = ay + (nameLines.length - 1) * S(44);
 
+      let blockBottom = nameEnd;
       if (item.brand) {
         ctx.fillStyle = C.ink3;
         ctx.font = `${S(22)}px ${SANS}`;
-        ctx.fillText(item.brand, textX2, nameEnd + S(12));
+        ctx.fillText(wrapLines(ctx, item.brand, textW2)[0], textX2, nameEnd + S(36));
+        blockBottom = nameEnd + S(36);
       }
       if (item.reason) {
         ctx.fillStyle = C.ink2;
         ctx.font = `${S(23)}px ${SANS}`;
-        drawWrapped(ctx, item.reason, textX2, nameEnd + S(54), textW2, S(34), 2);
+        const reasonLines = wrapLines(ctx, item.reason, textW2).slice(0, 2);
+        const reasonY = nameEnd + (item.brand ? S(76) : S(58));
+        reasonLines.forEach((line, j) => ctx.fillText(line, textX2, reasonY + j * S(34)));
+        blockBottom = reasonY + (reasonLines.length - 1) * S(34);
       }
-      ay += S(190);
+
       if (i < alternates.length - 1) {
-        rule(ctx, M, ay - S(52), w - M, C.line, Math.max(1, S(1)));
+        rule(ctx, M, blockBottom + S(56), w - M, C.line, Math.max(1, S(1)));
+        ay = blockBottom + S(134);
+      } else {
+        ay = blockBottom;
       }
     });
   }

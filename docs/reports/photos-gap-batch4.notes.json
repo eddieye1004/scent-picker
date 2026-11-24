@@ -1,0 +1,26 @@
+{
+ "ajmal-aurum-elixir": {
+  "status": "rejected",
+  "reason": "第三批验收驳回：瓶身对版（AURUM ELIXIR 本尊），但抠图底部残留原墨绿背景的绿色碎边，白底上一眼可见。重找原生浅底图或重抠。"
+ },
+ "armaf-miss-armaf-attitude": {
+  "status": "rejected",
+  "reason": "第三批验收驳回：瓶身对版，但抠图边缘全周锯齿阶梯（原图纯黑底粗抠），低于原生干净底标准。重找或重抠。"
+ },
+ "kayali-lovefest-burning-cherry-48": {
+  "status": "skipped",
+  "reason": "第三批跳过：perfumeonline / fragranceoutlet / intensoud / oudstore / perfumepalace 均无货号；Kayali 官方站（hudabeauty）拒绝抓取，未找到可用实物图。"
+ },
+ "nina-ricci-nina-fantasy": {
+  "status": "skipped",
+  "reason": "第三批跳过：限量款，perfumeonline / fragranceoutlet / perfumepalace 均只有 Nina、Nina Illusion、Nina Rouge 等，无 Fantasy 本款。"
+ },
+ "issey-miyake-a-drop-dissey": {
+  "status": "skipped",
+  "reason": "第三批跳过：各渠道只有 L'Eau d'Issey 系列与 A Drop d'Issey 的其它衍生，未找到本款。另注意现图候选里有一张灰底、瓶身裁掉一半的不合格图（见 photo-report.md §3），不要拿来顶替。"
+ },
+ "creed-spice-and-wood": {
+  "status": "skipped",
+  "reason": "第三批跳过：Creed 官方店（creedboutique）已无 Spice and Wood（Royal Exclusives 停售），其它渠道仅 Spicebomb/Vetiver 等近似款。"
+ }
+}

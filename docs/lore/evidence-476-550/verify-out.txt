@@ -1,0 +1,117 @@
+=== 1. 条目数与序号连续性 ===
+条目数: 75
+序号 476-550 连续齐全 OK
+名单条数: 75
+75 条 id 与排名全部与名单一致 OK
+
+=== 2. URL 溯源（宽松：URL 字符串出现在 raw 全文任一位置）===
+来源链接总数: 150 （唯一 150）
+全部 URL 在 raw 证据中逐字命中 OK
+
+=== 2b. URL 溯源（加严：必须逐字出现在 raw 的 URL 行上）===
+raw 中 URL: 行唯一数: 426
+全部 150 个 URL 均逐字出现在 raw 的 URL: 行，0 缺失 OK
+
+=== 3. 英文引文逐字核验（ASCII 双引号，全文）===
+引文数: 56   逐字命中: 56   未命中: 0
+无编造引文 OK
+
+=== 3b. 分字段引文核验（文案 / 备注 各自独立扫）===
+文案字段: 引文 42  命中 42  未命中 0
+备注字段: 引文 14  命中 14  未命中 0
+
+=== 3c. 中文角引号「」与弯双引号 内的英文引文核验 ===
+角引号/弯引号内英文: 114  命中: 114  未命中: 0
+
+=== 4. 留空条目合规 ===
+已写: 72   留空: 3   合计: 75
+留空条目合规、已写条目均有 >=1 来源、文案汉字数均在 100-220 OK
+
+=== 5. 逐瓶状态表 ===
+
+ no id                                                      status  type       src cjk
+ -- --                                                      ------  ----       --- ---
+476 al-haramain-detour-noir                                 WRITTEN 官方标语     4 120
+477 caron-narcisse-noir                                     WRITTEN 经典故事     2 115
+478 eisenberg-jose                                          WRITTEN 官方标语     2 109
+479 kenneth-cole-reaction                                   WRITTEN 经典故事     2 105
+480 nasomatto-duro                                          WRITTEN 官方标语     2 109
+481 armani-si-passione                                      WRITTEN 名人同款     3 145
+482 byredo-la-tulipe                                        WRITTEN 官方标语     2 104
+483 molinard-habanita                                       WRITTEN 经典故事     2 119
+484 maison-margiela-replica-on-a-date                       WRITTEN 官方标语     2 149
+485 parfums-de-marly-oajan                                  WRITTEN 经典故事     2 109
+486 ariana-grande-sweet-like-candy                          WRITTEN 名人同款     2 120
+487 bvlgari-man-extreme                                     WRITTEN 经典故事     2 167
+488 montale-dark-purple                                     WRITTEN 官方标语     2 133
+489 orientica-royal-amber                                   WRITTEN 官方标语     2 116
+490 versace-blue-jeans                                      WRITTEN 经典故事     2 133
+491 billie-eilish-eilish-no-2                               WRITTEN 官方标语     2 148
+492 dior-dior-homme-intense                                 WRITTEN 官方标语     2 144
+493 juliette-has-a-gun-pear-inc                             WRITTEN 经典故事     2 114
+494 mancera-roses-greedy                                    WRITTEN 经典故事     2 158
+495 montblanc-emblem                                        WRITTEN 官方标语     2 113
+496 kilian-flower-of-immortality                            WRITTEN 官方标语     2 128
+497 lancome-la-vie-est-belle-intensement                    WRITTEN 官方标语     2 119
+498 nishane-karagoz                                         WRITTEN 官方标语     2 105
+499 parfums-dusita-melodie-de-lamour                        WRITTEN 经典故事     2 132
+500 roja-parfums-reckless                                   WRITTEN 官方标语     2 116
+501 amouage-opus-i                                          WRITTEN 经典故事     2 101
+502 dolce-gabbana-the-only-one                              WRITTEN 名人同款     2 108
+503 guerlain-terracotta                                     WRITTEN 官方标语     2 107
+504 rasasi-shuhrah                                          WRITTEN 官方标语     2 116
+505 ajmal-wisal-dhahab                                      WRITTEN 官方标语     2 126
+506 lattafa-haya                                            WRITTEN 官方标语     2 109
+507 tauer-perfumes-cologne-du-maghreb                       WRITTEN 经典故事     2 102
+508 armaf-hunter-intense                                    BLANK   无可靠来源   0   0
+509 carolina-herrera-212-sexy                               WRITTEN 官方标语     2 130
+510 etro-heliotrope                                         WRITTEN 官方标语     2 111
+511 jo-malone-earl-grey-and-cucumber                        WRITTEN 官方标语     2 129
+512 orto-parisi-boccanera                                   WRITTEN 官方标语     2 123
+513 the-different-company-oriental-lounge                   WRITTEN 经典故事     2 126
+514 givenchy-play                                           WRITTEN 名人同款     2 125
+515 jean-paul-gaultier-le-beau-le-parfum                    WRITTEN 官方标语     2 118
+516 annick-goutal-nuit-etoilee                              WRITTEN 经典故事     2 129
+517 byredo-eyes-closed                                      WRITTEN 经典故事     2 136
+518 profumum-roma-olibanum                                  WRITTEN 经典故事     2 136
+519 parfums-de-marly-valaya                                 WRITTEN 官方标语     2 115
+520 patou-colony                                            WRITTEN 经典故事     2 122
+521 ariana-grande-r-e-m                                     WRITTEN 官方标语     2 111
+522 bvlgari-omnia-coral                                     WRITTEN 官方标语     2 100
+523 jovoy-incident-diplomatique                             WRITTEN 官方标语     2 114
+524 montale-starry-nights                                   WRITTEN 官方标语     2 103
+525 floris-vert-fougere                                     WRITTEN 官方标语     2 126
+526 juliette-has-a-gun-midnight-oud                         WRITTEN 经典故事     2 175
+527 montblanc-explorer-extreme                              WRITTEN 官方标语     2 115
+528 lancome-tresor-midnight-rose                            WRITTEN 名人同款     2 106
+529 nishane-sultan-vetiver                                  WRITTEN 官方标语     2 106
+530 robert-piguet-futur                                     WRITTEN 经典故事     2 108
+531 roja-parfums-apex                                       WRITTEN 经典故事     2 149
+532 ysl-cinema                                              WRITTEN 官方标语     2 118
+533 memo-paris-cap-camarat                                  WRITTEN 官方标语     2 119
+534 narciso-rodriguez-cristal                               WRITTEN 经典故事     2 117
+535 ajmal-dahn-al-oudh-moattaq                              BLANK   无可靠来源   0   0
+536 lattafa-eclaire                                         WRITTEN 官方标语     2 126
+537 marc-jacobs-daisy-ever-so-fresh                         WRITTEN 官方标语     2 111
+538 tauer-perfumes-orange-star                              WRITTEN 经典故事     2 101
+539 viktor-rolf-eau-de-toilette-spicebomb-fresh             WRITTEN 官方标语     2 104
+540 diptyque-volutes                                        WRITTEN 经典故事     2 110
+541 issey-miyake-leau-dissey-pure                           WRITTEN 官方标语     2 118
+542 afnan-rare-carbon                                       BLANK   无可靠来源   0   0
+543 etro-vicolo-fiori                                       WRITTEN 经典故事     2 117
+544 jo-malone-basil-and-neroli                              WRITTEN 官方标语     3 126
+545 orto-parisi-seminalis                                   WRITTEN 官方标语     2 112
+546 rabanne-million-gold-for-her                            WRITTEN 官方标语     4 104
+547 the-different-company-sel-de-vetiver                    WRITTEN 经典故事     2 141
+548 van-cleef-arpels-collection-extraordinaire-santal-blanc WRITTEN 官方标语     2 133
+549 al-haramain-oudh-36                                     WRITTEN 官方标语     2 121
+550 caron-fleur-de-rocaille                                 WRITTEN 经典故事     2 130
+
+
+
+=== 6. 类型分布 ===
+官方标语: 42
+经典故事: 25
+名人同款: 5
+来源数合计: 150
+文案汉字数: min 100 / max 175 / 均值 121.1
