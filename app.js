@@ -28,7 +28,6 @@ import {
    avoid-map.js 是「元素 → 场景句 → 所属香型」映射表（原 LIFE_NOTES 抽出来的），
    avoid.js 是按 perfumes.json 频次现算候选的三条硬规则。两者都不碰 DOM。 */
 import { AVOID_SCENARIOS } from './src/avoid-map.js';
-import { buildAvoidIndex, avoidPlan } from './src/avoid.js';
 /* 心仪清单数据层（L1，2026-11-23）。这里只用它的公开 API 与注入点，
    不改它的任何语义 —— 存储不可用时的内存兜底写在 src/wish-ui.js，
    靠 createWishlist(storage) 这个既有注入口完成，不给数据层开洞。 */
@@ -49,6 +48,12 @@ import { createStamps } from './src/stamp.js';
 import {
   createStampSession, stampViewOf, stampMessage, stampTiers, stampKeyOf, STAMP_MSG,
 } from './src/stamp-ui.js';
+import { buildAvoidIndex, avoidPlan, avoidSelection } from './src/avoid.js';
+/* 季节屏的「方向 × 季节」24 句（定版 2026-11-23）。抽成独立模块而不是塞进下面的
+   SEASONS：那 24 句的来源是一份 md，逐字比对是这条改动的验收线，句子集中在
+   一个文件里才能一眼对完。查不到组合时 seasonScene() 返回空串，renderSeason
+   回退到该季原有的 desc —— 用情绪入口进来的人没有 family，那一屏必须照常渲染。 */
+import { seasonScene } from './src/season-copy.js';
 
 const state = {
   step: 0,
@@ -109,6 +114,14 @@ const state = {
        —— 与"用户当年跳过那一屏"逐位一致。将来若恢复这一屏，写入口接回去即可。 */
     wanted: [],
     unwanted: [],
+    /* ==== 避雷屏第三态「没闻过」（2026-11-23，Eddie 批准 QW10 诊断第 1 条）====
+       存的是生活短语 id，与 unwanted 同一套键。这**不是**排除项，也**不是**
+       接受项：它唯一的职责是把"我确实不知道"与"我接受"区分开，让用户敢承认
+       没闻过，而不是被迫在"扣 40 分"和"假装接受"之间二选一。
+       所以它不参与 syncPhrasesToNotes —— dislikedNotes 只由 unwanted 展开，
+       这一点由 syncPhrasesToNotes 的实现保证（它只读 unwanted），不靠调用方自觉。
+       两列互斥由 src/avoid.js 的 avoidSelection 保证（不要优先）。 */
+    noSmell: [],
     likedNotes: [],
     dislikedNotes: [],
     // 英文香调名 → 中文显示名。理由里要回显用户点的中文，而不是 bergamot。
@@ -272,6 +285,9 @@ const STEPS = [
     id: 'unwanted',
     short: '避雷',
     title: '只问最容易踩雷的几个',
+    /* help 保持原句不扩写：它必须落在**一行**里。多一句就换行，
+       把下面的「你已排除」整行顶到 sticky 导航条底下（实测过）。
+       「没闻过」这件事交给屏顶 .avoid-tip 说 —— 那里本来就要说。 */
     help: '都是你选的方向里最容易混进来的味道。点一下＝这个不要；不点就是接受',
     render: renderAvoid,
   },
@@ -346,11 +362,21 @@ function avoidSoftNow() {
 function pruneAvoid(plan) {
   if (!plan || state.avoidKey === plan.key) return;
   state.avoidKey = plan.key;
-  const keep = new Set(plan.cards.map((c) => c.id));
+  const keep = plan.cards.map((c) => c.id);
   const before = state.answers.unwanted || [];
-  const after = before.filter((id) => keep.has(id));
-  if (after.length !== before.length) {
-    state.answers.unwanted = after;
+  /* 「没闻过」这一列同样会悬空：它是视图状态（用户对"这一屏上这几张"的表态），
+     方向一变，屏上那几张就换了，旧表态必须一起清。
+     用 avoidSelection 而不是手写 filter —— 它同时守"两列互斥"，
+     手写两份 filter 等于把同一条不变式再实现一遍，迟早分叉。 */
+  const merged = avoidSelection(
+    { unwanted: before, noSmell: state.answers.noSmell || [] },
+    keep,
+  );
+  const gone = merged.unwanted.length !== before.length
+    || merged.noSmell.length !== (state.answers.noSmell || []).length;
+  if (gone) {
+    state.answers.unwanted = merged.unwanted;
+    state.answers.noSmell = merged.noSmell;
     syncPhrasesToNotes();
   }
 }
@@ -577,7 +603,7 @@ function applyDirectionToCharacter(emotionId) {
    页面里 `document.documentElement.dataset.build` 会带上它。
    用途是"这次看到的到底是哪份代码"—— 改完 app.js 如果这个值没变，
    说明浏览器还在跑缓存的旧文件，别去猜渲染逻辑。 */
-const BUILD_ID = '2026-11-17-quiz-v7-step15-design';
+const BUILD_ID = '2026-11-23-pre-freeze-avoid-3state';
 
 /* ---------- 上色图标（结果页实物图的降级瓶形，与盘心标本共用同一批） ----------
    24 枚上色版在 ./icon-specimen/svg/ 合计 295.6KB / gzip 80.1KB，
@@ -615,6 +641,26 @@ const ART_FILE = {
   'vanilla-gourmand': 'gourmand-vanilla-gourmand',
   'fruity-gourmand': 'gourmand-fruity-gourmand',
 };
+/* ---------- 6 枚大类图标（PR #10 抢救进主线的那一套） ----------
+   与小类那 24 枚同一目录、同一 24×24 视框、同一线宽，所以两者能并排出现在
+   同一块盘心上而不打架 —— 这正是"风格统一"唯一可控的实现方式（自绘、同规格）。
+
+   为什么单独一张表而不是塞进 ART_FILE：
+     ART_FILE 的键是**小类** id，`scripts/test-render.mjs` 有一条断言要求它
+     "不缺格、不多余"（与 taxonomy 的 subfamilies 一一对应）。把 6 个大类 id
+     混进去，那条断言立刻失败，而它守的东西（24 枚小类全覆盖）是对的。
+     两张表各自对应数据里的一层，互不污染。
+
+   文件名后缀 `-family` 是抢救时定下的（`citrus-family.svg` 与
+   `citrus-cologne.svg` 之类的小类文件同目录），不是这里命名的。 */
+const FAM_ART_FILE = {
+  citrus: 'citrus-family',
+  floral: 'floral-family',
+  woody: 'woody-family',
+  amber: 'amber-family',
+  fresh: 'fresh-family',
+  gourmand: 'gourmand-family',
+};
 const ART_CACHE = new Map();
 /* 已解析完成的内容单独记一份：artInner() 返回 Promise，微任务里替换图元会
    让"先画线稿、再换彩图"多出一帧 —— 实测用户能看见约 1s 的旧线稿闪现。
@@ -624,8 +670,13 @@ function artPath(subId) {
   const f = ART_FILE[subId];
   return f ? './icon-specimen/svg/' + f + '.svg' : '';
 }
-function artInner(subId) {
-  const p = artPath(subId);
+function famArtPath(famId) {
+  const f = FAM_ART_FILE[famId];
+  return f ? './icon-specimen/svg/' + f + '.svg' : '';
+}
+/* 取图与就绪判定都按**路径**做：两张表（大类 / 小类）共用一份缓存，
+   键是路径本身，所以同名冲突不可能发生，也不必写两套 fetch。 */
+function artInnerPath(p) {
   if (!p) return Promise.resolve('');
   if (!ART_CACHE.has(p)) {
     ART_CACHE.set(p, fetch(p).then((r) => (r.ok ? r.text() : '')).then((t) => {
@@ -638,6 +689,9 @@ function artInner(subId) {
     }).catch(() => ''));
   }
   return ART_CACHE.get(p);
+}
+function artInner(subId) {
+  return artInnerPath(artPath(subId));
 }
 /* ==== 24 枚标本的「启动即全量预热」已删除（性能腿，2026-11-19）====
    原先这里有一个 artWarmAll()，在模块求值时就把 24 个 SVG 全拉一遍，
@@ -663,6 +717,10 @@ function artNs(inner, ns) {
 /* 彩图已就绪就直接返回可写进 <svg> 的内部内容；没就绪返回 ''。 */
 function artSvgReady(subId) {
   const inner = ART_READY.get(artPath(subId));
+  return inner ? artNs(inner, 'a' + (++artSeq)) : '';
+}
+function famArtReady(famId) {
+  const inner = ART_READY.get(famArtPath(famId));
   return inner ? artNs(inner, 'a' + (++artSeq)) : '';
 }
 /* 避雷墙的标本小图复用同一套彩图缓存（ART_FILE 的反向：文件名 → 子家族 id）。
@@ -826,7 +884,15 @@ function scentPlate(sub) {
    文字放什么：这一族的小类名 + 个数。两件事都是数据里来的，不是编的；
    盘心因此在说"这一族由这四格组成"，而不只是一句风格描述。
    为什么不做成"·"串一行就完：小类名之间要能一眼数清有几格，
-   所以名字之间用间隔点，个数单独一行小字（与盘心其它小字同一档）。 */
+   所以名字之间用间隔点，个数单独一行小字（与盘心其它小字同一档）。
+
+   ==== 小类名取哪个字段（2026-11-24 裁定 A）====
+   口径 = `label || zh || id`，与中圈弧段标签（第 1711 行）、盘心主词
+   （第 1924 行区）三处同源。原先是 `zh || id`，于是柑橘调这一族在
+   只选大类时列出"古龙水型/青绿柑橘/柑橘花香/芳香柑橘"——与用户点中圈
+   看到的"纯柑橘/苦橙叶/橙花柑橘/皂感柑橘"对不上，同一个盘心两种状态
+   说两套名字。label 是 4 字以内的直白词，zh 是正式名：**数据两个字段都
+   不动**，表单、推荐理由、无障碍名继续用 zh，只有盘心这两处显示改口径。 */
 function familyText(fam) {
   const subs = (fam.subfamilies || []);
   if (!subs.length) return null;
@@ -838,11 +904,62 @@ function familyText(fam) {
       /* 间隔点只是排版记号，不该被读屏念成内容 */
       list.appendChild(el('span', { class: 'fam-text-sep', 'aria-hidden': 'true' }, '·'));
     }
-    list.appendChild(el('span', { class: 'fam-text-item' }, s.zh || s.id));
+    /* 取词口径与中圈弧段、盘心主词同源：label 优先、zh 兜底。
+       柑橘调那 4 项的 zh 全是"××柑橘"，只选大类时并排列在这里分不出差别
+       （与 1711 行中圈改名同一个理由）；label 缺省时回退 zh，再缺省用 id。
+       数据本身不动 —— 表单、推荐理由、无障碍名里仍用 zh。 */
+    list.appendChild(el('span', { class: 'fam-text-item' }, s.label || s.zh || s.id));
   });
   wrap.appendChild(list);
   wrap.appendChild(el('span', { class: 'fam-text-count' }, subs.length + ' 个小类'));
   return wrap;
+}
+
+/* ---------- 盘心大类徽记（2026-11-23 方向 B，Eddie 拍板）----------
+   选中一个大类时，把**这一大类自己的图标**放到盘心；取消选择就恢复原样。
+
+   图标是哪来的：`icon-specimen/svg/<fam>-family.svg`，就是 PR #10 抢救进主线
+   的那 6 枚（`f0dafdf`），与小类那 24 枚同一目录、同一 24×24 视框、同一线宽。
+   「与扇区上用的是同一套图」这句只有对得上文件才算数，所以路径集中在
+   FAM_ART_FILE 一张表里，测试直接读它做断言，不另抄一份文件名。
+
+   ==== 为什么它是**背衬**，而不是又一个 flex 行 ====
+   盘心是圆，内容按 justify-content:center 竖排，四个断点实测：
+     1440  盘心 332.6px，内高 292.6，内容 5 行用掉 227.8 → 两侧余 52.4
+      390  盘心 225.7px，内高 185.7，内容 4 行用掉 141.7 → 两侧余 22
+      360  盘心 205.9px，内高 165.9，内容 4 行用掉 160.3 → 余 2.8，已经贴底
+      320  盘心 179.5px，内高 139.5，内容 160.3 → **已经溢出内边距**
+   也就是说 390 以下再插一行（哪怕 34px）就会把内容顶出圆外、压到中圈弧段上。
+   而本腿的围栏是「只动盘心这一处，既有元素与文案一律不动」——
+   既不能删 .fam-text 的哪一行来腾地方，也不能把盘心放大（66% 被
+   test-render 的「闭合态盘心填满内孔」守着）。
+   所以图标走绝对定位的背衬层：不占 flex 空间 → 任何断点都不会溢出，
+   也不改动任何既有元素的位置与字号。文字画在它上面（见 CSS 里那条
+   `> *:not(.hub-emblem)` 的 z-index），主词与说明的对比度不受影响。
+
+   什么时候出现：选中/预览某个大类、且还没落到小类时。
+   落到小类时盘心已经有一枚代表香材（.plate-svg），那时再叠一层徽记
+   等于两个物体抢同一个位置 —— 那一路保持原样，本腿不碰。 */
+function familyEmblem(fam) {
+  const box = svgEl('svg', {
+    class: 'emblem-svg is-art',
+    viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+  const ready = famArtReady(fam.id);
+  if (ready) box.innerHTML = ready;
+  /* 与 scentPlate 同一条按需通路：没就绪就等它到，到了再写进来。
+     迟到的图不会写到"换掉之后"的徽记上：外层 .hub-emblem 是常驻节点，
+     paint() 换族时做的是 `innerHTML = ''` —— 旧 <svg> 已经被摘下来了，
+     回调写的是一个离屏节点，不影响眼前这一枚。 */
+  if (!ready) {
+    artInnerPath(famArtPath(fam.id)).then((inner) => {
+      if (!inner) return;
+      box.innerHTML = artNs(inner, 'a' + (++artSeq));
+    });
+  }
+  return box;
 }
 
 /* ---------- 盘心空态纹样（缺陷 ③ 的另一半）----------   还没选大类时，盘心是一块空圆 + 两行小字。补一枚与盘同构的纹样：
@@ -1110,8 +1227,13 @@ function buildWheel(cfg) {
      单独一棵节点而不是塞进 hubGlyph：hubGlyph 归标本管，两者互斥，
      混用会让 paint() 里"清空标本"那一步顺手把纹样也删掉。 */
   const hubOrn = hubOrnament(families);
+  /* 大类徽记（方向 B）：绝对定位的背衬层，不占 flex 空间。
+     为什么必须是独立的一层：见 familyEmblem 上方那段 —— 390 以下盘心已经
+     贴满，任何进 flow 的一行都会顶出圆外。它同时与 hubOrn / hubGlyph 各自
+     独立，paint() 里三条清理路径互不牵连。 */
+  const hubEmblem = el('div', { class: 'hub-emblem', 'aria-hidden': 'true' });
   const hub = el('div', { class: 'disc-hub is-idle' },
-    hubOrn, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
+    hubEmblem, hubOrn, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
   root.appendChild(hub);
 
   /* ---- 液态玻璃交互层（B 段）----
@@ -1703,6 +1825,10 @@ function buildWheel(cfg) {
   /* 盘心标本当前画的是哪一个。`sub:<id>` / `fam:<id>` / `none`。
      只在这个 key 变化时重建盘心 DOM（paint 由 hover 高频调用）。 */
   let builtGlyphKey = null;
+  /* 盘心大类徽记当前画的是哪一族（方向 B）。与 builtGlyphKey 分开记：
+     两者在同一帧里会走不同的门（落到小类时徽记退场、标本上场），
+     共用一个 key 会让其中一路永远不重建。 */
+  let builtEmblemKey = null;
   /* 上一层是不是"展开"状态。只用来判断这次 paint 是不是一次换层 ——
      hover 引起的重绘每天几十次，不能每次都重播一遍进出场动画。 */
   let wasOpen = null;
@@ -1817,7 +1943,10 @@ function buildWheel(cfg) {
     } else if (focusSub) {
       picked = !!(sub && sub.id === focusSub.id);
       kick = picked ? '已选定' : '正在看';
-      zh = focusSub.zh;
+      /* 盘心小类名与中圈统一：中圈写的是 `item.label || item.zh`（见 1710 行），
+         盘心原来只读 `zh`，于是柑橘调 4 项出现"中圈点纯柑橘、盘心说古龙水型"。
+         同一套回退链搬过来：有 label 用 label，没有的 20 类行为逐字不变。 */
+      zh = focusSub.label || focusSub.zh;
       desc = focusSub.descWheel || focusSub.short || focusSub.desc;
     } else {
       kick = hoverFam && !selFamily ? '正在看' : '已选定大类';
@@ -1874,6 +2003,43 @@ function buildWheel(cfg) {
       if (glyph) hubGlyph.appendChild(glyph);
     }
     hub.classList.toggle('has-glyph', glyphKey !== 'none');
+
+    /* ==== 大类徽记（方向 B，2026-11-23）====
+       盘心显示"这一大类的图标"，跟随 showFam —— 与盘心主词同一个来源，
+       所以图标和文字永远讲同一件事（悬停预览「点一下换到 X」时，
+       图标也一起换成 X，不会出现"字说花香、图还是柑橘"）。
+
+       落到小类（focusSub 为真）时不出徽记：那一路盘心已经有一枚代表香材
+       （.plate-svg），再叠一层就是两个物体抢同一个圆心 —— 那是既有观感，
+       本腿的围栏是"不许借机改盘心既有元素"，所以保持原样。
+       未选中（showFam 为空）时同样不出 —— 盘心恢复空态纹样，逐位原样。
+
+       重建只在 key 变化时发生：paint() 被 hover 高频调用，每次重建会让
+       图标闪一帧（artInner 走缓存，但仍然是一次 innerHTML 写入）。
+
+       取哪一族：与盘心主词同源（`hoverFam || selFamily`），但**必须已经有
+       选中的大类**才出图。理由两条：
+         · 未选中时盘心是空态（纹样 + 「还没选」），任务书要求"不选中时盘心
+           保持原样"。空态下把指针划过扇区就让徽记浮出来，等于改了空态。
+         · 已选中之后悬停另一族，盘心主词已经在说「点一下换到 X」——
+           图标跟着换到 X，字与图才讲同一件事（否则读起来像没跟上）。 */
+    const emblemFam = (!focusSub && selFamily)
+      ? (famById.get(hoverFam || selFamily) || null) : null;
+    const emblemKey = emblemFam ? emblemFam.id : 'none';
+    if (emblemKey !== builtEmblemKey) {
+      builtEmblemKey = emblemKey;
+      hubEmblem.innerHTML = '';
+      if (emblemFam) {
+        hubEmblem.appendChild(familyEmblem(emblemFam));
+        /* data-fam 挂在常驻节点上而不是每次重建的那层：它同时是
+           CSS 的钩子与测试的读数（"盘心上现在是谁的图标"），
+           不需要去 <svg> 里翻渐变 id 才知道。 */
+        hubEmblem.setAttribute('data-fam', emblemFam.id);
+      } else {
+        hubEmblem.removeAttribute('data-fam');
+      }
+    }
+    hub.classList.toggle('has-emblem', emblemKey !== 'none');
 
     // 只选了大类时给快捷出口；已落到小项就没必要再催一次
     const canSkip = !!(selFamily && !selSub);
@@ -2594,6 +2760,13 @@ function renderAvoid() {
     el('h2', { class: 'q-title' }, head.title),
     el('p', { class: 'q-help' }, head.help)
   ));
+  /* 代价提示（Eddie 2026-11-23 批准，QW10 诊断第 3 条）。
+     口径由任务书给定，只许润色不许改语义，且**不许出现内部数字** ——
+     「−40 / +14」是引擎权重，对用户是黑话，写出来只会让人以为这是可计算的交易。
+     位置在屏顶（页眉之下、卡片墙之上）：用户在点第一张卡之前就要看到它，
+     放到底部等于点完才提醒。 */
+  wrap.appendChild(el('p', { class: 'avoid-tip' },
+    '点错一张会扣掉不少分。没闻过的，选「没闻过」就行 —— 它不加分也不扣分'));
 
   const plan = avoidPlanNow();
   /* 数据没到齐（或方向还没定）：先占位。
@@ -2618,18 +2791,95 @@ function renderAvoid() {
 
   const wall = el('div', { class: 'avoid-wall', role: 'group', 'aria-label': '最容易踩雷的几个' });
   const count = el('p', { class: 'avoid-count' });
+  const excluded = el('p', { class: 'avoid-excluded' });
   const gloss = el('p', { class: 'avoid-gloss is-idle' });
 
+  /* 当前两列选中态的一次读取。两列互斥由 avoidSelection 保证（不要优先），
+     所以界面与引擎看到的是同一份判据，不会出现"卡上标了没闻过、引擎却扣了分"。 */
+  const selNow = () => avoidSelection(
+    { unwanted: state.answers.unwanted || [], noSmell: state.answers.noSmell || [] },
+    plan.cards.map((c) => c.id),
+  );
+
+  /* 卡片的三种视觉态（未选 / 不要 / 没闻过）统一在这里落地：
+     两个开关各自 aria-pressed、卡面挂 is-on 或 is-unknown。
+     点完就地改，不重建整墙（重建会让被点的节点消失、焦点掉回 body）。 */
+  const paintCard = (id) => {
+    const s = selNow();
+    const on = s.unwanted.includes(id);
+    const off = s.noSmell.includes(id);
+    const row = wall.querySelector(`[data-row="${id}"]`);
+    if (!row) return;
+    const card = row.querySelector('.avoid-card');
+    const nope = row.querySelector('.avoid-nope');
+    card.classList.toggle('is-on', on);
+    card.classList.toggle('is-unknown', off);
+    card.setAttribute('aria-pressed', String(on));
+    nope.classList.toggle('is-on', off);
+    nope.setAttribute('aria-pressed', String(off));
+    /* 没闻过的卡不再盖「这个不要」章 —— 两枚章叠在同一张卡上是自相矛盾的陈述。 */
+    card.setAttribute('data-state', on ? 'on' : off ? 'unknown' : 'idle');
+  };
+
   const paintMeta = () => {
-    const sel = state.answers.unwanted || [];
-    count.textContent = sel.length
-      ? `已标 ${sel.length} 个「这个不要」`
+    const s = selNow();
+    const parts = [];
+    if (s.unwanted.length) parts.push(`已标 ${s.unwanted.length} 个「这个不要」`);
+    if (s.noSmell.length) parts.push(`${s.noSmell.length} 个「没闻过」`);
+    count.textContent = parts.length
+      ? parts.join('，')
       : '一个都没点＝这几个都接受';
-    const last = sel.length ? LIFE_NOTES.find((x) => x.id === sel[sel.length - 1]) : null;
+
+    /* 已排除清单（Eddie 批准第 2 条）：把"我到底排除了什么"从记忆里搬回屏上。
+       名字本身就是撤销按钮 —— 用户看到"我误伤了玫瑰"时，最短的补救路径是
+       直接点这个名字，而不是先找到那张卡再点两下。 */
+    excluded.textContent = '';
+    /* 用 firstChild/removeChild 逐个清而不是 `textContent = ''`：
+       两者语义等价，但 test-render 的 DOM 桩里 `textContent = ''` 会把 _text
+       置成空串并让后续 appendChild 的文本读不回来 —— 那是桩的简化，
+       不是浏览器行为。清子节点用的是标准 DOM 方法，两边都成立。 */
+    while (excluded.firstChild) excluded.removeChild(excluded.firstChild);
+    const names = s.unwanted
+      .map((id) => LIFE_NOTES.find((x) => x.id === id))
+      .filter(Boolean);
+    if (!names.length) {
+      excluded.classList.add('is-idle');
+      excluded.textContent = '你已排除：（还没有）';
+    } else {
+      excluded.classList.remove('is-idle');
+      excluded.appendChild(document.createTextNode('你已排除：'));
+      names.forEach((d, i) => {
+        if (i) excluded.appendChild(document.createTextNode('、'));
+        excluded.appendChild(el('button', {
+          class: 'avoid-undo',
+          type: 'button',
+          'data-undo': d.id,
+          'aria-label': `取消排除「${d.zh}」`,
+          onclick: () => {
+            const cur = state.answers.unwanted || [];
+            const at = cur.indexOf(d.id);
+            if (at >= 0) cur.splice(at, 1);
+            syncPhrasesToNotes();
+            paintCard(d.id);
+            paintMeta();
+            /* 撤销后这个名字会从清单里消失：焦点不能掉回 body，
+               交还给对应的那张卡（键盘用户下一步就在那里）。 */
+            const back = wall.querySelector(`[data-row="${d.id}"] .avoid-card`);
+            if (back && typeof back.focus === 'function') back.focus();
+          },
+        }, d.zh));
+      });
+    }
+
+    const lastId = s.unwanted[s.unwanted.length - 1] || s.noSmell[s.noSmell.length - 1];
+    const last = lastId ? LIFE_NOTES.find((x) => x.id === lastId) : null;
+    const lastOff = !!(lastId && s.noSmell.includes(lastId));
     gloss.classList.toggle('is-idle', !last);
     gloss.textContent = last
-      ? `${last.zh} —— ${last.hint}`
-      : '点一下＝这个不要，再点一下收回。不点就是接受';
+      ? (lastOff
+        ? `${last.zh} —— 没闻过，这条不算数`
+        : `${last.zh} —— ${last.hint}`)
+      : '点卡＝这个不要；没闻过就点右边「没闻过」。两个都不点＝接受';
   };
 
   /* 同一条纪律（原「想要」屏的 togglePhrase 也是这一条，那屏已删）：
@@ -2646,24 +2896,56 @@ function renderAvoid() {
       const o = state.answers.wanted || [];
       const oi = o.indexOf(id);
       if (oi >= 0) o.splice(oi, 1);
+      /* 「不要」压过「没闻过」：同一张卡上更强的那个陈述说了算。
+         不清的话会留下"标了不要、同时又标了没闻过"的矛盾态。 */
+      const ns = state.answers.noSmell || (state.answers.noSmell = []);
+      const ni = ns.indexOf(id);
+      if (ni >= 0) ns.splice(ni, 1);
+    }
+    syncPhrasesToNotes();
+  };
+
+  /* 「没闻过」：只写 noSmell，不碰 unwanted / dislikedNotes。
+     这是第三态的全部实现 —— 它之所以能不扣分，是因为它**根本没有**
+     进入 syncPhrasesToNotes 的输入（那里只读 unwanted）。 */
+  const toggleNoSmell = (id) => {
+    const ns = state.answers.noSmell || (state.answers.noSmell = []);
+    const i = ns.indexOf(id);
+    if (i >= 0) {
+      ns.splice(i, 1);
+    } else {
+      ns.push(id);
+      const un = state.answers.unwanted || (state.answers.unwanted = []);
+      const ui = un.indexOf(id);
+      if (ui >= 0) un.splice(ui, 1);
     }
     syncPhrasesToNotes();
   };
 
   for (const c of plan.cards) {
-    const on = (state.answers.unwanted || []).includes(c.id);
-    /* 就地改状态，不重建整墙 —— 重建会让被点的节点消失、焦点掉回 body
-       （原「想要」屏实测过同一件事，那屏已删，纪律留在这里）。 */
+    const on = selNow().unwanted.includes(c.id);
+    const off = selNow().noSmell.includes(c.id);
+    /* 一行＝主卡（整卡＝这个不要）＋右侧一枚独立「没闻过」小键。
+       为什么不把"没闻过"塞进卡里做成循环点击：<button> 里不许再放 <button>，
+       塞进去只能做成 span 上的 click，键盘用户按不到；而"一次点击循环三态"
+       会让撤销多说一次 —— 点了不要想撤回，再点一下就变成"没闻过"，
+       用户得再点一次才回到未选，这一手最容易误伤。两个独立靶子没有这个问题，
+       而且主卡的命中面积与语义一字未改（老断言的前提仍成立）。 */
+    const row = el('div', {
+      class: 'avoid-row',
+      'data-row': c.id,
+      role: 'group',
+      'aria-label': c.zh,
+    });
     const card = el('button', {
-      class: 'avoid-card' + (on ? ' is-on' : ''),
+      class: 'avoid-card' + (on ? ' is-on' : '') + (off ? ' is-unknown' : ''),
       type: 'button',
       'data-phrase': c.id,
+      'data-state': on ? 'on' : off ? 'unknown' : 'idle',
       'aria-pressed': String(on),
       onclick: () => {
         toggle(c.id);
-        const nowOn = (state.answers.unwanted || []).includes(c.id);
-        card.classList.toggle('is-on', nowOn);
-        card.setAttribute('aria-pressed', String(nowOn));
+        paintCard(c.id);
         paintMeta();
       },
     },
@@ -2676,10 +2958,23 @@ function renderAvoid() {
       ),
       el('span', { class: 'avoid-mark', 'aria-hidden': 'true' }, '这个不要')
     );
-    wall.appendChild(card);
+    const nope = el('button', {
+      class: 'avoid-nope' + (off ? ' is-on' : ''),
+      type: 'button',
+      'data-phrase': c.id,
+      'aria-pressed': String(off),
+      title: '我没闻过这个，这条不算数',
+      onclick: () => {
+        toggleNoSmell(c.id);
+        paintCard(c.id);
+        paintMeta();
+      },
+    }, '没闻过');
+    row.append(card, nope);
+    wall.appendChild(row);
   }
 
-  wrap.append(wall, count, gloss);
+  wrap.append(wall, count, excluded, gloss);
   /* 首屏就要有提示行：paintMeta 原来只在点卡时跑，于是第一次进这一屏
      count 与 gloss 都是空字符串 —— 用户得先点一下才知道"点一下＝这个不要"。
      在挂载后补一次调用即可（不是结构调整，两个节点本来就已建好）；
@@ -2851,6 +3146,13 @@ const SEASONS = [
   { id: 'winter', zh: '冬', desc: '冷。需要能压住冷风的厚度', temp: -1 },
 ];
 
+/* 季节屏的「重画一次」句柄（测试专用，见 renderSeason 里的赋值）。
+   方向在第 1 屏改、季节在第 4 屏读，中间隔着整屏重建，所以产品路径里
+   不需要这个口子；但"方向变了情境句跟着变"这条断言要能在同一屏内验，
+   否则只能靠走完整流程，测起来既慢又脆。 */
+let seasonRepaint = null;
+
+
 function renderSeason() {
   const wrap = el('div', { class: 'fade-in' });
   const head = stepHead('season');
@@ -2881,6 +3183,25 @@ function renderSeason() {
   const stopPos = (temp) => (STOP_INSET + ((temp + 1) / 2) * (1 - STOP_INSET * 2)) * 100;
 
   const gloss = el('p', { class: 'temp-gloss is-idle' });
+
+  /* ==== 情境句（2026-11-23 定版 24 句）====
+     上面那行 gloss 说的是"这个季节的身体经验"（温度、风、闷不闷），
+     它对四季成立、与用户选的方向无关。下面这一行说的是**这一刻具体在做什么**：
+     「围炉煮茶，顺手烤几颗砂糖橘」——它同时绑住一个方向（美食）与一个季节（冬），
+     所以只有两者都选过之后才出现。
+
+     为什么是新增一行而不是替换 gloss：
+       gloss 是「温度读数的译文」，它随光带一起解释**季节**这个量；
+       情境句解释的是「你选的这个方向，在这个季节里的一个画面」。
+       合成一行会让"没选方向"的人看到一个跟方向无关的画面，或者反过来
+       让"只选了方向"的人提前读到一句只对某个季节成立的话。
+
+     查不到就退回该季原有的 desc（SEASONS[].desc），不白屏、不留空行：
+       · 没选季节 → 整行不出现（还没到那一步，不假装有内容）；
+       · 选了季节、方向来自情绪入口（answers.family 为空）→ 用该季 desc，
+         因为情绪入口的答案与"6 个方向"不是同一根轴，硬凑会给出误导画面。 */
+  const scene = el('p', { class: 'season-scene' });
+  scene.hidden = true;
 
   /* 每档配一句"温度 + 身体感受"。这是译文行（规格 5），不是装饰文案：
      它把「冬」这个字翻译成"冷、要压得住的风"。 */
@@ -2940,11 +3261,26 @@ function renderSeason() {
     gloss.textContent = it
       ? FEEL[it.id]
       : '按你打算主要在哪个季节用选一个；不确定就跳过，不答不扣分';
+
+    /* 情境句：方向 × 季节 都有才出现，否则退回该季 desc（仍是有内容的一行）。
+       回退只发生在"选了季节"的前提下 —— 没选季节就整行不出现，
+       因为屏幕上还没有任何一个季节可以解释，塞一句默认文案等于替用户选了。 */
+    const line = it ? (seasonScene(state.answers.family, it.id) || it.desc) : '';
+    scene.hidden = !line;
+    scene.textContent = line;
   };
+
+  /* 把 paint 的句柄留给测试（__seasonRepaint）：方向是在**第 1 屏**改的，
+     季节屏只重建一次，所以要验"方向变了这一句跟着变"必须能在不重画整屏的
+     前提下再 paint 一次。真流程里不会走到（改方向要走回第 1 屏，回来时整屏重建），
+     所以这是测试专用的口子，不是产品路径。 */
+  seasonRepaint = () => paint(state.answers.season);
+
 
   paint(state.answers.season);
   wrap.appendChild(band);
   wrap.appendChild(gloss);
+  wrap.appendChild(scene);
 
   /* 这段数字是**用户可见**的，必须跟数据同步（1388 瓶实测，D56）。
      写错等于自拆台 —— 这类文字恰恰靠"说得具体"建立可信度。 */
@@ -3389,7 +3725,7 @@ function restart() {
      state.answers 逐键对齐（历史上两次事故都是"加字段时漏更新 restart"）。 */
   state.answers = {
     family: null, subfamily: null, direction: null, emotion: null, occasion: null, intensity: 3,
-    budget: 'any', wanted: [], unwanted: [],
+    budget: 'any', wanted: [], unwanted: [], noSmell: [],
     likedNotes: [], dislikedNotes: [], likedZh: {}, dislikedZh: {},
     /* characterNeg 与 longevityManual 是前两轮漏过的：前者是气质原型的
        「禁止标签」，不清会带着上一轮的排除项进新一轮打分（用户重选气质后
@@ -6154,6 +6490,16 @@ export const __avoid = {
   scenarios: AVOID_SCENARIOS,
   plan: avoidPlanNow,
   soft: avoidSoftNow,
+  /* 三态归并（2026-11-23）：两列互斥 + 只留屏上还存在的 id。
+     测试要用它验"没闻过不进 unwanted、也不进 dislikedNotes"。 */
+  select: avoidSelection,
+  /* 这一屏真实写进 state 的两列 —— 断言"没闻过没被折算成 -40"只能从这里看，
+     因为界面上两种态长得不一样，但引擎侧只有一个 dislikedNotes。 */
+  picked: () => ({
+    unwanted: (state.answers.unwanted || []).slice(),
+    noSmell: (state.answers.noSmell || []).slice(),
+    dislikedNotes: (state.answers.dislikedNotes || []).slice(),
+  }),
   /* 让测试把香水库/分类表塞进来，不必真 fetch（与 __art.set 同一手法）。 */
   setData: (d) => { DATA = d; avoidIndex = null; },
   setTax: (t) => { TAX = t; avoidIndex = null; },
@@ -6190,6 +6536,24 @@ export const __derivePreset = deriveFromPreset;
 /* 重开一局。测试要验「情绪入口 7 步」必须能从干净状态走一遍，
    否则只能验到纯函数、验不到 navBar / render / 进度条。 */
 export const __restart = restart;
+
+/* 季节屏「方向 × 季节」那一句的取值函数（定版 2026-11-23）。
+   测试要用它把"屏上那句话"与"该方向该季的那句话"对齐 ——
+   断言里不该再抄一份 24 句：抄一份就等于有第二个来源，
+   而本任务的验收线正是"只有一个来源、逐字一致"。 */
+export { seasonScene as __seasonScene } from './src/season-copy.js';
+
+/* 24 格的完整表（含 family 反查）。测试用它验"上屏那句 = 表里那一格"，
+   不需要读仓库外的定版 md —— check-head 会把 HEAD 干净导出到临时目录，
+   那种地方读不到本机路径，断言会退化成"只有本机能绿"的假门。 */
+export { SEASON_SCENE_CELLS as __seasonCells } from './src/season-copy.js';
+
+/* 问卷答案（只读用途：测试要临时把 family 置空，验"没有方向时回退 desc"
+   这条降级路径。真渲染才看得见，纯函数验不到）。 */
+export const __state = state;
+
+/* 季节屏重画一次（见 renderSeason 里 seasonRepaint 的赋值与注释）。 */
+export const __seasonRepaint = () => { if (seasonRepaint) seasonRepaint(); };
 
 
 /* 测试用：把推导函数挂到 #app 上，供 test-render 直接调用。

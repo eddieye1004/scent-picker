@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildAvoidIndex, avoidPlan, AVOID_MIN_SIDE, AVOID_MAX_CARDS } from '../src/avoid.js';
+import { buildAvoidIndex, avoidPlan, avoidSelection, AVOID_MIN_SIDE, AVOID_MAX_CARDS } from '../src/avoid.js';
 import { AVOID_SCENARIOS, OPPOSITE_FAMILY, CONFUSABLE_FAMILY } from '../src/avoid-map.js';
 import { recommend, AVOID_SOFT_MUL } from '../src/scoring.js';
 import { normNote, aliasesOf } from '../src/notes.js';
@@ -155,6 +155,58 @@ console.log('\n===== 引擎软降权：0.94、不硬排除、结果池门不动 
   const plain = recommend(dir, perfs, tax, { topN: 3 });
   ok(plain.results.every((r) => r.avoidSoftMul == null), '不传名单 → 无软降权字段（旧行为）');
   ok(plain.results[0].score === base.results[0].score, '不传名单 → 第 1 位分数与 base 一致');
+}
+
+console.log('\n===== 第三态「没闻过」：不进打分（2026-11-23）=====');
+{
+  /* 验收要求：构造一条含「没闻过」元素的路径，断言得分与该元素不存在时一致。
+     这条断言必须配一个对照组，否则它是空转的 ——
+     引擎不认识 noSmell 这个键，天然不加不减，光断言"相等"什么也证明不了。
+     所以先证明同一元素点成「不要」时分数**真的**会变（-40），
+     再证明标成「没闻过」时逐瓶分数与"这个元素根本不存在"完全一致。 */
+  const dir = { family: 'citrus', subfamily: 'cologne' };
+  const plan = avoidPlan(dir, index, tax);
+  const card = plan.cards[0];
+  ok(!!card, `对照组备料：取到一张卡（${card && card.id}）`);
+
+  const N = perfs.length;
+  const key = (r) => new Map(r.results.map((x) => [x.perfume.id, x.score]));
+
+  const base = recommend({ ...dir }, perfs, tax, { topN: N });
+  const asDislike = recommend({ ...dir, dislikedNotes: card.notes }, perfs, tax, { topN: N });
+  const asNoSmell = recommend({ ...dir, noSmell: [card.id] }, perfs, tax, { topN: N });
+
+  /* 对照：点成「不要」时，含该元素的瓶分数确实被压低（证明这条通路有牙）。 */
+  const bm = key(base);
+  const dm = key(asDislike);
+  const moved = [...bm].filter(([id, s]) => Math.abs(dm.get(id) - s) > 1e-9).length;
+  ok(moved > 0, `对照：同一元素点成「不要」后有 ${moved} 瓶分数变化（通路有牙）`);
+
+  /* 实验：标成「没闻过」时，逐瓶分数与"这个元素不存在"完全相等。 */
+  const nm = key(asNoSmell);
+  const sameScore = [...bm].every(([id, s]) => Math.abs(nm.get(id) - s) < 1e-9);
+  ok(sameScore, '「没闻过」的路径：逐瓶得分与「该元素不存在」完全一致');
+
+  /* 瓶子集合与顺序也不许变 —— 只比分数会漏掉"排序被动过但分数相同"的情况。 */
+  const order = (r) => r.results.map((x) => x.perfume.id).join(',');
+  ok(order(base) === order(asNoSmell), '「没闻过」不改排序（瓶子集合与顺序一致）');
+  ok(order(base) !== order(asDislike), '对照：点成「不要」确实改了排序');
+
+  /* 归并层的不变式：两列互斥（不要优先）、屏外的 id 一律丢弃、顺序保持。 */
+  const ids = plan.cards.map((c) => c.id);
+  const s1 = avoidSelection(
+    { unwanted: [ids[1], 'gone-phrase', ids[0], ids[1]], noSmell: [ids[1], ids[2], 'gone-phrase'] },
+    ids,
+  );
+  ok(s1.unwanted.join(',') === [ids[1], ids[0]].join(','),
+    `归并：unwanted 去重、保序、丢弃屏外 id（${s1.unwanted.join(',')}）`);
+  ok(s1.noSmell.join(',') === ids[2],
+    `归并：与 unwanted 冲突的 id 让位给「不要」（noSmell=${s1.noSmell.join(',')}）`);
+  const both = new Set([...s1.unwanted, ...s1.noSmell]);
+  ok(both.size === s1.unwanted.length + s1.noSmell.length, '归并：两列没有交集（互斥）');
+  const s2 = avoidSelection({ unwanted: [], noSmell: [] }, ids);
+  ok(s2.unwanted.length === 0 && s2.noSmell.length === 0, '归并：空输入给空输出');
+  ok(avoidSelection(undefined, ids).unwanted.length === 0, '归并：undefined 也不炸（旧存档）');
 }
 
 console.log('\n===== 映射表交付物：元素→场景句→所属香型 =====');
