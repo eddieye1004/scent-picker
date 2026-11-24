@@ -44,6 +44,7 @@ position: relative;
 #app { padding: 72px 32px 120px; }
 }
 .masthead {
+position: relative;
 border-top: 8px solid var(--ink);
 padding-top: 20px;
 margin-bottom: 40px;

@@ -90,8 +90,12 @@ body {
 
 /* ---------- 头部 ----------
    Swiss 的抬头是一条顶部粗线加左对齐的大标题。
-   不用居中主视觉，不加印章，不画装饰弧。 */
+   不用居中主视觉，不加印章，不画装饰弧。
+   position: relative 是给页眉右侧那枚 .amb-tick 的：它绝对定位，
+   基准原来是 #app —— 除圆盘屏外各屏页眉不建立定位上下文，刻度就顶到
+   视口上沿被切（2026-11-24 布局残留 ①）。挂上 relative 后它落回页眉带内。 */
 .masthead {
+  position: relative;
   border-top: 8px solid var(--ink);
   padding-top: 20px;
   margin-bottom: 40px;
