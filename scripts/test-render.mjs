@@ -133,7 +133,17 @@ class TNode {
   getAttribute(k) { return this.attrs[k] ?? null; }
   removeAttribute(k) { delete this.attrs[k]; }
   appendChild(n) {
-    if (typeof n !== 'string') { n.parentNode = this; this._text = null; }
+    if (typeof n !== 'string') { n.parentNode = this; }
+    /* `textContent = ''` 之后再 appendChild 是**合法且常见**的写法
+       （L3 的清单页提示条就这么做：先清空，再把文字与按钮拼回去）。
+       真实 DOM 里先前那段文字仍是一个文本节点，追加内容排在它后面；
+       桩把 textContent 存进 `_text`、把文本节点存成裸字符串 ——
+       两者混在一起时若不清 `_text`，getter 会一直返回那句空串，
+       于是页面在浏览器里正常、在测试里"文案是空的"。补桩，不改断言。 */
+    if (this._text != null) {
+      if (this._text !== '') this.children.push(this._text);
+      this._text = null;
+    }
     this.children.push(n);
     return n;
   }
@@ -244,12 +254,31 @@ class TNode {
   }
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
   get firstChild() { return this.children[0] || null; }
+  /* isConnected：真实 DOM 的标准属性（节点是否还挂在文档里）。
+     app.js 的 ensureWishBar() 用它判"单例还在不在"——
+     桩不提供就是 undefined（恒假），于是每次调用都新建一条提示并追加到 body，
+     表现成"只有测试里会攒出一堆重叠提示"，而浏览器里是正常的。
+     桩缺能力就补桩（本文件开头那条规则），否则"单例"这条契约在测试里根本验不到。 */
+  get isConnected() {
+    let n = this;
+    while (n) {
+      if (n === globalThis.document?.body || n === globalThis.document?.documentElement) return true;
+      n = n.parentNode;
+    }
+    return false;
+  }
 }
 
 /* ---------- 环境桩 ---------- */
 const appRoot = new TNode('main', { id: 'app' });
+/* document.body：心仪清单 L2 的存入轻提示挂在这里（见 app.js 的 ensureWishBar）。
+   真实浏览器一定有 body —— app.js 里那条 try/catch 只是防御，
+   桩不提供的话就变成"只有测试走降级分支"，而浏览器走另一条路。
+   桩缺能力就补桩（本文件开头那条规则）。 */
+const bodyRoot = new TNode('body');
 globalThis.document = {
   _nodes: { '#app': appRoot },
+  body: bodyRoot,
   /* app.js 在 boot() 里往 documentElement.dataset.build 写构建标记。
      桩缺 documentElement 会抛，被 boot() 的 try/catch 吞成"加载失败"，
      测试就只能看到空白页 —— 桩要补齐，不能让被测代码为桩让路。 */
@@ -446,10 +475,14 @@ const screenOf = (id) => `第 ${stepNoOf(id)} 屏`;
      这些测的都是"用户能不能用"，不是"某段颜色对不对" ——
      前几轮漏掉的缺陷（返回入口没有、缩小盘点不动、图标常态没有）
      全都不在视觉参数上，而在交互路径上。 */
-  /* ② 返回入口：44px 触控下限 + 三个状态都要有 */
-  ok('返回入口是 44px 触屏尺寸', /\.wheel \.wheel-back \{[^}]*?min-height:\s*44px/.test(css));
-  ok('返回入口有按下态', /\.wheel \.wheel-back:active \{[^}]*?translateY\(1px\)/.test(css));
-  ok('返回入口能真正隐藏', /\.wheel \.wheel-back\[hidden\] \{ display: none; \}/.test(css),
+  /* ② 返回入口：44px 触控下限 + 三个状态都要有
+     2026-11-24（裁决 A）：这枚胶囊从 `.wheel` 里搬进页顶流 `.stage-top`，
+     所以三条断言的选择器跟着从 `.wheel .wheel-back` 放宽到 `.wheel-back` ——
+     断言的东西没变（44px / translateY(1px) / [hidden] 压回 display:none），
+     只是不再把"它在圆盘盒里"这件事当成前提。 */
+  ok('返回入口是 44px 触屏尺寸', /\.wheel-back \{[^}]*?min-height:\s*44px/.test(css));
+  ok('返回入口有按下态', /\.wheel-back:active \{[^}]*?translateY\(1px\)/.test(css));
+  ok('返回入口能真正隐藏', /\.wheel-back\[hidden\] \{ display: none; \}/.test(css),
     '[hidden] 的 UA display:none 会被作者的 display 顶掉，必须显式压回');
 
   /* ③ 缩小盘可点的前提：中圈那层不能再吃事件 */
@@ -717,13 +750,37 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
     `盘心 SVG ${hubSvgs.length} 枚`);
   const famText = appRoot.querySelector('.fam-text');
   const famItems = appRoot.querySelectorAll('.fam-text-item');
-  ok('只选大类时盘心给出小类名（纯文字）', !!famText && famItems.length > 0,
-    `文字项 ${famItems.length}`);
-  /* 个数那行必须是数字推出来的，不是写死的 —— 与实际列出的小类数一致 */
+  /* 名字口径（2026-11-24 裁定 A）：`.fam-text-item` 与中圈弧段标签同源，
+     取 `label || zh || id` —— 不是只读 zh。期望值不在这里另抄一份常量：
+     ① 从 taxonomy 按当前中圈的小类 id 算出 label 优先的名字；
+     ② 再与中圈实际渲染出来的 `.zh` 逐字对照。
+     两路都断，既守住"用哪个字段"（抄错口径这条会立刻红：柑橘调会读成
+     古龙水型而不是纯柑橘），也守住"盘心与中圈说同一套名字"。 */
+  const TAXA_FAM = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/taxonomy.json'), 'utf8'));
+  const subById = new Map(TAXA_FAM.families.flatMap((f) => f.subfamilies).map((s) => [s.id, s]));
+  const midSecs = appRoot.querySelectorAll('.disc-sector.lvl2').filter((b) => b.getAttribute('data-sub'));
+  const midIds = midSecs.map((b) => b.getAttribute('data-sub'));
+  const midLabels = midSecs.map((b) => {
+    const z = b.querySelector('.zh');
+    return z ? z.textContent.trim() : '';
+  });
+  const famNames = famItems.map((n) => n.textContent.trim());
+  const expectNames = midIds.map((id) => {
+    const s = subById.get(id) || {};
+    return (s.label || s.zh || s.id || '').trim();
+  });
+  ok('只选大类时盘心小类名 = 中圈标签（label 优先、zh 兜底）',
+    !!famText && famNames.length > 0
+      && famNames.length === midIds.length
+      && famNames.every((n, i) => n === expectNames[i] && n === midLabels[i]),
+    `盘心 ${famNames.join('/')} ｜ 中圈 ${midLabels.join('/')} ｜ 期望 ${expectNames.join('/')}`);
+  /* 个数那行必须是数字推出来的，不是写死的 —— 与实际列出的小类数一致，
+    且这个数要等于中圈展开的段数（否则两边各说各的） */
   const famCount = appRoot.querySelector('.fam-text-count');
-  ok('盘心报的小类数与列出的名字一致',
-    !!famCount && famCount.textContent === `${famItems.length} 个小类`,
-    famCount && famCount.textContent);
+  ok('盘心报的小类数与列出的名字、中圈段数一致',
+    !!famCount && famCount.textContent === `${famItems.length} 个小类`
+      && famItems.length === midIds.length,
+    `${famCount && famCount.textContent} ｜ 列出 ${famItems.length} ｜ 中圈 ${midIds.length}`);
 }
 /* 悬停某一段：只加深那一段的描边，盘心一个字都不许改。
    v15 改成"左键点击才确认"之后，这条从"悬停画标本"反转成"悬停不许动状态"
@@ -1955,6 +2012,662 @@ ok('每条理由含至少一条结构性理由（家族/浓度）',
 
 ok('结果含数据来源链接',
   appRoot.querySelectorAll('a').some((a) => String(a.attrs.href || '').includes('scento')));
+
+/* ---------- 心仪清单 L2：结果页 ♡ 入口（2026-11-23）----------
+   这一组只守**结构**（♡ 在哪、买在哪、状态怎么变），不守存储 ——
+   存储语义在 scripts/test-wishlist-ui.mjs 里用内存介质测（那里能造出
+   "满 50""配额满"两种真实浏览器里很难复现的路径，这里造不出来）。
+
+   为什么"♡ 在瓶名行、购买在页脚"必须是断言而不是注释：
+   任务书那条「购买按钮与 ♡ 必须分列两端、不相邻（防误触买/存）」
+   是一条**布局约束**，而布局会被下一次改版悄悄改掉 ——
+   注释不会红，断言会。 */
+{
+  const hearts = appRoot.querySelectorAll('.qw-wish');
+  ok('三瓶各有一颗 ♡', hearts.length === 3, `实际 ${hearts.length}`);
+
+  /* ♡ 必须挂在 .pick-name-row 里（瓶名行），而不是卡片页脚 */
+  const inNameRow = hearts.filter((h) => {
+    let n = h.parentNode;
+    while (n) {
+      if (n.classList && n.classList.contains('pick-name-row')) return true;
+      n = n.parentNode;
+    }
+    return false;
+  });
+  ok('♡ 都在瓶名行（.pick-name-row）里', inNameRow.length === 3, `${inNameRow.length}/3`);
+
+  /* 反向：♡ 不许出现在页脚那一行（那里是购买按钮的地盘） */
+  const inFoot = hearts.filter((h) => {
+    let n = h.parentNode;
+    while (n) {
+      if (n.classList && n.classList.contains('pick-foot')) return true;
+      n = n.parentNode;
+    }
+    return false;
+  });
+  ok('♡ 不在任何 .pick-foot 里（与购买按钮分列两端）', inFoot.length === 0, `${inFoot.length} 颗落在页脚`);
+
+  /* 顺序：瓶名行里 h3 在前、♡ 在后 —— "瓶名行右侧"的字面含义 */
+  const row = appRoot.querySelectorAll('.pick-name-row')[0];
+  const kids = row ? row.children.filter((c) => typeof c !== 'string') : [];
+  ok('瓶名行里 h3 在 ♡ 之前',
+    kids.length === 2
+    && kids[0].tagName === 'H3'
+    && kids[1].classList.contains('qw-wish'),
+    kids.map((c) => c.tagName + '.' + c.className).join(' | '));
+
+  /* 初始态：空心（aria-pressed=false、无 is-on）。桩里没有真实 localStorage，
+     所以 has() 走降级返回 false —— 这正是"未存"的期望值。 */
+  ok('初始三颗都是空心（aria-pressed=false）',
+    hearts.every((h) => h.getAttribute('aria-pressed') === 'false'),
+    hearts.map((h) => h.getAttribute('aria-pressed')).join(','));
+  ok('初始没有一颗带 is-on', hearts.every((h) => !h.classList.contains('is-on')));
+
+  /* 可访问名与读屏语义：按钮要有「收藏 X / 从心仪清单移除 X」这种能独立听懂的名字 */
+  ok('♡ 有按钮语义与状态',
+    hearts.every((h) => h.tagName === 'BUTTON'
+      && h.attrs.type === 'button'
+      && /^(收藏.+到心仪清单|从心仪清单移除.+)$/.test(h.getAttribute('aria-label') || '')),
+    hearts.map((h) => h.getAttribute('aria-label')).join(' | '));
+  ok('♡ 带 data-wish 记着是哪一瓶（回显要按 id 比对）',
+    hearts.every((h) => !!h.getAttribute('data-wish')),
+    hearts.map((h) => h.getAttribute('data-wish')).join(','));
+
+  /* 心形是矢量：空心 / 实心只差 fill，不靠系统字体的 ♡/♥ 字符 */
+  ok('♡ 是内联 SVG（尺寸由 CSS 决定，不受系统字体影响）',
+    hearts.every((h) => {
+      const svg = h.querySelectorAll('svg')[0];
+      return !!svg && !!svg.querySelectorAll('path')[0];
+    }));
+
+  /* 点一下：桩里没有真 storage，会走内存兜底 —— 状态仍然必须翻成实心。
+     这条同时守住「兜底时 ♡ 照常工作」这件任务书明确要求的事。 */
+  hearts[0].dispatch('click');
+  ok('点一下 → 这颗变实心（is-on + aria-pressed=true）',
+    hearts[0].classList.contains('is-on') && hearts[0].getAttribute('aria-pressed') === 'true',
+    `${hearts[0].className} / ${hearts[0].getAttribute('aria-pressed')}`);
+  ok('点一下不影响另外两颗',
+    !hearts[1].classList.contains('is-on') && !hearts[2].classList.contains('is-on'));
+
+  /* 再点一下 → 回到空心（切换语义） */
+  hearts[0].dispatch('click');
+  ok('再点一下 → 回到空心（切换存/删）',
+    !hearts[0].classList.contains('is-on') && hearts[0].getAttribute('aria-pressed') === 'false');
+
+  /* 提示条：挂 body（不是结果区 DOM —— 那里会被 .fade-in 的 transform 收成
+     fixed 包含块，实测 y=2698 / 视口 900，整条跑到屏幕外）。 */
+  const bar = globalThis.document.body.querySelector('.qw-wish-bar');
+  ok('轻提示挂在 document.body 上（躲开 .fade-in 的 transform 包含块）', !!bar,
+    bar ? 'ok' : 'body 里没有 .qw-wish-bar');
+  ok('轻提示带 role=status + aria-live=polite', !!bar
+    && bar.getAttribute('role') === 'status'
+    && bar.getAttribute('aria-live') === 'polite');
+  ok('轻提示只在页面里存在一份（单例，翻几轮不会攒成一堆）',
+    globalThis.document.body.querySelectorAll('.qw-wish-bar').length === 1,
+    String(globalThis.document.body.querySelectorAll('.qw-wish-bar').length));
+  /* 提示文案：桩里没有真 storage → 走内存兜底 → 文案要带「仅本次有效」 */
+  hearts[0].dispatch('click');
+  ok('存入后的提示说清「仅本次有效」（桩里无 localStorage，走兜底）',
+    /已存入心仪清单/.test(bar.textContent) && /仅本次有效/.test(bar.textContent),
+    bar.textContent);
+
+  /* ---- L3 补的跳转：toast 的「在香水档案里看」必须是个能点的按钮 ----
+     L2 当时那句话只有文字，用户读完仍不知道去哪找（存完就丢是新用户
+     最常卡住的地方）。必须在**存入态**查：切成移出态之后这句就不在提示里了。 */
+  {
+    const go = bar.querySelectorAll('.qw-wish-go');
+    ok('toast 里的「在香水档案里看」是可点按钮（不是纯文字）',
+      go.length === 1 && go[0].tagName === 'BUTTON',
+      `${go.length} 个`);
+    ok('那个按钮的文案只是去向本身（不带括号说明）',
+      go.length === 1 && go[0].textContent === '在香水档案里看',
+      go.length ? go[0].textContent : '(无)');
+    /* 降级时整句后面会追加「（本机存储不可用，收藏仅本次有效）」。
+       那段是**说明**，必须留在按钮外面 —— 塞进按钮会让按钮撑成一长条，
+       读起来像「点这里（存不下）」。 */
+    ok('「仅本次有效」的括号说明落在按钮外面',
+      go.length === 1 && !/仅本次有效/.test(go[0].textContent),
+      go.length ? go[0].textContent : '(无)');
+    ok('整句仍完整（说明没被吞掉）', /仅本次有效/.test(bar.textContent), bar.textContent);
+  }
+
+  hearts[0].dispatch('click');
+  ok('删存的提示是「已移出心仪清单」',
+    /已移出心仪清单/.test(bar.textContent), bar.textContent);
+}
+
+/* ---------- 心仪清单 L3：清单页本体（2026-11-23）----------
+   这里守的是**渲染结构**：入口带计数、点进去是清单页、空态不白屏、
+   返回能回结果页。判据本身（没有价格就不显示价格等）在
+   scripts/test-wishlist-page.mjs 里用纯函数测 —— 两边的分工与 L2 那套一致。 */
+{
+  /* ① 档案区块里有带计数的心仪入口 */
+  const entry = appRoot.querySelectorAll('.qw-wl-entry');
+  ok('档案区块里有「心仪清单」入口', entry.length === 1, `${entry.length} 个`);
+  ok('入口带计数（data-wish-count 是数字）',
+    entry.length === 1 && /^\d+$/.test(String(entry[0].getAttribute('data-wish-count') || '')),
+    entry.length ? String(entry[0].getAttribute('data-wish-count')) : '(无)');
+  ok('入口可见文案含「心仪清单」与那个数字',
+    entry.length === 1 && /心仪清单/.test(entry[0].textContent)
+    && new RegExp(String(entry[0].getAttribute('data-wish-count') || 'x')).test(entry[0].textContent),
+    entry.length ? entry[0].textContent : '(无)');
+
+  /* ② 点入口 → 进清单页。桩里没有 localStorage，list() 是空的，
+     所以这一屏应当是**空态**（而不是白屏，也不是错误页）。 */
+  if (entry.length === 1) {
+    entry[0].dispatch('click');
+    ok('点入口后进入清单页（data-step=wishlist）', stepId() === 'wishlist', stepId());
+
+    const page = appRoot.querySelectorAll('.qw-wl-page');
+    ok('清单页有容器 .qw-wl-page', page.length === 1, `${page.length} 个`);
+
+    /* 页头必须认这一页（实测缺陷：进清单页后页头仍是「你的三瓶候选 /
+       每一瓶的理由都能反推回你刚才的选择」—— 标题在说另一页的事）。
+       这是截图才看得出来的那类错误：DOM 结构全对、文案全错。 */
+    ok('清单页页头不再是结果页文案（说的是这一页）', (() => {
+      const h1 = appRoot.querySelectorAll('.masthead h1')[0];
+      const t = h1 ? h1.textContent : '';
+      return /心仪/.test(t) && !/三瓶候选/.test(t);
+    })(), (appRoot.querySelectorAll('.masthead h1')[0] || {}).textContent);
+    ok('清单页页头副文案也不再说"推荐结果"',
+      (() => {
+        const lede = appRoot.querySelectorAll('.masthead .lede')[0];
+        const t = lede ? lede.textContent : '';
+        return /设备|理由|参考价/.test(t) && !/反推回你刚才的选择/.test(t);
+      })(),
+      (appRoot.querySelectorAll('.masthead .lede')[0] || {}).textContent);
+
+    /* 空态三件套：标题 / 引导 / 回结果页的动作 */
+    ok('空清单显示空态标题（不白屏）',
+      appRoot.querySelectorAll('.qw-wl-empty-title').length === 1);
+    ok('空态有引导文案（讲清怎么存）',
+      appRoot.querySelectorAll('.qw-wl-empty-hint').some((n) => /♡/.test(n.textContent)),
+      appRoot.querySelectorAll('.qw-wl-empty-hint').map((n) => n.textContent).join(' | '));
+    const cta = appRoot.querySelectorAll('.qw-wl-empty-cta');
+    ok('空态有回结果页的动作', cta.length === 1 && /→/.test(cta[0].textContent),
+      cta.length ? cta[0].textContent : '(无)');
+
+    /* ③ 空态里不许出现列表（空清单还渲染 <ol> 会让页面上多一条空线） */
+    ok('空清单不渲染列表', appRoot.querySelectorAll('.qw-wl-list').length === 0);
+
+    /* ④ 返回能回结果页 */
+    const back = appRoot.querySelectorAll('.qw-wl-back');
+    ok('清单页有返回按钮', back.length === 1);
+    if (back.length === 1) {
+      back[0].dispatch('click');
+      ok('点返回回到结果页（data-step=result）', stepId() === 'result', stepId());
+      ok('回到结果页后三张卡还在', appRoot.querySelectorAll('.pick').length === 3,
+        `${appRoot.querySelectorAll('.pick').length} 张`);
+    }
+  }
+}
+/* ---------- 心仪清单行盖章入口（2026-11-23 补 L3 欠的第 4 项）----------
+   这一组守的是**跨两个视图的同一条记录**：清单行盖的章，档案侧立刻读到；
+   清单行撤销的章，档案侧同步消失。所以它不是"再测一遍盖章"，
+   而是"测两个挂载点真的共用一个会话与一个键"。
+
+   为什么这一段排在「档案盖章」段**之前**：那一段结尾会装一份写不进的存储
+   （QuotaStore）验证降级，而 createStampSession 一旦降级就不再回头试真存储。
+   本段要读真存储上的记录，必须赶在降级之前跑。跑完把两个全局存储还原，
+   档案那一段照旧从空记录开始（它的种子不含 tasting 键）。 */
+{
+  const histMod = await import('file://' + path.join(ROOT, 'src', 'history.js').replace(/\\/g, '/'));
+  const { HISTORY_KEY } = histMod;
+  const WISH_KEY = 'sp_wishlist_v1';
+
+  class TestStore {
+    constructor(seed = {}) { this.map = new Map(Object.entries(seed)); }
+    getItem(k) { return this.map.has(k) ? this.map.get(k) : null; }
+    setItem(k, v) { this.map.set(k, String(v)); }
+    removeItem(k) { this.map.delete(k); }
+  }
+
+  /* 三行清单：两瓶在香水库里（能盖章）、一瓶查不到（下架/改名）。
+     第三行的存在是为了钉住「查不到的瓶子不给盖章入口」—— 那一行的 name
+     是 id 本身，拿它盖章会写出一条两处都读不到的孤立记录。 */
+  const wishSeed = [
+    { id: 'creed-aventus', savedAt: 1763810000000, reason: '冬天穿得住' },
+    { id: 'diptyque-philosykos-parfum', savedAt: 1763809000000, reason: '' },
+    { id: 'ghost-bottle-xyz', savedAt: 1763808000000, reason: '下架了' },
+  ];
+  /* 档案里必须有同一瓶（Aventus / Creed）—— 否则"两处一致"无从比对。 */
+  const historySeed = [{
+    t: 1763800000000, entry: 'family',
+    results: [{ name: 'Aventus', brand: 'Creed' }, { name: 'Philosykos', brand: 'Diptyque' }],
+  }];
+
+  const store = new TestStore({
+    [HISTORY_KEY]: JSON.stringify(historySeed),
+    [WISH_KEY]: JSON.stringify(wishSeed),
+  });
+  globalThis.window.localStorage = store;
+  /* 清单数据层的默认实例绑的是 globalThis.localStorage（src/wishlist.js 末行），
+     与页面里那份 window.localStorage 不是同一个对象 —— 桩环境里必须都装，
+     否则 renderWishPage 读到的永远是空清单。 */
+  globalThis.localStorage = store;
+
+  /* 进清单页（入口在档案区块里，读的是上一次渲染的计数） */
+  const entryBtn = appRoot.querySelectorAll('.qw-wl-entry')[0];
+  if (entryBtn) entryBtn.dispatch('click');
+  await new Promise((r) => setTimeout(r, 300));
+  /* 香水表/实物图/链接表是按需加载的，加载完会再重画一次 */
+  await new Promise((r) => setTimeout(r, 400));
+
+  ok('清单页渲染出三行', appRoot.querySelectorAll('.qw-wl-row').length === 3,
+    `${appRoot.querySelectorAll('.qw-wl-row').length} 行`);
+
+  {
+    const rows = appRoot.querySelectorAll('.qw-wl-row');
+    const slots = appRoot.querySelectorAll('.qw-wl-stamp-row .qw-stamp-slot');
+    ok('每一行（能查到的那两瓶）都有盖章位', slots.length === 2, `${slots.length} 个`);
+    ok('盖章位标了 data-stamp-surface=wish（同一枚组件、两个挂载点）',
+      slots.length === 2 && slots.every((s) => s.getAttribute('data-stamp-surface') === 'wish'),
+      slots.map((s) => s.getAttribute('data-stamp-surface')).join(','));
+
+    /* 身份键要和档案侧逐字相同 —— 这是"同一瓶"在数据层的唯一凭据。 */
+    const keys = slots.map((s) => s.getAttribute('data-stamp-key')).sort();
+    ok('清单侧的身份键与档案侧同形（归一化 name|brand）',
+      keys.join(',') === 'aventus|creed,philosykos|diptyque', keys.join(','));
+
+    /* 未盖章的行只留入口，不显示 chip */
+    const opens = appRoot.querySelectorAll('.qw-stamp-open');
+    ok('未盖章的行显示「试过？盖章」入口', opens.length === 2
+      && opens.every((b) => b.textContent === '试过？盖章'),
+      opens.map((b) => b.textContent).join(' | '));
+    ok('未盖章的行没有 chip（只留入口）', appRoot.querySelectorAll('.qw-stamp-chip').length === 0,
+      `${appRoot.querySelectorAll('.qw-stamp-chip').length} 枚`);
+    ok('入口是按钮且 aria-label 说清是给哪一瓶盖章',
+      opens.every((b) => b.tagName === 'BUTTON' && /^给.+盖章：记录试香评价$/.test(b.getAttribute('aria-label') || '')),
+      opens.map((b) => b.getAttribute('aria-label')).join(' | '));
+
+    /* 查不到的那瓶不给入口 */
+    const ghost = rows.find((r) => r.getAttribute('data-wish-id') === 'ghost-bottle-xyz');
+    ok('查不到的瓶子那一行不渲染盖章入口（不写 id 当瓶名的脏记录）',
+      !!ghost && ghost.querySelectorAll('.qw-stamp-slot').length === 0,
+      ghost ? String(ghost.querySelectorAll('.qw-stamp-slot').length) : '(找不到该行)');
+  }
+
+  /* ---- 点入口 → 就是本体那套五档面板 ---- */
+  appRoot.querySelectorAll('.qw-stamp-open')[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 120));
+  {
+    const panels = appRoot.querySelectorAll('.qw-stamp-panel');
+    ok('点行内入口就地打开面板（不跳页）',
+      panels.length === 1 && stepId() === 'wishlist', `${panels.length} 个 / step=${stepId()}`);
+    const tiers = appRoot.querySelectorAll('.qw-stamp-tier');
+    ok('面板是本体那五档（逐字一致，不是另抄一份）', tiers.length === 5
+      && tiers.map((b) => b.textContent).join('/') === '一闻钟情/喜欢/还行/无感/劝退',
+      tiers.map((b) => b.textContent).join('/'));
+    ok('点开面板本身不落记录（两段式第一段）',
+      store.getItem('scent-picker.tasting.v1') == null,
+      String(store.getItem('scent-picker.tasting.v1')));
+    ok('面板挂在清单行的盖章位那一行（.qw-wl-stamp-row 内，就地展开不跳页）',
+      panels.length === 1 && (() => {
+        let n = panels[0].parentNode;
+        while (n) {
+          if (n.classList && n.classList.contains('qw-wl-stamp-row')) return true;
+          n = n.parentNode;
+        }
+        return false;
+      })());
+
+    /* 选「喜欢」→ 保存 */
+    appRoot.querySelectorAll('.qw-stamp-tier')[1].dispatch('click');
+    appRoot.querySelectorAll('.qw-stamp-save')[0].dispatch('click');
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
+  let wishChipText = '';
+  {
+    const chips = appRoot.querySelectorAll('.qw-stamp-chip');
+    ok('保存后清单行出现 chip（不是等刷新）', chips.length === 1, `${chips.length} 枚`);
+    wishChipText = chips.length ? chips[0].textContent : '';
+    ok('chip 显示最近一次档位 + 共 N 次（与档案同一口径）',
+      /喜欢/.test(wishChipText) && /共 1 次/.test(wishChipText) && /\d\d-\d\d/.test(wishChipText),
+      wishChipText);
+    ok('chip 带 data-stamp-count=1',
+      chips.length === 1 && chips[0].getAttribute('data-stamp-count') === '1',
+      chips.length ? String(chips[0].getAttribute('data-stamp-count')) : '(无)');
+    ok('盖章后该行不再显示「试过？盖章」（两种形态互斥）',
+      appRoot.querySelectorAll('.qw-stamp-open').length === 1,
+      `${appRoot.querySelectorAll('.qw-stamp-open').length} 个入口`);
+    ok('另一瓶仍是未盖章态（状态按瓶独立，不是整页一刀切）',
+      appRoot.querySelectorAll('.qw-stamp-open')[0].getAttribute('aria-label').includes('Philosykos'),
+      appRoot.querySelectorAll('.qw-stamp-open')[0].getAttribute('aria-label'));
+    ok('落盘的键就是清单那瓶的身份键（不是 id、不是别的形态）', (() => {
+      try {
+        const arr = JSON.parse(store.getItem('scent-picker.tasting.v1'));
+        return arr.length === 1 && arr[0].key === 'aventus|creed'
+          && arr[0].name === 'Aventus' && arr[0].brand === 'Creed';
+      } catch { return false; }
+    })(), String(store.getItem('scent-picker.tasting.v1')).slice(0, 160));
+  }
+
+  /* ---- 跨视图：档案侧读到的是**同一条记录** ---- */
+  {
+    appRoot.querySelectorAll('.qw-wl-back')[0].dispatch('click');
+    await new Promise((r) => setTimeout(r, 200));
+    const toggle = appRoot.querySelectorAll('.qw-history-toggle')[0];
+    if (toggle && toggle.getAttribute('aria-expanded') !== 'true') toggle.dispatch('click');
+    await new Promise((r) => setTimeout(r, 200));
+
+    const rows = appRoot.querySelectorAll('.qw-history-name-row');
+    const aventusRow = rows.find((r) => {
+      const n = r.querySelectorAll('.qw-history-name')[0];
+      return n && n.textContent === 'Aventus';
+    });
+    const archChip = aventusRow ? aventusRow.querySelectorAll('.qw-stamp-chip')[0] : null;
+    ok('档案侧同一瓶也出现 chip（两处读的是同一条记录）', !!archChip,
+      archChip ? archChip.textContent : '(档案侧没有 chip)');
+    ok('两处 chip 文案逐字相同（同源展示模型，不是各自算的）',
+      !!archChip && archChip.textContent === wishChipText,
+      `清单「${wishChipText}」vs 档案「${archChip ? archChip.textContent : '-'}」`);
+    ok('档案侧的 log 只有一枚（没有因为两处入口各写一次）', (() => {
+      const arr = JSON.parse(store.getItem('scent-picker.tasting.v1'));
+      return arr.length === 1 && arr[0].log.length === 1;
+    })(), String(store.getItem('scent-picker.tasting.v1')).slice(0, 160));
+  }
+
+  /* ---- 回清单页撤销：两处同步消失 ---- */
+  {
+    const entryBtn2 = appRoot.querySelectorAll('.qw-wl-entry')[0];
+    if (entryBtn2) entryBtn2.dispatch('click');
+    await new Promise((r) => setTimeout(r, 300));
+    const undo = appRoot.querySelectorAll('.qw-wl-stamp-row .qw-stamp-undo-inline');
+    ok('清单行的 chip 旁边有行内「撤销」', undo.length === 1, `${undo.length} 枚`);
+    if (undo.length === 1) undo[0].dispatch('click');
+    await new Promise((r) => setTimeout(r, 250));
+
+    ok('清单侧撤销 → 清单行 chip 消失、回到「试过？盖章」',
+      appRoot.querySelectorAll('.qw-wl-page').length === 1
+      && appRoot.querySelectorAll('.qw-stamp-chip').length === 0
+      && appRoot.querySelectorAll('.qw-stamp-open').length === 2,
+      `${appRoot.querySelectorAll('.qw-stamp-chip').length} 枚 chip / ${appRoot.querySelectorAll('.qw-stamp-open').length} 个入口`);
+    /* 提示要在**离开清单页之前**验：这条走的是与档案盖章同一个 stampSay /
+       同一个提示条，两句文案也逐字来自 src/stamp-ui.js。 */
+    /* 提示条的定时器是 2400ms 自动隐藏，这里在撤销后 250ms 内读 —— 稳的。
+       读的是**文案**不是可见性：可见性由 CSS 的 [hidden] 管，桩里量不到。 */
+    ok('撤销提示走同一条提示条（「已撤销这瓶的盖章」）',
+      /已撤销这瓶的盖章/.test(globalThis.document.body.querySelector('.qw-wish-bar').textContent),
+      globalThis.document.body.querySelector('.qw-wish-bar').textContent);
+    ok('存储里那条记录被整条移除（不留空壳）', (() => {
+      const raw = store.getItem('scent-picker.tasting.v1');
+      if (raw == null) return true;
+      try { return JSON.parse(raw).length === 0; } catch { return false; }
+    })(), String(store.getItem('scent-picker.tasting.v1')));
+
+    /* 档案侧再确认一次：同一个键上确实没有记录了 */
+    appRoot.querySelectorAll('.qw-wl-back')[0].dispatch('click');
+    await new Promise((r) => setTimeout(r, 200));
+    const toggle2 = appRoot.querySelectorAll('.qw-history-toggle')[0];
+    if (toggle2 && toggle2.getAttribute('aria-expanded') !== 'true') toggle2.dispatch('click');
+    await new Promise((r) => setTimeout(r, 200));
+    ok('档案侧同步消失（两处仍是一条记录，不是各存一份）',
+      appRoot.querySelectorAll('.qw-stamp-chip').length === 0
+      && appRoot.querySelectorAll('.qw-stamp-open').length === 2,
+      `${appRoot.querySelectorAll('.qw-stamp-chip').length} 枚 chip / ${appRoot.querySelectorAll('.qw-stamp-open').length} 个入口`);
+  }
+
+  /* 还原：后续「档案盖章」段要自己装存储，这里把两个全局恢复原样，
+     免得清单数据层（绑 globalThis.localStorage）读到本段的夹具。
+     **顺手把档案面板收起**：那一段的写法是「已展开就不再点」，
+     留着展开态会让它读到本段这份夹具画出来的面板（本段踩到过：
+     它因此看到的是 Aventus/Philosykos 而不是自己的 Santal 33/Aventus）。 */
+  const tg = appRoot.querySelectorAll('.qw-history-toggle')[0];
+  if (tg && tg.getAttribute('aria-expanded') === 'true') tg.dispatch('click');
+  delete globalThis.localStorage;
+  globalThis.window.localStorage = new TestStore();
+}
+
+/* ---------- 试香盖章：档案里的每瓶盖章入口 + 五档面板（2026-11-23）----------
+   这一组守**渲染结构**与**一次完整点击链**：入口在档案的每一瓶上、
+   五档面板是两段式（点开不落记录，选档+保存才落）、已盖章只显示
+   最近一次 + 共 N 次、撤销能退、盖高档位**不**自动加心仪。
+
+   为什么这里要临时装一份 localStorage：档案面板的瓶子来自
+   readHistory(storage)，桩里没有存储就只有空态 —— 那样根本渲染不出
+   盖章位，"入口到底挂在哪一行"这条契约就验不到。所以本段先装一份内存
+   localStorage（只在本段内），把真渲染路径跑通；数据层的存/读/撤销语义
+   另有 scripts/test-stamp.mjs（118 条）与 test-stamp-ui.mjs（89 条）守着。 */
+{
+  const histMod = await import('file://' + path.join(ROOT, 'src', 'history.js').replace(/\\/g, '/'));
+  const { HISTORY_KEY } = histMod;
+
+  /* 与 src/wishlist.js 的键同名 —— 用来证明"盖章不会顺手写心仪"。 */
+  const WISH_KEY = 'sp_wishlist_v1';
+
+  class TestStore {
+    constructor(seed = {}) { this.map = new Map(Object.entries(seed)); }
+    getItem(k) { return this.map.has(k) ? this.map.get(k) : null; }
+    setItem(k, v) { this.map.set(k, String(v)); }
+    removeItem(k) { this.map.delete(k); }
+  }
+  /* 配额满 / 隐私模式：写一律抛（读仍可用）。 */
+  class DeadStore extends TestStore {
+    setItem() { throw new Error('QuotaExceededError'); }
+  }
+
+  const seedHistory = [
+    { t: 1763800000000, entry: 'family', results: [{ name: 'Santal 33', brand: 'Le Labo' }, { name: 'Aventus', brand: 'Creed' }] },
+  ];
+  const store = new TestStore({
+    [HISTORY_KEY]: JSON.stringify(seedHistory),
+    /* 心仪里先放一瓶，用来证明盖章不会去动那个键 */
+    [WISH_KEY]: JSON.stringify([{ id: 'preexisting', savedAt: 1, reason: '先存着的' }]),
+  });
+  globalThis.window.localStorage = store;
+
+  /* 展开档案面板（点那枚「查看」） */
+  const toggle = appRoot.querySelectorAll('.qw-history-toggle')[0];
+  ok('档案面板有「查看」开关（盖章入口在展开后的面板里）', !!toggle,
+    toggle ? 'ok' : '找不到 .qw-history-toggle');
+  if (toggle) {
+    /* 已展开过就不要再点（第二次点是收起） */
+    if (toggle.getAttribute('aria-expanded') !== 'true') toggle.dispatch('click');
+
+    const rows = appRoot.querySelectorAll('.qw-history-name-row');
+    ok('档案里每一瓶一行（.qw-history-name-row）', rows.length === 2, `${rows.length} 行`);
+
+    const slots = appRoot.querySelectorAll('.qw-stamp-slot');
+    ok('每一瓶右端都有一个盖章位（不是一个批量入口）', slots.length === 2, `${slots.length} 个`);
+    ok('盖章位带 data-stamp-key（身份键可核对）',
+      slots.every((s) => !!s.getAttribute('data-stamp-key')),
+      slots.map((s) => s.getAttribute('data-stamp-key')).join(' | '));
+
+    const opens = appRoot.querySelectorAll('.qw-stamp-open');
+    ok('未盖章时显示「试过？盖章」', opens.length === 2
+      && opens.every((b) => b.textContent === '试过？盖章'),
+      opens.map((b) => b.textContent).join(' | '));
+    ok('入口是按钮且 aria-label 说的是「给哪一瓶盖章」',
+      opens.every((b) => b.tagName === 'BUTTON'
+        && /^给.+盖章：记录试香评价$/.test(b.getAttribute('aria-label') || '')),
+      opens.map((b) => b.getAttribute('aria-label')).join(' | '));
+    ok('入口在瓶名行里（.qw-history-name-row 内，紧挨瓶名）',
+      opens.every((b) => {
+        let n = b.parentNode;
+        while (n) {
+          if (n.classList && n.classList.contains('qw-history-name-row')) return true;
+          n = n.parentNode;
+        }
+        return false;
+      }));
+
+    /* ---- 两段式：点开只是打开面板，绝不落记录 ---- */
+    opens[0].dispatch('click');
+    const panel = appRoot.querySelectorAll('.qw-stamp-panel')[0];
+    ok('点入口打开五档面板（就地展开，不跳页）', !!panel, panel ? 'ok' : '找不到 .qw-stamp-panel');
+    ok('点开面板这件事本身没有落记录（两段式第一段）',
+      store.getItem('scent-picker.tasting.v1') == null,
+      String(store.getItem('scent-picker.tasting.v1')));
+
+    const tiers = appRoot.querySelectorAll('.qw-stamp-tier');
+    ok('面板里正好五颗章（不是旧提案的三档）', tiers.length === 5, `${tiers.length} 颗`);
+    ok('五档文案逐字：一闻钟情 / 喜欢 / 还行 / 无感 / 劝退',
+      tiers.map((b) => b.textContent).join('/') === '一闻钟情/喜欢/还行/无感/劝退',
+      tiers.map((b) => b.textContent).join('/'));
+    ok('五颗章是 role=radio 的单选组（互斥，不是五个开关）',
+      tiers.every((b) => b.getAttribute('role') === 'radio')
+      && appRoot.querySelectorAll('[role="radiogroup"]').length === 1);
+    ok('初始一颗都没选中（aria-checked 全 false）',
+      tiers.every((b) => b.getAttribute('aria-checked') === 'false'));
+
+    const save0 = appRoot.querySelectorAll('.qw-stamp-save')[0];
+    ok('没选档时「保存」不可点（空着保存 = 盖一枚没有评价的章）',
+      !!save0 && save0.getAttribute('disabled') !== null,
+      save0 ? String(save0.getAttribute('disabled')) : '(无保存键)');
+
+    /* 选「喜欢」（第 2 颗） */
+    tiers[1].dispatch('click');
+    ok('选中后 aria-checked 跟着变（互斥：只有一颗为 true）',
+      tiers.filter((b) => b.getAttribute('aria-checked') === 'true').length === 1
+      && tiers[1].getAttribute('aria-checked') === 'true',
+      tiers.map((b) => b.getAttribute('aria-checked')).join(','));
+    ok('选中后有视觉标记 is-picked',
+      tiers[1].classList.contains('is-picked') && !tiers[0].classList.contains('is-picked'));
+    ok('选中后「保存」变成可点',
+      appRoot.querySelectorAll('.qw-stamp-save')[0].getAttribute('disabled') === null);
+
+    /* 保存 → 落盘 + 重画成 chip */
+    appRoot.querySelectorAll('.qw-stamp-save')[0].dispatch('click');
+    const raw1 = store.getItem('scent-picker.tasting.v1');
+    ok('保存后写进 scent-picker.tasting.v1（与档案同一套前缀）', typeof raw1 === 'string',
+      String(raw1));
+    ok('落盘形状是四键 + log 两键（无 id / 无设备信息）', (() => {
+      try {
+        const arr = JSON.parse(raw1);
+        return Array.isArray(arr) && arr.length === 1
+          && Object.keys(arr[0]).join(',') === 'key,name,brand,log'
+          && Object.keys(arr[0].log[0]).join(',') === 'tier,t'
+          && arr[0].log[0].tier === 'like';
+      } catch { return false; }
+    })(), String(raw1).slice(0, 140));
+
+    ok('提示说「已盖章」', /已盖章/.test(globalThis.document.body.querySelector('.qw-wish-bar').textContent),
+      globalThis.document.body.querySelector('.qw-wish-bar').textContent);
+
+    const chip1 = appRoot.querySelectorAll('.qw-stamp-chip');
+    ok('盖完立刻变成状态 chip（重画后回显，不是等刷新）', chip1.length === 1,
+      `${chip1.length} 枚`);
+    ok('chip 上有「共 1 次」', chip1.length === 1 && /共 1 次/.test(chip1[0].textContent),
+      chip1.length ? chip1[0].textContent : '(无)');
+    ok('chip 上有档位与日期（最近一次）',
+      chip1.length === 1 && /喜欢/.test(chip1[0].textContent) && /\d\d-\d\d/.test(chip1[0].textContent),
+      chip1.length ? chip1[0].textContent : '(无)');
+    ok('chip 带 data-stamp-count=1', chip1.length === 1
+      && chip1[0].getAttribute('data-stamp-count') === '1',
+      chip1.length ? String(chip1[0].getAttribute('data-stamp-count')) : '(无)');
+    ok('已盖章时该瓶不再显示「试过？盖章」（两种形态互斥）',
+      appRoot.querySelectorAll('.qw-stamp-open').length === 1,
+      String(appRoot.querySelectorAll('.qw-stamp-open').length));
+    ok('另一瓶仍是未盖章态（状态按瓶独立）',
+      opens.some((b) => b.getAttribute('aria-label').includes('Aventus')),
+      opens.map((b) => b.getAttribute('aria-label')).join(' | '));
+
+    /* ---- 同一瓶可重复盖章：新盖章覆盖「最近一次」，计数 +1 ---- */
+    appRoot.querySelectorAll('.qw-stamp-chip')[0].dispatch('click');
+    const tiers2 = appRoot.querySelectorAll('.qw-stamp-tier');
+    ok('点 chip 打开面板时预选最近一次的档位（喜欢 = 第 2 颗）',
+      tiers2.length === 5 && tiers2[1].getAttribute('aria-checked') === 'true',
+      tiers2.map((b) => b.getAttribute('aria-checked')).join(','));
+    appRoot.querySelectorAll('.qw-stamp-tier')[0].dispatch('click');   // 改成一闻钟情
+    appRoot.querySelectorAll('.qw-stamp-save')[0].dispatch('click');
+    const chip2 = appRoot.querySelectorAll('.qw-stamp-chip');
+    ok('再盖一次 → 计数变「共 2 次」',
+      chip2.length === 1 && /共 2 次/.test(chip2[0].textContent),
+      chip2.length ? chip2[0].textContent : '(无)');
+    ok('再盖一次 → 最近一次显示新档位「一闻钟情」',
+      chip2.length === 1 && /一闻钟情/.test(chip2[0].textContent),
+      chip2.length ? chip2[0].textContent : '(无)');
+    ok('两枚都留在存储里（撤销要能一步步退）', (() => {
+      const arr = JSON.parse(store.getItem('scent-picker.tasting.v1'));
+      return arr[0].log.length === 2 && arr[0].log.map((x) => x.tier).join(',') === 'like,love';
+    })(), String(store.getItem('scent-picker.tasting.v1')).slice(0, 160));
+
+    /* ---- 撤销：退回上一次的真实档位与计数 ---- */
+    const inlineUndo = appRoot.querySelectorAll('.qw-stamp-undo-inline');
+    ok('已盖章的行给一枚行内「撤销」（盖错时不必先点开面板）', inlineUndo.length === 1,
+      `${inlineUndo.length} 枚`);
+    inlineUndo[0].dispatch('click');
+    const chip3 = appRoot.querySelectorAll('.qw-stamp-chip');
+    ok('撤销一次 → 计数退回「共 1 次」',
+      chip3.length === 1 && /共 1 次/.test(chip3[0].textContent),
+      chip3.length ? chip3[0].textContent : '(无)');
+    ok('撤销一次 → 档位退回到上一次的「喜欢」',
+      chip3.length === 1 && /喜欢/.test(chip3[0].textContent) && !/一闻钟情/.test(chip3[0].textContent),
+      chip3.length ? chip3[0].textContent : '(无)');
+    ok('撤销的提示说「已撤销上次盖章」',
+      /已撤销上次盖章/.test(globalThis.document.body.querySelector('.qw-wish-bar').textContent),
+      globalThis.document.body.querySelector('.qw-wish-bar').textContent);
+
+    appRoot.querySelectorAll('.qw-stamp-undo-inline')[0].dispatch('click');
+    ok('再撤销一次 → 退光，回到「试过？盖章」未盖章态',
+      appRoot.querySelectorAll('.qw-stamp-open').length === 2
+      && appRoot.querySelectorAll('.qw-stamp-chip').length === 0,
+      `${appRoot.querySelectorAll('.qw-stamp-open').length} 个入口 / ${appRoot.querySelectorAll('.qw-stamp-chip').length} 枚 chip`);
+    ok('退光后存储里那条记录被整条移除（不留空壳）', (() => {
+      const raw = store.getItem('scent-picker.tasting.v1');
+      if (raw == null) return true;
+      try { return JSON.parse(raw).length === 0; } catch { return false; }
+    })(), String(store.getItem('scent-picker.tasting.v1')));
+
+    /* ---- 不许一键联动：盖高档位不自动加心仪 ---- */
+    appRoot.querySelectorAll('.qw-stamp-open')[0].dispatch('click');
+    appRoot.querySelectorAll('.qw-stamp-tier')[0].dispatch('click');   // 一闻钟情（最高档）
+    appRoot.querySelectorAll('.qw-stamp-save')[0].dispatch('click');
+    ok('盖了「一闻钟情」也没有把该瓶加进心仪清单（无一键联动）',
+      !/Santal|santal/.test(String(store.getItem(WISH_KEY))),
+      String(store.getItem(WISH_KEY)));
+    ok('心仪键保持原样（盖章一个字节都没动它）', (() => {
+      const arr = JSON.parse(store.getItem(WISH_KEY));
+      return arr.length === 1 && arr[0].id === 'preexisting';
+    })(), String(store.getItem(WISH_KEY)));
+    ok('盖章也没有往档案键里写档位（只新增自己的键）',
+      !/tier|love|tasting/.test(String(store.getItem(HISTORY_KEY))),
+      String(store.getItem(HISTORY_KEY)).slice(0, 130));
+
+    /* ---- 同一行只许有一个面板（面板挂在行上，清 slot 清不掉旧的）---- */
+    appRoot.querySelectorAll('.qw-stamp-open')[0].dispatch('click');
+    ok('点一次只开一个面板', appRoot.querySelectorAll('.qw-stamp-panel').length === 1,
+      `${appRoot.querySelectorAll('.qw-stamp-panel').length} 个`);
+    appRoot.querySelectorAll('.qw-stamp-cancel')[0].dispatch('click');
+    ok('取消（不保存）后记录不变，仍是 1 次', (() => {
+      const arr = JSON.parse(store.getItem('scent-picker.tasting.v1'));
+      return arr[0].log.length === 1 && arr[0].log[0].tier === 'love';
+    })(), String(store.getItem('scent-picker.tasting.v1')).slice(0, 120));
+
+    /* ---- 存储不可用：降级提示 + 页面不报错（口径与心仪 L2 一致）---- */
+    const dead = new DeadStore({
+      [HISTORY_KEY]: JSON.stringify([{ t: 1763800000000, entry: 'emotion', results: [{ name: 'Aventus', brand: 'Creed' }] }]),
+    });
+    globalThis.window.localStorage = dead;
+    /* 重画档案面板（读的是新的介质） */
+    const tg = appRoot.querySelectorAll('.qw-history-toggle')[0];
+    if (tg) {
+      if (tg.getAttribute('aria-expanded') === 'true') tg.dispatch('click');   // 先收起
+      tg.dispatch('click');                                                    // 再展开 → 重画
+    }
+    const deadOpens = appRoot.querySelectorAll('.qw-stamp-open');
+    ok('换存储后档案面板重画（读的是当前介质）', deadOpens.length === 1, `${deadOpens.length} 个入口`);
+    if (deadOpens.length === 1) {
+      deadOpens[0].dispatch('click');
+      appRoot.querySelectorAll('.qw-stamp-tier')[1].dispatch('click');
+      appRoot.querySelectorAll('.qw-stamp-save')[0].dispatch('click');
+      const barText = globalThis.document.body.querySelector('.qw-wish-bar').textContent;
+      ok('存储不可用时提示说清「仅本次有效」（沿用 L2 口径）',
+        /已盖章/.test(barText) && /仅本次有效/.test(barText), barText);
+      ok('降级下页面不白屏、那份记录仍显示（走内存兜底）',
+        appRoot.querySelectorAll('.qw-stamp-chip').length === 1,
+        `${appRoot.querySelectorAll('.qw-stamp-chip').length} 枚 chip`);
+      ok('降级时没有偷写磁盘（盖章键仍为空）',
+        dead.getItem('scent-picker.tasting.v1') == null,
+        String(dead.getItem('scent-picker.tasting.v1')));
+      ok('降级提示里没有出现错误页/异常字样',
+        !/Error|异常|失败/.test(appRoot.textContent), '页面文本含错误字样');
+    }
+  }
+}
+
 /* v6 结果页有三个出路（规格底线：保留「换一批 / 改一题重推」）。
    断言的是"三个出路都在，且代价最大的那个不与主按钮并列"——
    「重新来一次」已从三颗主按钮退成一行 .link-btn，但仍必须可点可读。 */

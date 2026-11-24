@@ -408,7 +408,7 @@
     border-color: var(--edge);
     border-style: dashed;
   }
-  .wheel .wheel-back:hover {
+  .wheel-back:hover {
     color: var(--ink-2);
     background: var(--bg);
     border-color: var(--stroke-ui);
