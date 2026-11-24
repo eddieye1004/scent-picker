@@ -81,8 +81,11 @@ export function buildAvoidIndex(perfumes, taxonomy) {
 }
 
 /* 情绪入口没有圆盘落点时，用 emotionMap 里权重最高的家族当方向 ——
-   与 buildProfile 的 familyVector(emotion.families) 同一来源。 */
-function directionOf(answers, taxonomy) {
+   与 buildProfile 的 familyVector(emotion.families) 同一来源。
+   2026-11-24（qoder/avoid-capsule）：原样导出为 avoidDirection ——
+   避雷屏顶的「已选方向」锚点必须与出题用**同一个**方向判据，
+   锚点显示的方向和题目依据的方向不许出现第二种算法。函数体一行未改。 */
+export function directionOf(answers, taxonomy) {
   if (answers?.family) return { family: answers.family, subfamily: answers.subfamily || null };
   const emo = (taxonomy?.emotionMap || []).find((e) => e.id === answers?.emotion);
   if (!emo?.families) return null;
@@ -93,6 +96,8 @@ function directionOf(answers, taxonomy) {
   }
   return best ? { family: best, subfamily: null } : null;
 }
+/* 公开别名：模块内部与 avoidPlan 继续用 directionOf 这个名字（一字未动）。 */
+export { directionOf as avoidDirection };
 
 /**
  * 三态的归并（2026-11-23，Eddie 批准 QW10 诊断第一条）。

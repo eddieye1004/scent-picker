@@ -1426,6 +1426,43 @@ ok('避雷屏标题是「只问最容易踩雷的几个」',
     JSON.stringify(appMod.__avoid.picked()));
 }
 
+/* ---------- ①c 「已选方向」锚点（2026-11-24，qoder/avoid-capsule 视觉定版） ----------
+   过渡元素而不是过渡页：避雷题按刚选的方向现算，屏顶把那个方向胶囊
+   （图标 + 名字）原样带过来。锚点纯展示 —— 守四件事：
+   在位 / 名字与圆盘选择同源 / 排在卡片墙之前 / 不新增交互。
+   本段只读不点，后面几屏依赖的状态一字不动。 */
+{
+  const anchor = appRoot.querySelectorAll('.avoid-anchor')[0];
+  ok('避雷屏顶部有「已选方向」锚点（.avoid-anchor，恰好一枚）',
+    appRoot.querySelectorAll('.avoid-anchor').length === 1,
+    `实际 ${appRoot.querySelectorAll('.avoid-anchor').length} 枚`);
+  /* 圆盘选的是「柑橘调 · 古龙水型」：可见文本只落小类名（与盘心主词同源），
+     族名进 aria-label 给读屏 —— 可见字面仍守"避雷屏不出现香调族名"那条老底线。 */
+  const name = anchor && anchor.querySelectorAll('.avoid-anchor-name')[0];
+  ok('锚点名字＝圆盘刚选中的小类（与出题方向同源）',
+    !!name && name.textContent === '古龙水型', name && name.textContent);
+  ok('锚点可见文本不含族名，族名只进 aria-label（无术语底线不破）',
+    !!anchor && !/柑橘调/.test(anchor.textContent)
+    && /已选方向/.test(anchor.attrs['aria-label'] || ''),
+    anchor && `${anchor.textContent} / ${anchor.attrs['aria-label']}`);
+  ok('锚点带方向图标（svg，与小类标本/大类徽记同一套，不新造）',
+    !!anchor && anchor.querySelectorAll('.avoid-anchor-icon').length === 1
+    && anchor.querySelectorAll('.avoid-anchor-icon')[0].tagName === 'SVG',
+    anchor && String(anchor.querySelectorAll('.avoid-anchor-icon').length));
+  /* 位置：锚点先于卡片墙（DOM 顺序即视觉与朗读顺序，与 tip 同款判据）。 */
+  const wallEl = appRoot.querySelectorAll('.avoid-wall')[0];
+  const siblings = (anchor && anchor.parentNode && anchor.parentNode.children) || [];
+  ok('锚点排在卡片墙之前（先看到方向，再看到题）',
+    !!anchor && !!wallEl && siblings.indexOf(anchor) >= 0
+    && siblings.indexOf(anchor) < siblings.indexOf(wallEl),
+    `anchor@${siblings.indexOf(anchor)} wall@${siblings.indexOf(wallEl)}`);
+  /* 只展示、不新增交互：不是 BUTTON/A，tabindex=-1 退出 Tab 序，也没有 href。 */
+  ok('锚点不是可点控件（div + tabindex=-1，无 href）',
+    !!anchor && anchor.tagName === 'DIV'
+    && anchor.attrs['tabindex'] === '-1' && anchor.attrs.href == null,
+    anchor && `${anchor.tagName} tabindex=${anchor.attrs['tabindex']}`);
+}
+
 /* ---------- ② 预算 ——【已整段搬到末屏，见 ⑧ 之前的「② 预算（末屏）」】 ----------
    v7 第 3 步③ 把预算屏从第 3 位搬到末位（第 6 位）。本段原来写死「第 3 屏是预算屏」
    并按位置取 `.price-tab`，搬完之后它落到 `occasion` 上：`.price-tab` 为空数组，

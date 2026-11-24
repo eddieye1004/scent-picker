@@ -26,7 +26,10 @@ const VERSION = 'v2-20261124a';
    是白屏。VERSION 跟一位。
    2026-11-23（C 腿）：盘心大类图标上线，app.js 与 styles.css 都改了，
    VERSION 再跟一位。6 枚大类 SVG 与小类那 24 枚一样不进 CORE：
-   它们只在选中大类时取一次，进 CORE 会让安装期多拉 40KB。*/
+   它们只在选中大类时取一次，进 CORE 会让安装期多拉 40KB。
+   2026-11-24（qoder/avoid-capsule）：避雷屏胶囊语言定版 + 「已选方向」锚点，
+   app.js 与 styles.css 都改了，VERSION 再跟一位。锚点复用已有的小类标本/
+   大类徽记 SVG，不新增预缓存资产。 */
 const CACHE_PREFIX = 'scent-picker-v7-1-';
 const CACHE = CACHE_PREFIX + VERSION;
 
