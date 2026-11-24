@@ -2142,9 +2142,16 @@ ok('结果含数据来源链接',
    返回能回结果页。判据本身（没有价格就不显示价格等）在
    scripts/test-wishlist-page.mjs 里用纯函数测 —— 两边的分工与 L2 那套一致。 */
 {
-  /* ① 档案区块里有带计数的心仪入口 */
+  /* ① 结果页有带计数的心仪入口
+     ---- 2026-11-24 文案调整（不是断言调整）----
+     原文：「档案区块里有「心仪清单」入口」。
+     复查反馈第 6 条把入口搬进结果页的吸底操作条（.result-dock），
+     它不再挂在 .qw-history 档案区块里 —— 断言本身（**整页唯一一个入口**、
+     带数字计数、文案含「心仪清单」）一条没动，只是标题里那个位置词
+     现在写成事实：结果页。改文案的理由是"标题与位置不符"比"断言变红"更糟：
+     下一个人照着标题去 .qw-history 里找入口，会以为断言失效。 */
   const entry = appRoot.querySelectorAll('.qw-wl-entry');
-  ok('档案区块里有「心仪清单」入口', entry.length === 1, `${entry.length} 个`);
+  ok('结果页有「心仪清单」入口（唯一一处）', entry.length === 1, `${entry.length} 个`);
   ok('入口带计数（data-wish-count 是数字）',
     entry.length === 1 && /^\d+$/.test(String(entry[0].getAttribute('data-wish-count') || '')),
     entry.length ? String(entry[0].getAttribute('data-wish-count')) : '(无)');

@@ -454,12 +454,13 @@
    且 font-display: swap 让它在 FCP 之后 1.5s 才到，期间既抢带宽又产生可见字形切换。 */
 
 :root {
-  /* 覆盖 base.css 的 --font-body。拉丁与数字由本地 InterVar 接管，
-     CJK 交给系统黑体 —— 顺序取性能审计 A 方案：PingFang SC（macOS/iOS）
-     → HarmonyOS Sans（华为）→ MiSans（小米）→ Microsoft YaHei（Windows）。 */
-  --font-body: "InterVar", "Inter", "Helvetica Neue", Helvetica, -apple-system,
-               "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Hiragino Sans GB",
-               "Microsoft YaHei", "Source Han Sans SC", Arial, sans-serif;
+  /* 覆盖 base.css 的 --font-body。字形分工按 2026-11-24 定死的界面字体栈：
+     拉丁字母与数字 Inter（本地 InterVar 即 Inter 变量字体，先命中已装 Inter 再用它）
+     → 苹方 PingFang SC（Apple）→ 微软雅黑 Microsoft YaHei（Windows）
+     → Source Han Sans SC（Linux）。整栈是 grotesque 无衬线，界面层不留任何衬线入口。 */
+  --font-body: "Inter", "InterVar", "PingFang SC", "Hiragino Sans GB",
+               "Microsoft YaHei", "Source Han Sans SC", "HarmonyOS Sans SC",
+               "MiSans", -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-display: var(--font-body);
 }
 

@@ -1396,36 +1396,16 @@ function buildWheel(cfg) {
     rippleTimer = setTimeout(() => { ripple.classList.remove('is-on'); rippleTimer = 0; }, 680);
   };
 
-  /* ---- 盘沿几何：盘心底纹同心圆环的圆心 ----
-     --plate-cx/--plate-cy：页面底纹（.plate-bg）的同心圆环必须以这盘
-     的圆心为圆心（缺陷 ⑨）。那是 fixed 层，圆心要的是**视口坐标**，
-     只能量。
-     绑在 resize 上重算：横竖屏切换、窗口拖动都会让圆心移动。
+  /* ---- 盘沿几何：**已无调用者**（2026-11-24 复查反馈第 2 条）----
+     这里原来叫 layoutRim()，只做一件事：把盘心的视口坐标写进
+     --plate-cx/--plate-cy，给页面底纹（.plate-bg 的同心圆环）当圆心。
+     Eddie 判定背景多出的圆轮装饰要全部移除，环随之删除，这段测量连同
+     rAF / resize 两条接线一起删掉 —— 没有环要定圆心，留着只会让下一个
+     读到它的人以为背景上还有一层。
 
-     ==== 2026-11-24：这里原来还算 --bl/--bt（返回胶囊在盘沿上的落点）====
-     胶囊搬进页顶流之后，它的位置由常规流决定，再没有"盘box 的百分比"
-     这回事 —— 那两行 setProperty 连同 at() 一起删了。留着不报错，
-     但它们会让人以为胶囊还在盘上，下一轮又会照着算。 */
-  const layoutRim = () => {
-    if (typeof root.getBoundingClientRect !== 'function') return;
-    const r = root.getBoundingClientRect();
-    if (!r || !r.width) return;
-    /* 底纹圆心 = 盘心的视口坐标（fixed 层用视口坐标，不是文档坐标） */
-    const bg = document.querySelector('.plate-bg');
-    if (bg) {
-      bg.style.setProperty('--plate-cx', (r.left + r.width / 2).toFixed(1) + 'px');
-      bg.style.setProperty('--plate-cy', (r.top + r.height / 2).toFixed(1) + 'px');
-    }
-  };
-  layoutRim();
-  /* 首帧再量一次：这一刻 .wheel 还没进文档，getBoundingClientRect 全是 0。
-     两拍之后（rAF 后一拍，等字体与布局稳定）量的才是最终几何。 */
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => { requestAnimationFrame(layoutRim); });
-  }
-  if (typeof window !== 'undefined' && window.addEventListener) {
-    window.addEventListener('resize', layoutRim);
-  }
+     ==== 历史（一并留档，别再加回来）====
+     2026-11-24 01:48：--bl/--bt（返回胶囊在盘沿 218° 的落点）先从这里删掉，
+     胶囊搬进页顶流（.stage-top）。同一天下午，--plate-cx/cy 也删掉。 */
 
   /* --- 第一层：6 个家族，固定不变 --- */
   const nFam = families.length;
@@ -2108,16 +2088,14 @@ const AXIS_OF_FAMILY = {
 function renderFamily() {
   const wrap = el('div', { class: 'fade-in' });
 
-  /* ==== 标本盘底（缺陷 ⑨，v7 第 1.5 步）====
-     以圆盘为圆心、铺满整个视口的极淡同心圆环。它解决的是"方圆违和"：
-     页面骨架全是直角（页眉粗线、进度条、说明文字块），只有中间一块圆盘，
-     圆因此读成"页面上贴了一张图"。有了同心环，圆成为整页的组织母题 ——
-     六族的角、盘心、标签位置都是同一个圆心的半径。
-     fixed 层所以必须挂在 #app 之外？不必：`position:fixed` 的元素即使
-     在 DOM 里是 #app 的子节点，也相对视口定位。挂在 wrap 里是为了让
-     render() 重建时它随之出场/退场，不需要额外的清理逻辑。
-     圆心由 buildWheel 的 layoutRim() 量出来写进 --plate-cx/--plate-cy。 */
-  wrap.appendChild(el('div', { class: 'plate-bg', 'aria-hidden': 'true' }));
+  /* ==== 背景同心圆环（曾在此挂 .plate-bg）—— 2026-11-24 复查反馈第 2 条已删 ====
+     它原先是"以盘心为圆心、铺满视口的极淡同心圆环"（9614f1e 引入），
+     圆心由 buildWheel 量盘心后写进 --plate-cx/--plate-cy。
+     Eddie 判定页面背景多出的几圈圆轮装饰要全部移除、恢复加环之前的背景，
+     所以这个节点连同它的测量代码一起删掉了。
+     **盘本身没有跟着变**：六族瓦片、中圈、盘心、24 枚标本都在原位。
+     要恢复的话是两条（节点 + layoutRim 的测量），别只加一条 ——
+     只有节点没有圆心，环会以视口 50%/52% 为圆心，与盘错开。 */
 
   /* ==== 页顶流：「← 重选大类」的容器（2026-11-24 裁决 A）====
      它原来是 .wheel 的子节点、用 JS 算出的百分比钉在 218° 盘沿上。
@@ -3222,6 +3200,15 @@ function renderSeason() {
      光带在 1100px 桌面下约 88px 的 8%），足够放下「冬」「夏」两个字。 */
   const STOP_INSET = 0.08;
   const stopPos = (temp) => (STOP_INSET + ((temp + 1) / 2) * (1 - STOP_INSET * 2)) * 100;
+  /* 同一个内缩量交给 CSS（2026-11-24 复查反馈第 5 条）。
+     光斑（.temp-glow）的横坐标必须落在**同一个映射**上，否则两个公式各算各的：
+     改前 CSS 写的是 `var(--band-temp) * 50% + 33% - 17%`（按"温度铺满 0–100%"算），
+     而落点走的是上面这条带 8% 安全区的映射 —— 于是光斑系统性偏冷一格：
+     1440×900 实测四季逐个偏 冬 −163.5px / 春 −106.0 / 秋 −92.9 / 夏 −58.9，
+     点「春」时光斑正压在冬与春之间（Eddie 报的"错位半格"）。
+     变量从这里写给 CSS，是因为安全区只有这一个来源；CSS 里写死 8% 就会
+     再分叉一次（改内缩时只改到 JS，光斑又错位）。 */
+  band.style.setProperty('--stop-inset', (STOP_INSET * 100).toFixed(2) + '%');
 
   const gloss = el('p', { class: 'temp-gloss is-idle' });
 
@@ -4603,6 +4590,39 @@ function ensureWishBar() {
 }
 
 /**
+ * 提示条**唯一**的计时器（2026-11-24 复查追加项 4）。
+ *
+ * 原来有三套定时器各管一段，都往同一条 .qw-wish-bar 上写：
+ *   ① 结果页 sayWish（2000ms，自己一个 wishTimer）
+ *   ② 清单页 sayWishPage（2000 / 撤销 5000ms，WISH_PAGE_TIMER）
+ *   ③ 盖章 stampSay（2400ms，STAMP_TIMER）
+ * 每一套只 clear 自己那一个，于是 A 的计时到点会去抹 **B 刚写上去的** 文案：
+ * 谁最后写的并不重要，谁**先**挂上计时谁先到点，条子就被提前清空。
+ * 实测症状（test-render 唯一红）：清单行撤销后 250ms 读到的是空串 ——
+ * 撤销那句 2400ms 的条子被前一句遗留的计时清掉了。
+ *
+ * 现在只留一个计时器：写条子的函数排定它，收条子的函数取消它，
+ * 「这条条子什么时候消失」永远只有一个答案。
+ */
+let WISH_BAR_TIMER = 0;
+
+/** 收起提示条，并取消它身上现有的计时。 */
+function hideWishBar() {
+  clearTimeout(WISH_BAR_TIMER);
+  WISH_BAR_TIMER = 0;
+  const bar = ensureWishBar();
+  if (!bar) return;
+  bar.setAttribute('hidden', '');
+  bar.textContent = '';
+}
+
+/** 排定「多久之后收起」。清掉上一句的计时再挂新的 —— 这是唯一入口。 */
+function scheduleWishBarHide(ms) {
+  clearTimeout(WISH_BAR_TIMER);
+  WISH_BAR_TIMER = setTimeout(hideWishBar, ms);
+}
+
+/**
  * 一颗 ♡。空心 = 未存，实心 = 已存；点击切换存/删。
  *
  * 位置：瓶名行右端（`.pick-name-row` 的末尾）。购买按钮在卡片页脚
@@ -4720,19 +4740,15 @@ const stampSession = createStampSession(
 /**
  * 一行提示（复用档案/清单同一条单例提示条，不另造 toast）。
  * 为什么复用：全站只有一个"提示"的样子，用户不必重新学"这条会不会自己消失"。
+ * 计时统一交给 scheduleWishBarHide —— 这里不再持有自己的定时器。
  */
-let STAMP_TIMER = 0;
 function stampSay(msg) {
   const bar = ensureWishBar();
   if (!bar) return;
-  clearTimeout(STAMP_TIMER);
   bar.textContent = '';
   bar.appendChild(document.createTextNode(String(msg)));
   bar.removeAttribute('hidden');
-  STAMP_TIMER = setTimeout(() => {
-    bar.setAttribute('hidden', '');
-    bar.textContent = '';
-  }, 2400);
+  scheduleWishBarHide(2400);
 }
 
 /** 给 CSS/测试认的一个稳定身份：瓶的身份键（归一化 name|brand）。 */
@@ -5005,17 +5021,33 @@ function renderHistoryBlock() {
     ),
     toggle
   ));
-  /* ---- 心仪清单入口（L3，2026-11-23）----
-     挂在档案区块内而不是另起一块：设计稿 §7.4 要求「首页与结果页都够得着」，
-     而档案区块是回访用户唯一会先看到的东西。带计数 —— 没计数时用户不知道
-     里面有没有东西，等于每次都要点进去确认一次。 */
+  /* ---- 心仪清单入口曾经挂在这里（见下方 wishEntryRow 的说明）----
+     L3（2026-11-23）把它挂在档案区块内：设计稿 §7.4 要求「首页与结果页都够得着」，
+     而档案区块是回访用户唯一会先看到的东西。
+     2026-11-24 复查反馈第 6 条改判：入口要和「换一批 / 改一题」一起
+     在首屏可达，所以它搬到结果页的吸底操作条（.result-dock）里。
+     渲染逻辑一字未改，只换了挂载点 —— 见下面的 wishEntryRow()。 */
+  box.appendChild(panel);
+  return box;
+}
+
+/**
+ * 心仪清单入口（带计数）。**一处实现、一处挂载**：现在只挂在结果页的
+ * 吸底操作条里（2026-11-24 复查反馈第 6 条：三个操作原来落在第 3 屏以外）。
+ *
+ * 为什么带计数：没计数时用户不知道里面有没有东西，等于每次都要点进去确认。
+ * 为什么单独成函数而不是留在 renderHistoryBlock：入口的挂载点变了，
+ * 但文案/计数/点击一个字都不该跟着变 —— 把"渲染"和"挂在哪"分开，
+ * 下一个想挪它的人只改调用点，不会顺手改文案。
+ */
+function wishEntryRow() {
   let wishCount = 0;
   try {
     wishCount = wishlist.list().length;
   } catch {
     wishCount = 0;
   }
-  box.appendChild(el('div', { class: 'qw-history-wish' },
+  return el('div', { class: 'qw-history-wish is-dock' },
     el('button', {
       class: 'qw-wl-entry',
       type: 'button',
@@ -5028,9 +5060,7 @@ function renderHistoryBlock() {
     el('span', { class: 'hint' }, wishCount
       ? '存过的瓶子都在这里，换设备或清缓存就没了'
       : '在结果页点 ♡ 就能把喜欢的瓶子存到这里')
-  ));
-  box.appendChild(panel);
-  return box;
+  );
 }
 
 /* ---------- 进/出清单页 ----------
@@ -5381,8 +5411,6 @@ function renderWishPage() {
  */
 function sayWishPage(msg, opts, onUndo) {
   const bar = ensureWishBar();
-  // eslint-disable-next-line no-use-before-define
-  clearTimeout(WISH_PAGE_TIMER);
   bar.textContent = '';
   bar.appendChild(document.createTextNode(msg));
   bar.removeAttribute('hidden');
@@ -5406,8 +5434,7 @@ function sayWishPage(msg, opts, onUndo) {
         const ok = wishSession.undoRemove
           ? wishSession.undoRemove(item)
           : false;
-        bar.setAttribute('hidden', '');
-        bar.textContent = '';
+        hideWishBar();
         if (ok) {
           if (typeof onUndo === 'function') onUndo();
         } else if (typeof onUndo === 'function') {
@@ -5419,19 +5446,12 @@ function sayWishPage(msg, opts, onUndo) {
     }, '撤销');
     bar.appendChild(undoBtn);
     /* 撤销窗口 5 秒（设计稿 §11.1），比普通提示长 —— 它要给人留出反应时间。 */
-    WISH_PAGE_TIMER = setTimeout(() => {
-      bar.setAttribute('hidden', '');
-      bar.textContent = '';
-    }, 5000);
+    scheduleWishBarHide(5000);
     return;
   }
 
-  WISH_PAGE_TIMER = setTimeout(() => {
-    bar.setAttribute('hidden', '');
-    bar.textContent = '';
-  }, 2000);
+  scheduleWishBarHide(2000);
 }
-let WISH_PAGE_TIMER = 0;
 
 async function waitForShareFonts() {
   if (!document.fonts || !document.fonts.ready) return;
@@ -5563,7 +5583,6 @@ function renderResult() {
      （这也是把提示做成**单例**的理由：每次 render 都往 body 追加一条，
      翻几轮结果页就会攒出一堆叠在一起的旧提示。见 ensureWishBar。） */
   const wishBar = ensureWishBar();
-  let wishTimer = 0;
   const sayWish = (msg) => {
     /* ---- 「在香水档案里看」要真的能点（L3，2026-11-23）----
        L2 的这句提示当时只有文字，用户读完仍不知道去哪找 —— 提示里指了
@@ -5586,8 +5605,7 @@ function renderResult() {
         type: 'button',
         onclick: (ev) => {
           ev.stopPropagation();
-          wishBar.setAttribute('hidden', '');
-          wishBar.textContent = '';
+          hideWishBar();
           openWishPage();
         },
       }, '在香水档案里看'));
@@ -5596,12 +5614,10 @@ function renderResult() {
       wishBar.appendChild(document.createTextNode(String(msg)));
     }
     wishBar.removeAttribute('hidden');
-    /* 2000ms：够读完一行 12 字，也不至于在下一次点击前还占着位置。 */
-    clearTimeout(wishTimer);
-    wishTimer = setTimeout(() => {
-      wishBar.setAttribute('hidden', '');
-      wishBar.textContent = '';
-    }, 2000);
+    /* 2000ms：够读完一行 12 字，也不至于在下一次点击前还占着位置。
+       计时不再是本闭包私有的 —— 全站只有一条提示条，因此只有一份计时
+       （见 scheduleWishBarHide 的注释）。 */
+    scheduleWishBarHide(2000);
   };
 
   results.forEach((r, i) => {
@@ -5936,16 +5952,15 @@ function renderResult() {
                      **其余答案不动** —— 这是三者的关键区别：改一题不是重开。
        ③ 重新来一次 —— 我想从头换个思路。三者里只有它会清空一切。
      按钮顺序按代价从小到大：先给最轻的两个，把"全部重来"放最后。
-     这不是转化优化，是**不必让用户为了改一件事付整程的代价**。 */
-  const round = state.resultView ? state.resultView.round : 0;
-  wrap.appendChild(el('div', { class: 'actions result-actions', style: 'margin-top:36px' },
-    el('button', { class: 'btn', type: 'button', onclick: (ev) => reshuffle(ev.currentTarget) },
-      round === 0 ? '换一批 →' : `换一批（第 ${round + 2} 组）→`),
-    el('button', { class: 'btn ghost', type: 'button', onclick: (ev) => openRetune(ev.currentTarget) },
-      '改一题重推'),
-    el('div', { class: 'spacer' }),
-    el('span', { class: 'hint' }, '换一批只换瓶子，答案全留着；改一题只动那一屏')
-  ));
+     这不是转化优化，是**不必让用户为了改一件事付整程的代价**。
+
+     2026-11-24 复查反馈第 6 条：① ② 与「心仪清单」入口搬进吸底操作条
+     （resultDock()，由 render() 挂在 .fade-in 之外），因为实测它们落在
+     第 3 屏以外（1440×900：心仪清单 top 2567 / 换一批 top 2647）。
+     **为什么不能在 .fade-in 里面 fixed**：.fade-in 带进场动画的 transform，
+     哪怕动画结束是 identity，它仍然是 fixed 的包含块 —— 条会缩成正文列宽、
+     钉在正文列底部（实测 x=392 / w=656 / y=2446），而不是视口底部。
+     所以它由 render() 直接挂到 #app 上，位置在页脚之后。 */
 
   /* 「重新来一次」退到一行小结里：它代价最大，不该和三颗主按钮并列抢注意力。
      但仍然必须存在 —— 想彻底换个思路的人需要它。 */
@@ -5958,7 +5973,36 @@ function renderResult() {
   return wrap;
 }
 
-/* ---------- 换一批：同一个答案，换下一组瓶子 ----------
+/**
+ * 结果页的吸底操作条（2026-11-24 复查反馈第 6 条）。
+ *
+ * 三个操作：心仪清单入口（带计数）/ 换一批 / 改一题重推 —— 首屏即达，
+ * 不再需要滚到分享卡与档案区块之后。样式见 styles/src/97-qoder-work.css
+ * 末尾那一段（纸底 + 上边线 + 向上柔影，与问卷各屏吸底的 .actions 同一套）。
+ *
+ * 两条结构约束，改这里之前先读：
+ *   ① **必须由 render() 挂在 .fade-in 之外**。.fade-in 带进场动画的 transform，
+ *      动画结束后仍是 identity matrix —— 它依然是 position:fixed 的包含块。
+ *      挂在里面，条会缩成正文列宽、钉在正文列底部（实测 x=392 / w=656 /
+ *      y=2446，视口高 900），看起来像"掉在页面很下面"，正是本条要修的症状。
+ *   ② 内层保留 `.actions result-actions`：既沿用 .actions 的 flex 排法，
+ *      也保住 test-render 里 `.result-actions .btn` 这条既有选择器。
+ */
+function resultDock() {
+  const round = state.resultView ? state.resultView.round : 0;
+  return el('div', { class: 'result-dock' },
+    el('div', { class: 'actions result-actions' },
+      wishEntryRow(),
+      el('button', { class: 'btn', type: 'button', onclick: (ev) => reshuffle(ev.currentTarget) },
+        round === 0 ? '换一批 →' : `换一批（第 ${round + 2} 组）→`),
+      el('button', { class: 'btn ghost', type: 'button', onclick: (ev) => openRetune(ev.currentTarget) },
+        '改一题重推'),
+      el('div', { class: 'spacer' }),
+      el('span', { class: 'hint' }, '换一批只换瓶子，答案全留着；改一题只动那一屏')
+    )
+  );
+}
+   /* ---------- 换一批：同一个答案，换下一组瓶子 ----------
    实现方式：把已展示过的 id 塞进 resultView.soldOut，然后带 exclude 重算。
    为什么不用 random seed：结果必须可复算 —— 同一份答案 + 同一批 soldOut
    永远得到同一组瓶子。随机会把"为什么推这瓶"这条承诺破掉。
@@ -6257,6 +6301,12 @@ function render() {
     app.appendChild(list[state.step].render());
   }
   app.appendChild(renderFooter(isResult));
+
+  /* 结果页的吸底操作条（2026-11-24 复查反馈第 6 条）。
+     **必须在 .fade-in 之外**：那个容器带进场动画的 transform，动画结束
+     仍是 identity matrix，依然会是 position:fixed 的包含块（见 resultDock
+     的注释）。放在页脚之后，键盘顺序也是"读完内容 → 最后到操作条"。 */
+  if (isResult) app.appendChild(resultDock());
 
   /* 背景层：底噪三轴（src/ambient.js）。**必须放在页面重建之后** ——
      applyAmbient() 除了写 #app 上的 CSS 变量，还要把刻度文字写到
