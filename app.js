@@ -56,8 +56,10 @@ import { buildAvoidIndex, avoidPlan, avoidSelection, avoidDirection } from './sr
 import { seasonScene } from './src/season-copy.js';
 /* 中圈胶囊的**短标签**（Eddie 2026-11-25 22:37 裁决，1 号方案「缩短标签」）。
    只被 renderArcs 那一个渲染点消费：盘心小类列表、盘心主词、结果页、文案
-   全部照旧读数据里的全名（label || zh）。表与两条边界情况见 src/sub-labels.js。 */
-import { subShortLabel } from './src/sub-labels.js';
+   全部照旧读数据里的全名（label || zh）。表与两条边界情况见 src/sub-labels.js。
+   subFullName 同源于那张表所在的模块，供胶囊的 aria-label 取全名 ——
+   短标签是为**视觉宽度**缩的，读屏不该跟着少听两个字（见 renderArcs 里的注释）。 */
+import { subShortLabel, subFullName } from './src/sub-labels.js';
 
 const state = {
   step: 0,
@@ -1753,6 +1755,15 @@ function buildWheel(cfg) {
         type: 'button',
         role: 'radio',
         'aria-checked': 'false',
+        /* **无障碍名用全名，短标签只管视觉**（2026-11-25 无障碍名腿）。
+           胶囊里写的是短标签（「皂感」），按钮的可见文本随之变短 —— 不加这一行，
+           读屏念出来的也是「皂感」，而盘心小类列表、结果页、推荐理由念的都是
+           「皂感柑橘」：同一件事在两个地方两个名字，读屏用户无从对齐。
+           aria-label 覆盖内容算出的名字，于是可见字面仍守单行胶囊的宽度约束，
+           无障碍名回到与全站一致的全名口径（`label || zh || id`，与盘心同源同函数）。
+           纯属性、零渲染影响：图标 span 本来就是 aria-hidden，改前改后按钮的
+           盒尺寸、字号、行数逐字段实测一致（见腿目录 a11y-base/after.json 比对）。 */
+        'aria-label': subFullName(item),
         'data-sub': item.id,
         /* 该族的子类数（4–7）落到属性上，给 CSS 按"拥挤族"分档用：
            n≥6 时桌面也守 12px 字号（Eddie 2026-11-25 口径）。

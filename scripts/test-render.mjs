@@ -755,14 +755,17 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
   const famText = appRoot.querySelector('.fam-text');
   const famItems = appRoot.querySelectorAll('.fam-text-item');
   /* 名字口径（2026-11-24 裁定 A；2026-11-25 短标签腿修订）：盘心小类列表与
-     中圈胶囊**故意不再同名**，这一条断言一次守五件事：
+     中圈胶囊**故意不再同名**，这一条断言一次守六件事：
      ① 盘心 `.fam-text-item` 读**全名** `label || zh || id`
      （柑橘调是「纯柑橘 · 苦橙叶 · 橙花柑橘 · 皂感柑橘」，一个字没缩）；
      ② 中圈 `.zh` 读**短标签** SUB_SHORT_LABEL（同族是「纯柑 · 苦橙叶 · 橙花 · 皂感」）；
      ③ 短标签在**同族内不重名**（缩完还分得清，才允许缩）；
      ④ 短标签表**覆盖 taxonomy 里全部小类**（漏一条就红 —— 兜底会静默退回
      全名，四字胶囊又折成两行，只有这条能提前拦住）；
-     ⑤ 短标签必须是全名**删字**得到的子序列，不许另造词（见下面 notDerived）。
+     ⑤ 短标签必须是全名**删字**得到的子序列，不许另造词（见下面 notDerived）；
+     ⑥ 24 枚胶囊按钮的 **aria-label 逐字等于 taxonomy 全名**（见下面 ariaBad）——
+     短标签只是为视觉宽度缩的，读屏不该跟着少听两个字，否则同一个东西在
+     盘心小类列表 / 结果页念「皂感柑橘」、在胶囊上念「皂感」，读屏用户无从对齐。
      为什么两边不同名：定版是单行胶囊（16px 图标 + 12px 文字，不换行），
      ±90° 那两枚的宽度正好沿半径展开，可用总宽只有「盘心半径 → 盘沿」
      （390 档 58.15px），四字词横排放不下 —— Eddie 2026-11-25 22:37 裁决
@@ -800,16 +803,38 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
     const full = subFullName(s); const short = subShortLabel(s);
     return !short || short.length > full.length || !isSubseq(short, full);
   }).map((s) => `${s.id}:${SUB_SHORT_LABEL[s.id] || '(缺)'}`);
-  ok('盘心小类名用全名、中圈胶囊用短标签（同族不重名、短标签表全覆盖）',
+  /* ⑥ 无障碍名（2026-11-25 aria-label 腿）：胶囊可见文本是短标签，
+     按钮的无障碍名必须**逐字**回到 taxonomy 全名。分两路查，合起来才覆盖 24 枚：
+     · DOM 路 —— 当前渲染出来的这一族，逐枚读按钮的 aria-label 属性，
+       与从 taxonomy 现算的全名逐字对照。这一路证明属性真的落到了节点上
+       （值算对了却忘了挂、或挂到别的元素上，只有它能抓到）。
+     · 数据路 —— taxonomy 里**全部 24 枚**小类，逐个验 `subFullName()`
+       （app.js renderArcs 里 aria-label 读的就是这一个函数）等于直接按
+       `label || zh || id` 从 JSON 现算的值。这一路不依赖那张短标签表、
+       也不依赖当前渲染的是哪一族，所以 24 枚一个不落。
+     两路都只从 data/taxonomy.json 现算期望值，这里不另抄一份常量。 */
+  const ariaBad = [];
+  midSecs.forEach((b, i) => {
+    const got = b.getAttribute('aria-label');
+    if (got !== expectFull[i]) ariaBad.push(`${midIds[i]}:DOM「${got}」≠「${expectFull[i]}」`);
+  });
+  TAXA_FAM.families.flatMap((f) => f.subfamilies).forEach((s) => {
+    const want = String(s.label || s.zh || s.id || '').trim();
+    const got = subFullName(s);
+    if (got !== want) ariaBad.push(`${s.id}:全名函数「${got}」≠taxonomy「${want}」`);
+  });
+  ok('盘心小类名用全名、中圈胶囊用短标签（同族不重名、短标签表全覆盖、无障碍名回全名）',
     !!famText && famNames.length > 0
       && famNames.length === midIds.length
       && famNames.every((n, i) => n === expectFull[i])
       && midLabels.every((n, i) => n === expectShort[i])
-      && uncovered.length === 0 && dupFams.length === 0 && notDerived.length === 0,
+      && uncovered.length === 0 && dupFams.length === 0 && notDerived.length === 0
+      && ariaBad.length === 0,
     `盘心 ${famNames.join('/')} ｜ 中圈 ${midLabels.join('/')}`
       + ` ｜ 期望全名 ${expectFull.join('/')} ｜ 期望短名 ${expectShort.join('/')}`
       + ` ｜ 未覆盖 ${uncovered.join(',') || '无'} ｜ 同族重名 ${dupFams.join(',') || '无'}`
-      + ` ｜ 非全名删字 ${notDerived.join(',') || '无'}`);
+      + ` ｜ 非全名删字 ${notDerived.join(',') || '无'}`
+      + ` ｜ 无障碍名不符 ${ariaBad.join(',') || '无'}`);
   /* 守门对象换了（设计第 1 项 delta 2，2026-11-25，PR #23 已并入 main）：
      盘心原来另起一行报「N 个小类」，那行已删 —— 个数是"数一下就知道"的信息，
      它花掉的却是一整行高度，在 360/320px 上是最贵的一行。这条断言原先正断在
