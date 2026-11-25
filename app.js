@@ -54,6 +54,10 @@ import { buildAvoidIndex, avoidPlan, avoidSelection, avoidDirection } from './sr
    一个文件里才能一眼对完。查不到组合时 seasonScene() 返回空串，renderSeason
    回退到该季原有的 desc —— 用情绪入口进来的人没有 family，那一屏必须照常渲染。 */
 import { seasonScene } from './src/season-copy.js';
+/* 中圈胶囊的**短标签**（Eddie 2026-11-25 22:37 裁决，1 号方案「缩短标签」）。
+   只被 renderArcs 那一个渲染点消费：盘心小类列表、盘心主词、结果页、文案
+   全部照旧读数据里的全名（label || zh）。表与两条边界情况见 src/sub-labels.js。 */
+import { subShortLabel } from './src/sub-labels.js';
 
 const state = {
   step: 0,
@@ -1763,11 +1767,18 @@ function buildWheel(cfg) {
         style: '--l: ' + (px[0] / WHEEL.vb * 100).toFixed(2) + '%; --t: ' + (px[1] / WHEEL.vb * 100).toFixed(2)
           + '%; --nl: ' + (pxm[0] / WHEEL.vb * 100).toFixed(2) + '%; --nt: ' + (pxm[1] / WHEEL.vb * 100).toFixed(2)
           + '%; --i: ' + i + '; --n: ' + n,
-      }, el('span', { class: 'zh' }, subArcIcon(item.id), item.label || item.zh));
-      /* 中圈标签用 label 而不是 zh：柑橘调的四个 zh 都是"××柑橘"，
-         并排看分不出差别（用户 m05889 原话「我分不清它们的差异」）。
-         label 是 4 字以内的直白词（纯柑橘/苦橙叶/橙花柑橘/皂感柑橘），
-         zh 保留不动 —— 它仍是表单、推荐理由、无障碍名里用的正式名。 */
+      }, el('span', { class: 'zh' }, subArcIcon(item.id), subShortLabel(item)));
+      /* 中圈标签用**短标签**（src/sub-labels.js）而不是 label/zh：
+         ① 柑橘调的四个 zh 都是"××柑橘"，并排看分不出差别（用户 m05889 原话
+            「我分不清它们的差异」），所以这一层从来不用 zh，用 label；
+         ② 定版是**单行胶囊**（16px 图标 + 12px 文字，不换行，Eddie 2026-11-25
+            22:37 裁决 1 号方案），而 ±90° 那两枚的宽度正好沿半径展开、
+            可用总宽只有「盘心半径 → 盘沿」这一段，四字词横排塞不下 ——
+            于是把 label 再缩掉与家族名重复的后缀（皂感柑橘 → 皂感）。
+         盘心已经写着家族名，胶囊里重复一遍不增加信息，只增加宽度。
+         zh / label 保留不动 —— 它们仍是盘心小类列表（familyText 里的
+         `.fam-text-item`）、盘心主词（scentPlate 里的 `zh = focusSub.label || focusSub.zh`）、
+         表单、推荐理由、无障碍名里用的全名。 */
 
       /* **中圈一旦有选中项，hover 一律不再产生反馈**。
          用户的要求：「中圈一旦被选定，无论鼠标移动到何处，中框的选择状态
@@ -1977,9 +1988,15 @@ function buildWheel(cfg) {
     } else if (focusSub) {
       picked = !!(sub && sub.id === focusSub.id);
       kick = picked ? '已选定' : '正在看';
-      /* 盘心小类名与中圈统一：中圈写的是 `item.label || item.zh`（见 1710 行），
-         盘心原来只读 `zh`，于是柑橘调 4 项出现"中圈点纯柑橘、盘心说古龙水型"。
-         同一套回退链搬过来：有 label 用 label，没有的 20 类行为逐字不变。 */
+      /* 盘心小类名读**全名**：`label || zh`（柑橘调是「纯柑橘」，不是 zh 的「古龙水型」）。
+         盘心原来只读 `zh`，于是出现"中圈点纯柑橘、盘心说古龙水型"，所以把 label
+         优先这条回退链搬了过来。
+         注意 2026-11-25 短标签腿之后，盘心与中圈**故意不再同名**：中圈胶囊改成
+         单行、放不下四字词，读的是短标签（`subShortLabel`，见 renderArcs 与
+         src/sub-labels.js）；盘心这里、以及盘心小类列表（familyText 里的
+         `.fam-text-item`）仍读全名。
+         盘心空间充裕，写全名才说得清；胶囊空间紧，写短名才排得下。
+         scripts/test-render.mjs 有一条断言同时钉住这两边。 */
       zh = focusSub.label || focusSub.zh;
       desc = focusSub.descWheel || focusSub.short || focusSub.desc;
     } else {
