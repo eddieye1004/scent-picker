@@ -715,6 +715,29 @@ function artNs(inner, ns) {
     .replace(/url\(#([^)]+)\)/g, (m, x) => 'url(#' + x + '-' + ns + ')');
 }
 /* 彩图已就绪就直接返回可写进 <svg> 的内部内容；没就绪返回 ''。 */
+/* 中圈胶囊里的标本图标（设计第 2 项，2026-11-25）。
+   与盘心 scentPlate、避雷卡 avoidSpecimen 走**同一条**取图通路：
+   ART_FILE → artPath() → ART_CACHE / ART_READY，不新造图标、不新造通路。
+   未就绪时返回空 span 而不是占位盒：CSS 用 `.sub-arc-icon:empty` 把它整个
+   拿掉（display:none），于是"图没到/加载失败"两种情况的胶囊都是纯文字，
+   既不留空位也不跳版；图到了才长出来，失败就永远不长。
+   多个实例的渐变 id 冲突由 artNs() 规避（与盘心同一套）。 */
+function subArcIcon(subId) {
+  const box = el('span', { class: 'sub-arc-icon', 'aria-hidden': 'true' });
+  const p = artPath(subId);
+  if (!p) return box;
+  const wrap = (inner) => {
+    box.innerHTML = '<svg viewBox="0 0 24 24" focusable="false">' + artNs(inner, 'a' + (++artSeq)) + '</svg>';
+  };
+  const ready = ART_READY.get(p);
+  if (ready) { wrap(ready); return box; }
+  artInnerPath(p).then((inner) => {
+    /* 弧段被重建时这个 span 已经不在文档里 —— 别往废节点里写。 */
+    if (!inner || !box.isConnected) return;
+    wrap(inner);
+  }).catch(() => { /* 取图失败：保持空 span，胶囊就是纯文字 */ });
+  return box;
+}
 function artSvgReady(subId) {
   const inner = ART_READY.get(artPath(subId));
   return inner ? artNs(inner, 'a' + (++artSeq)) : '';
@@ -1722,7 +1745,7 @@ function buildWheel(cfg) {
         style: '--l: ' + (px[0] / WHEEL.vb * 100).toFixed(2) + '%; --t: ' + (px[1] / WHEEL.vb * 100).toFixed(2)
           + '%; --nl: ' + (pxm[0] / WHEEL.vb * 100).toFixed(2) + '%; --nt: ' + (pxm[1] / WHEEL.vb * 100).toFixed(2)
           + '%; --i: ' + i + '; --n: ' + n,
-      }, el('span', { class: 'zh' }, item.label || item.zh));
+      }, el('span', { class: 'zh' }, subArcIcon(item.id), item.label || item.zh));
       /* 中圈标签用 label 而不是 zh：柑橘调的四个 zh 都是"××柑橘"，
          并排看分不出差别（用户 m05889 原话「我分不清它们的差异」）。
          label 是 4 字以内的直白词（纯柑橘/苦橙叶/橙花柑橘/皂感柑橘），
