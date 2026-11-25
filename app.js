@@ -1738,6 +1738,12 @@ function buildWheel(cfg) {
         role: 'radio',
         'aria-checked': 'false',
         'data-sub': item.id,
+        /* 该族的子类数（4–7）落到属性上，给 CSS 按"拥挤族"分档用：
+           n≥6 时桌面也守 12px 字号（Eddie 2026-11-25 口径）。
+           --n 是 CSS 变量，属性选择器选不到它，所以必须有一个属性镜像。
+           注意它**不**用来决定"窄屏撤图标"—— 那条只看盘面宽度，
+           因为径向余量由盘径决定、与族里几个子类无关。 */
+        'data-n': n,
         tabindex: i === 0 ? '0' : '-1',
         /* 只写定位变量与错峰变量，不写内联 left/top/transform：
            内联 left/top 会盖掉窄屏那套（--nl/--nt）的 media query，

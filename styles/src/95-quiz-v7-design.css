@@ -1298,3 +1298,141 @@
     transform: scale(.72);
   }
 }
+
+
+/* ============================================================
+   Block 15 · 中圈胶囊带标本图标（设计第 2 项，2026-11-25）
+   ------------------------------------------------------------
+   胶囊从「纯文字」变成「图标 + 文字」：图标就是该小类的标本彩图
+   （icon-specimen/svg/ 那 24 枚，与盘心 scentPlate、避雷卡 avoidSpecimen
+   **同一条** artPath 取图通路），16px；文字仍是 item.label。
+
+   ==== 为什么不是单行 ====
+   任务书写的是「单行、white-space: nowrap」。按现行几何量下来单行不成立，
+   三个视口全破线（probe5.mjs，实测不是推算）：
+     ±90° 那两枚胶囊的**宽度正好沿半径展开**，可用总宽 = 盘心半径 → 盘沿：
+     390 档只有 58.15px（112.85 → 171），320 档 46.2px，1440 档 118.1px。
+     而「四字 + 16px 图标 + 间距 + 内边距」单行，布局单位下 75px，
+     经 .sub-ring 1.43 × `.zh` .72 = **1.03 净缩放** 后 77px：
+       floral-390  clearHub −11.9 / clearRim  −9.5
+       floral-320  clearHub −17.6 / clearRim −15.8
+       floral-1440 clearHub −17.0 / clearRim −13.4
+   图标压到 14px、内边距清零，四字单行仍要 70px > 58.15px。
+   收窄 max-width 让它折行呢？列宽一收四字就折成 4 行
+   （probe7：L=4.28、胶囊高 53.9，直接顶穿环带）。
+   **所以保留现行的两行窄胶囊** —— 那是已批准、已量过的基线，
+   本腿只往里加图标，不动行数与列宽。
+
+   ==== 列宽必须是绝对值，不能用 em ====
+   第一版写成 `max-width: calc(2.9em + 18px)` 并给 n≥6 加 12px 字号，
+   结果 2.9em 跟着字号从 37.7px 掉到 34.8px，图标又占掉 19px，
+   剩给文字的只有 5.8px —— 四字折成 1 字/行 6 行，1440 档胶囊高 74.9px
+   顶穿环带（shot.mjs 第一轮实测 clearHub −9.8）。
+   2.9em 那个数是在 **13px 下标定的**两字列宽（2 字 + 内边距），
+   字号一改就必须跟着换算，所以这里全部换成 px 绝对值：
+     列宽 = 两字 24px（12px 字）或 26px（13px 字）+ 图标 16 + 间距 1 + 内边距 2
+   窄屏 12px 字：24 + 16 + 1 + 2 = 43px，取 45px 留 2px 余量。
+
+   ==== 图标占位的账（采用版 J，probe9 实测全绿） ====
+   只加宽、不加高，图标作 flex 首项与文字并排；四字仍折 2+2，行数不变。
+     390  : 四字 46.3×28，clearHub +4.6 / clearRim +6.1，另两枚 +1.6 / +4.0
+     1440 : 四字 64.3×38.9，clearHub +8.7 / clearRim +11.1
+     320  : 图标已由下方兜底撤掉，胶囊回到基线 −0.9 / +1.1
+   三档胶囊互叠 0（最小净距 46.3px），文字零裁切（clip 0/0）。
+
+   ==== 图没到 / 取图失败 ====
+   subArcIcon() 那时返回的是**空 span**，`.sub-arc-icon:empty` 整格拿掉，
+   胶囊就是纯文字 —— 不留空位、不跳版（probe6 A_noicon 量过：
+   图标全空时胶囊回到 30.9×15 的纯文字态，clearHub +13.9）。
+   比"放占位方块"好在：占位方块会让胶囊在取图前后变宽两档，这里不会。
+
+   ==== 字号口径（Eddie 2026-11-25 亲定）====
+   默认 12px；13px 只在 n≤5 且胶囊有余量时用；n=7 最紧处（余量 6px）
+   死守 12px，12px 是下限（test-contrast 守着）。
+   实现：窄屏一律 12px；桌面 n≤5 用 13px，n≥6 退回 12px。
+   n=7 现行数据里不存在（最大族 6），但属性按 n 选，到 7 自动落到 12px。
+   ============================================================ */
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  /* 13px 字：两字 26px + 图标 16 + 间距 1 + 内边距 2 = 45px，
+     但那 2px 余量必须留着 —— 汉字实际步进 13.1px 不是 13.0，
+     卡到 45px 时 26.2 > 26，四字会折成 1 字/行 4 行（实测 61.4px 高）。
+     47px = 26 + 16 + 1 + 2 + 2 余量。 */
+  max-width: 47px;
+  padding: 0 1px;
+  /* 文字仍可折行（两行窄胶囊是基线），但图标不许被折到第二行 */
+  white-space: normal;
+  word-break: break-all;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .sub-arc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* flex: 0 0 16px —— 图标不参与弹性收缩。不写这条时胶囊被 max-width
+     卡住，图标会被压成扁条（实测量到 13.x px 宽）。 */
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  color: inherit;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .sub-arc-icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+/* 图没到 / 取图失败：span 是空的，整格拿掉，胶囊回到纯文字 */
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .sub-arc-icon:empty {
+  display: none;
+}
+
+/* n≥6 的拥挤族：桌面也守 12px（Eddie 口径），列宽同步换成 12px 字的两列。
+   24px（两字 12px）+ 图标 16 + 间距 1 + 内边距 2 = 43px，
+   汉字步进 12.1px → 两字 24.2，卡 43 会折 1 字/行，同样要留 2px 余量：45px。 */
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="6"] .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="7"] .zh {
+  font-size: 12px;
+  max-width: 45px;
+}
+
+@media (max-width: 620px) {
+  /* 窄屏字一律 12px（test-contrast 的地板）。
+     列宽同样写绝对值：两字 24 + 图标 16 + 间距 1 + 内边距 2 + 2 余量 = 45px。
+     现行那档内边距是 0 4px，这里收到 0 1px 把宽度让给图标位，
+     文字列宽仍是两字（折行位置不变）。 */
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+    max-width: 45px;
+    padding: 0 1px;
+  }
+}
+
+/* ---- 兜底：盘面 <340px 时胶囊只显文字 ----
+   盘面 340px 对应视口 386px（.disc.wheel 宽是 min(88vw, …)），
+   即任务书那条「盘面宽 <340px 且该族 n≥6 时只显文字」。
+
+   n≥6 这个条件在这里**去掉、对全部族生效**，理由是量出来的：
+   径向余量只由盘径决定，与族里几个子类无关 —— 四字胶囊在 n=4 和 n=6
+   的族里同宽。320 档盘径 272px、径向余量 46.2px，四字两行胶囊本体
+   对角就要 41px；带 16px 图标位实测：
+     n=6  clearHub −1.1 / clearRim −0.2（probe9 J）
+     n=4  clearHub −0.9 / clearRim +1.1（同上，已到基线）
+   n≥6 那族压进盘心 1.1px。若只对 n≥6 撤图标，320 档的两族会各走一边、
+   观感不一致；而"盘面窄到这一档"本身是盘径的问题，不是族大小的问题。
+   所以这一档**全部撤图标**，胶囊回到基线（−0.9 / +1.1，与现行版逐像素一致）。
+   盘面 ≥340px（视口 ≥386px）时图标照常显示，390 档实测 +4.6 / +6.1。 */
+@media (max-width: 386px) {
+  /* 这一档必然同时命中 620 那条，所以文字的原始宽度就是窄屏基线 3em@12px = 36px。
+     三条选择器把普通族与 n≥6 族一起覆盖 —— 不然上一条 n≥6 的属性选择器
+     特异性更高，会把文字的 43px 留下、只撤掉图标，胶囊仍是加宽过的。 */
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="6"] .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="7"] .zh {
+    max-width: 3em;
+    padding: 0 4px;
+  }
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .sub-arc-icon {
+    display: none;
+  }
+}
