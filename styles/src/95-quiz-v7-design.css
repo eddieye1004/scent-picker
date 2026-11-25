@@ -314,16 +314,9 @@
   opacity: .6;
   font-weight: 400;
 }
-#app[data-step="family"] .wheel .fam-text-count {
-  display: block;
-  margin-top: 3px;
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: .08em;
-  color: var(--ink-3);
-  white-space: nowrap;
-}
+/* 计数行「N 个小类」的样式已删（设计第 1 项 delta 2，2026-11-25）：
+   元素与它这条规则一并移除，此处不留空规则 —— 留一条没有元素的规则
+   会让人以为计数还在某个地方渲染。理由见 Block 15 delta 2 那段。 */
 /* 容器必须有明确宽度，否则文字块会缩到内容宽度：
    `.hub-glyph` 是 flex 列里的一项（width:auto → 收缩到内容宽度），
    收缩后 92%/居中都不再生效。这条与下方 has-glyph 那条成对。 */
@@ -1435,4 +1428,120 @@
   #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .sub-arc-icon {
     display: none;
   }
+}
+/* ============================================================
+   Block 15 · 盘心改版（设计第 1 项 · 2026-11-25）
+   ------------------------------------------------------------
+   依据：六项重讨整合裁决第 1 项。盘心原则不变 —— 纯静态、不承载交互；
+   本块只改盘心的**信息呈现**，不改任何交互、文案或数据。
+
+   三件事（三条都已在，delta 2 于 2026-11-25 补落，见下）：
+     delta 1  未选大类时盘心只留一行弱提示「先选香调大类」
+     delta 2  「N 个小类」计数删除
+     delta 3  大类名信息块降对比：浅底 / 细边 / 无阴影
+
+   ==== delta 2：计数为什么删、断言怎么换（2026-11-25 补落）====
+   删掉 `.fam-text-count` 本身只是一行 CSS 加一行 DOM，真正卡住的是断言：
+   test-render 原有一条正断在那枚 span 上 ——
+   `盘心报的小类数与列出的名字、中圈段数一致`（scripts/test-render.mjs:780），
+   断言 `famCount.textContent === famItems.length + ' 个小类'`。删 span 就必然红。
+   裁决走的是**换守门对象**，不是删断言：
+   那条断言的三件事里，①「span 存在」②「文本 = N 个小类」都是描述实现，
+   只有 ③「盘心列出的小类数 === 中圈段数」是它真正要守的意图（两边同源同数）。
+   现在只断 ③，不再引用 `.fam-text-count`；名字一致性那条断言一字未动。
+   所以守门强度没降：盘心少说一句话，但"盘心与中圈说同一批小类"仍然被断着。
+   计数删掉在布局上也是净收益：360/320px 盘心内高已经贴底（见 Block 3b 实测
+   表），这一行是唯一能白让出来的一整行，删后不留空位（display:block 的
+   元素已随节点消失，没有残余 margin）。
+
+   ==== delta 1：一行提示如何落地 ====
+   未选态的盘心原本有三行文字（香型轮盘 / 还没选 / 从外圈挑一个大类）。
+   「只放一行」意味着那三行必须视觉退场。做法是 CSS 让位而不是删节点：
+   `.is-idle` 下把三者 display:none，文字仍在 DOM 里 ——
+   读屏的无障碍名与 test-render 的两条断言（读 `.hub-zh` === '还没选'）
+   都不受影响。删节点会同时动到这两处契约，那是改断言绕过的近亲。
+   空态纹样 `.hub-orn`（一圈发丝环 + 六枚定位点 + 十字）**保留**：
+   它是图形不是文字，且六枚点标的就是外圈六族的位置，删了盘心更空；
+   裁决原文对「装饰」给的是「拿不准的保留」。
+   ============================================================ */
+
+/* ---- delta 1：未选态只留一行弱提示 ----
+   12px + --ink-3（#616161，对 --bg 6.19 / 对 --bg-2 5.68，两处都过 4.5）——
+   "低对比、小字"用**已审计**的色阶实现，不新造一个灰：
+   新灰一旦带 color 就要进 test-contrast 的 4.5 门槛，而它要做的事
+   恰恰是"比正文更弱"，那会变成一条永远修不好的冲突。
+   为什么不再往上加 padding/边框：那会让它读成一枚按钮 —— 本 delta 的反面。
+
+   ==== 深色档为什么必须另给一色 ====
+   盘心底 `--spec-plate`（#FFFCF6 暖纸）定义在顶层 `:root`，**不分模式** ——
+   深色档里盘心仍是那块暖纸（既有观感，不在本腿范围）。
+   而深色档的 `--ink-3` 翻成 #9A9284（浅灰），压在暖纸上实测 **3.01 : 1**，
+   低于 4.5 —— 截图里几乎读不出这行字。浅灰是为深底准备的，
+   这块底在深色档下并不是深色，所以这一处不能跟着 token 一起翻。
+   改用 --spec-ink（#2A2620，对暖纸 14.68）—— 它本来就是"写在暖纸上的字"
+   那一族 token，与盘心主词同源。 */
+#app[data-step="family"] .wheel .disc-hub .hub-idle-hint {
+  display: none;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: .02em;
+  text-align: center;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+@media (prefers-color-scheme: dark) {
+  #app[data-step="family"] .wheel .disc-hub .hub-idle-hint {
+    color: var(--spec-ink);
+  }
+}
+#app[data-step="family"] .wheel .disc-hub.is-idle .hub-idle-hint {
+  display: block;
+}
+/* 未选态的三行既有文字视觉退场（节点保留，见上）。
+   加 id 级前缀只是为了稳压 20/70 层同名的 `.hub-kicker` 等规则，
+   不是新开选择器族。 */
+#app[data-step="family"] .wheel .disc-hub.is-idle .hub-kicker,
+#app[data-step="family"] .wheel .disc-hub.is-idle .hub-zh,
+#app[data-step="family"] .wheel .disc-hub.is-idle .hub-desc {
+  display: none;
+}
+/* 提示与纹样之间的呼吸：纹样是 74px 的死物，贴着字会显得是它的标题。 */
+#app[data-step="family"] .wheel .disc-hub.is-idle .hub-orn {
+  margin-bottom: 10px;
+}
+
+/* ---- delta 3：信息块降对比 ----
+   改前实测（390px，getComputedStyle）：浅暖底 #FFFCF6 + 1px --spec-rim
+   盘口色 + 三层阴影（1 道内高光 + 1 道内投影 + 0 12px 30px -20px 外投影）。
+   三层阴影正是它读成"一枚实体按钮"的原因 —— 有厚度、有落影，
+   视觉上就浮在盘面之上。选中反馈的主力本来就该是扇区高亮，盘心不抢。
+   改后：底色退回纸色（--bg，与页面同一块纸，不是一块贴在纸上的板）、
+   边收成 1px --spec-hair（比 --spec-rim 浅一档的发丝线）、阴影全删。
+   「浅底 / 细边 / 无阴影」三条，逐条对上裁决原文。
+   字号、字重、字色、位置、尺寸一个都没动 —— 降的是物件感，不是信息本身。
+
+   **只在浅色档生效**：`--bg` 在深色档是 #141414，无条件套用会把盘心
+   从暖纸底直接翻成近黑 —— 那是深色档的一次重做，不在本腿范围
+   （本层开头已写明"深色档不重做"，深色仍走既有那一套）。 */
+@media (prefers-color-scheme: light) {
+  #app[data-step="family"] .wheel .disc-hub,
+  #app[data-step="family"] .wheel:not(.is-open) .disc-hub,
+  #app[data-step="family"] .wheel.is-open .disc-hub {
+    border-color: var(--spec-hair);
+    background: var(--bg);
+    box-shadow: none;
+  }
+}
+/* 落到小类（is-picked）那一路不动：它表达的是"定下来了"，
+   厚度与描边在这里是信息本身，且不在本腿三条 delta 的范围内。 */
+#app[data-step="family"] .wheel.is-open.is-picked .disc-hub {
+  border-color: var(--spec-ink);
+  box-shadow:
+    inset 0 1px 0 var(--spec-glow),
+    inset 0 -14px 26px -22px var(--spec-sh),
+    0 0 0 4px var(--spec-plate),
+    0 0 0 5px var(--spec-rim),
+    0 14px 34px -22px var(--spec-sh);
 }

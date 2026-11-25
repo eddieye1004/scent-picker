@@ -917,10 +917,15 @@ function scentPlate(sub) {
    读起来像"已经替你选好了其中一件"。裁定口径：只选大类时中心盘
    只放文字，等大类图标补齐再谈图形。
 
-   文字放什么：这一族的小类名 + 个数。两件事都是数据里来的，不是编的；
+   文字放什么：这一族的小类名。名字是数据里来的，不是编的；
    盘心因此在说"这一族由这四格组成"，而不只是一句风格描述。
-   为什么不做成"·"串一行就完：小类名之间要能一眼数清有几格，
-   所以名字之间用间隔点，个数单独一行小字（与盘心其它小字同一档）。
+
+   ==== 为什么没有「N 个小类」那行（设计第 1 项 delta 2，2026-11-25 删）====
+   原先名字下面另起一行 12px 小字报个数。删它的理由：个数是"数一下就有"
+   的信息，而它花掉的是一整行高度 —— 360/320px 上盘心内高已经贴底
+   （见下方图标那段的实测），这一行是最贵的一行，换来的信息最少。
+   现在"有几格"由名字本身回答：名字之间是间隔点，一眼数得清。
+   计数那枚 `.fam-text-count` 连同它的 CSS 一并删除，不留空位。
 
    ==== 小类名取哪个字段（2026-11-24 裁定 A）====
    口径 = `label || zh || id`，与中圈弧段标签（第 1711 行）、盘心主词
@@ -947,7 +952,6 @@ function familyText(fam) {
     list.appendChild(el('span', { class: 'fam-text-item' }, s.label || s.zh || s.id));
   });
   wrap.appendChild(list);
-  wrap.appendChild(el('span', { class: 'fam-text-count' }, subs.length + ' 个小类'));
   return wrap;
 }
 
@@ -1263,13 +1267,21 @@ function buildWheel(cfg) {
      单独一棵节点而不是塞进 hubGlyph：hubGlyph 归标本管，两者互斥，
      混用会让 paint() 里"清空标本"那一步顺手把纹样也删掉。 */
   const hubOrn = hubOrnament(families);
+  /* 未选大类时盘心唯一的一行弱提示（设计第 1 项 · delta 1）。
+     为什么另开一个节点，而不是改写 .hub-zh / .hub-desc 的文案：
+     那两处文字是既有断言与无障碍名的落点（test-render 两处读
+     `.hub-zh` === '还没选'），改文案等于借本腿的名义改契约。
+     所以未选态**视觉上只留这一行**：kicker / zh / desc 由 CSS 在该态
+     display:none 让位（文字仍在 DOM 里，读屏与断言都不受影响），
+     这一行只在 `.is-idle` 时出现，选中大类后自动退场。 */
+  const hubIdleHint = el('div', { class: 'hub-idle-hint' }, '先选香调大类');
   /* 大类徽记（方向 B）：绝对定位的背衬层，不占 flex 空间。
      为什么必须是独立的一层：见 familyEmblem 上方那段 —— 390 以下盘心已经
      贴满，任何进 flow 的一行都会顶出圆外。它同时与 hubOrn / hubGlyph 各自
      独立，paint() 里三条清理路径互不牵连。 */
   const hubEmblem = el('div', { class: 'hub-emblem', 'aria-hidden': 'true' });
   const hub = el('div', { class: 'disc-hub is-idle' },
-    hubEmblem, hubOrn, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
+    hubEmblem, hubOrn, hubIdleHint, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
   root.appendChild(hub);
 
   /* ---- 液态玻璃交互层（B 段）----
