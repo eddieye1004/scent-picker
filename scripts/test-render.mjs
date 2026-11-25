@@ -774,13 +774,17 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
       && famNames.length === midIds.length
       && famNames.every((n, i) => n === expectNames[i] && n === midLabels[i]),
     `盘心 ${famNames.join('/')} ｜ 中圈 ${midLabels.join('/')} ｜ 期望 ${expectNames.join('/')}`);
-  /* 个数那行必须是数字推出来的，不是写死的 —— 与实际列出的小类数一致，
-    且这个数要等于中圈展开的段数（否则两边各说各的） */
-  const famCount = appRoot.querySelector('.fam-text-count');
-  ok('盘心报的小类数与列出的名字、中圈段数一致',
-    !!famCount && famCount.textContent === `${famItems.length} 个小类`
-      && famItems.length === midIds.length,
-    `${famCount && famCount.textContent} ｜ 列出 ${famItems.length} ｜ 中圈 ${midIds.length}`);
+  /* 守门对象换了（设计第 1 项 delta 2，2026-11-25）：盘心原来另起一行报
+     「N 个小类」，那行已删 —— 个数是"数一下就知道"的信息，它花掉的却是
+     一整行高度，在 360/320px 上是最贵的一行。这条断言原先正断在那枚 span 上
+     （famCount.textContent === famItems.length + ' 个小类'），删 span 就必然红。
+     现在断在**意图**上、换了守门对象：盘心列出的小类名数量必须等于中圈
+     展开的段数 —— 两边说的是同一族、同一批小类，不会各说各的。
+     不再引用 .fam-text-count。上一块那条名字一致性断言不动（它管"用哪个字段"），
+     两条合起来仍守住「盘心与中圈同源同数」。 */
+  ok('盘心列出的小类数与中圈段数一致',
+    famItems.length === midIds.length,
+    `列出 ${famItems.length} ｜ 中圈 ${midIds.length}`);
 }
 /* 悬停某一段：只加深那一段的描边，盘心一个字都不许改。
    v15 改成"左键点击才确认"之后，这条从"悬停画标本"反转成"悬停不许动状态"

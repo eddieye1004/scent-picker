@@ -5627,16 +5627,6 @@ color: var(--ink-3);
 opacity: .6;
 font-weight: 400;
 }
-#app[data-step="family"] .wheel .fam-text-count {
-display: block;
-margin-top: 3px;
-font-family: var(--font-body);
-font-size: 12px;
-font-weight: 500;
-letter-spacing: .08em;
-color: var(--ink-3);
-white-space: nowrap;
-}
 #app[data-step="family"] .wheel .disc-hub.has-glyph .hub-glyph {
 width: 100%;
 }
@@ -6222,6 +6212,51 @@ padding: 0 4px;
 #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .sub-arc-icon {
 display: none;
 }
+}
+#app[data-step="family"] .wheel .disc-hub .hub-idle-hint {
+display: none;
+font-family: var(--font-body);
+font-size: 12px;
+font-weight: 400;
+line-height: 1.5;
+letter-spacing: .02em;
+text-align: center;
+color: var(--ink-3);
+white-space: nowrap;
+}
+@media (prefers-color-scheme: dark) {
+#app[data-step="family"] .wheel .disc-hub .hub-idle-hint {
+color: var(--spec-ink);
+}
+}
+#app[data-step="family"] .wheel .disc-hub.is-idle .hub-idle-hint {
+display: block;
+}
+#app[data-step="family"] .wheel .disc-hub.is-idle .hub-kicker,
+#app[data-step="family"] .wheel .disc-hub.is-idle .hub-zh,
+#app[data-step="family"] .wheel .disc-hub.is-idle .hub-desc {
+display: none;
+}
+#app[data-step="family"] .wheel .disc-hub.is-idle .hub-orn {
+margin-bottom: 10px;
+}
+@media (prefers-color-scheme: light) {
+#app[data-step="family"] .wheel .disc-hub,
+#app[data-step="family"] .wheel:not(.is-open) .disc-hub,
+#app[data-step="family"] .wheel.is-open .disc-hub {
+border-color: var(--spec-hair);
+background: var(--bg);
+box-shadow: none;
+}
+}
+#app[data-step="family"] .wheel.is-open.is-picked .disc-hub {
+border-color: var(--spec-ink);
+box-shadow:
+inset 0 1px 0 var(--spec-glow),
+inset 0 -14px 26px -22px var(--spec-sh),
+0 0 0 4px var(--spec-plate),
+0 0 0 5px var(--spec-rim),
+0 14px 34px -22px var(--spec-sh);
 }
 .qw-share-row {
 display: flex;

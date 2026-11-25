@@ -314,16 +314,9 @@
   opacity: .6;
   font-weight: 400;
 }
-#app[data-step="family"] .wheel .fam-text-count {
-  display: block;
-  margin-top: 3px;
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: .08em;
-  color: var(--ink-3);
-  white-space: nowrap;
-}
+/* 计数行「N 个小类」的样式已删（设计第 1 项 delta 2，2026-11-25）：
+   元素与它这条规则一并移除，此处不留空规则 —— 留一条没有元素的规则
+   会让人以为计数还在某个地方渲染。理由见 Block 15 delta 2 那段。 */
 /* 容器必须有明确宽度，否则文字块会缩到内容宽度：
    `.hub-glyph` 是 flex 列里的一项（width:auto → 收缩到内容宽度），
    收缩后 92%/居中都不再生效。这条与下方 has-glyph 那条成对。 */
@@ -1442,19 +1435,24 @@
    依据：六项重讨整合裁决第 1 项。盘心原则不变 —— 纯静态、不承载交互；
    本块只改盘心的**信息呈现**，不改任何交互、文案或数据。
 
-   三件事：
+   三件事（三条都已在，delta 2 于 2026-11-25 补落，见下）：
      delta 1  未选大类时盘心只留一行弱提示「先选香调大类」
-     delta 2  「N 个小类」计数删除 —— **本块未做，见下**
+     delta 2  「N 个小类」计数删除
      delta 3  大类名信息块降对比：浅底 / 细边 / 无阴影
 
-   ==== delta 2 为什么缺席（停手项，不是遗漏）====
-   删掉 `.fam-text-count` 会让 test-render 的一条既有断言失败：
-   `盘心报的小类数与列出的名字、中圈段数一致`（scripts/test-render.mjs:780）
-   断言的是 `famCount.textContent === `${famItems.length} 个小类`` ——
-   它正断在被删的那枚元素上。实测：删 span 后 PASS 499 / FAIL 1，
-   其余 499 条全绿。验收线写明「若有断言正好断在被删的计数元素上，
-   停手写回执，不许改断言绕过」，所以本腿只做 delta 1 与 delta 3，
-   计数与那枚 span 一并未动，等裁决（改断言 / 换守门对象）后再落。
+   ==== delta 2：计数为什么删、断言怎么换（2026-11-25 补落）====
+   删掉 `.fam-text-count` 本身只是一行 CSS 加一行 DOM，真正卡住的是断言：
+   test-render 原有一条正断在那枚 span 上 ——
+   `盘心报的小类数与列出的名字、中圈段数一致`（scripts/test-render.mjs:780），
+   断言 `famCount.textContent === famItems.length + ' 个小类'`。删 span 就必然红。
+   裁决走的是**换守门对象**，不是删断言：
+   那条断言的三件事里，①「span 存在」②「文本 = N 个小类」都是描述实现，
+   只有 ③「盘心列出的小类数 === 中圈段数」是它真正要守的意图（两边同源同数）。
+   现在只断 ③，不再引用 `.fam-text-count`；名字一致性那条断言一字未动。
+   所以守门强度没降：盘心少说一句话，但"盘心与中圈说同一批小类"仍然被断着。
+   计数删掉在布局上也是净收益：360/320px 盘心内高已经贴底（见 Block 3b 实测
+   表），这一行是唯一能白让出来的一整行，删后不留空位（display:block 的
+   元素已随节点消失，没有残余 margin）。
 
    ==== delta 1：一行提示如何落地 ====
    未选态的盘心原本有三行文字（香型轮盘 / 还没选 / 从外圈挑一个大类）。
