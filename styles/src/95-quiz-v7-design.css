@@ -1545,3 +1545,95 @@
     0 0 0 5px var(--spec-rim),
     0 14px 34px -22px var(--spec-sh);
 }
+
+
+/* ============================================================
+   Block 16 · 中圈胶囊改**单行**（短标签，设计第 1 号方案，2026-11-25）
+   ------------------------------------------------------------
+   Eddie 2026-11-25 22:37 裁决：中圈胶囊走 1 号方案——缩短标签。
+   ±90° 那两枚两行窄版（「皂感柑橘」「纯柑橘」）不接受，定版是
+   **单行胶囊**（16px 图标 + 12px 文字，不换行）。
+
+   ==== 为什么 Block 15 说"单行不成立"，现在成立了 ====
+   Block 15 那笔账没错，错的是**词太长**：四字 + 16px 图标 + 间距 + 内边距
+   单行要 77px（净缩放 1.43 × .72 = 1.03 之后），而 ±90° 那两枚的宽度正好
+   沿半径展开，可用总宽只有「盘心半径 → 盘沿」这一段（390 档 58.15px、
+   320 档 46.2px）—— 差 19px，图标压到 14px、内边距清零都补不回来。
+   本腿改的是词不是版：标签去掉与家族名重复的后缀（皂感柑橘 → 皂感、
+   纯柑橘 → 纯柑、橙花柑橘 → 橙花；表见 src/sub-labels.js），
+   最长 3 字，单行就塞下了。数据里的 zh / label 一个字没动，
+   盘心小类列表与盘心主词照旧读全名。
+
+   ==== 只关折行，不动任何尺寸旋钮 ====
+   三处改动，全是"把 Block 14/15 为了折行而设的限宽拿掉"：
+     ① white-space: nowrap + word-break: keep-all —— 单行、不折；
+     ② max-width: none —— 胶囊由内容撑开。留着 45px 那个限宽的话，
+        3 字词（苦橙叶 / 香根草 / 单一花）在 390 档仍会折成 2 行
+        （实测 46.3×28，clearHub 1.6）；
+     ③ ≤386px 那一档内边距 4px → 3px，理由见下面 320 档那笔账。
+   字号、图标尺寸、落点半径、弧带、盘心、交互一律不动：
+   字号仍是 Eddie 亲定的那档（窄屏 12px；桌面 n≤5 用 13px、n≥6 退回 12px），
+   12px 是 test-contrast 的地板。
+
+   ==== 三宽实测（probe.mjs，6 族 × 3 宽 = 18 组，全绿）====
+   判据：单行（Range.getClientRects 量文本行盒 = 1）、零截断
+   （scrollWidth ≤ clientWidth）、胶囊互不重叠（最小净距 > 0）、
+   不侵入盘心（clearHub ≥ 0）、不出盘沿（clearRim ≥ 0）。
+   胶囊盒尺寸都是**屏幕实测值**（含 .sub-ring 1.43 与窄屏 .zh .72 的净缩放）：
+     390（盘 342，盘心半径 112.9，盘沿 171，落点 R=140.6，图标实测 16.5px）
+       2 字 46.3×18.5、3 字 58.7×18.5；最小 clearHub +1.3 / clearRim +2.5
+       （最紧两枚：citrus「苦橙叶」与 woody「香根草」，都是 n=4 的 45° 位）
+       最小胶囊净距 88.1px（floral 玫瑰/单一花）
+     320（盘 272，盘心半径 89.8，盘沿 136，落点 R=111.8；图标按 Block 15 撤掉）
+       2 字 32.9×15.0、3 字 45.3×15.0；最小 clearHub +1.4 / clearRim +2.4
+       最小胶囊净距 72.8px（floral 玫瑰/单一花）
+     1440（盘 504，盘心半径 166.3，盘沿 252，落点 R=207.2，图标实测 22.9px）
+       2 字 67.2×25.7（13px，n≤5）/ 64.3×25.7（12px，n=6）；
+       3 字 85.8×25.7（13px）/ 81.5×25.7（12px）；
+       最小 clearHub +2.8 / clearRim +4.5，最小胶囊净距 134.4px。
+       最宽那枚 85.8px 仍在按钮 max-width 18%×504 = 90.7px 之内，没溢出触控盒。
+
+   ==== ≤386px 那 1px 内边距是量出来的 ====
+   320 档撤了图标之后，唯一的宽度旋钮就是内边距。3 字胶囊在 45° 位
+   （citrus 苦橙叶 / woody 香根草）的实测：
+     padding 0 4px（Block 15 原值） clearHub +0.7 / clearRim +1.6
+     padding 0 3px（本块采用）      clearHub +1.4 / clearRim +2.4
+     padding 0 2px                  clearHub +2.0 / clearRim +3.2
+   取 3px：把最紧那一处的余量翻倍，同时胶囊两侧还留着看得见的呼吸位；
+   2px 余量更多但 12px 字贴边太紧，不像胶囊像贴片。
+
+   ==== 320 档为什么不把图标加回来 ====
+   标签缩短之后重量过一次（probe.mjs E2）：16px 图标 + 3 字单行
+   在 320 档是 64.9px 宽，clearHub −5.8 / clearRim −6.3，两行都破线。
+   所以 Block 15 那条「盘面 <340px 撤图标」的兜底继续有效，本块不改它。
+   ============================================================ */
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+  max-width: none;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+/* n≥6 那两条属性选择器特异性更高（Block 15:1394），必须一并覆盖，
+   否则拥挤族的胶囊仍被 45px 卡住、3 字词照旧折两行。 */
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="6"] .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="7"] .zh {
+  max-width: none;
+}
+@media (max-width: 620px) {
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="6"] .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="7"] .zh {
+    max-width: none;
+  }
+}
+@media (max-width: 386px) {
+  /* 与 Block 15:1429 同一组选择器（含 n≥6 两条），后到者胜。
+     图标 display:none 由 Block 15 那条继续负责，本块不重复。 */
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="6"] .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="7"] .zh {
+    max-width: none;
+    padding: 0 3px;
+  }
+}
+
