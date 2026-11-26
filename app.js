@@ -3789,11 +3789,12 @@ async function finish(btn) {
     const pool = poolForBudget(d.perfumes, state.answers.budget);
     /* 避雷屏没上屏的低频模糊元素在这里软降权（0.94），不硬排除。 */
     const avoidSoftNotes = avoidSoftNow();
-    let res = recommend(state.answers, pool, TAX, { topN: 3, avoidSoftNotes });
+    const boostIds = gapBoostIds(pool, PHOTOS, AFF_LINKS);
+    let res = recommend(state.answers, pool, TAX, { topN: 3, avoidSoftNotes, boostIds });
     if (!res.results || res.results.length < 3) {
       /* ② 级的兜底：圈过的池凑不满 3 瓶时用全库重算。
          宁可给一瓶价位外的，也不给"只找到 1 瓶"。 */
-      res = recommend(state.answers, d.perfumes, TAX, { topN: 3, avoidSoftNotes });
+      res = recommend(state.answers, d.perfumes, TAX, { topN: 3, avoidSoftNotes, boostIds });
       res.poolFellBack = true;
     }
     state.result = res;
@@ -6412,18 +6413,19 @@ async function reshuffle(btn) {
     const want = 3 + view.soldOut.length;
     /* 与 finish() 同一份软降权名单 —— 换一批不能把避雷屏的软降权弄丢。 */
     const avoidSoftNotes = avoidSoftNow();
-    let res = recommend(state.answers, pool, TAX, { topN: want, avoidSoftNotes });
+    const boostIds = gapBoostIds(pool, PHOTOS, AFF_LINKS);
+    let res = recommend(state.answers, pool, TAX, { topN: want, avoidSoftNotes, boostIds });
     /* 先按已出过的滤，滤完不足 3 瓶就退回全库再滤一次 */
     let picked = (res.results || []).filter((r) => !view.soldOut.includes(r.perfume.id)).slice(0, 3);
     if (picked.length < 3) {
-      res = recommend(state.answers, d.perfumes, TAX, { topN: want, avoidSoftNotes });
+      res = recommend(state.answers, d.perfumes, TAX, { topN: want, avoidSoftNotes, boostIds });
       picked = (res.results || []).filter((r) => !view.soldOut.includes(r.perfume.id)).slice(0, 3);
     }
     /* 真的换不出新的了（库就这么大）：如实说，不假装换过。
        重置 soldOut 让用户可以重新开始一轮 —— 但按钮文案要说明这件事。 */
     if (picked.length < 3) {
       view.soldOut = [];
-      res = recommend(state.answers, pool, TAX, { topN: 3, avoidSoftNotes });
+      res = recommend(state.answers, pool, TAX, { topN: 3, avoidSoftNotes, boostIds });
       picked = res.results || [];
       view.round = 0;
     } else {
@@ -6903,8 +6905,26 @@ document.addEventListener('DOMContentLoaded', boot);
    而推广链接的降级矩阵是纯函数（不碰 DOM、不碰 state），在测试里直接调
    比渲染三张卡再 inspect 快也准。这里只暴露一个，不扩大面。 */
 export const __badgeText = topBadgeText;
+/* 腿7a3：分差偏向用的「有图且有直达商品链接」瓶集合。
+   纯函数：只读数据层已加载的 PHOTOS / AFF_LINKS，不改任何状态。
+   引擎据此在 ≤2% 分差内优先选这些瓶。 */
+function gapBoostIds(perfumes, photos, affLinks) {
+  const ids = [];
+  const aff = affiliateConfig();
+  for (const p of perfumes || []) {
+    if (!p || !p.id) continue;
+    if (!artSourceOf(p, photos)) continue;
+    /* "有链接"= 有直达商品链接：与 7a1/7a2 的判定同一条
+       （搜索兜底每瓶都有，不算这里说的"有链接"）。 */
+    const links = affiliateLinks(p, aff) || [];
+    const hasDirect = links.some((l) => l.kind !== 'search' && !l.searchLanding);
+    if (hasDirect) ids.push(p.id);
+  }
+  return ids;
+}
 /* leg7a2：首屏理由/链接的纯函数句柄，专项验证直接调，
    不必走真渲染就能逐格验「厚重感 0.5 → 偏清爽，不闷」与按钮文案。 */
+export const __gap = { boostIds: gapBoostIds };
 export const __cmp = {
   sentence: cmpSentenceOf,
   reason: cmpReasonOf,
