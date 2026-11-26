@@ -4902,6 +4902,192 @@ function renderCompareTable(results, profile) {
 }
 
 /* ============================================================
+   详情区（腿 7b，2026-11-26）：三调三段条 + 推荐依据对照表
+   ------------------------------------------------------------
+   首屏比较表把每瓶压到 110px：理由四行、三调只剩香材名。往下滚的详情
+   回答另一件事 —— "它到底是什么味道、为什么是它"。
+
+   ① 三段条：一条按**香材数量**分段的横条。
+      为什么不给"前调 30%/中调 50%"这种权重：数据源只有香材清单，没有
+      各段强度。凭空给百分比是在造一个数据源里没有的数。
+      为什么不是三根独立条：同一把尺子才读得出"重心在哪一段"。
+   ② 依据：每条「你答的 X → 所以推这瓶」。why 那一行直接复用首屏的
+      cmpSentenceOf —— 同一事实在首屏与详情里必须是同一句，两处各写一套
+      措辞迟早会一处说"更清爽"、另一处说"更浓郁"。
+   ============================================================ */
+
+/* 三段的显示名与那句白话提示，与 .pyramid 的三行一一对应。
+   两处取同一份表，避免"条上写前调、表里写头香"这种自相矛盾。 */
+const PD_STAGES = [
+  { key: 'is-top', label: '前调', tip: '最先闻到的 15 分钟' },
+  { key: 'is-mid', label: '中调', tip: '半小时后的主体' },
+  { key: 'is-base', label: '后调', tip: '留在皮肤上的余味' },
+];
+
+/* 三段条本体。aria-hidden：真实信息在下面的 .pyramid 里，
+   条只是同一份数据的一张图。让它进无障碍树等于同一个事实念两遍。
+
+   段长直接由**香材数量**决定（flex-grow: var(--g)），不在 JS 里算百分比：
+   百分比要减掉 gap / 最小宽度这些固定像素才准，而一改 CSS 就得同步改 JS。
+   把数量交给 flex 后，"前调 3 味 / 后调 1 味"天然就是 3:1。
+   空段给 --g:0，由 CSS 的 min-width 兜住一块虚线框。 */
+function pdTrack(p) {
+  const lists = [p.top, p.heart, p.base].map((l) => (Array.isArray(l) ? l : []));
+  return el('div', { class: 'pd-track', 'aria-hidden': 'true' },
+    ...PD_STAGES.map((s, i) => el('span', {
+      class: 'pd-seg ' + s.key + (lists[i].length ? '' : ' is-empty'),
+      style: `--g:${lists[i].length}`,
+      'data-notes': String(lists[i].length),
+    })));
+}
+
+/* ---- 依据的"你答的哪一题"那一行 ----
+   全是用户自己的原话/原选项，不解释算法。
+   拿不到原话时返回空串 —— 那一行宁可不出现，也不许编一句"根据综合评估"。 */
+function pdAskOf(b, profile) {
+  if (!b) return '';
+  switch (b.factor) {
+    case 'subfamilyHits':
+      return b.subfamilyZh ? `你选的小类：${b.subfamilyZh}` : '';
+    case 'family':
+      return b.pickZh ? `你选的香型：${b.pickZh}`
+        : (profile && profile.familyZh ? `你选的香型：${profile.familyZh}` : '');
+    case 'likedNotes':
+      return b.hits && b.hits.length ? `你点名想要的：${b.hits.slice(0, 2).join('、')}` : '';
+    case 'anchor':
+      return '你试过并喜欢的那瓶';
+    case 'emotionNotes':
+      return profile && profile.emotionZh ? `你选的感觉：${profile.emotionZh}` : '';
+    case 'season':
+      return CMP_SEASON_ZH[b.season] ? `你打算${CMP_SEASON_ZH[b.season]}天穿` : '';
+    case 'timeOfDay':
+      return b.time ? `你要的时段：${b.time === 'day' ? '白天' : '夜晚'}` : '';
+    case 'character':
+      return b.character ? `你要的气质：${b.characterZh || b.character}` : '';
+    case 'concentration':
+      return b.concentration ? `你选的浓度：${CMP_CONC_ZH[b.concentration] || b.concentration}` : '';
+    case 'temperature':
+      return b.want && b.want !== 'neutral'
+        ? `你要的冷暖：偏${CMP_WARMTH_ZH[b.want] || b.want}` : '';
+    case 'intensity':
+      /* 只写"你选的浓淡档"，不写 3/5：详情区是新手语言区，
+         分数口径由 result-head 与 .profile-line 承担，两处别混。 */
+      return '你选的浓淡档';
+    case 'dislikedFamily':
+      return '你划掉的那一族';
+    default:
+      return '';
+  }
+}
+
+/* ---- 依据的"所以推这瓶"那一行 ----
+   与首屏 cmpSentenceOf 分开写，两处各有理由：
+     · 首屏是 110px 宽的一格，句子要短到四行装得下；
+     · 详情区是新手语言区，且**不许出现分数**（"厚重感 0.42""5/5"这类
+       术语属于首屏之外的方法论说明，见 .profile-line）。
+   结构性三条（家族 / 直选家族 / 浓淡）保留"主调是""主体就是""浓郁度"
+   这些说法：它们是这张卡的骨架，读者靠这三句判断"这是不是我那一类"，
+   换成一串形容词就失去可核对性（test-render 也按这三个词判骨架）。
+   其余因子直接复用首屏那句话 —— 同一事实两处措辞必须一致。 */
+function pdWhyOf(b, profile) {
+  if (!b) return '';
+  switch (b.factor) {
+    case 'family': {
+      if (!b.pickZh) return cmpSentenceOf(b, profile);
+      const rest = b.secondaryZh ? `，底下还垫着${b.secondaryZh}` : '';
+      if (b.pickWeight >= 0.99) return `这瓶的主体就是${b.pickZh}${rest}`;
+      if (b.pickWeight >= 0.6) return `这瓶的主调是${b.pickZh}${rest}`;
+      return `它只是带一点${b.pickZh}，不是主角`;
+    }
+    case 'familyPick':
+      return cmpSentenceOf(b, profile) || '';
+    case 'intensity': {
+      /* 只说浓淡感受，不上数字。判据与 scoring 同一套（差值 0.12 分三档），
+         只是把"厚重感 0.42 比你要的 5/5"翻成"比你要的更清爽"。 */
+      const want = profile && Number(profile.intensity) ? Number(profile.intensity) : 3;
+      const target = (want - 1) / 4;
+      const heavy = Number(b.heaviness || 0);
+      if (Math.abs(heavy - target) <= 0.12) return '它的浓郁度和你选的那档刚好对上';
+      return heavy < target
+        ? '它的浓郁度比你要的淡一些，喷上更清爽不闷'
+        : '它的浓郁度比你要的重一些，存在感更强';
+    }
+    default:
+      return cmpSentenceOf(b, profile);
+  }
+}
+
+/* 依据整表。顺序沿用首屏的 CMP_REASON_ORDER（用户点名的排最前），
+   同一条句子不重复出现；再补上 ⚠️ 提醒（持香与场合不搭之类），
+   它们不是"为什么推它"，放在组内最后并标 warn。
+
+   上限 3 与结果卡原有一条硬约束同值（scoring 的 MAX_REASONS）：依据是
+   解释，不是清单 —— 四条以上读者会跳读，而且会让卡片在 390 下多出一屏。
+
+   **至少一条结构性因子**（家族 / 浓淡）与 scoring 的 STRUCTURAL_FACTORS
+   同义：只留"你点名想要的那味香材"会让读者以为这瓶是靠一个香材推出来的，
+   而真正决定排序的是家族与浓淡。缺了就从候选里补一条进来。 */
+const PD_BASIS_MAX = 3;
+const PD_STRUCTURAL = new Set(['family', 'familyPick', 'intensity']);
+function pdBasisOf(r, profile) {
+  const rows = ((r && r.breakdown) || []).filter(Boolean);
+  const picked = [];
+  const seen = new Set();
+  const take = (b) => {
+    const ask = pdAskOf(b, profile);
+    const why = pdWhyOf(b, profile);
+    if (!ask || !why || seen.has(why)) return null;
+    seen.add(why);
+    return { factor: b.factor, ask, why, warn: false };
+  };
+  for (const factor of CMP_REASON_ORDER) {
+    if (picked.length >= PD_BASIS_MAX) break;
+    const b = rows.find((x) => x.factor === factor);
+    if (!b) continue;
+    const item = take(b);
+    if (item) picked.push(item);
+  }
+  /* 补结构性：名额已满就顶掉最后一条非结构性项，再按原优先级重排。 */
+  if (!picked.some((x) => PD_STRUCTURAL.has(x.factor))) {
+    for (const factor of CMP_REASON_ORDER) {
+      if (!PD_STRUCTURAL.has(factor)) continue;
+      const b = rows.find((x) => x.factor === factor);
+      if (!b) continue;
+      const item = take(b);
+      if (!item) continue;
+      if (picked.length >= PD_BASIS_MAX) picked.pop();
+      picked.push(item);
+      break;
+    }
+    const rank = (f) => {
+      const i = CMP_REASON_ORDER.indexOf(f);
+      return i < 0 ? 99 : i;
+    };
+    picked.sort((a, b) => rank(a.factor) - rank(b.factor));
+  }
+  /* 提醒项从 r.reasons 取（buildReasons 用 ⚠️ 前缀标记它们），不重复算一遍
+     持香逻辑 —— 那条判断在 scoring 里，前端只负责显示。
+     提醒不许挤掉结构性项：顶掉的是"最后一条非结构性项"，没有就不加。 */
+  ((r && r.reasons) || []).filter((t) => String(t).startsWith('⚠️')).forEach((t) => {
+    const why = String(t).replace('⚠️', '').trim();
+    if (!why || seen.has(why)) return;
+    if (picked.length >= PD_BASIS_MAX) {
+      const at = picked.map((x) => PD_STRUCTURAL.has(x.factor)).lastIndexOf(false);
+      if (at < 0) return;
+      picked.splice(at, 1);
+    }
+    seen.add(why);
+    picked.push({ factor: 'warn', ask: '提醒', why, warn: true });
+  });
+  return picked;
+}
+
+/* 一个详情小节的标题行：12px 大写字距，与 .chips-label 同语汇。 */
+function pdLabel(text) {
+  return el('p', { class: 'pd-label' }, text);
+}
+
+/* ============================================================
    结果页的三样新增能力（Qoder 改造，2026-11-18）
    ------------------------------------------------------------
    ① 我的香水档案：最近 5 次结果只落 localStorage，回看/清空都在本页完成；
@@ -6075,6 +6261,21 @@ function renderResult() {
     headText.appendChild(metaNode);
     art.appendChild(el('div', { class: 'pick-head' }, headText, pickArt(p)));
 
+    /* ---- 详情区（腿 7b）----
+      三段条压在既有 .pyramid 上方：条是"重心在哪一段"的图，紧贴着它画的
+      那张表 —— 两者分开就会让人以为是两件事。不复制三调文字（理由见
+      102-results-detail.css 的文件头），所以这里只加一条 track。
+      依据替换掉原来的 .reasons 平铺列表：同一批因子，改成「你答的 X →
+      所以推这瓶」两行对照，新手不必自己去猜"主体就是花香调"是在回答哪一题。
+      容器带 data-fam，族色与首屏 .cmp-fig 同源 —— 同一瓶两处一个色系。 */
+    const detail = el('section', {
+      class: 'pick-detail',
+      'data-fam': dominantFamily(p),
+      'aria-label': `${p.brand || ''} ${p.name} 的详情`,
+    });
+    detail.appendChild(pdLabel('三调'));
+    detail.appendChild(pdTrack(p));
+
     // 三调
     const dl = el('dl', { class: 'pyramid' });
     const rows = [
@@ -6088,15 +6289,34 @@ function renderResult() {
         el('dd', {}, notes.join('、'), el('span', {}, `　${tip}`))
       );
     });
-    art.appendChild(dl);
+    detail.appendChild(dl);
 
-    // 理由
-    const ul = el('ol', { class: 'reasons' });
-    r.reasons.forEach((t) => {
-      ul.appendChild(el('li', { class: t.startsWith('⚠️') ? 'warn' : '' },
-        t.replace('⚠️ ', '')));
-    });
-    art.appendChild(ul);
+    /* 理由：换成「你答的 → 所以」对照表，类名走 .pick-basis 而不是
+       .reasons —— 两套语法共用同一批文本，混用一个类名会让
+       "这段到底是对照表还是一列要点"在 DOM 层就分不清。
+       profile 取自 renderResult 顶部的解构（state.result.profile），
+       与首屏比较表用的是同一个对象，不另取一份。
+
+       依据为空时**不留白**：那是"我们没有能反推到某个答案的话"，
+       与"这瓶没有理由"不是一回事。用 buildReasons 的同一句兜底
+       （scoring.js 那句"各维度都只是勉强及格"的原意是诚实，不是安慰），
+       所以这里只说结果卡本来就会说的话。 */
+    const basis = pdBasisOf(r, profile);
+    detail.appendChild(pdLabel('为什么推这瓶'));
+    if (basis.length) {
+      const ul = el('ol', { class: 'reasons pick-basis' });
+      basis.forEach((x) => {
+        /* warn 只红 .basis-why（见 102 层）：连"提醒"那一行的
+           标签一起染红会把中性的注脚读成警报。 */
+        ul.appendChild(el('li', { class: x.warn ? 'warn' : '' },
+          el('span', { class: 'basis-ask' }, x.ask),
+          el('span', { class: 'basis-why' }, x.why)));
+      });
+      detail.appendChild(ul);
+    } else {
+      detail.appendChild(el('p', { class: 'basis-ask' }, (r.reasons && r.reasons[0]) || ''));
+    }
+    art.appendChild(detail);
 
     // 页脚信息
     const tags = [];

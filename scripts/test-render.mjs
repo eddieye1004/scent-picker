@@ -2109,6 +2109,95 @@ ok('每条理由含至少一条结构性理由（家族/浓度）',
     // 「主体就是」漏掉过一次：`主体是` 匹配不到 `主体就是`，而 `骨架` 那句同样是家族理由。
     return /主体就是|主体是|主调是|骨架|厚重感|浓郁度/.test(t);
   }));
+
+/* ---------- 腿 7b：结果屏详情区（2026-11-26）----------
+   详情区两件事，各两条断言，都从**渲染出来的 DOM** 读，不看源码：
+     ① 三段条：三瓶各一条，每条的段长必须等于同瓶三调的香材数量；
+     ② 推荐依据：每条都是「你答的 → 所以」两行，且那一行能指回具体答案。
+   第二组里"能指回具体答案"这条是产品的硬约束（依据不许是泛化形容词），
+   所以判据写成"必须出现用户答案里的某个具体词"，不写 /有理由/ 这种空判。 */
+{
+  const details = appRoot.querySelectorAll('.pick-detail');
+  ok('三瓶各有一个详情区', details.length === 3, `实际 ${details.length}`);
+  ok('详情区带族色（与首屏比较表同源）',
+    details.every((d) => (d.attrs['data-fam'] || '') !== ''),
+    details.map((d) => d.attrs['data-fam']).join(','));
+
+  /* ① 三段条：段数 = 3，且每段的数据量必须与同瓶 .pyramid 的 dd 香材数一致。
+     这条不是抄一遍 --g，而是把"条"和"表"两份互相校验 —— 两处对不上就说明
+     条画的不是这张表（曾经最容易出的错是条取 p.top、表取 p.heart）。 */
+  const tracks = appRoot.querySelectorAll('.pd-track');
+  ok('三瓶各有一条三段条', tracks.length === 3, `实际 ${tracks.length}`);
+  ok('每条的段数都是 3（前/中/后）',
+    tracks.every((t) => t.querySelectorAll('.pd-seg').length === 3),
+    tracks.map((t) => t.querySelectorAll('.pd-seg').length).join(','));
+  {
+    const bad = [];
+    details.forEach((d, di) => {
+      const segs = d.querySelectorAll('.pd-seg');
+      const dds = d.querySelectorAll('.pyramid dd');
+      if (segs.length !== 3 || dds.length !== 3) { bad.push(`#${di} 段/行数不符`); return; }
+      segs.forEach((s, i) => {
+        /* 表里的香材以「、」分隔。空 dd 也算 0 味（数据源缺这一调）。 */
+        const txt = dds[i].textContent.split('　')[0].trim();
+        const n = txt ? txt.split('、').filter(Boolean).length : 0;
+        const got = String(s.attrs['data-notes']);
+        if (got !== String(n)) bad.push(`#${di}第${i + 1}段：条说 ${got}、表里有 ${n}`);
+      });
+    });
+    ok('段长与同瓶三调的香材数量一致（条和表同一份数据）',
+      bad.length === 0, bad.slice(0, 3).join(' | '));
+  }
+  ok('三段各有自己的档位类（前/中/后不是三段同色）',
+    tracks.every((t) => {
+      const segs = t.querySelectorAll('.pd-seg');
+      return segs[0].classList.contains('is-top')
+        && segs[1].classList.contains('is-mid')
+        && segs[2].classList.contains('is-base');
+    }));
+
+  /* ② 推荐依据：两行一对，且 ask 行必须指回具体答案。 */
+  const basis = appRoot.querySelectorAll('.pick-basis');
+  ok('三瓶各有推荐依据', basis.length === 3, `实际 ${basis.length}`);
+  ok('依据每条都是「你答的 + 所以」两行',
+    basis.every((b) => b.querySelectorAll('li').every((li) => (
+      li.querySelectorAll('.basis-ask').length === 1
+      && li.querySelectorAll('.basis-why').length === 1))),
+    basis.map((b) => b.querySelectorAll('li').length).join(','));
+  /* 可回指具体答案：ask 行里必须出现用户真答过的那个词。
+     答案词从 state 里取，不写死 —— 写死就等于"换个答案这测试就假红"。 */
+  {
+    const prof = appMod.__state.result && appMod.__state.result.profile;
+    const words = [prof && prof.emotionZh, prof && prof.familyZh, prof && prof.subfamilyZh,
+      '你选的', '你点名', '你要', '你打算', '你试过', '你划掉']
+      .filter(Boolean);
+    const bad = [];
+    basis.forEach((b, bi) => {
+      b.querySelectorAll('li').forEach((li, li2) => {
+        const ask = li.querySelector('.basis-ask');
+        const t = ask ? ask.textContent : '';
+        if (!words.some((w) => t.includes(w))) bad.push(`#${bi}第${li2 + 1}条：${t.slice(0, 24)}`);
+      });
+    });
+    ok('每条依据的「你答的」都指回具体答案（不是泛化形容词）',
+      bad.length === 0, bad.slice(0, 3).join(' | '));
+  }
+  /* 新手语言：依据里不许出现分数术语（"厚重感 0.42""5/5"这类）。
+     首屏之外唯一允许出现分数的地方是 .profile-line 的口径说明。 */
+  ok('依据里不出现分数术语（新手语言）',
+    basis.every((b) => !/厚重感\s*[\d.]|\d\/5|匹配度\s*\d/.test(b.textContent)),
+    basis.map((b) => b.textContent).join(' | ').slice(0, 160));
+  /* 提醒项只红解释行：连标签一起染红会把中性注脚读成警报。
+     读的是**编译产物** styles.css（浏览器真正吃的那份），不是源层 ——
+     源层对了而产物没重建，是这套双层结构最典型的失败模式
+     （build-css --check 会单独拦，但这条从结果侧再拦一道）。 */
+  {
+    const CSS = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+    ok('提醒项的红只落在解释行上（标签行不染）',
+      /\.pick-basis li\.warn \.basis-why\s*\{[^}]*--danger/.test(CSS),
+      (CSS.match(/\.pick-basis[^{]*\{[^}]*--danger[^}]*\}/) || ['（未找到该规则）'])[0].slice(0, 90));
+  }
+}
 /* ---------- ① 文案统一收尾：句末不留句号 ----------
    这一条守的是「短句风格」这条设计约定。它容易在改文案时被无意破坏：
    加一句话顺手补个句号，页面上就跟其他 78 条短句不一致了。
