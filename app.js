@@ -552,6 +552,18 @@ function zhOfPhrases(ids) {
 let PRICE_INDEX = null;
 function priceIndex() { return PRICE_INDEX; }
 
+/* 库容（瓶数）的唯一来源。所有**用户可见**的「全库 N 瓶」都必须从这里取，
+   不许在文案里写死 —— 文案二轮裁决全局问题 4：1388 这类数字会随上游更新过期，
+   写死就等于让屏幕替我们说错话。
+   三档降级：price-bands 的 stats（与预算屏价签同源）→ 已载入的香水表长度 →
+   null。调用方拿到 null 时要把数字整句省掉：宁可不说，也不说一个会过期的数。 */
+function librarySize() {
+  const idx = priceIndex();
+  if (idx && idx.stats && Number.isFinite(idx.stats.totalPerfumes)) return idx.stats.totalPerfumes;
+  if (DATA && Array.isArray(DATA.perfumes) && DATA.perfumes.length) return DATA.perfumes.length;
+  return null;
+}
+
 function poolForBudget(perfumes, budgetId) {
   const idx = priceIndex();
   if (!idx || !budgetId || budgetId === (idx.anyId || 'any')) return perfumes;
@@ -2703,6 +2715,11 @@ function renderBudget() {
 
   const total = stats ? stats.priced : null;
   const unknown = stats ? stats.unpriced : null;
+  /* 文案二轮裁决全局问题 4：1388 / 766 / 622 这三个数原来写死在这里当兜底。
+     它们随上游数据集更新就会过期，而这一屏恰恰靠"说得具体"建立可信度 ——
+     说错一个数比不说更糟。所以改成：数据在就用数据，数据不在就把那一句
+     数字整段省掉（各句仍成立，只是不再报数）。 */
+  const libSize = librarySize();
 
   for (const o of opts) {
     const on = (state.answers.budget || 'any') === o.id;
@@ -2738,17 +2755,31 @@ function renderBudget() {
     const cur = state.answers.budget || 'any';
     const isAny = cur === ((idx && idx.anyId) || 'any');
     note.classList.toggle('is-idle', isAny);
+    /* 三处数字都改成"有数据才说"（裁决全局问题 4）。句式保持原样，
+       只把写死的兜底数字换成"省掉这个数"——不留过期值。 */
+    const libPart = libSize != null ? `全库 ${libSize} 瓶` : '全库';
+    /* 两个句式对「价位未知」的接法不同（一为逗号、一为「的」），
+       所以拆成两句，各自保留原来的措辞，只省掉那个数。 */
+    const unknownAny = unknown != null ? `其中 ${unknown} 瓶价位未知，也会一起参与` : '价位未知的也会一起参与';
+    const unknownBand = unknown != null
+      ? `${unknown} 瓶价位未知的不参与 —— 它们在每一档都可能，混进来会推出买不起的瓶子`
+      : '价位未知的不参与 —— 它们在每一档都可能，混进来会推出买不起的瓶子';
     note.textContent = isAny
-      ? `全库 ${(stats ? stats.totalPerfumes : 1388)} 瓶都能挑；其中 ${unknown != null ? unknown : 766} 瓶价位未知，也会一起参与`
-      : `只在这一档里挑。${unknown != null ? unknown : 766} 瓶价位未知的不参与 —— 它们在每一档都可能，混进来会推出买不起的瓶子`;
+      ? `${libPart}都能挑；${unknownAny}`
+      : `只在这一档里挑。${unknownBand}`;
   };
   paintNote();
   wrap.appendChild(note);
 
   wrap.appendChild(el('div', { class: 'term-note' },
     el('strong', {}, '关于这个价位：'),
-    ` 价来自淘宝商品页标价，不是同规格瓶的专柜价；全库 ${(stats ? stats.totalPerfumes : 1388)} 瓶里 ${total != null ? total : 622} 瓶能查到价，`
-    + ' 其余价位未知。选具体档时，价位未知的不参与；选「不限」时它们也在。'
+    /* 同理：「全库 N 瓶里 M 瓶能查到价」两个数都取自数据；缺数据时改说
+       「只是其中一部分」，不写死 1388 / 622。 */
+    ` 价来自淘宝商品页标价，不是同规格瓶的专柜价；${
+      libSize != null && total != null
+        ? `全库 ${libSize} 瓶里 ${total} 瓶能查到价，其余价位未知。`
+        : '能查到价的只是其中一部分，其余价位未知。'}`,
+    '选具体档时，价位未知的不参与；选「不限」时它们也在。'
   ));
 
   wrap.appendChild(navBar('budget'));
@@ -3399,11 +3430,14 @@ function renderSeason() {
   wrap.appendChild(gloss);
   wrap.appendChild(scene);
 
-  /* 这段数字是**用户可见**的，必须跟数据同步（1388 瓶实测，D56）。
-     写错等于自拆台 —— 这类文字恰恰靠"说得具体"建立可信度。 */
+  /* 这段注释原来宣称"数字必须跟数据同步（1388 瓶实测）"—— 纸面纪律挡不住
+     数据更新（文案二轮裁决全局问题 4）：真要同步就得从 DATA 现算，否则
+     下一版数据集一到，屏上那句「春 1331 · 夏 840 · 秋 1357 · 冬 548
+     （1388 瓶 … 平均标 2.9 个季节）」立刻变成假话。
+     按裁决第 45 条（数据统计说明不指导操作）删掉整句统计，只留后面那句
+     不带数字的判断 —— 它讲的分布结论（冬天最少）仍然成立，也不会过期。 */
   wrap.appendChild(el('div', { class: 'term-note' },
     el('strong', {}, '关于候选多少：'),
-    ' 库里按季节标注为「春 1331 · 夏 840 · 秋 1357 · 冬 548」（1388 瓶中的标注覆盖数，每瓶平均标 2.9 个季节）。',
     ' 冬天能选的最少，这是数据分布，不是推荐变差了。'
   ));
 
@@ -6209,8 +6243,11 @@ function renderFooter(onResult = false) {
       el('strong', {}, '已知局限 '),
       /* 原文写「不含价格与购买渠道」—— 自 v27 起结果页就有购买入口了，
          这句话早就不成立（2026-11-10 发现）。不改会让页脚同时说
-         「有推广链接」和「不含购买渠道」，自相矛盾。 */
-      '持香与扩散为按浓度推断，非实测；不展示价格、不做比价；库容随上游开放数据集更新，可能仍选不到你已经知道的那一瓶'
+         「有推广链接」和「不含购买渠道」，自相矛盾。
+         同理删掉「不展示价格」（文案二轮裁决全局问题 3 / 第 79 条）：
+         第 63 条已写明「参考价和去哪买」、71/72 讲「价格未排序、请自行核对」，
+         这里再说「不展示价格」就是自相矛盾。保留「不做比价」即可。 */
+      '持香与扩散为按浓度推断，非实测；不做比价；库容随上游开放数据集更新，可能仍选不到你已经知道的那一瓶'
     ),
     /* 介绍页入口（2026-11-12 上线包）。放在页脚最后一行、独立一段，
        因为它是**导航**而不是说明文字 —— 混进上面任何一段都会读成"局限之一"。
