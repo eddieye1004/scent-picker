@@ -430,7 +430,7 @@ else fails.push(`触控目标偏小: ${touchBad.join(' / ')}`);
 {
   const NO_COMMENT = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
   /* 这些容器内部有真实文字（.temp-zh / .diffuse-label / .sky-gloss …） */
-  const TEXTHOSTS = ['.temp-band', '.sky-band', '.life-card', '.hour-band',
+  const TEXTHOSTS = ['.temp-band', '.sky-band', '.life-card', '.occ-stop',
     '.price-tab', '.diffuse', '.choice'];
   const filterBad = [];
   for (const host of TEXTHOSTS) {
