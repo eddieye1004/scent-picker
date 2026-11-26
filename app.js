@@ -4752,6 +4752,16 @@ function cmpSentenceOf(b, profile) {
     case 'temperature':
       return b.want && b.want !== 'neutral' && b.mine
         ? `你说要${CMP_WARMTH_ZH[b.want]}的，这瓶偏${CMP_WARMTH_ZH[b.mine] || '中间'}` : '';
+    case 'intensity': {
+      /* 引擎原句「厚重感 0.5，比你要的 3/5 更清透」带分数，首屏一律不上数字。
+         翻成新手语言：只说浓淡感受（「偏清爽，不闷」），并用「你要的」
+         把这句接到用户刚才选的浓淡档，不新造事实。 */
+      const want = profile && Number(profile.intensity) ? Number(profile.intensity) : 3;
+      const target = (want - 1) / 4;
+      const heavy = Number(b.heaviness || 0);
+      if (Math.abs(heavy - target) <= 0.12) return '浓淡刚好，和你要的差不多';
+      return heavy < target ? '比你要的更清爽，不闷' : '比你要的更浓郁，存在感更强';
+    }
     case 'dislikedFamily':
       return b.familyZh ? `不属于你划掉的${b.familyZh}` : '';
     default:
@@ -4760,7 +4770,7 @@ function cmpSentenceOf(b, profile) {
 }
 const CMP_REASON_ORDER = [
   'subfamilyHits', 'family', 'likedNotes', 'anchor', 'emotionNotes',
-  'season', 'timeOfDay', 'character', 'concentration', 'temperature', 'dislikedFamily',
+  'season', 'timeOfDay', 'character', 'concentration', 'temperature', 'intensity', 'dislikedFamily',
 ];
 function cmpReasonOf(r, profile, used) {
   const rows = ((r && r.breakdown) || []).filter(Boolean);
@@ -6893,6 +6903,13 @@ document.addEventListener('DOMContentLoaded', boot);
    而推广链接的降级矩阵是纯函数（不碰 DOM、不碰 state），在测试里直接调
    比渲染三张卡再 inspect 快也准。这里只暴露一个，不扩大面。 */
 export const __badgeText = topBadgeText;
+/* leg7a2：首屏理由/链接的纯函数句柄，专项验证直接调，
+   不必走真渲染就能逐格验「厚重感 0.5 → 偏清爽，不闷」与按钮文案。 */
+export const __cmp = {
+  sentence: cmpSentenceOf,
+  reason: cmpReasonOf,
+  buy: cmpBuyOf,
+};
 export const __aff = {
   config: affiliateConfig,
   href: affiliateHref,
