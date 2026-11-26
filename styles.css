@@ -5208,6 +5208,25 @@ font: 400 14px/1.65 var(--font-ui, system-ui);
 color: var(--ink-2);
 }
 .hour-gloss.is-idle { color: var(--ink-3); }
+#app[data-step="occasion"] .q-fixed-head {
+position: sticky;
+top: 0;
+z-index: 5;
+padding: 8px 0 8px;
+margin: -8px 0 0;
+background: var(--bg);
+box-shadow: 0 12px 18px -16px rgba(0, 26, 94, .28);
+}
+#app[data-step="occasion"] .q-fixed-head .q-title { margin-bottom: 0; }
+#app[data-step="occasion"] .q-fixed-tail { margin: 0 0 8px; }
+#app[data-step="occasion"] .q-fixed-tail .q-help { margin-top: 0; }
+@media print {
+#app[data-step="occasion"] .q-fixed-head {
+position: static;
+box-shadow: none;
+padding-top: 0;
+}
+}
 .temp-band {
 position: relative;
 height: 132px;

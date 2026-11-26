@@ -1596,6 +1596,40 @@ ok(`${screenOf('occasion')}是场合（data-step=occasion）`, stepId() === 'occ
   /* 译文必须说「光线 + 距离」—— 这两件事才是场合真正影响推荐的地方。 */
   ok('场合译文说到了距离/光线', /距离|光线|闻到/.test(appRoot.querySelectorAll('.hour-gloss')[0].textContent),
     appRoot.querySelectorAll('.hour-gloss')[0].textContent.slice(0, 50));
+
+  /* ---- 固定题头（design-item5-20261125，Muse 裁决「采纳修改」）----
+     背景：场合屏与季节屏共用同一套版式模板，第一眼区分只能落在文字上。
+     原先题号 + 标题在普通 .stage-lead 里，滚到地平线底部就整块滚出视口，
+     屏上只剩控件 —— 两屏就退回"同一屏换了颜色"。
+     这三条守的是结构（题头单独成块、只挂在场合屏、题号与标题都在里面），
+     样式侧（position: sticky）在下面那条 CSS 断言里守 —— 两处都守住，
+     才谈得上"滚动时始终可见"。 */
+  {
+    const heads = appRoot.querySelectorAll('.q-fixed-head');
+    ok('场合屏题头单独成块（.q-fixed-head 恰好一个）', heads.length === 1, `实际 ${heads.length}`);
+    const h = heads[0];
+    ok('固定题头里有题号（第 X 步 / 共 Y 步）',
+      !!h && /第\s*\d+\s*步\s*\/\s*共\s*\d+\s*步/.test(h.textContent),
+      h ? h.textContent.slice(0, 40) : '(无节点)');
+    ok('固定题头里有题目标题原文（主要什么时候用？）',
+      !!h && h.textContent.includes('主要什么时候用？'),
+      h ? h.textContent.slice(0, 40) : '(无节点)');
+    /* help 不进固定块：它有三行，窄屏固定住会把地平线挤下半屏。
+       但它必须仍在屏上（文案一字未动，只是跟着内容滚）。 */
+    ok('help 不在固定块里、但仍在屏上',
+      !!h && !h.textContent.includes('你最常在什么场合用')
+      && appRoot.textContent.includes('你最常在什么场合用'),
+      h ? 'hh' : '(无节点)');
+    /* CSS 侧：sticky 必须挂在场合屏的题头上，且背景是实心纸面。
+       没有实心底，滚动时下面的字会从题头的行缝里穿过去。 */
+    const cssNoC = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    ok('固定题头在 CSS 里是 sticky（滚动时贴屏顶）',
+      /#app\[data-step="occasion"\]\s*\.q-fixed-head\s*\{[^}]*?position:\s*sticky/.test(cssNoC),
+      '缺 position: sticky');
+    ok('固定题头有实心纸底（内容不许从字缝穿过）',
+      /#app\[data-step="occasion"\]\s*\.q-fixed-head\s*\{[^}]*?background:\s*var\(--bg\)/.test(cssNoC),
+      '缺 background: var(--bg)');
+  }
 }
 
 /* ---------- ⑥ 季节（温度光带，定版范例之二） ----------
@@ -1639,6 +1673,27 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
     String(appRoot.querySelectorAll('.temp-band')[0].style['--band-temp']));
   await new Promise((r) => setTimeout(r, 60));
   ok('点一季后落点亮起', stops[3].attrs['aria-checked'] === 'true', String(stops[3].attrs['aria-checked']));
+
+  /* ---- 两屏的区分必须靠文字（design-item5-20261125 验收项 2）----
+     任务书要求：场合屏 vs 季节屏去色后，凭标题 + 题号仍能一眼区分。
+     这条在 DOM 里就能验到核心：两屏的**题号不同、问句不同**。
+     去色只是抹掉颜色，抹不掉文字 —— 所以只要这两处不同，
+     "凭标题 + 题号区分"在灰度下必然成立（截图证据在回执里给）。
+     反向也守一条：季节屏不许挂 .q-fixed-head —— 本腿只动场合屏，
+     季节屏的版面一个像素都不该变。 */
+  {
+    const seasonHead = appMod.__steps.head('season');
+    const occHead = appMod.__steps.head('occasion');
+    ok('场合屏与季节屏的题号不同（灰度下凭题号可分）',
+      seasonHead.kicker !== occHead.kicker,
+      `场合「${occHead.kicker}」 季节「${seasonHead.kicker}」`);
+    ok('场合屏与季节屏的问句不同（灰度下凭标题可分）',
+      seasonHead.title !== occHead.title,
+      `场合「${occHead.title}」 季节「${seasonHead.title}」`);
+    ok('季节屏没有固定题头（本腿不动季节屏）',
+      appRoot.querySelectorAll('.q-fixed-head').length === 0,
+      `实际 ${appRoot.querySelectorAll('.q-fixed-head').length} 个`);
+  }
 
   /* ---- 情境句（2026-11-23 定版 24 句）----
      这一屏现在有两行译文，分工不同，所以**四件事分开验**：
