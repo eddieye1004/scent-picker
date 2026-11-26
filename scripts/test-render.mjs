@@ -52,6 +52,21 @@ function parseStubMarkup(src, parent) {
   return out;
 }
 
+/* TNode 子树 → markup 字符串，innerHTML 的 getter 用。
+   只要求"还原出来的 markup 与注入的那串等价到能区分形状"：
+   属性按 k="v" 原序拼出、文本节点原样输出、自闭标签补成 <tag …/>。
+   不追求与浏览器完全一致的规范化（属性重排、实体转义等）——
+   断言要比的是"五枚字形互不相同"，能区分形状即够。 */
+function serializeStub(n) {
+  if (typeof n === 'string') return n;
+  const attrs = Object.entries(n.attrs || {})
+    .map(([k, v]) => ` ${k}="${String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`)
+    .join('');
+  const tag = String(n.tagName).toLowerCase();
+  const inner = (n.children || []).map(serializeStub).join('');
+  return inner ? `<${tag}${attrs}>${inner}</${tag}>` : `<${tag}${attrs}/>`;
+}
+
 /* ---------- 极简 DOM ---------- */
 class TNode {
   constructor(tag, attrs = {}, kids = []) {
@@ -113,7 +128,19 @@ class TNode {
     return this.children.map((c) => (typeof c === 'string' ? c : c.textContent)).join('');
   }
   set textContent(v) { this._text = String(v); this.children = []; }
-  get innerHTML() { return this.textContent; }
+  /* innerHTML 的 getter 必须能把**子元素**还原成 markup，不能只回文本。
+     起因：视觉锚点（design-anchors-20261126）是纯图形节点，
+     app.js 走 `box.innerHTML = '<rect …/><path …/>'` 注入，
+     节点里一个文字都没有。getter 只回 textContent 的话，五枚不同的字形
+     读出来全是空串 —— 断言「五枚互不相同」于是假失败（去重后 1 种），
+     而浏览器里画的是五个不同的形状。
+     这正是本文件反复写的那条：桩缺能力就补桩，不改断言绕开。
+     纯文本节点（children 里只有字符串）仍回拼接文本，旧断言一字不动。 */
+  get innerHTML() {
+    const hasEl = this.children.some((c) => typeof c !== 'string');
+    if (!hasEl) return this.textContent;
+    return this.children.map((c) => serializeStub(c)).join('');
+  }
   set innerHTML(v) {
     /* 早先这里只 strip 标签留纯文本 —— 因为 app.js 只有两处 innerHTML。
        现在盘心写的是整段上色 SVG 的 markup，strip 掉就什么都查不到了，
@@ -1597,6 +1624,48 @@ ok(`${screenOf('occasion')}是场合（data-step=occasion）`, stepId() === 'occ
   ok('场合译文说到了距离/光线', /距离|光线|闻到/.test(appRoot.querySelectorAll('.hour-gloss')[0].textContent),
     appRoot.querySelectorAll('.hour-gloss')[0].textContent.slice(0, 50));
 
+  /* ---- 视觉锚点（design-anchors-20261126，Eddie 裁决「方向 1」）----
+     背景：场合屏与季节屏太像、分不清。项 5 的 sticky 题头只解决"滚到底还知道
+     在第几步"，没解决"两屏长得一样"。本腿给每屏一套视觉锚点，挂在**选项本身**
+     上（题头归项 5，不动）。
+
+     这一组守四件事：
+       ① 五段各有一枚锚点，且**互不相同**（同一枚重复五次等于没有锚点）；
+       ② 锚点是不带文字的纯图形（<svg> + aria-hidden），语义靠旁边的场合名 ——
+          锚点不许自己承载文案，也不许成为第二个可读标签；
+       ③ 色盲/灰度：九个字形只用一色，**形状**各不相同（这一条在 DOM 里只能
+          守到"九枚的 markup 互不相同"，像素级的可辨由 probe-glyph16.mjs 量）；
+       ④ 锚点在标签内、不改变原有节点顺序（场合名仍是第一个文本节点）。 */
+  {
+    const bands2 = appRoot.querySelectorAll('.hour-band');
+    const glyphs = bands2.map((b) => b.querySelectorAll('.anchor-glyph')[0] || null);
+    ok('场合屏五段各有一枚视觉锚点', glyphs.length === 5 && glyphs.every(Boolean),
+      `实际 ${glyphs.filter(Boolean).length}/5`);
+    const marks = glyphs.map((g) => (g ? g.innerHTML.trim() : ''));
+    ok('五枚锚点的图形互不相同（同一枚重复五次等于没有锚点）',
+      new Set(marks).size === 5, `去重后 ${new Set(marks).size} 种`);
+    ok('锚点是纯图形：aria-hidden 且不带文字',
+      glyphs.every((g) => g && g.attrs['aria-hidden'] === 'true' && !g.textContent.trim()),
+      glyphs.map((g) => (g ? JSON.stringify(g.textContent.trim()) : '(无)')).join(','));
+    /* 锚点必须仍在**场合名那一块**里（横向贴在文字左边），而不是新加一行。
+       这条守的是"不改模板结构"：多一层包裹就等于改了版式。 */
+    ok('锚点长在场合名标签里（没有新增一层包裹）',
+      bands2.every((b) => {
+        const zh = b.querySelectorAll('.hour-zh')[0];
+        return !!zh && zh.querySelectorAll('.anchor-glyph').length === 1;
+      }),
+      '有 .hour-zh 里不含锚点');
+    /* 场合名仍是第一个文本 —— 锚点插在它前面，但它是 textContent 的开头。
+       这条防的是"锚点把名字挤到后面"这类顺序改动。 */
+    const firstText = bands2.map((b) => {
+      const zh = b.querySelectorAll('.hour-zh')[0];
+      return zh ? zh.textContent.trim() : '';
+    });
+    ok('场合名文字未改（五段的字仍是 taxonomy 里那五个）',
+      firstText.join('|') === ['上班/上课', '日常/居家', '运动/户外', '约会', '正式场合'].join('|'),
+      firstText.join('|'));
+  }
+
   /* ---- 固定题头（design-item5-20261125，Muse 裁决「采纳修改」）----
      背景：场合屏与季节屏共用同一套版式模板，第一眼区分只能落在文字上。
      原先题号 + 标题在普通 .stage-lead 里，滚到地平线底部就整块滚出视口，
@@ -1693,6 +1762,31 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
     ok('季节屏没有固定题头（本腿不动季节屏）',
       appRoot.querySelectorAll('.q-fixed-head').length === 0,
       `实际 ${appRoot.querySelectorAll('.q-fixed-head').length} 个`);
+
+    /* ---- 季节屏的视觉锚点（design-anchors-20261126）----
+       与场合屏同一件事的另一半，所以同屏一起守；两边都守住，
+       "每屏一个视觉锚点"才算落地，而不是只在其中一屏试了一下。 */
+    const stops2 = appRoot.querySelectorAll('.temp-stop');
+    const sg = stops2.map((s) => s.querySelectorAll('.anchor-glyph')[0] || null);
+    ok('季节屏四个落点各有一枚视觉锚点', sg.length === 4 && sg.every(Boolean),
+      `实际 ${sg.filter(Boolean).length}/4`);
+    const sMarks = sg.map((g) => (g ? g.innerHTML.trim() : ''));
+    ok('四季锚点的图形互不相同', new Set(sMarks).size === 4, `去重后 ${new Set(sMarks).size} 种`);
+    ok('季节锚点是纯图形：aria-hidden 且不带文字',
+      sg.every((g) => g && g.attrs['aria-hidden'] === 'true' && !g.textContent.trim()),
+      sg.map((g) => (g ? JSON.stringify(g.textContent.trim()) : '(无)')).join(','));
+    /* 两屏的锚点**不许共用任何一枚图形** —— 共用就等于两屏又回到同一个符号系统，
+       "一眼认屏"直接落空。这条是跨屏的，所以放在这里用两屏的 markup 一起比。 */
+    const occMarks = appRoot.querySelectorAll('.hour-band')
+      .map((b) => (b.querySelectorAll('.anchor-glyph')[0] || { innerHTML: '' }).innerHTML.trim());
+    ok('场合屏与季节屏的锚点没有任何一枚共用（两套符号互不相交）',
+      occMarks.every((m) => m && !sMarks.includes(m)),
+      `共用 ${occMarks.filter((m) => sMarks.includes(m)).length} 枚`);
+    /* 季名文字未改（锚点插在它前面，不许顶掉任何一个字）。 */
+    const seasonZh = stops2.map((s) => (s.querySelectorAll('.temp-zh')[0] || { textContent: '' }).textContent.trim());
+    ok('四季文字未改（仍是 春/夏/秋/冬）',
+      seasonZh.slice().sort().join('') === ['春', '夏', '秋', '冬'].sort().join(''),
+      seasonZh.join('|'));
   }
 
   /* ---- 情境句（2026-11-23 定版 24 句）----

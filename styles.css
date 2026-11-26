@@ -5305,6 +5305,20 @@ color: var(--ink);
 letter-spacing: .01em;
 }
 .season-scene[hidden] { display: none; }
+.anchor-glyph {
+width: 16px;
+height: 16px;
+flex: 0 0 auto;
+fill: currentColor;
+display: block;
+vertical-align: -2px;
+}
+.hour-band .hour-zh {
+display: flex;
+align-items: center;
+gap: 6px;
+}
+.temp-stop.is-on .anchor-glyph { color: var(--accent); }
 .diffuse {
 position: relative;
 z-index: 1;
