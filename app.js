@@ -3097,9 +3097,29 @@ function renderAvoid() {
 function renderOccasion() {
   const wrap = el('div', { class: 'fade-in' });
   const head = stepHead('occasion');
-  wrap.appendChild(el('div', { class: 'stage-lead' },
+
+  /* ==== 固定题头（design-item5-20261125，Muse 裁决「采纳修改」）====
+     场合屏与季节屏共用同一套版式模板（这是定版的形态，不换卡片列），
+     所以两屏的第一眼区分只能落在**文字**上：题号（第 X 步 / 共 Y 步）
+     与标题。原先这两行只是一个普通的 .stage-lead，滚到屏底就整块滚出视口 ——
+     用户翻到地平线底部时，屏上只剩控件，两屏看起来就是"同一屏换了颜色"，
+     于是"我是不是没切过去"这类误判有了土壤。
+
+     做法：把题号 + 标题拆成屏内的 sticky 题头（.q-fixed-head），滚动时贴在
+     屏顶；help 留在流里（.q-fixed-tail），跟着内容滚走。
+     为什么 help 不进固定块：它有三行，固定住会在 390/320 上吃掉 120px 视口，
+     把地平线挤到一半 —— 固定的只保留"第几题、问什么"这两行，
+     地平线仍是本屏视觉主位。
+     为什么拆成两个 .stage-lead 而不是加一层包裹：两个块都沿用 .stage-lead
+     的居中与间距语义（`.stage-lead .q-help` 的居中规则因此一行不用改）；
+     DOM 里文字的顺序、措辞、data 属性一字未动。
+     灰度/色弱下这条区分成立：第 3 步 vs 第 4 步、两个不同的问句，
+     都是纯文字信息，不依赖任何颜色。 */
+  wrap.appendChild(el('div', { class: 'stage-lead q-fixed-head' },
     el('div', { class: 'q-kicker' }, head.kicker),
-    el('h2', { class: 'q-title' }, head.title),
+    el('h2', { class: 'q-title' }, head.title)
+  ));
+  wrap.appendChild(el('div', { class: 'stage-lead q-fixed-tail' },
     el('p', { class: 'q-help' }, head.help)
   ));
 
