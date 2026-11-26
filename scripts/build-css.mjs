@@ -86,6 +86,10 @@ const PARTS = [
      （97 层已占 .qw-history-*，所以这里只新增 .qw-history-name-row 一条，
      不改 97 层任何既有规则。） */
   '100-stamp.css',
+  /* 结果屏首屏 3 列比较表（腿 7a1，2026-11-26）。
+     放在最后；选择器只有 .cmp* 与 .cmp-sr，不命中圆盘、问卷各屏、
+     结果卡（article.pick）与详情区 —— 详情区归腿 7b。 */
+  '101-compare-table.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');

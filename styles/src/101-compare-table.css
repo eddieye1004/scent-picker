@@ -1,0 +1,370 @@
+/* ============================================================
+   101-compare-table.css — 结果屏首屏 3 列比较表（腿 7a1，2026-11-26）
+   ------------------------------------------------------------
+   方案原文（tmp/scent-redesign-plan-20261126.md 腿 7）：
+     首屏布局：3 列比较表，390 下每列约 118px。行依次为：瓶图或标本卡、
+     品牌加名字（最多两行）、一句白话理由（引用用户的某个答案）、
+     留香（文字）、价格、购买按钮。每列顶部放一个标签：
+     「最贴合 / 更好入手 / 换个方向」。
+     无图：用族色底，加子类图标（复用那 24 个图标），角标写「示意 · 无实拍」。
+     不使用灰色占位。
+
+   本层只画这一块，不改结果卡（`article.pick`，往下滚的详情区是腿 7b 的活）。
+
+   ==== 为什么是 subgrid 而不是三列 flex ====
+   比较表的全部意义是「同一行对得齐」：留香、价格若在三列里各自飘在
+   不同高度，读者就得上下扫视去找对应格，比较动作直接失效。
+   `grid-template-rows: subgrid` 让三列共享同一组行高 —— 某一列名字
+   折成两行，另两列的名字行跟着变高，价格行仍然齐平。
+   不支持的引擎退到 flex 列：仍可读，只是行不再严格对齐（见文件末的
+   @supports 回退）。
+
+   ==== 列宽 ====
+   正文列 342px（390 视口 − 2×24 内边距）− 2×4px 缝 = 334/3 ≈ 111px；
+   320 视口 272px → 88px。方案写「约 118px」，差在页面既有内边距上：
+   118 是「374 全宽三等分」的算法，而正文列一直是 342。
+   不为此把整块拉成全宽 —— 那会让这一块与页头、页脚、标题的左缘错开。
+
+   ==== 颜色全部取既有 token，不新增十六进制 ====
+   族色底复用 95 层的 6 枚 `--spec-tint-*`（六族暖纸色相，L* 92–95）。
+   深色档用 color-mix 把它压到 22% 混进 --bg-2：直接铺浅色底会在
+   #141414 上变成一块发光的白斑，而"这是族色"这条信息不需要靠亮度传达。
+   ============================================================ */
+
+.cmp {
+  margin: 0 0 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+/* ---- 三列容器：7 行共享行高（标签 / 图 / 名字 / 理由 / 留香 / 价格 / 按钮）---- */
+.cmp-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(7, auto);
+  column-gap: 4px;
+}
+
+/* 390 档每列约 118px（方案原文）：正文 342px 减两缝只能分出 111px。
+   这一块左右各外扩 10px，把列宽补到约 118px；320 档列宽约 95px。 */
+@media (max-width: 620px) {
+  .cmp-cols { margin: 0 -10px; }
+}
+
+.cmp-col {
+  display: grid;
+  grid-row: span 7;
+  grid-template-rows: subgrid;
+  row-gap: 6px;
+  min-width: 0;
+}
+
+/* 列间竖线：贴在 2、3 列左缘，不占列宽（inset 阴影而非 border） */
+.cmp-col + .cmp-col {
+  box-shadow: inset 1px 0 0 var(--line);
+  padding-left: 4px;
+}
+
+/* ---- 列标签 ---- */
+.cmp-tab {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+/* 第 1 列是方案钦定的「最贴合」，给它与正文同级的墨色 + 一条短下划线，
+   其余两列退成注脚。**不放大字号**：12px 是这三列的共同基线，
+   放大一列会让三列的行高立刻错开。 */
+.cmp-col:first-child .cmp-tab {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ---- 图 / 标本卡 ----
+   3:4 的竖框：实物图原始比例 208×352（0.59），用 contain 装进 3:4
+   （0.75）只在左右留一点白，瓶身完整 —— 用 cover 会切掉瓶盖或瓶底。
+   两种形态共用同一个框，三列的第一行永远等高。 */
+.cmp-fig {
+  margin: 0;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  aspect-ratio: 3 / 4;
+  min-width: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.cmp-fig.is-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  display: block;
+}
+
+/* ---- 无实拍：族色底 + 子类图标 + 角标（方案原文「不使用灰色占位」）---- */
+.cmp-fig.is-specimen {
+  background: var(--cmp-tint, var(--bg-2));
+  align-items: center;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--spec-rim) 55%, transparent);
+}
+
+/* 六族色相：--spec-tint-* 的既有取值，按瓶子的主族取一个。
+   不给"未知族"配灰色 —— dominantFamily() 已经把未知归到 woody。 */
+.cmp-fig[data-fam="citrus"]   { --cmp-tint: var(--spec-tint-citrus); }
+.cmp-fig[data-fam="floral"]   { --cmp-tint: var(--spec-tint-floral); }
+.cmp-fig[data-fam="woody"]    { --cmp-tint: var(--spec-tint-woody); }
+.cmp-fig[data-fam="amber"]    { --cmp-tint: var(--spec-tint-amber); }
+.cmp-fig[data-fam="fresh"]    { --cmp-tint: var(--spec-tint-fresh); }
+.cmp-fig[data-fam="gourmand"] { --cmp-tint: var(--spec-tint-gourmand); }
+
+.cmp-fig-icon {
+  display: block;
+  width: 56%;
+  max-width: 64px;
+  aspect-ratio: 1;
+  opacity: .92;
+}
+
+.cmp-fig-icon:empty { display: none; }
+
+.cmp-fig-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* 24 枚标本是上色稿：只写 fill、不写 stroke。父层没有描边继承注入，
+     但这里显式清一遍，避免将来某条通用 svg 规则把它们描成单色线框。 */
+  fill: initial;
+  stroke: none;
+}
+
+/* 角标：告诉读者这一格不是照片。文字固定 12px（项目字号地板），
+   所以措辞压到 5 个汉字 + 一个间隔号 —— 88px 列宽下也排得下。 */
+.cmp-fig-tag {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 3px 2px;
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--ink-2);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--spec-rim) 55%, transparent);
+  white-space: nowrap;
+}
+
+/* ---- 品牌 + 名字 ----
+   品牌一行 + 名字一行 = 合计最多两行（方案原文）。两行都超出省略：
+   长名不撑高单列，价格行保持对齐；title 带全文，详情卡也有全文。 */
+.cmp-names { min-width: 0; }
+
+.cmp-brand {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cmp-name {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* ---- 理由 / 留香 / 价格 三行 ----
+   dt 视觉隐藏、dd 显示：读屏听到「留香 3–5 小时」，眼睛只看到值。
+   格内没有 row label 是因为 110px 宽放不下「留香」二字与值同排。 */
+.cmp-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.cmp-reason {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cmp-meta,
+.cmp-price {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--ink-2);
+}
+
+.cmp-meta { color: var(--ink-3); }
+
+/* 留香那句来源（「按浓度推断」）另起一行、更浅一档。
+   它是**必须留**的信息（数据源没有持香字段），但与值不是同级 ——
+   值决定"这瓶合不合我的场合"，来源只说明"这个值是怎么来的"。 */
+.cmp-meta-note {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-3);
+  opacity: .9;
+}
+
+/* ---- 购买按钮 ----
+   两种形态必须一眼分得开（方案原文：直达与搜索两种样式）：
+     直达商品 → 实底 --fill-blue + 白字（5.80:1，test-contrast 算过的那条配对）
+     去平台搜 → 描边 + 墨字（与结果卡 .buy-link.is-search 同一套约定）
+   触控高度 44px：110px 宽的列里，按钮是这一列唯一的动作目标。 */
+.cmp-buy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  background: var(--fill-blue);
+  color: #fff;
+  border: 1px solid var(--fill-blue);
+  overflow-wrap: anywhere;
+}
+
+.cmp-buy.is-search {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--edge);
+}
+
+.cmp-buy:hover {
+  background: var(--fill-blue-deep);
+  border-color: var(--fill-blue-deep);
+}
+
+.cmp-buy.is-search:hover {
+  background: var(--bg-2);
+  border-color: var(--ink);
+}
+
+.cmp-buy:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* 没有链接（理论上不会发生：每瓶都有平台搜索兜底）时的说明文字，
+   与按钮同高同位置，避免这一行塌陷导致三列错位。 */
+.cmp-nobuy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--ink-3);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+}
+
+/* ---- 320 档：把整张表压进首屏（吸底操作条之上）----
+   320 视口的正文列只有 272px，三列各 89px：字号已在地板（12px），
+   所以只能从"行数"和"外框留白"里省。实测 390 档表高 378px、
+   320 档原为 395px，而 320 下吸底条上沿在 725px —— 表底 765px 会把
+   三颗购买按钮压在条下面。四处一起收：
+     · 图框限高 96px（3:4 在 89px 宽下是 119px，比列宽本身还占屏；
+       限高后仍按 contain 装整瓶，只是上下留白多一点）
+     · 理由 4 行 → 3 行（一句白话理由的要点在头两行）
+     · 列内行距 6 → 5px、表上留白 16 → 12、下外边距 28 → 20
+   合计 −42px，按钮底边落到 723px，回到条上方。
+   **不缩字号、不减触控高度**（12px / 44px 是两条硬底线）。 */
+@media (max-width: 359px) {
+  .cmp { padding-top: 12px; margin-bottom: 14px; }
+  .cmp-cols { column-gap: 3px; }
+  .cmp-col { row-gap: 5px; }
+  .cmp-col + .cmp-col { padding-left: 3px; }
+  .cmp-fig { max-height: 86px; }
+  .cmp-name { font-size: 13px; }
+  .cmp-reason { -webkit-line-clamp: 3; }
+}
+
+/* ---- 深色：族色底压进纸面，不发光 ---- */
+@media (prefers-color-scheme: dark) {
+  .cmp-fig.is-specimen {
+    background: color-mix(in srgb, var(--cmp-tint, var(--bg-2)) 22%, var(--bg-2));
+  }
+
+  .cmp-fig-tag {
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+  }
+
+  .cmp-buy {
+    background: var(--fill-blue);
+    border-color: var(--fill-blue);
+  }
+
+  .cmp-buy.is-search {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--edge);
+  }
+}
+
+/* ---- 打印：把两态按钮摊平成描边，别让打印机吃掉实底 ---- */
+@media print {
+  .cmp-buy {
+    background: transparent;
+    color: #000;
+    border-color: #000;
+  }
+
+  .cmp-fig.is-specimen {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px #000;
+  }
+}
+
+/* ---- 无 subgrid 的引擎：退回 flex 列（仍可读，行不再严格对齐）---- */
+@supports not (grid-template-rows: subgrid) {
+  .cmp-cols {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .cmp-col {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 0;
+  }
+}
