@@ -277,7 +277,8 @@ const STEPS = [
     id: 'family',
     short: '香型',
     title: '你闻着舒服的，是哪一类味道？',
-    help: '不用记名字。外圈挑大方向，中圈再收窄一层；不确定就只选外圈',
+    /* 文案二轮裁决第 6 条（改写）：删掉"收窄一层"这类逻辑解释，只留点哪里。 */
+    help: '先点外圈选大方向；想更准再点中圈',
     render: renderFamily,
   },
   {
@@ -294,7 +295,7 @@ const STEPS = [
     /* help 保持原句不扩写：它必须落在**一行**里。多一句就换行，
        把下面的「你已排除」整行顶到 sticky 导航条底下（实测过）。
        「没闻过」这件事交给屏顶 .avoid-tip 说 —— 那里本来就要说。 */
-    help: '都是你选的方向里最容易混进来的味道。点一下＝这个不要；不点就是接受',
+    help: '点一下＝不要；不点＝接受',
     render: renderAvoid,
   },
   {
@@ -305,14 +306,14 @@ const STEPS = [
        是两处黑话之一（POLISH-20261112.md §2 标出的候选）。
        「主战场」→「你最常在什么场合用」、「浓度下限」→「推荐的浓淡」，
        保留原句的因果结构（场合决定什么）与兜底动作（拿不准就选日常）。 */
-    help: '你最常在什么场合用，决定了推荐的浓淡。选一个最像的，拿不准就选日常；不选也能继续',
+    help: '选最像的场合；拿不准选日常',
     render: renderOccasion,
   },
   {
     id: 'season',
     short: '季节',
     title: '主要在哪个季节用？',
-    help: '季节决定它会不会在夏天闷、冬天散太快。不确定就跳过，不答不扣分',
+    help: '选主要使用季节；不确定可跳过',
     render: renderSeason,
   },
   {
@@ -326,7 +327,7 @@ const STEPS = [
     title: '想要多浓？',
     /* 任务8 B2（Eddie 2026-11-12 批准）：原文「香精占比」是两处黑话之二。
        改为「浓度类型」——与 short「浓淡」呼应，也与下面单选卡的文案对得上。 */
-    help: '先说体感（想让人闻到多重的分量），再说浓度类型（决定留香多久）。两项都不选也能出结果',
+    help: '先选体感，再选浓度类型',
     render: renderConcentration,
   },
   {
@@ -340,7 +341,7 @@ const STEPS = [
     id: 'budget',
     short: '预算',
     title: '你打算花多少钱？',
-    help: '最后圈一下范围，只看这一档里的瓶子。不限也行，只是候选会多很多',
+    help: '选预算档；选「不限」候选更多',
     render: renderBudget,
   },
 ];
@@ -2249,14 +2250,12 @@ function renderFamily() {
      说清两件事：① 你选的大类已经天然排除了别的族；② 真想排除就去点香调。 */
   if (state.answers.family) {
     wrap.appendChild(el('div', { class: 'term-note' },
-      el('strong', {}, '选了香型就等于排除了别的族：'),
-      ' 候选只从你选的这一族里出，所以没有"排除整族"那一题。',
-      ' 想再收窄，下一屏可以点名具体受不了的香调（比如"不要香草"）。'
+      '下一屏可点名不要的香调，如“不要香草”。'
     ));
   }
 
   wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:24px' },
-    '不想按大类选？也可以按感觉挑一个（二选一，和上面互斥）'));
+    '也可按感觉选；与按大类二选一'));
   const EMO_OPTS = (TAX.emotionMap || []).map((e) => ({ id: e.id, zh: e.zh, desc: e.desc }));
   wrap.appendChild(segControl(
     EMO_OPTS,
@@ -2642,10 +2641,10 @@ function deriveFromPreset(id) {
    这一屏的核心不是选项，是那张说明 —— 让用户看懂再选。
    数据覆盖 348/400，其余 52 瓶不参与这一维打分（不扣分）。 */
 const CONCENTRATIONS = [
-  { id: 'eau-de-cologne', zh: '古龙水 EDC', desc: '香精约 2–4%。1–3 小时，随时补喷，夏天最舒服' },
-  { id: 'eau-de-toilette', zh: '淡香水 EDT', desc: '香精约 5–15%。3–5 小时，日常通勤的主力' },
-  { id: 'eau-de-parfum', zh: '淡香精 EDP', desc: '香精约 15–20%。5–8 小时，一瓶顶一天' },
-  { id: 'parfum', zh: '香精 Parfum', desc: '香精约 20–30%。8 小时以上，一两喷就够' },
+  { id: 'eau-de-cologne', zh: '古龙水 EDC', desc: '香精浓度约 2–4%；留香 1–3 小时，随时补喷，夏天最舒服' },
+  { id: 'eau-de-toilette', zh: '淡香水 EDT', desc: '香精浓度约 5–15%；留香 3–5 小时，日常通勤主力' },
+  { id: 'eau-de-parfum', zh: '淡香精 EDP', desc: '香精浓度约 15–20%；留香 5–8 小时，一瓶顶一天' },
+  { id: 'parfum', zh: '香精 Parfum', desc: '香精浓度约 20–30%；留香 8 小时以上，一两喷就够' },
 ];
 
 /* ---------- 第 9 步：留香时长 ----------
@@ -2826,7 +2825,7 @@ function renderAvoid() {
      位置在屏顶（页眉之下、卡片墙之上）：用户在点第一张卡之前就要看到它，
      放到底部等于点完才提醒。 */
   wrap.appendChild(el('p', { class: 'avoid-tip' },
-    '点错一张会扣掉不少分。没闻过的，选「没闻过」就行 —— 它不加分也不扣分'));
+    '没闻过就点「没闻过」；点卡＝不要'));
 
   const plan = avoidPlanNow();
   /* 数据没到齐（或方向还没定）：先占位。
@@ -2932,10 +2931,10 @@ function renderAvoid() {
       .filter(Boolean);
     if (!names.length) {
       excluded.classList.add('is-idle');
-      excluded.textContent = '你已排除：（还没有）';
+      excluded.textContent = '已排除：无';
     } else {
       excluded.classList.remove('is-idle');
-      excluded.appendChild(document.createTextNode('你已排除：'));
+      excluded.appendChild(document.createTextNode('已排除：'));
       names.forEach((d, i) => {
         if (i) excluded.appendChild(document.createTextNode('、'));
         excluded.appendChild(el('button', {
@@ -2967,7 +2966,7 @@ function renderAvoid() {
       ? (lastOff
         ? `${last.zh} —— 没闻过，这条不算数`
         : `${last.zh} —— ${last.hint}`)
-      : '点卡＝这个不要；没闻过就点右边「没闻过」。两个都不点＝接受';
+      : '点卡＝不要；没闻过点「没闻过」；都不点＝接受';
   };
 
   /* 同一条纪律（原「想要」屏的 togglePhrase 也是这一条，那屏已删）：
@@ -3138,11 +3137,11 @@ function renderOccasion() {
   /* 每个场合的「光线 + 距离」译文。这两件事正是场合真正影响推荐的地方：
      时段（timesOfDay 因子 6 分）与扩散上限（maxSillage）。 */
   const SCENE = {
-    commute: '白天的办公室，一臂距离 —— 要让同事闻到一点点，不能更多',
+    commute: '白天办公室，一臂距离：同事闻到一点点，不能更多',
     date: '晚上，靠近才闻到 —— 距离近，所以要有记忆点',
-    daily: '自己家里，不为了谁 —— 舒服优先，味道淡一点也没关系',
+    daily: '自己家里，不为了谁：舒服优先，淡一点也行',
     formal: '晚上，正装场合 —— 要站得住，不能轻飘',
-    outdoor: '白天，户外 —— 会出汗、会补喷，所以清爽比浓度重要',
+    outdoor: '白天户外：会出汗、会补喷，清爽比浓度重要',
   };
 
   const sky = el('div', { class: 'hour-sky' });
@@ -3163,7 +3162,7 @@ function renderOccasion() {
     gloss.classList.toggle('is-idle', !occ);
     gloss.textContent = occ
       ? `${SCENE[occ.id] || occ.desc}`
-      : '选一个最像的。拿不准就选日常 —— 它是最宽的那一档';
+      : '选最像的；拿不准选日常。';
   };
 
   /* 地平线本体。用 radiogroup 托管，子项是真实 button：
@@ -3216,11 +3215,8 @@ function renderOccasion() {
   wrap.appendChild(sky);
   wrap.appendChild(gloss);
 
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '为什么问场合：'),
-    ' 场合决定浓度下限与时段。同一瓶香水在通勤和约会里的宽容度差得很远，'
-    + ' 这一项比"你觉得自己喜欢什么"更稳定。'
-  ));
+  /* 裁决第 41/42 条（删除）：原来的「为什么问场合」整段是解释性比较，
+     不指导操作 —— 删掉后这一屏只剩地平线与译文行，选择不受影响。 */
 
   wrap.appendChild(navBar('occasion'));
   return wrap;
@@ -3377,7 +3373,7 @@ function renderSeason() {
     gloss.classList.toggle('is-idle', !it);
     gloss.textContent = it
       ? FEEL[it.id]
-      : '按你打算主要在哪个季节用选一个；不确定就跳过，不答不扣分';
+      : '选主要使用季节；不确定可跳过。';
 
     /* 情境句：方向 × 季节 都有才出现，否则退回该季 desc（仍是有内容的一行）。
        回退只发生在"选了季节"的前提下 —— 没选季节就整行不出现，
@@ -3399,12 +3395,12 @@ function renderSeason() {
   wrap.appendChild(gloss);
   wrap.appendChild(scene);
 
-  /* 这段数字是**用户可见**的，必须跟数据同步（1388 瓶实测，D56）。
-     写错等于自拆台 —— 这类文字恰恰靠"说得具体"建立可信度。 */
+  /* 裁决第 45 条在 C3 腿（硬编码数字：1388 / 2.9），第 46 条在本腿。
+     46 的裁决是删除（「安抚式数据解释」）—— 只摘这一句，
+     45 那句留给 C3 腿改，本腿不动它，避免两腿改同一行。 */
   wrap.appendChild(el('div', { class: 'term-note' },
     el('strong', {}, '关于候选多少：'),
-    ' 库里按季节标注为「春 1331 · 夏 840 · 秋 1357 · 冬 548」（1388 瓶中的标注覆盖数，每瓶平均标 2.9 个季节）。',
-    ' 冬天能选的最少，这是数据分布，不是推荐变差了。'
+    ' 库里按季节标注为「春 1331 · 夏 840 · 秋 1357 · 冬 548」（1388 瓶中的标注覆盖数，每瓶平均标 2.9 个季节）。'
   ));
 
   wrap.appendChild(navBar('season'));
@@ -3550,7 +3546,7 @@ function renderConcentration() {
 
   /* ---- ② 浓度 + ③ 留香，同在一个横条里 ---- */
   wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:20px' },
-    '② 浓度类型（决定这团气味能撑多久，选一个）'));
+    '② 浓度类型（选一个）'));
   const grid = choiceGrid(CONCENTRATIONS, state.answers.concentration, (id) => {
     state.answers.concentration = id;
     const inferred = CONC_TO_LONGEVITY[id];
@@ -3593,11 +3589,10 @@ function renderConcentration() {
       warn.style.display = '';
       const concZh = (CONCENTRATIONS.find((c) => c.id === conc) || {}).zh || conc;
       warn.append(
-        el('strong', {}, '① 和 ② 差得有点远：'),
+        el('strong', {}, '体感与浓度不匹配：'),
         ` 你要它走到「${RINGS.find((x) => x.v === want) ? RINGS.find((x) => x.v === want).zh : want}」，`
         + `但${concZh}通常撑不到那里。`,
-        ' 浓淡是体感、浓度是香精占比，两者不完全同步 —— 真想要那个距离，',
-        ' 把 ② 往上调一档更稳妥；不改也能出结果，只是候选会少一些。'
+        ' 想要这个浓淡，可把 ② 调高一档'
       );
     };
     paintWarn();
@@ -3608,7 +3603,7 @@ function renderConcentration() {
   const curLong = state.answers.longevity;
   const shownLong = curLong == null ? null : String(curLong);
   wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:16px' },
-    '③ 大概能留多久' + (shownLong == null ? '（选 ② 后自动给出）' : '（由 ② 推断）')));
+    '③ 大概能留多久' + (shownLong == null ? '（选 ② 后自动显示）' : '（由 ② 推断）')));
 
   const longBox = el('div', { class: 'long-read' + (shownLong == null ? ' is-empty' : '') });
   if (shownLong == null) {
@@ -3623,9 +3618,8 @@ function renderConcentration() {
 
   wrap.appendChild(el('div', { class: 'term-note' },
     el('strong', {}, '关于浓度与留香：'),
-    ' 浓度是香精占比，比例越高留得越久，也越容易在密闭空间里让人不舒服（日常最常见的是 EDT 与 EDP）。',
-    ' ③ 那一档是按 ② 推算的，不是实测 —— 同一瓶在干皮和油皮、冬天和夏天差别可以很大，',
-    '所以它不参与打分。想要留得久，把 ② 选高一点的浓度就是同一个动作。'
+    ' 浓度＝香精占比；越高留香越久，也更易在密闭空间熏人。日常多见 EDT、EDP',
+    ' ③ 不参与打分；想留更久，把 ② 选高一点'
   ));
 
   wrap.appendChild(navBar('concentration'));
@@ -3679,8 +3673,8 @@ function navBar(stepId) {
     const byEmotion = !!state.answers.emotion;
     const done = byFamily || byEmotion;
     bar.appendChild(el('span', { class: 'hint' }, done
-      ? (byFamily ? '中圈可选，不选就按大类推荐' : '按感觉选也可以，中圈可不选')
-      : '先在外圈挑一个大类，或者用下面的「按感觉选」'));
+      ? (byFamily ? '中圈可选，不选就按大类推荐' : '也可按感觉选；中圈可不选')
+      : '先点外圈选大类，或用「按感觉选」'));
     bar.appendChild(el('button', {
       class: 'btn', type: 'button', disabled: done ? null : 'disabled',
       onclick: next,
@@ -3692,7 +3686,7 @@ function navBar(stepId) {
      hint 必须说清"不点是接受"而不是"跳过" —— 这一屏的语义不是弃权，是默认接受。
      原「想要的味道」屏的同类分支已随该屏删除（v7 第 3 步②），此处只剩避雷一条。 */
   if (stepId === 'unwanted') {
-    bar.appendChild(el('span', { class: 'hint' }, '不点就是接受；点一下＝这个不要'));
+    bar.appendChild(el('span', { class: 'hint' }, '点一下＝不要；不点＝接受'));
     bar.appendChild(el('button', { class: 'btn', type: 'button', onclick: next }, '下一步 →'));
     return bar;
   }
@@ -3713,7 +3707,7 @@ function navBar(stepId) {
      浓淡（concentration）已改回普通前进分支，不在这里留 finish 出口，
      否则那个 id 一旦被重排就会静默变成第二个末屏。 */
   if (stepId === 'budget') {
-    bar.appendChild(el('span', { class: 'hint' }, '不限也行，选完就能看推荐'));
+    bar.appendChild(el('span', { class: 'hint' }, '选「不限」也可直接看推荐'));
     bar.appendChild(el('button', {
       class: 'btn', type: 'button', onclick: (ev) => finish(ev.currentTarget),
     }, '看推荐 →'));
@@ -3935,7 +3929,7 @@ function renderMasthead() {
           /* 首屏那句 lede 原来写「转盘选香型，再定场合和浓度」（a39e498），
              v6 撤盘时改成「先说预算和想要的感觉」，v7 圆盘回来了 ——
              现在这句必须同时说准两件事：**第一件事是转盘**，而且不问术语。 */
-          : '不用懂前中后调。先在转盘上挑一个大方向，再定场合和浓度'
+          : '不用懂前中后调：先选大方向，再定场合和浓度'
     ),
     /* 印��：纯装饰（aria-hidden），字取「香」—— 这个应用唯一的主题字。 */
     el('span', { class: 'seal', 'aria-hidden': 'true' }, '香')
@@ -4044,7 +4038,7 @@ const AFFILIATE = {
      · 美国 FTC 16 CFR 255：要求 clear and conspicuous，且必须在消费者
        看到链接之前或同时出现 —— 页脚是否满足这一条，属合规判断，
        不是本仓库能自行认定的，如实标注为**未核实**。 */
-  disclosure: '购买链接为联盟推广链接，通过它们成交本站可能获得佣金，不影响你的支付价格。',
+  disclosure: '购买链接含联盟推广；成交可能产生佣金，不影响你的支付价格。',
 };
 
 /* 读配置。运行时覆盖（window.SCENT_AFFILIATE）支持按平台给，
@@ -5021,7 +5015,7 @@ function paintHistoryPanel(panel, toggle) {
 
   if (!list.length) {
     panel.appendChild(el('p', { class: 'qw-history-empty' },
-      '还没有记录。完成一次测试后，三瓶结果会出现在这里。'));
+      '还没有记录。完成一次测试后，这里会显示三瓶结果。'));
     return;
   }
 
@@ -5147,8 +5141,8 @@ function wishEntryRow() {
     el('span', { class: 'qw-wl-entry-count' }, String(wishCount)),
     el('span', { class: 'qw-wl-entry-go' }, '打开 →')),
     el('span', { class: 'hint' }, wishCount
-      ? '存过的瓶子都在这里，换设备或清缓存就没了'
-      : '在结果页点 ♡ 就能把喜欢的瓶子存到这里')
+      ? '收藏只存本机；点开看理由、参考价和购买入口。'
+      : '在结果页点 ♡ 收藏到这里')
   );
 }
 
@@ -5923,8 +5917,8 @@ function renderResult() {
            ② 「官方旗舰店」是靠关键词把品牌自营店顶到前部，不是筛选结果；
            ③ 价格没有排序 —— 实测排序参数无效，所以不承诺"最低价"。 */
       art.appendChild(el('p', { class: 'link-note', role: 'note' },
-        '两个入口都会打开淘宝搜索结果：选「官方旗舰店」会把品牌自营店排到前面，'
-        + '选「全网」看所有店铺（含第三方与小样）；价格未排序，请自行核对。'));
+        '两个入口都打开淘宝搜索；「官方旗舰店」优先自营店。'
+        + '「全网」含第三方与小样；价格未排序，请自行核对。'));
     }
     if (!anyDirect && anySearch) {
       const plats = [...new Set(buyLinks.filter((l) => l.kind === 'search').map((l) => l.platformZh))];
@@ -5941,7 +5935,7 @@ function renderResult() {
        换源失败、只能保留天猫链接的瓶才需要它 —— 这是本轮 A1/A2 的兜底。 */
     if (p && TMALL_IDS.has(String(p.id)) && buyLinks.some((l) => l.platform === 'taobao')) {
       art.appendChild(el('p', { class: 'link-note is-tmall', role: 'note', 'data-note': 'tmall-shop' },
-        '此款在天猫店，点开后请在天猫内搜索'));
+        '此款在天猫；点开后请在天猫内搜索'));
     }
     wrap.appendChild(art);
   });
@@ -6016,7 +6010,7 @@ function renderResult() {
     });
     card.appendChild(ol);
     card.appendChild(el('p', { class: 'share-foot' },
-      '从 1388 瓶里按规则打分选出，选品不调用大模型'
+      '从 1388 瓶中按规则打分选出，不调用大模型'
     ));
     wrap.appendChild(card);
 
@@ -6087,7 +6081,7 @@ function resultDock() {
       el('button', { class: 'btn ghost', type: 'button', onclick: (ev) => openRetune(ev.currentTarget) },
         '改一题重推'),
       el('div', { class: 'spacer' }),
-      el('span', { class: 'hint' }, '换一批只换瓶子，答案全留着；改一题只动那一屏')
+      el('span', { class: 'hint' }, '换一批只换结果，答案保留；改一题只动那一屏')
     )
   );
 }
@@ -6171,22 +6165,28 @@ function renderFooter(onResult = false) {
         ' · ',
         el('a', { href: meta.licenseUrl, target: '_blank', rel: 'noopener noreferrer' }, 'CC BY 4.0'),
         ' · 快照 ', meta.sourceSnapshot,
-        ' · 原始数据经清洗、家族映射与字段裁剪，',
+        /* 第 76 条（删除）与第 77 条（改写）是页脚同一句的两半，住在这两个分支里：
+           76 是「· 原始数据经清洗、家族映射与字段裁剪，」这个以逗号断在半句的
+           重复说明，77 是完整的署名句。裁决要求去重并把口径统一成「香族」，
+           所以这里不再另外拼一份 76 的措辞，直接把 77 的统一句接在「已修改」前
+           —— 否则这个分支（meta 到货时的生产路径）会只剩一个光秃秃的「已修改」，
+           CC BY 4.0 的变更说明就没了。 */
+        ' · 数据经清洗、香族映射与字段裁剪，',
         el('em', {}, '已修改'),
         '。'
       )
     : el('div', { style: 'margin-top:8px' },
         el('strong', {}, '数据署名 '),
-        'Scento — perfume-database · CC BY 4.0 · 原始数据经清洗、家族映射与字段裁剪，',
+        'Scento — perfume-database · CC BY 4.0；数据经清洗、香族映射与字段裁剪，',
         el('em', {}, '已修改'),
         '。'
       );
 
   return el('footer', { class: 'foot' },
-    el('div', {},
-      el('strong', {}, '关于这些推荐 '),
-      '选品完全由规则打分产生，不调用大模型'
-    ),
+    /* 裁决第 78 条（删除）：「选品完全由规则打分产生，不调用大模型」与第 74 条
+       （分享卡上的出处说明）重复，评审要求只留一处。留给 74，因为分享卡会离开
+       本站被单独截图 —— 那句话在那里的作用更大；页脚这一段随之整块去掉，
+       否则会剩一个只有「关于这些推荐」的悬空标题。 */
     credit,
     /* 广告披露（Eddie 2026-11-10 19:19 决策：「还是去掉角标，只留页脚声明」）。
        一行、不带标题、不复述佣金机制之外的东西。类名用 .aff-note ——
@@ -6203,7 +6203,7 @@ function renderFooter(onResult = false) {
         class: 'aff-note',
         role: 'note',
         'data-disclosure': 'affiliate-footer',
-      }, '购买链接为联盟推广链接，通过它们成交本站可能获得佣金，不影响你的支付价格。')
+      }, '购买链接含联盟推广；成交可能产生佣金，不影响你的支付价格。')
       : null,
     el('div', { style: 'margin-top:8px' },
       el('strong', {}, '已知局限 '),

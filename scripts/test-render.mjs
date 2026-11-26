@@ -1356,7 +1356,9 @@ ok('避雷屏标题是「只问最容易踩雷的几个」',
   const txt = getStepText();
   ok('避雷屏不出现任何香调族名', !/柑橘调|花香调|木质调|东方琥珀调|清新调|美食调/.test(txt), txt.slice(0, 80));
   ok('避雷屏不出现香材英文原名', !/\b(bergamot|lemon|jasmine|sandalwood|vanilla|vetiver|oud)\b/i.test(txt), txt.slice(0, 80));
-  ok('顶部说明写「不点就是接受」', /不点就是接受/.test(txt), txt.slice(0, 120));
+  /* 第 7 条（裁决：改写「点一下＝不要；不点＝接受」）：屏顶说明不再写
+     「不点就是接受」那句旧措辞，改为统一句式。这里守的是**新句在屏上**。 */
+  ok('顶部说明写「点一下＝不要；不点＝接受」', /点一下＝不要；不点＝接受/.test(txt), txt.slice(0, 120));
   /* 交互只有点卡＝「这个不要」：点第一张，aria-pressed 翻 true、挂 is-on、出现标记。 */
   const first = cards[0];
   ok('未点时 aria-pressed=false', first.attrs['aria-pressed'] === 'false', String(first.attrs['aria-pressed']));
@@ -1380,8 +1382,12 @@ ok('避雷屏标题是「只问最容易踩雷的几个」',
   const tip = appRoot.querySelectorAll('.avoid-tip')[0];
   ok('避雷屏顶部有代价提示（.avoid-tip）', !!tip,
     `实际 ${appRoot.querySelectorAll('.avoid-tip').length} 条`);
-  ok('代价提示写清「点错会扣分」与「没闻过」两个口径',
-    !!tip && /扣/.test(tip.textContent) && /没闻过/.test(tip.textContent),
+  /* 第 32 条（裁决：改写「没闻过就点「没闻过」；点卡＝不要」）：原来的
+     「点错会扣分」与「不加分也不扣分」都被裁决删掉（打分机制解释），
+     换成先说怎么点。所以这里不再要求出现「扣」字 —— 要求它反而是逼下一个人
+     把评审删掉的解释加回去。守的是两条操作口径都还在屏上。 */
+  ok('代价提示写清「点卡＝不要」与「没闻过」两个口径',
+    !!tip && /点卡＝不要/.test(tip.textContent) && /没闻过/.test(tip.textContent),
     tip && tip.textContent);
   ok('代价提示不含内部权重数字（−40 / +14 这类不许上屏）',
     !!tip && !/[-−+]\s?\d+|40|14/.test(tip.textContent), tip && tip.textContent);
@@ -1440,7 +1446,9 @@ ok('避雷屏标题是「只问最容易踩雷的几个」',
 
   /* ② 已排除清单：上一步点的第 1 张卡已经在 unwanted 里，必须出现在清单上。 */
   const excl = appRoot.querySelectorAll('.avoid-excluded')[0];
-  ok('屏内有「你已排除」汇总行', !!excl && /你已排除/.test(excl.textContent),
+  /* 第 34 条（裁决：改写「已排除：无」）：前缀从「你已排除：」压成「已排除：」。
+     旧正则 /你已排除/ 对新句恒假，留着就是一条永远红的死断言。 */
+  ok('屏内有「已排除」汇总行', !!excl && /已排除/.test(excl.textContent),
     excl && excl.textContent);
   const undo = excl.querySelectorAll('.avoid-undo');
   ok('已排除清单里的名字可点（撤销入口）',
@@ -1616,9 +1624,12 @@ ok(`${screenOf('occasion')}是场合（data-step=occasion）`, stepId() === 'occ
       h ? h.textContent.slice(0, 40) : '(无节点)');
     /* help 不进固定块：它有三行，窄屏固定住会把地平线挤下半屏。
        但它必须仍在屏上（文案一字未动，只是跟着内容滚）。 */
+    /* 第 9 条（裁决：改写「选最像的场合；拿不准选日常」）：help 从
+       「你最常在什么场合用，决定了推荐的浓淡…」压成了这一句。
+       断言跟上新措辞；「拿不准怎么办」这层意思现在由「拿不准选日常」承担。 */
     ok('help 不在固定块里、但仍在屏上',
-      !!h && !h.textContent.includes('你最常在什么场合用')
-      && appRoot.textContent.includes('你最常在什么场合用'),
+      !!h && !h.textContent.includes('拿不准选日常')
+      && appRoot.textContent.includes('拿不准选日常'),
       h ? 'hh' : '(无节点)');
     /* CSS 侧：sticky 必须挂在场合屏的题头上，且背景是实心纸面。
        没有实心底，滚动时下面的字会从题头的行缝里穿过去。 */
@@ -3179,7 +3190,10 @@ ok('三颗主按钮里不含「重新来一次」（它代价最大，不该并�
      不再断言「以广告开头」：那条已经与拍板后的实现相反，留着等于逼下一个人
      在"测试绿"和"按决定执行"之间二选一。 */
   const disc = appMod.__aff.config().disclosure;
-  ok('披露文案说明这是推广/联盟关系', /联盟推广链接|推广链接/.test(disc), disc.slice(0, 30));
+  /* 第 66 条（裁决：改写「购买链接含联盟推广；成交可能产生佣金，不影响你的支付价格」）：
+     旧句的「联盟推广链接」被压成「联盟推广」，旧正则不再命中。断言守的是合规底线
+     （用户能识别商业性质），不是某个具体词形 —— 所以两种写法都认。 */
+  ok('披露文案说明这是推广/联盟关系', /联盟推广|推广链接/.test(disc), disc.slice(0, 30));
   ok('披露文案写明可能获得佣金', disc.includes('佣金'), disc.slice(0, 40));
   ok('披露说明不影响支付价格', disc.includes('不影响'), disc.slice(0, 40));
   /* ?pid= 只能覆盖 pid，不能覆盖 target —— 否则任何访客都能把链接指向别处 */
@@ -3540,10 +3554,23 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
          这不是放宽门槛 —— 它确实写明了可跳过，只是换了说法，所以把这句
          加进关键词表，让这一屏仍被同一道门守着（而不是排除掉）。
      只查关键词，不查整句（措辞会改）。 */
+  /* 文案二轮裁决改写 #7/#9/#12 时，这三屏 help 的兜底句一起被压掉了
+     （「不选也能继续」「它是最宽的那一档」这类解释），所以关键词表要认新说法：
+       #7 → 「不点＝接受」、#9 → 「拿不准选日常」。
+     #12（浓度屏）改写后 help 只讲怎么选；跳过口径改由**导航条那行**承担
+     （navBar 对 concentration/season/occasion 画「不选也能继续」）——
+     它不是步骤表里的字段，所以这一屏按屏号排除，并单独钉住那行文案还在：
+     否则「排除」会退化成静默放过。 */
   const noSkipWord = S.all.filter((x) => x.id !== 'family' && x.id !== 'budget'
-    && !/跳过|不选也能|不答|不点就是接受/.test(x.help || ''));
+    && x.id !== 'concentration'
+    && !/跳过|不选也能|不答|不点就是接受|不点＝接受|拿不准选日常/.test(x.help || ''));
   ok('除圆盘外每屏都写明了可跳过（不逼答）', noSkipWord.length === 0,
     noSkipWord.map((x) => x.id).join(','));
+  /* 浓度屏被排除的唯一依据就是这行导航提示还在。它一旦被删，那一屏就真的
+     变成"必须答完才能走"，而上面那条会因为排除而全绿。 */
+  ok('浓度屏的跳过口径仍由导航条那行承担（源码里有「不选也能继续」）',
+    fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8').includes("'不选也能继续'"),
+    'app.js 里找不到 navBar 的「不选也能继续」');
   ok('圆盘的 help 不写「跳过」而写怎么选（它是必答题）',
     !/跳过/.test((S.all.find((x) => x.id === 'family') || {}).help || ''),
     (S.all.find((x) => x.id === 'family') || {}).help);

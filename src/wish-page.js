@@ -33,7 +33,7 @@ import { WISHLIST_MAX } from './wishlist.js';
 export const WISH_PAGE_MSG = Object.freeze({
   /* 空态：一句引导 + 一个回结果页的动作（不白屏） */
   emptyTitle: '清单还是空的',
-  emptyHint: '在结果页点 ♡ 就能把喜欢的瓶子存到这里',
+  emptyHint: '在结果页点 ♡ 收藏到这里',
   emptyCta: '去挑一瓶 →',
   /* 满 50：与 L2 同一句口径（都是 WISHLIST_MAX，不另写数字） */
   full: `清单满了（${WISHLIST_MAX} 瓶），先移除一瓶`,
