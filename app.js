@@ -1765,6 +1765,13 @@ function buildWheel(cfg) {
            盒尺寸、字号、行数逐字段实测一致（见腿目录 a11y-base/after.json 比对）。 */
         'aria-label': subFullName(item),
         'data-sub': item.id,
+        /* 所属大类落到属性上（家族色浅底腿，2026-11-25）：胶囊的淡家族色底
+           按 `[data-fam]` 逐族上色。为什么不让 CSS 从父级取：中圈的弧段
+           `<g data-sub>` 只带子类 id，族名在上层 `.disc-core` 之外没有可读的
+           结构线索（大圈那层的 data-fam 在**另一个** DOM 子树里），
+           而 :has() 按 .sub-g[data-sub] 反查家族要跨两棵子树、写不出稳定选择器。
+           一行属性和一条 CSS 规则，比这堆间接关系便宜。 */
+        'data-fam': fam.id,
         /* 该族的子类数（4–7）落到属性上，给 CSS 按"拥挤族"分档用：
            n≥6 时桌面也守 12px 字号（Eddie 2026-11-25 口径）。
            --n 是 CSS 变量，属性选择器选不到它，所以必须有一个属性镜像。

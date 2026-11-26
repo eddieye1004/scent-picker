@@ -31,8 +31,11 @@
    设计项（盘心重做 / 弧形文字 / 选中态新方案）不在这一轮，未动。
 
    ==== 配色（全部实算，见回执）====
-     底色仍用 80 层的 --bg #FAF7F1（暖米白）。本层只新增"盘面材质"一组：
-       瓦片 --spec-plate #FFFCF6 比纸底亮 1.9%，瓦片才浮得起来但不发白
+     底色仍用 80 层的 --bg（暖米白）。本层只新增"盘面材质"一组：
+       瓦片 --spec-plate #FFFCF6 比纸底亮一档，瓦片才浮得起来但不发白
+       （2026-11-25 更正：旧注释写「#FAF7F1 亮 1.9%」。--bg 早已由
+        80-specimen.css:40 改成 #FBF9F4（实测渲染 rgb(251,249,244)），
+        对真实纸底是 **对比 1.03 / ΔL\* 1.09**；1.9% 是旧纸底时代的数）
        发丝 --spec-hair #E4DACA / 盘口 --spec-rim #D6C9B4
        --spec-pill #3A302A 曾是主按钮的暖墨底；2026-11-24 复查反馈第 3 条
        判定它不随主题翻转，主操作已改走 --fill-blue 一族（token 仍留着，
@@ -48,7 +51,7 @@
   --spec-plate-2: #FBF5E9;
   --spec-rim: #D6C9B4;
   /* --spec-ink 是暖墨（#2A2620），既做盘心主词文字色，也做胶囊主按钮的底。
-     对纸底 --bg #FAF7F1 的对比 14.2:1，对 --spec-plate #FFFCF6 13.8:1 ——
+     对纸底 --bg #FBF9F4 的对比 14.29:1，对 --spec-plate #FFFCF6 14.68:1 ——
      文字用它是安全的；作为按钮底时，压在上面的字用 --spec-pill-ink。 */
   --spec-ink: #2A2620;
   /* --spec-hair / --spec-rim 只做发丝线与盘口描边（1px，不承载文字）。
@@ -544,7 +547,7 @@
    70-final 把瓦片写成 `fill:#ffffff; stroke: var(--bg-3)` —— 纯白瓦 +
    灰褐缝。第一层是暖纸底，第二层突然一片冷白，两层材质对不上，
    这正是"不呼应"最直接的一处。
-   改成：瓦片 --spec-plate（比纸底亮 1.9%），缝用 --spec-hair（暖发丝），
+   改成：瓦片 --spec-plate（比纸底亮一档：对 #FBF9F4 是 1.03 / ΔL\* 1.09），缝用 --spec-hair（暖发丝），
    凹槽环（.sub-channel）用 --spec-hair 加深一档 —— 缝里露出的仍是暖色。
    ============================================================ */
 #app[data-step="family"] .wheel .sub-arc {
@@ -679,8 +682,10 @@
   margin: 0 0 8px;
   background: var(--spec-plate);
   /* 边框用 --stroke-ui 而不是 --spec-rim：这枚胶囊的底（#FFFCF6）与页面
-     纸底（#FAF7F1）只差 1.9%，**边框就是它的全部边界** —— 按 WCAG 1.4.11
-     控件边界要 >= 3:1，--spec-rim 只有 1.53。--stroke-ui 是 5.23，
+     纸底（#FBF9F4）只差 1.03（ΔL\* 1.09，2026-11-25 按实测纸底更正；
+     旧注释写的 #FAF7F1 / 1.9% 是纸底改色之前的数），**边框就是它的全部
+     边界** —— 按 WCAG 1.4.11 控件边界要 >= 3:1，--spec-rim 只有 1.55。
+     --stroke-ui 是 5.23，
      也是全站既有的"控件边界"那一档（test-contrast 逐选择器守着这条）。 */
   border: 1px solid var(--stroke-ui);
   border-color: var(--stroke-ui);
@@ -734,7 +739,8 @@
   border-radius: 999px;
   /* 默认边界 = --stroke-ui，而不是任何浅色 token。
      理由有两条，缺一条都不行：
-       ① 这几枚胶囊的底（--spec-plate #FFFCF6）与纸底只差 1.9%，
+       ① 这几枚胶囊的底（--spec-plate #FFFCF6）与纸底只差 1.03
+         （ΔL\* 1.09；旧注释写 1.9% 是纸底 #FAF7F1 时代的数），
           **边框就是它们的全部边界**，WCAG 1.4.11 要 >= 3:1 ——
           --stroke-ui 是 5.23，--spec-rim 只有 1.53；
        ② test-contrast 逐选择器核对「1px 边、无填充的控件必须引用
@@ -1534,16 +1540,25 @@
     box-shadow: none;
   }
 }
-/* 落到小类（is-picked）那一路不动：它表达的是"定下来了"，
-   厚度与描边在这里是信息本身，且不在本腿三条 delta 的范围内。 */
-#app[data-step="family"] .wheel.is-open.is-picked .disc-hub {
-  border-color: var(--spec-ink);
-  box-shadow:
-    inset 0 1px 0 var(--spec-glow),
-    inset 0 -14px 26px -22px var(--spec-sh),
-    0 0 0 4px var(--spec-plate),
-    0 0 0 5px var(--spec-rim),
-    0 14px 34px -22px var(--spec-sh);
+/* ---- delta 3b：落到小类那一路同样减重（Muse 2026-11-25 21:10 裁决）----
+   上一条（Block 3 原样）让小类态继续吃 --spec-plate 底 + 五层阴影，
+   而 delta 3 只覆盖到「选了大类」为止 —— 同一个盘心、同一屏里，
+   点完小类又长出一条厚边和一圈外投影，正是"减重只做了一半"。
+   裁决把这个态一起收进来：(1,5,0) 规则，三条与 delta 3 逐字同值：
+     background: var(--bg) / border-color: var(--spec-hair) / box-shadow: none。
+
+   特异性 (1,5,0) —— 一个 id + 五个类：`#app`、`[data-step="family"]`（属性算类）、
+   `.wheel`、`.is-open`、`.is-picked`、`.disc-hub`。第三位是 0：选择器里
+   没有元素选择器。（改前这条注释把四位写成 (1,5,1)，多算了一位元素 —— 
+   2026-11-25 按 Muse 裁决一并更正。）
+   与 Block 3 那条同特异性，靠位置后到者胜。
+   **只在浅色档生效**：理由与 delta 3 完全相同（--bg 深色档是 #141414）。 */
+@media (prefers-color-scheme: light) {
+  #app[data-step="family"] .wheel.is-open.is-picked .disc-hub {
+    border-color: var(--spec-hair);
+    background: var(--bg);
+    box-shadow: none;
+  }
 }
 
 
@@ -1634,6 +1649,162 @@
   #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="7"] .zh {
     max-width: none;
     padding: 0 3px;
+  }
+}
+
+
+/* ============================================================
+   Block 17 · 中圈胶囊改家族色浅底（2 号方案，Eddie 2026-11-25 22:39 裁决）
+   ------------------------------------------------------------
+   裁决原文：「中圈胶囊走 2 号方案——家族色浅底」。
+   现状是一枚白胶囊（--spec-plate #FFFCF6）+ 1px 发丝边 + 一道外投影：
+   它读起来是「文字外面画了个细框」，没有胶囊该有的实心分量。
+   本块给它填上**该族家族色的极浅 tint**，让它成为一枚有内容物的胶囊。
+
+   ==== 色值：为什么是这几个数 ====
+   不新造色相。六族 tint 由各自的**饱和族色**按 sRGB 混到纸面，一族一支：
+
+     族     饱和基色   未选中 17%    hover 20%    选中 24%
+     柑橘    #E39B18    #FAECD0      #F9E9CA      #F8E5C1
+     花香    #D6487E    #F8DDE2      #F7D8DE      #F5D1D9
+     木质    #8F6B42    #ECE3D7      #E9DFD2      #E4D9CB
+     琥珀    #C86A16    #F6E3D0      #F4DFC9      #F2D9C0
+     美食    #B0453A    #F2DDD6      #EFD7D0      #ECD0C9
+     清新    #4E9440    #E1EAD7      #DCE7D2      #D5E3CA
+
+   选 17% 而不是验收线下限 8–12%，是**实测判定的**，理由两条：
+     ① 12% 在这一档纸面上读不出六族差异。按同一组基色算：
+        12% 时最小族间 ΔE 只有 2.5–3.2（ woody/amber ），低于已批准的
+        基线 `--spec-tint-*` 六族瓦片本身的 3.9 —— 那不是"可辨"，
+        是"同一片米色"。17% 时最小族间 ΔE = 5.2（ woody/gourmand ），
+        比基线高 33%，且在 #FFFCF6 上的 ΔE 全部 ≥ 9.3（肉眼可辨的下限约 2–3，
+        这里留了三倍余量）。
+     ② 17% 的墨字对比度最低 11.52:1（ 美食 ），离 4.5 的地板还有两倍多，
+        加浓不会牺牲可读性 —— 这条有实测表，见下。
+   任务书给的 12–18% 允许区间内取偏上沿，正是"8–12% 辨识不足可上调"
+   那一条的落点。
+
+   ==== 对比度（12px 文字，WCAG AA 要 4.5）====
+   --spec-ink #2A2620 压在上面三档底的实测：
+     族     未选中   hover    选中
+     柑橘   12.87    12.56    12.15
+     花香   11.77    11.34    10.74
+     木质   11.84    11.42    10.80
+     琥珀   12.04    11.63    11.07
+     美食   11.52    10.96    10.33
+     清新   12.14    11.75    11.22
+   最低 10.33（美食选中态），是地板 4.5 的 2.3 倍。
+
+   ==== 选中态为什么不是实心蓝了 ====
+   改前 `.is-on .zh` 填 --fill-blue + 白字（2026-11-24 复查反馈第 4 条），
+   与蓝瓦片同色。本块改成**同一族色的深一档**（24%），不跟蓝走：
+   裁决要的是"选中胶囊底色加深一档"，也就是在**同一支族色**上抬一档，
+   而不是跳到另一个色相。蓝瓦片（.sub-g.is-on .sub-arc）**没动**，
+   它仍是"确认"的主信号（实心蓝 + 几何脉冲）；胶囊只是跟着加深，
+   两者不再同色，但也不再打架 —— 瓦片说"这一段被选中"，
+   胶囊说"这个具体小类被选中"，加深而不是换色，层级反而更清楚。
+   字色随之回到 --spec-ink（白字在 24% 的浅粉上只有 1.2:1，必崩）。
+
+   ==== 边框：家族色深一档，不加阴影 ====
+   边仍 1px，颜色取该族 tint 再深一档（同色相、L* 降约 12）：
+     柑橘 #C4AC64 / 花香 #EB98BB / 木质 #B99B7F / 琥珀 #DB966E
+     美食 #E4978F / 清新 #90BC8E
+   对各自底的对比 1.4–1.8：这是装饰边界（1px，不承载文字），
+   按既有口径不进 test-contrast 的控件边界清单 —— 控件边界那条仍由
+   --stroke-ui 守着，中圈胶囊的可点面积由 44px 触控盒 + 弧段本身给，
+   不靠这圈边。**不加 box-shadow**：盘心刚在 delta 3 去掉三层阴影，
+   胶囊跟进，全屏保持"纸面扁平"一种语言。
+
+   ==== 形状/圆角/图标/字号一律不动 ====
+   999px 圆角、16px 图标、12px 单行文字、44px 触控垫全部沿用
+   Block 14/15/16 的定版值 —— 本块只改 background / border-color / color
+   三个属性，盒模型零变化（实测胶囊盒尺寸与改前逐值相同）。
+
+   ==== 只裹浅色档 ====
+   深色档的中圈瓦片走 40-theme.css 的暗色渐变（gArcD 一族），
+   那里的胶囊是压在暗面上的，浅色 tint 上去会糊成一团脏色。
+   本块整段裹在 prefers-color-scheme: light 里，深色仍走既有那一套
+   （与本层开头「深色档不重做」一致）。
+
+   ==== 选择器为什么挂在 [data-fam] 上 ====
+   胶囊按钮带 `data-fam`（app.js 里一行属性，见那段注释）。不用
+   `:has()` 反查弧段：族名在另一棵 SVG 子树里，跨树反查写不出稳定选择器。
+   特异性 (1,3,0)，稳压 20/40 层的 `.wheel .disc-sector.lvl2.sub-arc-btn`
+   (0,4,0)，也稳压下面 is-on / is-hot 那几条同层规则（都是 (1,3,0)，
+   靠出现顺序取胜 —— 本块在文件末尾，后到者胜）。
+   ============================================================ */
+@media (prefers-color-scheme: light) {
+  /* ---- 未选中：家族色 17% ---- */
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="citrus"] .zh {
+    background: #FAECD0;
+    border-color: #C4AC64;
+  }
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="floral"] .zh {
+    background: #F8DDE2;
+    border-color: #EB98BB;
+  }
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="woody"] .zh {
+    background: #ECE3D7;
+    border-color: #B99B7F;
+  }
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="amber"] .zh {
+    background: #F6E3D0;
+    border-color: #DB966E;
+  }
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="gourmand"] .zh {
+    background: #F2DDD6;
+    border-color: #E4978F;
+  }
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="fresh"] .zh {
+    background: #E1EAD7;
+    border-color: #90BC8E;
+  }
+
+  /* ---- 悬停/键盘聚焦：同族色抬到 20% ----
+     仍是"这一块被灯照到"，只是不再借 --spec-tint-hot 那张通用暖白 ——
+     通用白会把族色洗掉，一族一台戏才读得出"我在哪一族里"。 */
+  #app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn[data-fam="citrus"]:hover .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="citrus"].is-hot .zh { background: #F9E9CA; border-color: #B79C4E; }
+  #app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn[data-fam="floral"]:hover .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="floral"].is-hot .zh { background: #F7D8DE; border-color: #E286AC; }
+  #app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn[data-fam="woody"]:hover .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="woody"].is-hot .zh { background: #E9DFD2; border-color: #AD8D6C; }
+  #app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn[data-fam="amber"]:hover .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="amber"].is-hot .zh { background: #F4DFC9; border-color: #D08A5C; }
+  #app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn[data-fam="gourmand"]:hover .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="gourmand"].is-hot .zh { background: #EFD7D0; border-color: #DC8A80; }
+  #app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn[data-fam="fresh"]:hover .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="fresh"].is-hot .zh { background: #DCE7D2; border-color: #82AE7F; }
+
+  /* ---- 选中：同族色加深到 24%，字回暖墨，边再深一档 ----
+     特异性与上面那批同档 (1,3,0)，靠位置后到者胜 —— 与 Block 14 里
+     `.is-on` 压 `.is-hot` 用的是同一套办法（那里也是顺序取胜）。 */
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="citrus"].is-on .zh {
+    background: #F8E5C1; border-color: #A98F3F; color: var(--spec-ink);
+  }
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="floral"].is-on .zh {
+    background: #F5D1D9; border-color: #D9739C; color: var(--spec-ink);
+  }
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="woody"].is-on .zh {
+    background: #E4D9CB; border-color: #9C7C5A; color: var(--spec-ink);
+  }
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="amber"].is-on .zh {
+    background: #F2D9C0; border-color: #C47A47; color: var(--spec-ink);
+  }
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="gourmand"].is-on .zh {
+    background: #ECD0C9; border-color: #D2776B; color: var(--spec-ink);
+  }
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="fresh"].is-on .zh {
+    background: #D5E3CA; border-color: #74A070; color: var(--spec-ink);
+  }
+
+  /* ---- 阴影全删（本层唯一的 box-shadow 声明点就在这里）----
+     Block 14 给胶囊写过 `box-shadow: 0 1px 3px -1px var(--spec-sh)`。
+     盘心在 delta 3 已经删掉三层阴影，胶囊跟着删，全屏只剩纸面一种语言。
+     单写一条是为了把"删阴影"这件事留在自己的注释里，而不是混在配色块中间
+     —— 下一个人查"胶囊为什么没有影子"会先找到这里。 */
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+    box-shadow: none;
   }
 }
 

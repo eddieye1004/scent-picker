@@ -6249,14 +6249,12 @@ background: var(--bg);
 box-shadow: none;
 }
 }
+@media (prefers-color-scheme: light) {
 #app[data-step="family"] .wheel.is-open.is-picked .disc-hub {
-border-color: var(--spec-ink);
-box-shadow:
-inset 0 1px 0 var(--spec-glow),
-inset 0 -14px 26px -22px var(--spec-sh),
-0 0 0 4px var(--spec-plate),
-0 0 0 5px var(--spec-rim),
-0 14px 34px -22px var(--spec-sh);
+border-color: var(--spec-hair);
+background: var(--bg);
+box-shadow: none;
+}
 }
 #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
 max-width: none;
@@ -6281,6 +6279,65 @@ max-width: none;
 #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="7"] .zh {
 max-width: none;
 padding: 0 3px;
+}
+}
+@media (prefers-color-scheme: light) {
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="citrus"] .zh {
+background: #FAECD0;
+border-color: #C4AC64;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="floral"] .zh {
+background: #F8DDE2;
+border-color: #EB98BB;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="woody"] .zh {
+background: #ECE3D7;
+border-color: #B99B7F;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="amber"] .zh {
+background: #F6E3D0;
+border-color: #DB966E;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="gourmand"] .zh {
+background: #F2DDD6;
+border-color: #E4978F;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="fresh"] .zh {
+background: #E1EAD7;
+border-color: #90BC8E;
+}
+#app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn[data-fam="citrus"]:hover .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="citrus"].is-hot .zh { background: #F9E9CA; border-color: #B79C4E; }
+#app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn[data-fam="floral"]:hover .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="floral"].is-hot .zh { background: #F7D8DE; border-color: #E286AC; }
+#app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn[data-fam="woody"]:hover .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="woody"].is-hot .zh { background: #E9DFD2; border-color: #AD8D6C; }
+#app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn[data-fam="amber"]:hover .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="amber"].is-hot .zh { background: #F4DFC9; border-color: #D08A5C; }
+#app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn[data-fam="gourmand"]:hover .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="gourmand"].is-hot .zh { background: #EFD7D0; border-color: #DC8A80; }
+#app[data-step="family"] .wheel:not(.is-sub-locked) .disc-sector.lvl2.sub-arc-btn[data-fam="fresh"]:hover .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="fresh"].is-hot .zh { background: #DCE7D2; border-color: #82AE7F; }
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="citrus"].is-on .zh {
+background: #F8E5C1; border-color: #A98F3F; color: var(--spec-ink);
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="floral"].is-on .zh {
+background: #F5D1D9; border-color: #D9739C; color: var(--spec-ink);
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="woody"].is-on .zh {
+background: #E4D9CB; border-color: #9C7C5A; color: var(--spec-ink);
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="amber"].is-on .zh {
+background: #F2D9C0; border-color: #C47A47; color: var(--spec-ink);
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="gourmand"].is-on .zh {
+background: #ECD0C9; border-color: #D2776B; color: var(--spec-ink);
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-fam="fresh"].is-on .zh {
+background: #D5E3CA; border-color: #74A070; color: var(--spec-ink);
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+box-shadow: none;
 }
 }
 .qw-share-row {
