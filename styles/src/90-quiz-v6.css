@@ -8,7 +8,7 @@
      背景层 = .amb-wash，由第一个大方向定调、随进程增强，
               强度硬顶在 AMBIENT_CAP 之下，任何一屏都不许压过前景。
      前景层 = 每屏自己的那一个效果（.price-row / .sky / .life-grid /
-              .hour-sky / .temp-band / .diffuse / 已知款屏的实物图）。
+              .hour-sky / .temp-band / .conc-scene / 已知款屏的实物图）。
               它是该屏的视觉重心：对比度、尺寸、动效幅度都高于底噪。
 
    ==== 底噪怎么保证"永远在背景" ====
@@ -709,8 +709,8 @@
 .temp-stop.is-on .temp-zh { color: var(--accent); }
 
 /* 键盘焦点必须看得见（test-contrast 的 INTERACTIVE 清单里有 .btn，
-   这里补 .price-tab / .sky-band / .life-card / .hour-band / .temp-stop /
-   .diffuse-ring 的焦点环）。 */
+   这里补 .price-tab / .sky-band / .life-card / .hour-band / .temp-stop
+   / .conc-slider 的焦点环）。 */
 .temp-stop:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
@@ -749,144 +749,181 @@
 .season-scene[hidden] { display: none; }
 
 /* ============================================================
-   第 7 屏：浓淡（扩散场）
+   第 7 屏：浓淡（波纹场 + 原生滑杆）
    ------------------------------------------------------------
-   前景效果：同心环。**环的半径就是扩散距离** —— 内圈一臂、外圈整条走廊。
-   这是圆盘"几何=内容"这条逻辑在本卷的第二次落地（第一次是场合的时间轴）。
-   拖动/点选穿到外圈时，场心的色团跟着涨大。
+   前景效果：左边人形剪影，右边从他身上向外扩散的同心波纹 ——
+   **波纹半径就是扩散距离**。整块 aria-hidden、不收指针事件，只做展示；
+   拖动时波纹跟手连续变，松手吸附最近档并轻扩散一次。
    ============================================================ */
-.diffuse {
+.conc-scene {
   position: relative;
   z-index: 1;
   width: 100%;
   max-width: 460px;
-  aspect-ratio: 1 / 1;
+  height: 190px;
   margin: 8px auto 0;
-  /* 同心环按绝对定位排在中心：每个环自己的 --ring-pct 决定直径。 */
-  display: block;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-/* 场心：一团随档位涨大的色团。它是"这团气味"的本体。 */
-.diffuse .diffuse-core {
+/* 波纹圆心固定在人形胸口（--cx/--cy）；直径由 JS 按档位写 width，
+   aspect-ratio 保证它始终是正圆。 */
+.conc-glow,
+.conc-ripple,
+.conc-pulse {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 22%;
-  height: 22%;
-  transform: translate(-50%, -50%);
+  left: var(--cx, 20%);
+  top: var(--cy, 62%);
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* 场心：一团随档位涨大的色雾 —— "这团气味"的本体。 */
+.conc-glow {
   background: radial-gradient(circle,
-    var(--accent) 0%, color-mix(in srgb, var(--accent) 40%, transparent) 58%, transparent 78%);
-  opacity: .22;
-  pointer-events: none;
-  transition: width .3s var(--ease, ease), height .3s var(--ease, ease), opacity .3s;
+    color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 70%);
 }
 
-/* 视觉环：纯装饰（aria-hidden），不接收事件。它只负责"这一圈在哪儿"。 */
-.diffuse-ring {
-  position: absolute;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: var(--ring-pct);
-  height: var(--ring-pct);
-  border-radius: 50%;
-  border: 1px dashed var(--stroke-ui);
-  background: transparent;
-  pointer-events: none;
-  transition: border-color .2s, background .2s;
+/* 同心波纹：三圈，外圈是当前档位到达的距离；内两圈是回声。 */
+.conc-ripple {
+  border: 1.5px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  transition: width .28s var(--ease, ease);
+}
+.conc-ripple[data-r="2"] { border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+.conc-ripple[data-r="1"] { border-color: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* 拖动中半径跟手：关掉缓动（松手再缓动吸附回档位）。 */
+.conc-scene.is-dragging .conc-ripple,
+.conc-scene.is-dragging .conc-glow { transition: none; }
+
+/* 松手吸附时的一次轻微波纹扩散（只播一次）。 */
+.conc-pulse {
+  border: 1.5px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  opacity: 0;
+}
+.conc-pulse.is-live { animation: conc-pulse .6s var(--ease, ease) 1; }
+@keyframes conc-pulse {
+  0% { opacity: .5; transform: translate(-50%, -50%) scale(.9); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.22); }
 }
 
-/* 命中按钮：每个环在 12 点方向贴一枚 44px 的落点。
-   ==== 为什么必须与视觉环分开 ====
-   五个环是同心的，外环盒子把内环整个包住。若 button 自己也占满整圆，
-   只有最外那圈收得到点击，里面四档永远点不动
-   （playwright 实测：点 1/5 被 5/5 "intercepts pointer events" 拦住）。
-   现在按钮只占一个小方块，五个落点沿半径排开、互不重叠 ——
-   视觉仍是整圈（由上面的 .diffuse-ring 画），命中是这枚 44px。
-   落点位置就在它自己那一圈的顶点上，点哪条线就是哪一档，语义一致。 */
-.diffuse-hit {
+/* 人形剪影（头 + 肩），站在波纹圆心旁；颜色跟 token，深色档自动翻。 */
+.conc-figure {
   position: absolute;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  left: 6px;
+  bottom: 14px;
+  width: 56px;
+  height: 84px;
+  color: var(--ink-2);
+}
+.conc-figure svg { display: block; width: 100%; height: 100%; fill: currentColor; }
+
+/* ---- 原生滑杆：这一屏唯一的命中来源 ---- */
+.conc-slider-wrap {
+  max-width: 460px;
+  margin: 14px auto 0;
+}
+.conc-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 44px;
+  margin: 0;
   background: transparent;
-  border: 0;
-  border-radius: 2px;
   cursor: pointer;
 }
+.conc-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--stroke-ui);
+}
+.conc-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--stroke-ui);
+}
+.conc-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 26px;
+  height: 26px;
+  margin-top: -11px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--bg);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+.conc-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--bg);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+.conc-slider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
 
-.diffuse-hit .diffuse-label {
-  white-space: nowrap;
-  font: 500 12px/1 var(--font-ui, system-ui);
+/* 刻度：五个落点排在滑杆下方，全部按拇指真实落点居中（含首尾的内缩量
+   13px = 拇指 26px 的一半，与浏览器的点击分区一致），点刻度直接跳档。
+   min-width 60px 保证互不重叠（320px 时档距 ≈ 61px）；
+   tabindex=-1 + aria-hidden：键盘与读屏只走滑杆。 */
+.conc-ticks {
+  position: relative;
+  height: 34px;
+  margin-top: 4px;
+}
+.conc-tick {
+  position: absolute;
+  top: 2px;
+  min-width: 60px;
+  height: 28px;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: 500 12px/28px var(--font-ui, system-ui);
   letter-spacing: .06em;
   color: var(--ink-3);
-  transition: color .2s;
-  /* 文字压在环线之上，需要一层纸底，否则虚线会从字里穿过去。 */
-  background: var(--bg);
-  padding: 2px 4px;
-  border-radius: 2px;
+  text-align: center;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
+.conc-tick[data-v="1"] { left: 13px; }
+.conc-tick[data-v="2"] { left: calc(13px + (100% - 26px) * .25); }
+.conc-tick[data-v="3"] { left: calc(13px + (100% - 26px) * .5); }
+.conc-tick[data-v="4"] { left: calc(13px + (100% - 26px) * .75); }
+.conc-tick[data-v="5"] { left: calc(100% - 13px); }
+.conc-tick:hover { color: var(--ink); }
+.conc-tick.is-on { color: var(--accent); font-weight: 600; }
 
-.diffuse-hit:hover .diffuse-label { color: var(--ink); }
-
-.diffuse-hit.is-on .diffuse-label {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.diffuse-hit:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* 已越过（内圈）：填一层极淡的实底 —— 能看出"这团已经到了这一圈"。 */
-.diffuse-ring.is-in {
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
-}
-
-/* 当前档：实线 + 蓝。 */
-.diffuse-ring.is-on {
-  border-style: solid;
-  border-color: var(--accent);
-  border-width: 2px;
-}
-
-/* 撑不住（① 与 ② 差 >= 2 档）：那一圈转成警示色并抖一次 ——
-   反馈是内容本身的变化，不另起一条提示。 */
-.diffuse-ring.is-strained {
-  border-color: var(--danger, #8c2f28);
-  animation: ring-strain .5s ease-in-out 2;
-}
-
-.diffuse-hit.is-strained .diffuse-label { color: var(--danger, #8c2f28); }
-
-@keyframes ring-strain {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); }
-  50% { transform: translate(-50%, -50%) scale(1.012); }
-}
-
-.diffuse-read {
+/* 读数：只写「适中：办公室里刚好」这种白话，不写「3/5」。 */
+.conc-read {
   display: flex;
   align-items: baseline;
-  gap: 10px;
-  margin: 10px 0 0;
+  max-width: 460px;
+  margin: 14px auto 0;
   font: 400 14px/1.6 var(--font-ui, system-ui);
   color: var(--ink-2);
 }
-
-.diffuse-read b {
+.conc-read b {
   font-weight: 600;
   color: var(--ink);
-  font-variant-numeric: tabular-nums;
+}
+/* 读数下那行灰字：当前档大致对应哪种浓度类型。 */
+.conc-conc {
+  max-width: 460px;
+  margin: 2px auto 0;
+  font: 400 12px/1.6 var(--font-ui, system-ui);
+  color: var(--ink-3);
 }
 
-/* 焦点环：同心圆上的按钮必须有清晰焦点（键盘用户在环间移动）。 */
-.diffuse-ring:focus-visible,
+/* 焦点环：可键盘到达的答题控件必须有清晰焦点。 */
 .price-tab:focus-visible,
 .sky-band:focus-visible,
 .life-card:focus-visible,
@@ -905,7 +942,8 @@
        改成两列后位置信息让给"每条自己的天光"，方向仍然一眼可见；
      · .hour-rail 五列 → 横向滚动：地平线的顺序必须保留（那是内容），
        所以不换行、改成可横滑，顺序不动；
-     · .diffuse 的最大宽度收到 100%：同心环靠百分比定位，缩容器即可；
+     · .conc-scene 的最大宽度收到 100%、高度压到 170px：波纹靠百分比直径，
+       缩容器即可；刻度 min-width 收到 52px（320px 档距 ≈ 68px，仍不重叠）；
      · 所有 transition 时长减半（省电、少掉帧）。
    ============================================================ */
 @media (max-width: 620px) {
@@ -924,9 +962,8 @@
   }
   .hour-band { scroll-snap-align: start; }
 
-  .diffuse { max-width: 100%; }
-  .diffuse-hit .diffuse-label { font-size: 12px; }
-
+  .conc-scene { max-width: 100%; height: 170px; }
+  .conc-tick { min-width: 52px; }
   .life-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 
   .price-tab { flex: 1 1 100%; min-height: 74px; }
@@ -937,7 +974,7 @@
   .masthead .amb-tick { display: none; }
 
   .price-tab, .sky-band, .life-card, .hour-band,
-  .temp-stop, .diffuse-ring {
+  .temp-stop, .conc-ripple {
     transition-duration: .12s;
   }
 }
@@ -979,8 +1016,8 @@
     background: linear-gradient(90deg, #2d3438 0%, #35332f 50%, #3d362e 100%);
   }
 
-  /* 扩散场的色团在暗底上要更淡，否则环线看不清。 */
-  .diffuse .diffuse-core { opacity: .3; }
+  /* 波纹场的色雾在暗底上要更淡，否则环线看不清。 */
+  .conc-glow { opacity: .6; }
 
   /* 天际线的六条渐变在暗底上需要整体压暗，否则最亮那条（bright）
      会成为整屏最亮的元素 —— 那正是"底噪抢前景"的一种。 */
