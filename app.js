@@ -290,10 +290,7 @@ const STEPS = [
        （#app[data-step="unwanted"]）都认这个键，换新 id 等于三处一起改。 */
     id: 'unwanted',
     short: '避雷',
-    title: '只问最容易踩雷的几个',
-    /* help 保持原句不扩写：它必须落在**一行**里。多一句就换行，
-       把下面的「你已排除」整行顶到 sticky 导航条底下（实测过）。
-       「没闻过」这件事交给屏顶 .avoid-tip 说 —— 那里本来就要说。 */
+    title: '这些味道里，哪个你一闻就皱眉？',
     help: '都是你选的方向里最容易混进来的味道。点一下＝这个不要；不点就是接受',
     render: renderAvoid,
   },
@@ -2804,8 +2801,6 @@ function syncPhrasesToNotes() {
 
      · 候选不是固定 18 张，而是 src/avoid.js 按当前方向现算的模糊带，
        封顶 6 张；算不出时 curSteps() 已把整屏抽掉，走不到这里。
-     · 交互只有一种：点卡＝「这个不要」，不点＝接受。没有"想要"态，
-       所以不画双态卡片网格，另画一面纵列卡片墙。
      · 写回的仍是 answers.unwanted → dislikedNotes（-40 硬惩罚），
        映射层的唯一写入口 syncPhrasesToNotes 不变。
 
@@ -2815,18 +2810,25 @@ function syncPhrasesToNotes() {
 function renderAvoid() {
   const wrap = el('div', { class: 'fade-in' });
   const head = stepHead('unwanted');
+  wrap.appendChild(el('div', { class: 'avoid-skip-row' },
+    el('button', {
+      class: 'avoid-skip',
+      type: 'button',
+      onclick: () => {
+        state.answers.unwanted = [];
+        state.answers.noSmell = [];
+        syncPhrasesToNotes();
+        next();
+      },
+    }, '都能接受，跳过这步')
+  ));
   wrap.appendChild(el('div', { class: 'stage-lead' },
     el('div', { class: 'q-kicker' }, head.kicker),
     el('h2', { class: 'q-title' }, head.title),
     el('p', { class: 'q-help' }, head.help)
   ));
-  /* 代价提示（Eddie 2026-11-23 批准，QW10 诊断第 3 条）。
-     口径由任务书给定，只许润色不许改语义，且**不许出现内部数字** ——
-     「−40 / +14」是引擎权重，对用户是黑话，写出来只会让人以为这是可计算的交易。
-     位置在屏顶（页眉之下、卡片墙之上）：用户在点第一张卡之前就要看到它，
-     放到底部等于点完才提醒。 */
   wrap.appendChild(el('p', { class: 'avoid-tip' },
-    '点错一张会扣掉不少分。没闻过的，选「没闻过」就行 —— 它不加分也不扣分'));
+    '不确定就别点，点了也能再点一次取消'));
 
   const plan = avoidPlanNow();
   /* 数据没到齐（或方向还没定）：先占位。
@@ -2967,7 +2969,7 @@ function renderAvoid() {
       ? (lastOff
         ? `${last.zh} —— 没闻过，这条不算数`
         : `${last.zh} —— ${last.hint}`)
-      : '点卡＝这个不要；没闻过就点右边「没闻过」。两个都不点＝接受';
+      : '点卡＝这个不要；没闻过就点卡片右下角「没闻过」。两个都不点＝接受';
   };
 
   /* 同一条纪律（原「想要」屏的 togglePhrase 也是这一条，那屏已删）：
@@ -3013,12 +3015,6 @@ function renderAvoid() {
   for (const c of plan.cards) {
     const on = selNow().unwanted.includes(c.id);
     const off = selNow().noSmell.includes(c.id);
-    /* 一行＝主卡（整卡＝这个不要）＋右侧一枚独立「没闻过」小键。
-       为什么不把"没闻过"塞进卡里做成循环点击：<button> 里不许再放 <button>，
-       塞进去只能做成 span 上的 click，键盘用户按不到；而"一次点击循环三态"
-       会让撤销多说一次 —— 点了不要想撤回，再点一下就变成"没闻过"，
-       用户得再点一次才回到未选，这一手最容易误伤。两个独立靶子没有这个问题，
-       而且主卡的命中面积与语义一字未改（老断言的前提仍成立）。 */
     const row = el('div', {
       class: 'avoid-row',
       'data-row': c.id,
@@ -3039,12 +3035,13 @@ function renderAvoid() {
     },
       /* 标本风小图：复用圆盘那 24 枚上色 SVG，不新造图标。
          aria-hidden：句意已由 zh/hint 文本完整表达。 */
-      avoidSpecimen(c.specimen),
+      el('span', { class: 'avoid-art' }, avoidSpecimen(c.specimen),
+        el('span', { class: 'avoid-mark', 'aria-hidden': 'true' }, '不要')
+      ),
       el('span', { class: 'avoid-text' },
         el('span', { class: 'avoid-zh' }, c.zh),
         el('span', { class: 'avoid-hint' }, c.hint)
-      ),
-      el('span', { class: 'avoid-mark', 'aria-hidden': 'true' }, '这个不要')
+      )
     );
     const nope = el('button', {
       class: 'avoid-nope' + (off ? ' is-on' : ''),

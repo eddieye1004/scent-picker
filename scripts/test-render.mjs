@@ -1336,8 +1336,8 @@ ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textCon
    所以这一屏一定出现（不会被跳过）。断言改的是"屏的结构与交互"，不是放宽门槛。 */
 await advance();
 ok('第 2 屏是动态避雷（data-step=unwanted）', stepId() === 'unwanted', stepId());
-ok('避雷屏标题是「只问最容易踩雷的几个」',
-  getStepText().includes('只问最容易踩雷的几个'), getStepText().slice(0, 90));
+ok('避雷屏标题是「这些味道里，哪个你一闻就皱眉？」',
+  getStepText().includes('这些味道里，哪个你一闻就皱眉？'), getStepText().slice(0, 90));
 {
   const cards = appRoot.querySelectorAll('.avoid-card');
   ok('避雷屏是场景卡片墙（.avoid-wall），不是旧 life-grid',
@@ -1374,16 +1374,13 @@ ok('避雷屏标题是「只问最容易踩雷的几个」',
    三条都要在同一屏上验 —— 它们共用一段状态，分开验会各自"绿"而合起来错。 */
 {
   const cards = appRoot.querySelectorAll('.avoid-card');
-  /* ③ 代价提示：口径由任务书给定，这里守两件事 ——
-     ① 它在屏顶且在卡片墙之前（点第一张卡之前就能看到）；
-     ② 它不含任何内部权重数字（−40 / +14 是引擎术语，不许上屏）。 */
   const tip = appRoot.querySelectorAll('.avoid-tip')[0];
-  ok('避雷屏顶部有代价提示（.avoid-tip）', !!tip,
+  ok('避雷屏顶部有操作提示（.avoid-tip）', !!tip,
     `实际 ${appRoot.querySelectorAll('.avoid-tip').length} 条`);
-  ok('代价提示写清「点错会扣分」与「没闻过」两个口径',
-    !!tip && /扣/.test(tip.textContent) && /没闻过/.test(tip.textContent),
+  ok('操作提示写清不确定可留空、可再次点击取消',
+    !!tip && tip.textContent === '不确定就别点，点了也能再点一次取消',
     tip && tip.textContent);
-  ok('代价提示不含内部权重数字（−40 / +14 这类不许上屏）',
+  ok('操作提示不含内部权重数字（−40 / +14 这类不许上屏）',
     !!tip && !/[-−+]\s?\d+|40|14/.test(tip.textContent), tip && tip.textContent);
   /* 位置：提示必须先于卡片墙出现（DOM 顺序即朗读顺序与视觉顺序）。
      桩的选择器不支持逗号分组，所以直接读父节点的 children 顺序 ——
