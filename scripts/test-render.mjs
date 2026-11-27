@@ -1742,6 +1742,56 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
     `标题 ${seasonText.split(seasonHead.title).length - 1} 次 / 副标 ${seasonText.split(seasonHead.help).length - 1} 次`);
   ok('季节统计已删除', !/春 1331|夏 840|秋 1357|冬 548/.test(getStepText()));
 
+  /* ---- 3-4a：季节氛围粒子（v2 按基线翻倍）---- */
+  const expectedEffectCounts = { spring: 32, summer: 12, autumn: 28, winter: 44 };
+  const expectedKinds = { spring: 'petal', summer: 'sunspot', autumn: 'leaf', winter: 'snow' };
+  const atmosphere = appRoot.querySelector('.season-atmosphere');
+  const fxLayers = Object.keys(expectedEffectCounts).map((id) =>
+    atmosphere.querySelector(`.season-fx-${id}`));
+  const actualEffectCounts = fxLayers.map((layer) => layer.children.length);
+  ok('四季粒子按实际基线翻倍（32/12/28/44）',
+    fxLayers.every(Boolean)
+    && Object.keys(expectedEffectCounts).every((id, i) =>
+      actualEffectCounts[i] === expectedEffectCounts[id]),
+    actualEffectCounts.join('/'));
+
+  const particleStats = fxLayers.map((layer) => {
+    const nodes = layer.children;
+    return {
+      kinds: [...new Set(nodes.map((node) => node.classList.value.match(/season-particle-(\w+)/)[1]))],
+      sizes: [...new Set(nodes.map((node) => node.style.getPropertyValue('--size')))],
+      durations: [...new Set(nodes.map((node) => node.style.getPropertyValue('--duration')))],
+    };
+  });
+  ok('四类粒子各自可辨，且均为三档尺寸、两档速度',
+    particleStats.every((stat, i) => stat.kinds.length === 1
+      && stat.kinds[0] === expectedKinds[Object.keys(expectedKinds)[i]]
+      && stat.sizes.length === 3 && stat.durations.length === 2),
+    JSON.stringify(particleStats));
+
+  const quadrantCounts = fxLayers.map((layer) => {
+    const quadrants = [0, 0, 0, 0];
+    layer.children.forEach((node) => {
+      const x = parseFloat(node.style.getPropertyValue('--x'));
+      const y = parseFloat(node.style.getPropertyValue('--y'));
+      quadrants[(x >= 50 ? 1 : 0) + (y >= 50 ? 2 : 0)] += 1;
+    });
+    return quadrants;
+  });
+  ok('粒子横向按四象限等量分层，不只集中中央',
+    quadrantCounts.every((counts) => counts.every((count) => count === counts[0])),
+    JSON.stringify(quadrantCounts));
+
+  const totalBeforeSwitch = appRoot.querySelectorAll('.season-particle').length;
+  ['spring', 'summer', 'autumn', 'winter', 'all'].forEach((id) => {
+    const cell = cells.find((node) => node.getAttribute('data-season') === id);
+    if (cell) cell.dispatch('click', { detail: 0 });
+  });
+  const totalAfterSwitch = appRoot.querySelectorAll('.season-particle').length;
+  ok('反复切换四季与通用后粒子节点数不增长',
+    totalBeforeSwitch === 116 && totalAfterSwitch === totalBeforeSwitch,
+    `${totalBeforeSwitch} → ${totalAfterSwitch}`);
+
   cells[3].dispatch('click', { detail: 0 });
   await new Promise((r) => setTimeout(r, 60));
   ok('点选后白雾显示且目标格选中', !!mist && mist.classList.contains('is-visible')

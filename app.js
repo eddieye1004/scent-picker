@@ -3466,39 +3466,44 @@ function renderSeason() {
     applyAmbient();
   };
 
+  /* 每类粒子固定三档尺寸、两档速度；参数表集中在这里，四季通用场景
+     也复用同一套几何，不另造一套会漂移的随机规则。 */
+  const particleProfiles = {
+    petal: { sizes: [6, 8.5, 11], durations: [12, 19], opacities: [.42, .58, .74] },
+    sunspot: { sizes: [110, 180, 250], durations: [16, 28], opacities: [.16, .24, .32] },
+    leaf: { sizes: [7, 10, 13], durations: [11, 18], opacities: [.30, .46, .62] },
+    snow: { sizes: [2.5, 4, 5.5], durations: [16, 25], opacities: [.36, .55, .74] },
+  };
   const particle = (layer, kind, index, count) => {
     const node = el('span', { class: `season-particle season-particle-${kind}`, 'aria-hidden': 'true' });
-    const duration = kind === 'snow'
-      ? 18 + (index % 6) * 2.2
-      : kind === 'leaf'
-        ? 13 + (index % 5) * 2
-        : kind === 'petal'
-          ? 12 + (index % 5) * 1.8
-          : 18 + (index % 4) * 4;
-    const size = kind === 'snow'
-      ? 2 + (index % 4) * 1.1
-      : kind === 'leaf'
-        ? 8 + (index % 5) * 1.4
-        : kind === 'petal'
-          ? 6 + (index % 4) * 1.6
-          : 180 + (index % 3) * 70;
-    const opacity = kind === 'snow'
-      ? .22 + (index % 3) * .08
-      : kind === 'leaf'
-        ? .18 + (index % 4) * .05
-        : kind === 'petal'
-          ? .20 + (index % 3) * .06
-          : .26;
-    node.style.setProperty('--x', `${(index * 37 + count) % 100}%`);
-    node.style.setProperty('--y', `${8 + (index * 17) % 72}%`);
+    const profile = particleProfiles[kind];
+    const sizeTier = index % profile.sizes.length;
+    const speedTier = (Math.floor(index / profile.sizes.length) + index) % 2;
+    const size = profile.sizes[sizeTier];
+    const duration = profile.durations[speedTier];
+    const opacity = profile.opacities[sizeTier];
+    /* 横向按四个象限分层，每象限数量相同；纵相用互素步长铺满整个周期，
+       截图与切季都不会把粒子挤在中央或同一水平线上。 */
+    const quadrant = index % 4;
+    const quadrantIndex = Math.floor(index / 4);
+    const quadrantCount = Math.ceil((count - quadrant) / 4);
+    const x = (quadrant % 2) * 50 + ((quadrantIndex + .5) / quadrantCount) * 50;
+    const verticalBand = (quadrantIndex + (quadrant >= 2 ? 1 : 0)) % 2;
+    const rowsInBand = Math.ceil(quadrantCount / 2);
+    const bandIndex = Math.floor(quadrantIndex / 2);
+    const y = 8 + verticalBand * 42 + ((bandIndex + .5) / rowsInBand) * 42;
+    const phase = (((index * 17) % count) + .5) / count;
+    node.style.setProperty('--x', `${x.toFixed(3)}%`);
+    node.style.setProperty('--y', `${y.toFixed(3)}%`);
     node.style.setProperty('--size', `${size.toFixed(1)}px`);
     node.style.setProperty('--duration', `${duration.toFixed(1)}s`);
-    node.style.setProperty('--delay', `${(-(index * 1.7) % duration).toFixed(1)}s`);
-    node.style.setProperty('--drift', `${(index % 2 ? 1 : -1) * (20 + (index % 5) * 12)}px`);
+    node.style.setProperty('--delay', `${(-(phase * duration)).toFixed(1)}s`);
+    node.style.setProperty('--drift', `${(index % 2 ? 1 : -1) * (12 + sizeTier * 10 + speedTier * 8)}px`);
     node.style.setProperty('--particle-opacity', opacity.toFixed(2));
     layer.appendChild(node);
   };
-  const effectCounts = { spring: 16, summer: 6, autumn: 14, winter: 22 };
+  /* v2 按实际基线翻倍：16/6/14/22 → 32/12/28/44。 */
+  const effectCounts = { spring: 32, summer: 12, autumn: 28, winter: 44 };
   SEASONS.forEach((season) => {
     const layer = el('div', { class: `season-fx season-fx-${season.id}`, 'aria-hidden': 'true' });
     const count = effectCounts[season.id];

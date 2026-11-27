@@ -1897,8 +1897,8 @@
 }
 .season-particle-petal {
   border-radius: 72% 22% 70% 24%;
-  background: linear-gradient(135deg, rgba(255, 238, 244, .94), rgba(236, 164, 190, .72));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28);
+  background: linear-gradient(135deg, rgba(244, 177, 204, .98), rgba(217, 119, 160, .90));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .32);
   animation: season-petal-fall var(--duration) linear var(--delay) infinite;
 }
 .season-particle-sunspot {
