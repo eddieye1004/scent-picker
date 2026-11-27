@@ -3907,11 +3907,12 @@ async function finish(btn) {
     const pool = poolForBudget(d.perfumes, state.answers.budget);
     /* 避雷屏没上屏的低频模糊元素在这里软降权（0.94），不硬排除。 */
     const avoidSoftNotes = avoidSoftNow();
-    let res = recommend(state.answers, pool, TAX, { topN: 3, avoidSoftNotes });
+    const boostIds = gapBoostIds(pool, PHOTOS, AFF_LINKS);
+    let res = recommend(state.answers, pool, TAX, { topN: 3, avoidSoftNotes, boostIds });
     if (!res.results || res.results.length < 3) {
       /* ② 级的兜底：圈过的池凑不满 3 瓶时用全库重算。
          宁可给一瓶价位外的，也不给"只找到 1 瓶"。 */
-      res = recommend(state.answers, d.perfumes, TAX, { topN: 3, avoidSoftNotes });
+      res = recommend(state.answers, d.perfumes, TAX, { topN: 3, avoidSoftNotes, boostIds });
       res.poolFellBack = true;
     }
     /* 不再悄悄放宽：把档内/档外数出来交给结果页顶部明示（leg6）。
@@ -4723,6 +4724,303 @@ function pickArt(p) {
       decoding: 'async',
       draggable: 'false',
     }));
+}
+
+/* ============================================================
+   结果屏首屏 3 列比较表（腿 7a1，2026-11-26）
+   ------------------------------------------------------------
+   方案（tmp/scent-redesign-plan-20261126.md 腿 7）：
+     3 列比较表，行依次为：瓶图或标本卡、品牌加名字（最多两行）、
+     一句白话理由（引用用户的某个答案）、留香（文字）、价格、购买按钮；
+     每列顶部一个标签「最贴合 / 更好入手 / 换个方向」。
+     无图：族色底 + 子类图标（复用那 24 枚）+ 角标「示意 · 无实拍」，
+     不使用灰色占位。
+
+   **这一块只做首屏比较**：往下滚的详情（前中后调三段条、完整依据）
+   仍是既有的 `article.pick`，本腿一个字符都不动 —— 那是腿 7b 的活。
+   两处共用同一批数据（results / PHOTOS / AFF_LINKS / PRICE_INDEX），
+   不新算任何一项，所以首屏与详情不会出现两个数。
+
+   ==== 柱子的标签 ====
+   方案把三个标签与列位置写在同一句里，所以按位置固定：
+   第 1 列「最贴合」、第 2 列「更好入手」、第 3 列「换个方向」，
+   不额外比较两瓶的图/链接去争标签（那是排序环节的事）。
+
+   ==== 一句白话理由 ====
+   从引擎已经产出的 r.breakdown 里挑**命中用户答案**的那条因子，
+   翻成一句短白话；每条都带一个用户说过的词（选的香型/小类、
+   点名的香材、说的季节），不出现分数，也不新造事实。
+   三列按同一优先级各取一条，已用过的锚点不再给下一列。 */
+
+/* 这一瓶该用哪枚子类图标。三步，全部走数据里已有的东西，不新造分类：
+     ① 族内规则级联（与 src/scoring.js 的 boundaryPenalty 同一套判据：
+        priority 升序、第一个通过即归属；规则 id 与小类 id 同名）；
+     ② 规则表为空的族（fresh / gourmand）用香材重叠数取最多的一类；
+     ③ 还是一格都没命中的（实测 1388 瓶里 5 瓶）取该族第一个小类。
+   结果只用来选图标：卡片角标已写着「示意 · 无实拍」，它不声称自己是
+   精确分类，所以 ③ 这种兜底不构成对用户的错误陈述。 */
+function cmpSubfamilyOf(p) {
+  const famId = dominantFamily(p);
+  const fam = TAX && Array.isArray(TAX.families)
+    ? TAX.families.find((f) => f.id === famId) : null;
+  if (!fam) return null;
+  const subs = fam.subfamilies || [];
+  if (!subs.length) return null;
+  const notes = new Set((p.notesAll || []).map((n) => normNote(n)));
+  const has = (n) => notes.has(normNote(n));
+  const hitAny = (list) => (list || []).some(has);
+
+  if (Array.isArray(fam.rules) && fam.rules.length) {
+    const passes = (r) => {
+      if (!r) return false;
+      if (r.always) return true;
+      if (r.must && !r.must.every(has)) return false;
+      if (r.not && r.not.some(has)) return false;
+      if (r.any && !hitAny(r.any)) return false;
+      return true;
+    };
+    const ordered = [...fam.rules].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+    const rule = ordered.find(passes);
+    if (rule && subs.some((s) => s.id === rule.id)) return rule.id;
+  }
+
+  let best = null; let bestHit = 0;
+  for (const s of subs) {
+    const n = (s.notes || []).filter(has).length;
+    if (n > bestHit) { bestHit = n; best = s.id; }
+  }
+  return best || subs[0].id;
+}
+
+/* 无实拍那一格：族色底 + 子类图标。取图与盘心、避雷卡、中圈胶囊
+   走**同一条**通路（artPath → ART_CACHE / ART_READY），不新造图标、
+   不新造缓存。图标没到或取图失败时返回空 span，CSS 用 :empty 整块拿掉 ——
+   于是"没图"读作"一块族色纸"，而不是"一块缺了图标的白框"。 */
+function cmpSpecimenIcon(subId) {
+  const box = el('span', { class: 'cmp-fig-icon', 'aria-hidden': 'true' });
+  const path_ = artPath(subId);
+  if (!path_) return box;
+  const wrap = (inner) => {
+    box.innerHTML = '<svg viewBox="0 0 24 24" focusable="false">'
+      + artNs(inner, 'c' + (++artSeq)) + '</svg>';
+  };
+  const ready = ART_READY.get(path_);
+  if (ready) { wrap(ready); return box; }
+  artInnerPath(path_).then((inner) => {
+    if (!inner || !box.isConnected) return;
+    wrap(inner);
+  }).catch(() => { /* 取图失败：保持空 span，这一格就是纯族色底 */ });
+  return box;
+}
+
+/* 留香写成一句人话。数据源没有持香字段，longevityInferred 是按浓度推的
+   （taxonomy.concentrationLongevity.note 已声明），所以文案必须保留"推断"
+   的意思 —— 这里取的就是那张表里的同一段区间（3-5h → 3–5 小时），
+   单位换算是格式，不是新数据；表里没有这一档就退到「留香未标注」。
+
+   分两行而不是一行加括号：110px 宽下「留香 3–5 小时（按浓度推断）」
+   会在"（按浓"处折行，一个词被劈成两半。拆成"值 + 一句来源"两行，
+   断点落在语义边界上，而且这句来源**必须留**（见上）。 */
+function cmpLongevityText(p) {
+  const n = p && p.longevityInferred;
+  const labels = (TAX && TAX.concentrationLongevity && TAX.concentrationLongevity.labels) || {};
+  const raw = n == null ? null : labels[String(n)];
+  const m = raw ? String(raw).match(/（([^）]+)）/): null;
+  if (!m) return { value: '留香未标注', note: '' };
+  const span = m[1]
+    .replace(/^<(\d+)h$/, '不到 $1 小时')
+    .replace(/^(\d+)-(\d+)h$/, '$1–$2 小时')
+    .replace(/^(\d+)h\+$/, '$1 小时以上');
+  return { value: '留香 ' + span, note: '按浓度推断' };
+}
+
+/* 价格：只报价位带，不编具体价。查不到就明说未标注 ——
+   方案要求这一行存在，而"空着"会让三列的行高对不齐。 */
+function cmpPriceText(p) {
+  const label = priceLabelOf(p && p.id, priceIndex());
+  return label || '价位未标注';
+}
+
+/* 从引擎已经算好的 r.breakdown 里挑一条**命中用户答案**的因子，
+   翻成一句短白话。只做措辞，不改变匹配结果，也不编造没有的用户输入。
+   三列按同一优先级各取一条，已用过的锚点不再给下一列。 */
+const CMP_SEASON_ZH = { spring: '春', summer: '夏', autumn: '秋', winter: '冬' };
+const CMP_WARMTH_ZH = { warm: '暖', cool: '凉', neutral: '中间' };
+const CMP_CONC_ZH = { edp: '浓香', edt: '淡香', parfum: '香精', edc: '古龙水', elf: '淡香水' };
+function cmpSentenceOf(b, profile) {
+  if (!b) return '';
+  const names = (list) => [...new Set((list || []).filter(Boolean))].slice(0, 2).join('、');
+  switch (b.factor) {
+    case 'subfamilyHits':
+      return b.hits && b.hits.length
+        ? `你选的${b.subfamilyZh || '那一路'}，${names(b.hits)}就在这瓶里` : '';
+    case 'family':
+      if (!b.pickZh) return '';
+      return `你选的${b.pickZh}，这瓶${b.pickWeight >= 0.99 ? '以它为主' : b.pickWeight >= 0.6 ? '主调是它' : '也带一点'}`;
+    case 'likedNotes':
+      return b.hits && b.hits.length ? `含你点名的${names(b.hits)}` : '';
+    case 'anchor':
+      return b.hits && b.hits.length ? `含你看过那瓶的${names(b.hits)}` : '';
+    case 'emotionNotes':
+      return b.hits && b.hits.length && profile && profile.emotionZh
+        ? `你说爱「${profile.emotionZh}」，靠${names(b.hits)}` : '';
+    case 'season':
+      return CMP_SEASON_ZH[b.season] ? `你说${CMP_SEASON_ZH[b.season]}季，这瓶也标了${CMP_SEASON_ZH[b.season]}季` : '';
+    case 'timeOfDay':
+      return b.time ? `你要${b.time === 'day' ? '白天' : '夜晚'}，这瓶合适` : '';
+    case 'character':
+      return b.character ? `有你要的「${b.characterZh || b.character}」` : '';
+    case 'concentration':
+      return b.concentration ? `浓度是你要的${CMP_CONC_ZH[b.concentration] || b.concentration}` : '';
+    case 'temperature':
+      return b.want && b.want !== 'neutral' && b.mine
+        ? `你说要${CMP_WARMTH_ZH[b.want]}的，这瓶偏${CMP_WARMTH_ZH[b.mine] || '中间'}` : '';
+    case 'intensity': {
+      /* 引擎原句「厚重感 0.5，比你要的 3/5 更清透」带分数，首屏一律不上数字。
+         翻成新手语言：只说浓淡感受（「偏清爽，不闷」），并用「你要的」
+         把这句接到用户刚才选的浓淡档，不新造事实。 */
+      const want = profile && Number(profile.intensity) ? Number(profile.intensity) : 3;
+      const target = (want - 1) / 4;
+      const heavy = Number(b.heaviness || 0);
+      if (Math.abs(heavy - target) <= 0.12) return '浓淡刚好，和你要的差不多';
+      return heavy < target ? '比你要的更清爽，不闷' : '比你要的更浓郁，存在感更强';
+    }
+    case 'dislikedFamily':
+      return b.familyZh ? `不属于你划掉的${b.familyZh}` : '';
+    default:
+      return '';
+  }
+}
+const CMP_REASON_ORDER = [
+  'subfamilyHits', 'family', 'likedNotes', 'anchor', 'emotionNotes',
+  'season', 'timeOfDay', 'character', 'concentration', 'temperature', 'intensity', 'dislikedFamily',
+];
+function cmpReasonOf(r, profile, used) {
+  const rows = ((r && r.breakdown) || []).filter(Boolean);
+  let fallback = '';
+  for (const factor of CMP_REASON_ORDER) {
+    const b = rows.find((x) => x.factor === factor);
+    const text = cmpSentenceOf(b, profile);
+    if (!text) continue;
+    if (!fallback) fallback = text;
+    if (!used.has(text)) return text;
+  }
+  return fallback;
+}
+
+/* 这一瓶的购买入口：首屏只有一格位置，所以只出一条，挑法从"最像这一瓶"
+   往下顺延 —— 商品页 > 无佣金直达页 > 平台搜索页。
+   `searchLanding` 的 direct 链接（淘宝 official/market 两个渠）落地是
+   **搜索结果页**，所以它必须说「搜」不能说「直达」（与详情卡同一套诚实规则）。 */
+function cmpBuyOf(p, aff) {
+  const links = affiliateLinks(p, aff) || [];
+  const product = links.find((l) => l.kind !== 'search' && !l.searchLanding);
+  if (product) {
+    return {
+      href: product.href, platform: product.platform, platformZh: product.platformZh,
+      kind: product.kind, direct: product.kind === 'direct', isProduct: true,
+      label: '直达商品',
+    };
+  }
+  /* 没有商品页：方案点名「去淘宝搜这瓶」。走既有 platformLinks 取配置，
+     不手拼 URL；淘宝配不出来时才退其它平台，文案按实际平台写。 */
+  const tao = platformLinks(p, 'taobao', aff) || [];
+  const l = tao[0] || links[0];
+  if (!l) return null;
+  return {
+    href: l.href, platform: l.platform, platformZh: l.platformZh,
+    kind: l.kind, direct: l.kind === 'direct', isProduct: false,
+    label: `去${l.platformZh}搜这瓶`,
+  };
+}
+
+/* 三列标签：方案把标签与列位置写在同一句里，按位置固定。 */
+const CMP_TABS = ['最贴合', '更好入手', '换个方向'];
+function cmpTabLabels(results) {
+  return results.map((_, i) => CMP_TABS[i] || '');
+}
+
+/* 一格标本卡（无实拍）。族色底取自瓶子的主族，与详情卡的瓶形配色同源，
+   所以同一瓶在首屏和详情里是同一个色系。 */
+function cmpFigure(p) {
+  const fam = dominantFamily(p);
+  const sub = cmpSubfamilyOf(p);
+  const specimen = () => el('figure', { class: 'cmp-fig is-specimen', 'data-fam': fam },
+    cmpSpecimenIcon(sub),
+    el('figcaption', { class: 'cmp-fig-tag' }, '示意 · 无实拍'));
+  const src = artSourceOf(p, PHOTOS);
+  if (!src) return specimen();
+  const img = el('img', {
+    src,
+    alt: '',
+    role: 'presentation',
+    loading: 'lazy',
+    decoding: 'async',
+    draggable: 'false',
+  });
+  const fig = el('figure', { class: 'cmp-fig is-photo' }, img);
+  /* 照片路径失效也按「无图」处理：换成族色标本卡，不留下白破图。 */
+  img.addEventListener('error', () => {
+    fig.replaceChildren(cmpSpecimenIcon(sub),
+      el('figcaption', { class: 'cmp-fig-tag' }, '示意 · 无实拍'));
+    fig.className = 'cmp-fig is-specimen';
+    fig.dataset.fam = fam;
+  });
+  return fig;
+}
+
+/* 整张表。results 顺序即详情卡顺序（第 1 列 = 候选 01）。 */
+function renderCompareTable(results, profile) {
+  const aff = affiliateConfig();
+  const buys = results.map((r) => cmpBuyOf(r.perfume, aff));
+  const tabs = cmpTabLabels(results);
+  /* 三列的理由逐列挑，已用过的那句交给下一列排除（判据见 cmpReasonOf）。 */
+  const usedReasons = new Set();
+
+  const cols = results.map((r, i) => {
+    const p = r.perfume;
+    const buy = buys[i];
+    const reasonText = cmpReasonOf(r, profile, usedReasons);
+    if (reasonText) usedReasons.add(reasonText);
+
+    const buyNode = buy
+      ? el('a', {
+        class: 'cmp-buy' + (buy.isProduct ? '' : ' is-search'),
+        href: buy.href,
+        target: '_blank',
+        rel: buy.direct ? 'sponsored noopener noreferrer' : 'noopener noreferrer',
+        'data-affiliate': buy.direct ? 'true' : 'false',
+        'data-kind': buy.kind,
+        'data-platform': buy.platform,
+        /* 首屏按钮只有 4–5 个字，把"去哪、是不是商品页"补进无障碍名 ——
+           视觉上放不下的信息，读屏不该跟着丢。 */
+        'aria-label': buy.isProduct
+          ? `在${buy.platformZh}直达 ${p.brand} ${p.name} 的商品页（新窗口）`
+          : `在${buy.platformZh}搜索 ${p.brand} ${p.name}（新窗口，搜索结果页）`,
+      }, buy.label)
+      : el('p', { class: 'cmp-nobuy' }, '暂无购买入口');
+
+    const longevity = cmpLongevityText(p);
+
+    return el('div', { class: 'cmp-col' },
+      el('p', { class: 'cmp-tab' }, tabs[i]),
+      cmpFigure(p),
+      el('div', { class: 'cmp-names' },
+        el('p', { class: 'cmp-brand' }, p.brand || ''),
+        el('h3', { class: 'cmp-name', title: p.name }, p.name)),
+      el('p', { class: 'cmp-reason' }, reasonText),
+      el('p', { class: 'cmp-meta' },
+        el('span', { class: 'cmp-sr' }, '留香'),
+        longevity.value,
+        longevity.note ? el('span', { class: 'cmp-meta-note' }, longevity.note) : null),
+      el('p', { class: 'cmp-price' },
+        el('span', { class: 'cmp-sr' }, '价格'),
+        cmpPriceText(p)),
+      buyNode);
+  });
+
+  return el('section', { class: 'cmp', 'aria-label': '三瓶对比' },
+    el('div', { class: 'cmp-cols' }, ...cols));
 }
 
 /* ============================================================
@@ -5792,6 +6090,11 @@ function renderResult() {
     ));
   }
 
+  /* 首屏 3 列比较表（腿 7a1，2026-11-26）。位置在页头之后、三张详情卡之前：
+     先让人一眼看出"这三瓶差在哪、下一步点哪个"，再往下才是逐瓶详情。
+     详情卡（article.pick）本腿一个字未改 —— 那是腿 7b 的活。 */
+  wrap.appendChild(renderCompareTable(results, state.result && state.result.profile));
+
   /* 存入反馈：一条**不挡操作、自动消失**的轻提示。
      为什么不用 toast 框架：本页只有这一处需要"说过就完"的短句，
      为它引入定位层、队列与堆叠规则，代价远大于收益。
@@ -6265,18 +6568,19 @@ async function reshuffle(btn) {
     const want = 3 + view.soldOut.length;
     /* 与 finish() 同一份软降权名单 —— 换一批不能把避雷屏的软降权弄丢。 */
     const avoidSoftNotes = avoidSoftNow();
-    let res = recommend(state.answers, pool, TAX, { topN: want, avoidSoftNotes });
+    const boostIds = gapBoostIds(pool, PHOTOS, AFF_LINKS);
+    let res = recommend(state.answers, pool, TAX, { topN: want, avoidSoftNotes, boostIds });
     /* 先按已出过的滤，滤完不足 3 瓶就退回全库再滤一次 */
     let picked = (res.results || []).filter((r) => !view.soldOut.includes(r.perfume.id)).slice(0, 3);
     if (picked.length < 3) {
-      res = recommend(state.answers, d.perfumes, TAX, { topN: want, avoidSoftNotes });
+      res = recommend(state.answers, d.perfumes, TAX, { topN: want, avoidSoftNotes, boostIds });
       picked = (res.results || []).filter((r) => !view.soldOut.includes(r.perfume.id)).slice(0, 3);
     }
     /* 真的换不出新的了（库就这么大）：如实说，不假装换过。
        重置 soldOut 让用户可以重新开始一轮 —— 但按钮文案要说明这件事。 */
     if (picked.length < 3) {
       view.soldOut = [];
-      res = recommend(state.answers, pool, TAX, { topN: 3, avoidSoftNotes });
+      res = recommend(state.answers, pool, TAX, { topN: 3, avoidSoftNotes, boostIds });
       picked = res.results || [];
       view.round = 0;
     } else {
@@ -6767,6 +7071,31 @@ document.addEventListener('DOMContentLoaded', boot);
    而推广链接的降级矩阵是纯函数（不碰 DOM、不碰 state），在测试里直接调
    比渲染三张卡再 inspect 快也准。这里只暴露一个，不扩大面。 */
 export const __badgeText = topBadgeText;
+/* 腿7a3：分差偏向用的「有图且有直达商品链接」瓶集合。
+   纯函数：只读数据层已加载的 PHOTOS / AFF_LINKS，不改任何状态。
+   引擎据此在 ≤2% 分差内优先选这些瓶。 */
+function gapBoostIds(perfumes, photos, affLinks) {
+  const ids = [];
+  const aff = affiliateConfig();
+  for (const p of perfumes || []) {
+    if (!p || !p.id) continue;
+    if (!artSourceOf(p, photos)) continue;
+    /* "有链接"= 有直达商品链接：与 7a1/7a2 的判定同一条
+       （搜索兜底每瓶都有，不算这里说的"有链接"）。 */
+    const links = affiliateLinks(p, aff) || [];
+    const hasDirect = links.some((l) => l.kind !== 'search' && !l.searchLanding);
+    if (hasDirect) ids.push(p.id);
+  }
+  return ids;
+}
+/* leg7a2：首屏理由/链接的纯函数句柄，专项验证直接调，
+   不必走真渲染就能逐格验「厚重感 0.5 → 偏清爽，不闷」与按钮文案。 */
+export const __gap = { boostIds: gapBoostIds };
+export const __cmp = {
+  sentence: cmpSentenceOf,
+  reason: cmpReasonOf,
+  buy: cmpBuyOf,
+};
 export const __aff = {
   config: affiliateConfig,
   href: affiliateHref,

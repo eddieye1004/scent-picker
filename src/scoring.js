@@ -956,6 +956,40 @@ export function entersFamilyPool(perfume, familyId, mode = 'strict') {
   return false;
 }
 
+/* ---------- 分差偏向（腿7a3，Eddie 已定）----------
+   规则：分差 ≤2% 时优先选有图、有链接的瓶；分差 >2% 时按分数排。
+
+   "有图有链接"由调用方通过 opts.boostIds 给出（瓶 id 集合）——引擎不读
+   photos.json / affiliate-links.json，那是 app.js 数据层的职责。
+   不传 boostIds 时本函数原样返回，老行为与老测试逐位不变。
+
+   算法是对按分数降序的数组做"受限插入"：有 boost 的瓶可越过与它
+   分差 ≤2%（相对被越过者分数）且没有 boost 的瓶，一遇分差 >2% 或
+   同样有 boost 的瓶就停。于是：分差 >2% 绝不换序（按分数）；
+   分差 ≤2% 的窄带内，有图有链接的瓶浮到带内最前。
+   相对分差用 (高分-低分)/高分，与项目既有"用原始 score 而非 matchPct
+   判分差"的口径一致（见 app.js 结果卡 top 徽标）。 */
+export function applyGapPreference(scored, boostIds) {
+  const boost = boostIds instanceof Set ? boostIds : new Set(boostIds || []);
+  if (!boost.size) return scored;
+  const GAP = 0.02;
+  const out = [];
+  for (const s of scored) {
+    let pos = out.length;
+    if (boost.has(s.perfume && s.perfume.id)) {
+      while (pos > 0) {
+        const prev = out[pos - 1];
+        if (boost.has(prev.perfume && prev.perfume.id)) break;
+        const gap = prev.score > 0 ? (prev.score - s.score) / prev.score : 0;
+        if (gap > GAP) break;
+        pos--;
+      }
+    }
+    out.splice(pos, 0, s);
+  }
+  return out;
+}
+
 export function recommend(answers, perfumes, taxonomy, opts = {}) {
   const topN = opts.topN ?? 3;
   const profile = buildProfile(answers, taxonomy, opts);
@@ -1022,7 +1056,7 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
     });
   } : () => false;
 
-  const scored = perfumes.map((p) => {
+  let scored = perfumes.map((p) => {
     const r = scorePerfume(p, profile, taxonomy, opts);
     /* opts.boundary === false 时关闭惩罚，仅供 scripts/probe-boundary.mjs 做 A/B。 */
     const mul = opts.boundary === false ? 1 : boundaryPenalty(p);
@@ -1032,6 +1066,9 @@ export function recommend(answers, perfumes, taxonomy, opts = {}) {
     if (softMul !== 1) row.avoidSoftMul = softMul;
     return row;
   }).sort((a, b) => b.score - a.score);
+
+  /* 分差偏向（腿7a3）：分差 ≤2% 时优先有图有链接的瓶，>2% 按分数排。 */
+  scored = applyGapPreference(scored, opts.boostIds);
 
   // 香型轮盘入口：优先只从"真的是这一族"的瓶里挑。
   // 否则会出现"你选了柑橘调，第二名只是带一点柑橘"——推荐自己承认跑偏。
