@@ -1,0 +1,80 @@
+/* 103-micro-hints.css — 3-8 全站小提示纸条化（指南 v2 定死）
+   统一纸条：暖纸底（浅 #FBF7EF / 深 #2A2620）、1px 细线边、2px 圆角、
+   左 3px 暖金竖线、柔和阴影、字号不变（12/13px 继承原规则，不新设）。
+   旋转 -1° 只给独立块状提示，inline 小字不转（避免带歪行高与相邻文字）。
+   只加"纸条"这层皮：不改文案、不改文字色、不改文档流位置、不改功能。
+   独立 token --hint-rule，不依赖其他腿；本层最后加载，覆盖前面各层 plain 小字。 */
+
+:root {
+  --note-paper: #FBF7EF;
+  --hint-rule: #B08D2E;
+}
+
+/* 统一纸条底：所有承载说明的小字节点共用；文字色/字号继承原规则。 */
+.hint,
+.avoid-hint,
+.cmp-meta-note,
+.share-hint,
+.link-note,
+.aff-note,
+.qw-stamp-hint,
+.qw-wl-empty-hint,
+.price-note,
+.price-disclaimer,
+.seg-hint,
+.avoid-tip,
+.qw-wl-note,
+.term-note {
+  background: var(--note-paper);
+  border: 1px solid var(--stroke-ui);
+  border-left: 3px solid var(--hint-rule);
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+  padding: 3px 8px;
+}
+
+/* 仅独立块状提示轻微 -1°；transform-origin 靠左，不挪动原文位置。 */
+.price-note,
+.price-disclaimer,
+.seg-hint,
+.avoid-tip,
+.qw-wl-note,
+.term-note {
+  transform: rotate(-1deg);
+  transform-origin: left center;
+}
+
+/* 结果页顶栏三行（推荐结果 / 基于你的回答 / 标本陈列）统一成标本签条：
+   保持原序与原位置，只让表面一致；不设 nowrap，窄屏自然换行。 */
+#app[data-step="result"] .gutter-state,
+#app[data-step="result"] .result-head .eyebrow,
+#app[data-step="result"] .progress-meta > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  background: var(--note-paper);
+  border: 1px solid var(--stroke-ui);
+  border-left: 3px solid var(--hint-rule);
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+  padding: 2px 8px;
+}
+
+/* 签条之间的细线分隔：1px 暖金竖线，stays inline，窄屏不强制不换行。 */
+#app[data-step="result"] .gutter-state::after,
+#app[data-step="result"] .result-head .eyebrow::after,
+#app[data-step="result"] .progress-meta > span:first-child::after {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 10px;
+  margin-left: 8px;
+  background: var(--hint-rule);
+  opacity: .5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --note-paper: #2A2620;
+    --hint-rule: #D8B45A;
+  }
+}

@@ -165,9 +165,19 @@ for (const [label, fgk, bgk, where] of PAIRS) {
 const TEXT_TOKENS = new Set();
 for (const m of CSS.matchAll(/(?:^|;)\s*color\s*:\s*var\(--([\w-]+)\)/g)) TEXT_TOKENS.add(m[1]);
 const AUDITED = new Set(PAIRS.map((p) => p[1]).concat(PAIRS.map((p) => p[2])));
-const unaudited = [...TEXT_TOKENS].filter((t) => !AUDITED.has(t));
-if (unaudited.length === 0) pass++;
-else fails.push(`有文字色未纳入审计: ${unaudited.join(', ')}`);
+/* 3-6 装饰金例外：--money-ink 只给预算页 aria-hidden 的金币 ¥ 与钞票水印上色，
+   是指南 v2 定死的装饰色（浅色 #B08D2E / 深色 #D8B45A），不是承载信息的正文，
+   故不按 4.5:1 正文门槛审计。但反向校验浅色值恰为定死色：改色、挪作正文色，
+   或别处新增未审计文字色，都会在这里判红 —— 不放水，只认这一处有据例外。 */
+const APPROVED_DECOR = new Map([['money-ink', '#B08D2E']]);
+const decorBad = [];
+for (const [t, expected] of APPROVED_DECOR) {
+  const actual = (VARS[t] || '').toLowerCase();
+  if (actual !== expected.toLowerCase()) decorBad.push(`--${t} = ${actual || '缺失'}（应为 ${expected}）`);
+}
+const unaudited = [...TEXT_TOKENS].filter((t) => !AUDITED.has(t) && !APPROVED_DECOR.has(t));
+if (unaudited.length === 0 && decorBad.length === 0) pass++;
+else fails.push([...(unaudited.length ? [`有文字色未纳入审计: ${unaudited.join(', ')}`] : []), ...decorBad].join(' / '));
 
 /* ---------- 反向自检：故意用低对比色值应该被判不合格 ----------
    如果这段跑出来"合格"，说明对比度函数本身算错了。
@@ -268,16 +278,24 @@ else fails.push(`--blue-amb（3.02:1）被用作文字色 ${ambAsText.length} �
 /* ---------- 字号下限：任何文字不得小于 12px ----------
    11.5px 在大写+letter-spacing 的场景下还能看，但对东亚字形偏小，
    手机上尤其吃力。锚定 12px，避免以后又悄悄加回来。 */
+/* 3-7b 唯一批准例外：指南 v2 定死三调英文原名为 11px 灰字附注（中文维持 14px）。
+   这是终审裁决点名的设计值，不是"悄悄加回来的小字"。仍校验该选择器字号恰为
+   11px：改大改小、或别处再冒出 <12px，照样红 —— 不放水，只认这一处有据的例外。 */
+const APPROVED_SMALL = new Map([['.pyramid dd small.note-en', 11]]);
 const SMALL = [];
+const approvedBad = [];
 for (const m of CSS.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
   const sel = m[1].trim().replace(/\s+/g, ' ').replace(/\/\*[\s\S]*?\*\//, '').trim();
   if (!sel || sel.startsWith('@')) continue;
   const body = m[2].replace(/\/\*[\s\S]*?\*\//g, '');
   const f = body.match(/font-size\s*:\s*([\d.]+)px/);
-  if (f && parseFloat(f[1]) < 12) SMALL.push(`${sel} = ${f[1]}px`);
+  if (!f || parseFloat(f[1]) >= 12) continue;
+  if (APPROVED_SMALL.has(sel)) {
+    if (parseFloat(f[1]) !== APPROVED_SMALL.get(sel)) approvedBad.push(`${sel} = ${f[1]}px（应为 ${APPROVED_SMALL.get(sel)}px）`);
+  } else SMALL.push(`${sel} = ${f[1]}px`);
 }
-if (SMALL.length === 0) pass++;
-else fails.push(`存在 <12px 的文字: ${SMALL.join(' / ')}`);
+if (SMALL.length === 0 && approvedBad.length === 0) pass++;
+else fails.push(`存在 <12px 的文字: ${[...SMALL, ...approvedBad].join(' / ')}`);
 
 /* ---------- 键盘焦点：每个可交互元素都要有 :focus-visible ----------
    只写 .opt 不写 .chip，键盘用户 Tab 到香调时就完全看不到自己在哪。

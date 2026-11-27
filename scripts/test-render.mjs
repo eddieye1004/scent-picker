@@ -2699,6 +2699,33 @@ ok('吐出 3 瓶', picks.length === 3, `实际 ${picks.length}`);
 }
 
 ok('有前中后调表', appRoot.querySelectorAll('.pyramid').length === 3);
+/* 3-7b 新增：三调每味都要按原始英文键查表 —— 有译名则中文与英文同名在，
+   无译名（pending）则英文原名回退；缺英文就是渲染漏了键。 */
+{
+  const zhTable = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/note-zh.json'), 'utf8'));
+  const pendTable = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/note-zh.pending.json'), 'utf8'));
+  const resultResults = (appMod.__state.result && appMod.__state.result.results) || [];
+  const dds = appRoot.querySelectorAll('.pyramid dd');
+  const bad = [];
+  let checked = 0;
+  resultResults.forEach((r, ri) => {
+    ['top', 'heart', 'base'].forEach((k, ki) => {
+      const dd = dds[ri * 3 + ki];
+      const p0 = r.perfume || {};
+      const notes = Array.isArray(p0[k]) ? p0[k] : [];
+      const txt = dd ? dd.textContent : '';
+      notes.forEach((en) => {
+        const zh = zhTable[en];
+        if (zh && !txt.includes(zh)) bad.push(`#${ri}${k} ${en} 缺中文「${zh}」`);
+        if (en in pendTable && !txt.includes(en)) bad.push(`#${ri}${k} 待审 ${en} 未回退英文`);
+        if (!txt.includes(en)) bad.push(`#${ri}${k} ${en} 缺英文原名`);
+        checked++;
+      });
+    });
+  });
+  ok('三调逐味：有译名显示中文、缺译名回退英文、英文原名保留',
+    checked > 0 && bad.length === 0, bad.slice(0, 3).join(' | ') || `核对 ${checked} 味`);
+}
 ok('有推荐理由', appRoot.querySelectorAll('.reasons').length === 3);
 ok('每条理由数量 >=1',
   appRoot.querySelectorAll('.reasons').every((r) => r.querySelectorAll('li').length >= 1));

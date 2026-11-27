@@ -552,6 +552,9 @@ function zhOfPhrases(ids) {
    「300 元以内」，用户点开购买链接会发现价格翻十倍 —— 一次信任损耗。
    界面必须把这句话写出来，见 renderBudget 的说明行。 */
 let PRICE_INDEX = null;
+/* 3-7b：结果页三调的中文译名表，data/note-zh.json。加载失败时留空表，
+   渲染按原始英文键回退，绝不让数据问题挡住结果页。 */
+let NOTE_ZH = {};
 function priceIndex() { return PRICE_INDEX; }
 
 /* 库容（瓶数）的唯一来源。所有**用户可见**的「全库 N 瓶」都必须从这里取，
@@ -2772,6 +2775,14 @@ function renderBudget() {
   const bands = idx && Array.isArray(idx.bands) ? idx.bands : [];
   const anyId = (idx && idx.anyId) || 'any';
 
+  /* 3-6 钱袋标尺：横向纸币带 + ¥ 水印 + 面额刻度（与 bands 一一对应）。
+     纯装饰（aria-hidden）：刻度取 bands 的 lo/hi，不引入 622/1388 等全库总数。 */
+  wrap.appendChild(el('div', { class: 'money-ruler', 'aria-hidden': 'true' },
+    el('span', { class: 'money-watermark' }, '¥'),
+    el('div', { class: 'money-scale' },
+      ...bands.map((b) => el('span', { class: 'money-tick' },
+        b.hi != null ? `${b.lo}–${b.hi}` : `${b.lo}+`)))));
+
   const row = el('div', { class: 'price-row', role: 'radiogroup', 'aria-label': '价位区间' });
   /* 「不限 / 还不知道」永远在最后：它是退路，不该出现在第一个位置
      —— 第一个位置会被读成"推荐选项"。
@@ -2811,6 +2822,7 @@ function renderBudget() {
       /* 剪口：一枚小三角，选中时翻起。用 span 而不是伪元素，
          因为要能被读屏忽略（aria-hidden）。 */
       el('span', { class: 'price-notch', 'aria-hidden': 'true' }),
+      el('span', { class: 'price-coin', 'aria-hidden': 'true' }, '¥'),
       el('span', { class: 'price-zh' }, o.zh),
       o.n != null ? el('span', { class: 'price-n' }, low ? `只有 ${o.n} 瓶` : `已知价 ${o.n} 瓶`) : null
     ));
@@ -2822,6 +2834,11 @@ function renderBudget() {
   wrap.appendChild(el('p', { class: 'price-note' }, unknown != null
     ? `价位未知的 ${unknown} 瓶只在「不限」里出现`
     : '价位未知的瓶子只在「不限」里出现'));
+
+  /* 3-6 纸条小字：已核实 budget 只在 poolForBudget 圈池、不进 scoringAnswers
+     （src/scoring.js 无 budget），『不参与打分』属实。用独立类 .price-disclaimer，
+     不占 .price-note，守住『预算屏只留一行 .price-note』的既有断言。 */
+  wrap.appendChild(el('p', { class: 'price-disclaimer' }, '价格只筛范围，不参与打分'));
 
   wrap.appendChild(navBar('budget'));
   paintCta();
@@ -6721,10 +6738,22 @@ function renderResult() {
       ['中调', p.heart, '半小时后的主体'],
       ['后调', p.base, '留在皮肤上的余味'],
     ];
+    /* 3-7b：按香调原始英文键查中文表；中文为主、英文作 11px 灰字附注。
+       缺键（含 note-zh.pending.json 里的存疑条目）就只显示英文原名，不编译名。
+       分隔仍用「、」，提示仍用全角空格开头的 span —— 下游 test-render
+       靠这两个字符切段数，改标点会让「条与表同一份数据」那条断言假红。 */
     rows.forEach(([label, notes, tip]) => {
+      const list = Array.isArray(notes) ? notes : [];
+      const bits = [];
+      list.forEach((en, i) => {
+        const zh = NOTE_ZH[en];
+        if (zh) bits.push(zh);
+        bits.push(el('small', { class: 'note-en' }, en));
+        if (i < list.length - 1) bits.push('、');
+      });
       dl.append(
         el('dt', {}, label),
-        el('dd', {}, notes.join('、'), el('span', {}, `　${tip}`))
+        el('dd', {}, ...bits, el('span', {}, `　${tip}`))
       );
     });
     detail.appendChild(dl);
@@ -7609,12 +7638,16 @@ async function boot() {
        两条各自的降级互不牵连（price-bands 读不到只影响预算屏的价签，
        taxonomy 失败重试一次，仍失败才走 catch 的「加载失败」页）。
        两路都覆盖 fetch 与 JSON body 读取，单路上限 8 秒。 */
-    const [priceData, taxData] = await Promise.all([
+    /* 3-7b：中文译名表与首屏两路并行取，但不作为首屏门槛 ——
+       catch 成空表后结果页按英文原名回退，读不到表不该变成「加载失败」。 */
+    const [priceData, taxData, noteZhData] = await Promise.all([
       fetchJsonWithTimeout(new URL('data/price-bands.json', base)).catch(() => null),
       fetchTaxonomyWithRetry(new URL('data/taxonomy.json', base)),
+      fetchJsonWithTimeout(new URL('data/note-zh.json', base)).catch(() => ({})),
     ]);
     PRICE_INDEX = priceData || null;
     TAX = taxData;
+    NOTE_ZH = noteZhData || {};
     render();
   } catch (err) {
     $('#app').innerHTML = `<div class="masthead"><h1>加载失败</h1></div>
