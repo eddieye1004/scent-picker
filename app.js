@@ -930,9 +930,7 @@ function scentPlate(sub) {
   /* 名字最多列两味。实测四味的名字在 360px 视口是 144px 宽，
      而盘心只有 156px 且是圆的 —— 一行放不下、折两行又把「换一个大类」顶出去。
      完整清单留在 aria-label 里，视觉上两味足够说明这格是哪一路气味。 */
-  const capText = entries.slice(0, 2).map((e) => e.zh).join(' · ')
-    + (entries.length > 2 ? ' 等' : '');
-  wrap.appendChild(el('div', { class: 'plate-cap' }, capText));
+  wrap.appendChild(el('div', { class: 'plate-cap' }, subFullName(sub)));
   // 图形本身是装饰，语义交给屏幕阅读器读这句话，避免读出「一张图」却没有内容
   wrap.setAttribute('role', 'img');
   wrap.setAttribute('aria-label',
@@ -1081,6 +1079,9 @@ function hubOrnament(families) {
   svg.appendChild(svgEl('path', { class: 'orn-cross', d: 'M46 50 H54 M50 46 V54' }));
   return svg;
 }
+
+/* 腿8-A：textPath 弧文字轨道的全局唯一 id（重建不重复） */
+let leg8ArcSeq = 0;
 
 function buildWheel(cfg) {
   /* backHost：返回胶囊的挂载点。2026-11-24 裁决 A 之后它不在 .wheel 里了
@@ -1779,12 +1780,33 @@ function buildWheel(cfg) {
       const g = svgEl('g', {
         class: 'sub-g',
         'data-sub': item.id,
+        'data-fam': fam.id,
         style: '--i: ' + i + '; --n: ' + n,
       });
       g.appendChild(svgEl('path', {
         class: 'sub-arc',
         d: annulusPath(SUB_R2O, SUB_R2I, a0, a1),
       }));
+      /* 腿8-A：子类名沿弧带中线排成弧形字（SVG textPath），12px，不出弧带。
+         全名常态显示；320 档由 CSS 切到短标签（.lg-full / .lg-short）。 */
+      const rText = (SUB_R2O + SUB_R2I) / 2;
+      const [tx0, ty0] = polar(rText, a0 + gap);
+      const [tx1, ty1] = polar(rText, a1 - gap);
+      const arcTextId = 'leg8-arc-' + (++leg8ArcSeq);
+      g.appendChild(svgEl('path', {
+        id: arcTextId, class: 'sub-arc-guide',
+        d: 'M ' + tx0.toFixed(2) + ' ' + ty0.toFixed(2)
+          + ' A ' + rText + ' ' + rText + ' 0 0 1 ' + tx1.toFixed(2) + ' ' + ty1.toFixed(2),
+        fill: 'none', stroke: 'none',
+      }));
+      const labelText = svgEl('text', { class: 'sub-arc-text', 'text-anchor': 'middle' });
+      const tpFull = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%', class: 'lg-full' });
+      tpFull.textContent = subFullName(item);
+      const tpShort = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%', class: 'lg-short' });
+      tpShort.textContent = subShortLabel(item);
+      labelText.appendChild(tpFull);
+      labelText.appendChild(tpShort);
+      g.appendChild(labelText);
       svg.appendChild(g);
       subGs.push(g);
 
@@ -1820,7 +1842,7 @@ function buildWheel(cfg) {
         style: '--l: ' + (px[0] / WHEEL.vb * 100).toFixed(2) + '%; --t: ' + (px[1] / WHEEL.vb * 100).toFixed(2)
           + '%; --nl: ' + (pxm[0] / WHEEL.vb * 100).toFixed(2) + '%; --nt: ' + (pxm[1] / WHEEL.vb * 100).toFixed(2)
           + '%; --i: ' + i + '; --n: ' + n,
-      }, el('span', { class: 'zh' }, subArcIcon(item.id), subShortLabel(item)));
+      }, el('span', { class: 'zh', 'aria-hidden': 'true' }, subFullName(item)));
       /* 中圈标签用**短标签**（src/sub-labels.js）而不是 label/zh：
          ① 柑橘调的四个 zh 都是"××柑橘"，并排看分不出差别（用户 m05889 原话
             「我分不清它们的差异」），所以这一层从来不用 zh，用 label；
@@ -2066,6 +2088,9 @@ function buildWheel(cfg) {
     root.classList.toggle('is-sub-locked', !!selSub);
     hub.classList.toggle('is-idle', idle);
     hub.classList.toggle('is-picked', picked);
+    /* 腿8-A：选中子类时把族 id 写进盘心，供族色实色图标钩子读取 */
+    if (picked && selFamily) hub.setAttribute('data-fam', selFamily);
+    else hub.removeAttribute('data-fam');
     // 整盘翻深由 root 上的 is-picked 驱动：加深的是盘，不是盘心方块
     root.classList.toggle('is-picked', picked);
     hub.classList.toggle('is-hover', !!(hoverFam || hoverSub) && !picked && !focusSub);
@@ -2102,8 +2127,7 @@ function buildWheel(cfg) {
     if (glyphKey !== builtGlyphKey) {
       builtGlyphKey = glyphKey;
       hubGlyph.innerHTML = '';
-      const glyph = focusSub ? scentPlate(focusSub)
-        : (famForGlyph ? familyText(famForGlyph) : null);
+      const glyph = focusSub ? scentPlate(focusSub) : null;
       if (glyph) hubGlyph.appendChild(glyph);
     }
     hub.classList.toggle('has-glyph', glyphKey !== 'none');
@@ -4023,6 +4047,43 @@ function renderProgress() {
   return box;
 }
 
+/* ---------- 腿8-B：标本条 ----------
+   进度条下一条 32px 的印记带，每答一题累积一枚。点印记回到对应题修改；
+   结果页展开成理由锚点（data-reason 承载那一句原文，不碰结果详情区）。 */
+function renderSpecimenBar() {
+  const bar = el('div', { class: 'specimen-bar', role: 'group', 'aria-label': '作答印记' });
+  const list = curSteps();
+  const a = state.answers;
+  const marks = [
+    { id: 'family', glyph: '●', label: '香型', done: !!(a.family || a.emotion) },
+    { id: 'unwanted', glyph: '✕', label: '避雷', done: (a.unwanted || []).length > 0 || (a.noSmell || []).length > 0 },
+    { id: 'occasion', glyph: '◷', label: '时刻', done: !!a.occasion },
+    { id: 'season', glyph: '✿', label: '季节', done: !!a.season },
+    { id: 'concentration', glyph: '◉', label: '扩散', done: !!a.concentration },
+    { id: 'budget', glyph: '¥', label: '价签', done: a.budget !== 'any' },
+  ];
+  const reasons = (state.result && state.result.results && state.result.results[0]
+    && state.result.results[0].reasons) || [];
+  marks.forEach((m) => {
+    const idx = list.findIndex((s) => s.id === m.id);
+    if (!m.done) return;
+    const btn = el('button', {
+      class: 'specimen-mark', type: 'button',
+      'data-step-id': m.id, 'data-done': '1',
+      title: '回到「' + m.label + '」修改',
+    }, el('span', { class: 'specimen-glyph', 'aria-hidden': 'true' }, m.glyph),
+       el('span', { class: 'specimen-name' }, m.label));
+    if (state.step >= list.length && reasons.length) {
+      btn.setAttribute('data-reason', reasons[idx % reasons.length] || '');
+    }
+    btn.addEventListener('click', () => {
+      if (idx >= 0) { state.step = idx; render(); }
+    });
+    bar.appendChild(btn);
+  });
+  return bar;
+}
+
 function renderMasthead() {
   const isResult = state.step >= curSteps().length;
   /* 清单页是独立视图，不是"结果页的延续"。
@@ -4031,6 +4092,14 @@ function renderMasthead() {
      标题在说另一页的事（实测截图里一眼就是错的）。
      所以判据排在 isResult 之前：进了清单页，页头就先认这一页。 */
   const isWish = state.wishPage === true;
+  /* 腿8-B：完整封面（hero+副标+香印）只第 1 屏；第 2–6 屏用短题头。
+     页头本身由 CSS sticky 固定（返回/进度/题号/问题 ≤160px）。 */
+  if (!isWish && !isResult && state.step > 0) {
+    const cur = curSteps()[state.step];
+    return el('header', { class: 'masthead is-short' },
+      el('button', { class: 'masthead-back', type: 'button', onclick: prev }, '← 返回'),
+      el('h1', {}, '第 ' + (state.step + 1) + ' 步 · ' + (cur ? (cur.short || '') : '')));
+  }
   /* 边距仪器区（规格 5 的"留白深度"）。
      叶标题不变，页眉右侧那枚 .amb-tick 是**这一程走到哪儿的刻度**
      （方向 + 档位，如「亮·起」）。它不算装饰：没有它，"底噪随进程增强"
@@ -7071,6 +7140,7 @@ function render() {
     return;
   }
   app.appendChild(renderProgress());
+  app.appendChild(renderSpecimenBar());
   if (isResult) {
     app.appendChild(renderResult());
   } else {
@@ -7103,7 +7173,11 @@ function render() {
      ② 焦点本来在页面内（键盘用户在按钮上按 Enter 切屏）：
         必须把它接到新屏的标题上，否则焦点掉回 body，用户得重新 Tab。
         标题加 tabindex="-1" 才能被程序聚焦，且不进 Tab 序列。 */
-  if (!hadFocusInside) return;
+  /* 腿8-B：新屏题干为视觉落点；先即时回顶，旧屏滚动量不泄漏。
+     DOM 桩里 scrollTo 是空函数，浏览器里 instant 在 reduced-motion 下同样成立。 */
+  if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
   const title = app.querySelector('.q-title') || app.querySelector('.result-head h2');
   if (!title) return;
   title.setAttribute('tabindex', '-1');

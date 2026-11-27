@@ -1,0 +1,165 @@
+/* ============================================================
+   腿 8 · A 圆盘重做（腿 1）+ B 系统级
+   最后加载：覆盖 95 层里被腿8 废弃的胶囊/钴蓝规则。
+   ============================================================ */
+
+/* ---------- 中圈：胶囊外框去掉，文字交给 textPath ---------- */
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+  display: none;
+}
+/* 弧形文字：12px，沿弧带中线，不出弧带 */
+.wheel .sub-arc-text {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  fill: var(--ink);
+  pointer-events: none;
+}
+/* 全名常态；短标签只在 320 档兜底 */
+.wheel .sub-arc-text .lg-short { display: none; }
+.wheel .sub-arc-text .lg-full  { display: inline; }
+@media (max-width: 386px) {
+  .wheel .sub-arc-text .lg-full  { display: none; }
+  .wheel .sub-arc-text .lg-short { display: inline; }
+}
+
+/* ---------- 弧段：族色浅底 17%，选中加深到 60%（不用钴蓝灌满） ----------
+   选择器必须带 #app[data-step="family"]：95 层的钴蓝 gArcOn 就是这个特异性，
+   只用 .wheel .sub-g.is-on .sub-arc 会被它压过（实测截图选中段仍是钴蓝）。 */
+#app[data-step="family"] .wheel .sub-g[data-fam="citrus"]   { --leg8-fam: #E8A33D; }
+#app[data-step="family"] .wheel .sub-g[data-fam="floral"]   { --leg8-fam: #D98CA0; }
+#app[data-step="family"] .wheel .sub-g[data-fam="woody"]    { --leg8-fam: #A8946E; }
+#app[data-step="family"] .wheel .sub-g[data-fam="amber"]    { --leg8-fam: #C98A4B; }
+#app[data-step="family"] .wheel .sub-g[data-fam="fresh"]    { --leg8-fam: #86A874; }
+#app[data-step="family"] .wheel .sub-g[data-fam="gourmand"] { --leg8-fam: #C0846B; }
+#app[data-step="family"] .wheel .sub-g .sub-arc {
+  fill: color-mix(in srgb, var(--leg8-fam) 17%, transparent);
+  stroke: rgba(255,255,255,.9);
+  stroke-width: 1;
+}
+#app[data-step="family"] .wheel:not(.is-sub-locked) .sub-g:hover .sub-arc,
+#app[data-step="family"] .wheel .sub-g.is-hot .sub-arc {
+  fill: color-mix(in srgb, var(--leg8-fam) 24%, transparent);
+}
+/* 95 层还写了 .wheel.is-open .sub-g.is-on .sub-arc（多一个 .is-open，特异性更高），
+   必须用同形选择器才能让本层（加载更晚）胜出；stroke 一起从蓝改回族色。 */
+#app[data-step="family"] .wheel .sub-g.is-on .sub-arc,
+#app[data-step="family"] .wheel.is-open .sub-g.is-on .sub-arc {
+  fill: color-mix(in srgb, var(--leg8-fam) 60%, transparent);
+  stroke: color-mix(in srgb, var(--leg8-fam) 80%, var(--ink));
+  filter: none;
+}
+
+/* ---------- 透明命中按钮 ≥44px（负责命中与键盘焦点） ---------- */
+.wheel .disc-sector.lvl2.sub-arc-btn {
+  background: transparent;
+  border: 0;
+  color: transparent;
+  min-width: 44px;
+  min-height: 44px;
+}
+.wheel .disc-sector.lvl2.sub-arc-btn::before {
+  content: '';
+  height: max(100%, 44px);
+}
+.wheel .disc-sector.lvl2.sub-arc-btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
+/* ---------- 盘心：选中子类后 64px 族色实色图标 + 全名 ---------- */
+.wheel .disc-hub.is-picked .plate-svg {
+  width: 64px;
+  height: 64px;
+}
+.wheel .disc-hub.is-picked .plate-cap {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 族色实色：盘心图标按所属族取实色描边，24 枚原图本身不变 */
+.wheel .disc-hub[data-fam="citrus"]   { --hub-fam: #E8A33D; }
+.wheel .disc-hub[data-fam="floral"]   { --hub-fam: #D98CA0; }
+.wheel .disc-hub[data-fam="woody"]    { --hub-fam: #A8946E; }
+.wheel .disc-hub[data-fam="amber"]    { --hub-fam: #C98A4B; }
+.wheel .disc-hub[data-fam="fresh"]    { --hub-fam: #86A874; }
+.wheel .disc-hub[data-fam="gourmand"] { --hub-fam: #C0846B; }
+.wheel .disc-hub.is-picked .plate-svg { filter: drop-shadow(0 0 0 var(--hub-fam, #b3261e)); }
+
+/* 从弧段缩放飞入盘心，220ms，可被打断 */
+.wheel .disc-hub.is-picked .hub-glyph { animation: leg8FlyIn 220ms var(--ease-out) both; }
+@keyframes leg8FlyIn {
+  from { opacity: 0; transform: scale(.35); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wheel .disc-hub.is-picked .hub-glyph { animation: none; }
+}
+
+/* ---------- B：页头全站固定（返回/进度/题号/问题 ≤160px） ---------- */
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+.masthead.is-short {
+  border-top-width: 4px;
+  padding-top: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.masthead.is-short .masthead-back {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 14px;
+  cursor: pointer;
+}
+.masthead.is-short h1 { font-size: 20px; margin: 0; }
+
+/* ---------- B：标本条（进度条下 32px，每答一题累积一枚印记） ---------- */
+.specimen-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  height: 32px;
+  overflow-x: auto;
+}
+.specimen-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 28px;
+  padding: 2px 6px;
+  border: 1px solid var(--spec-hair, var(--line));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+.specimen-glyph { color: var(--accent); }
+#app[data-step="result"] .specimen-mark[data-reason]::after {
+  content: ' · ' attr(data-reason);
+  font-size: 12px;
+  color: var(--ink-3);
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- B：材质边界 ----------
+   材质（半透明/backdrop-filter 模糊/折射）只在季节屏；
+   其它屏一律关掉 backdrop-filter，反馈仍可用。 */
+#app:not([data-step="season"]) * { backdrop-filter: none !important; }
+
+/* 选大类时不再显示两行小类列表（.fam-text 已从渲染移除） */
+.wheel .disc-hub .fam-text { display: none !important; }
