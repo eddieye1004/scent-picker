@@ -675,7 +675,6 @@ const BUILD_ID = '2026-11-27-wheel-layout-fix';
    定为验收标准 —— 删掉它等于把已经合格的一项退回空白。
    v6 只是不再用它来讲香调术语。 */
 const PLATE_SIZE = 24;
-const PLATE_LABEL = { citrus: '柑橘', floral: '花', woody: '木质', amber: '树脂', fresh: '叶', gourmand: '果实' };
 const ART_FILE = {
   'cologne': 'citrus-cologne',
   'green-citrus': 'green-citrus-a',
@@ -754,20 +753,12 @@ function artInnerPath(p) {
 function artInner(subId) {
   return artInnerPath(artPath(subId));
 }
-/* ==== 24 枚标本的「启动即全量预热」已删除（性能腿，2026-11-19）====
+/* ==== 24 枚标本的「启动即全量预热」已删除（性能腿，2026-11-19；批 3-2b 复核）====
    原先这里有一个 artWarmAll()，在模块求值时就把 24 个 SVG 全拉一遍，
-   boot() 里还有第二处调用。实测代价：首屏 24 个请求 / 96KB，
-   而且那 24 枚里首屏只可能用到 0 枚 —— 第 1 屏盘心在「没选小类」时是纯文字
-   （见 scentPlate 上方的裁定：只选大类不放图标），用户不悬停到某个小类就不会取图。
-
-   为什么可以直接删而不是改成懒加载：取图本来就已经是按需的 ——
-   scentPlate() 与 avoidSpecimen() 各自 walk 这条通路：
-     先 artSvgReady() 读已解析缓存；没就绪就 artInner(id).then(写进 DOM)
-   （见下面两处调用点）。预热只是「提前把缓存填满」的加速层，
-   删掉它不改变任何一次取图的结果，只把「什么时候发这个请求」交还给真实消费点。
-
-   注意：审计原文写的「artSvgReady() 无调用方」与代码不符 —— 它有两个调用方
-   （scentPlate 的盘心、avoidSpecimen 的避雷卡）。删掉的是预热，不是缓存读取通路。 */
+   boot() 里还有第二处调用。首屏尚未选小类时，这 24 个请求全是前置成本。
+   现在首屏仍不取小类图；用户第一次选定中圈小类时，hubSpecimenGrid()
+   才并行取齐 24 枚，并写入共享缓存。之后在小类或家族间切换不再请求。
+   取图通路仍是按需的：先 ART_READY 同步读取，未就绪才 artInner()。 */
 /* 同一枚图标可能被同时插进 DOM 的多个位置，渐变 id 必须唯一，
    否则第二次插入会引用到第一个实例的 defs。 */
 let artSeq = 0;
@@ -777,7 +768,7 @@ function artNs(inner, ns) {
 }
 /* 彩图已就绪就直接返回可写进 <svg> 的内部内容；没就绪返回 ''。 */
 /* 中圈胶囊里的标本图标（设计第 2 项，2026-11-25）。
-   与盘心 scentPlate、避雷卡 avoidSpecimen 走**同一条**取图通路：
+   与盘心 hubSpecimenGrid、避雷卡 avoidSpecimen 走**同一条**取图通路：
    ART_FILE → artPath() → ART_CACHE / ART_READY，不新造图标、不新造通路。
    未就绪时返回空 span 而不是占位盒：CSS 用 `.sub-arc-icon:empty` 把它整个
    拿掉（display:none），于是"图没到/加载失败"两种情况的胶囊都是纯文字，
@@ -920,45 +911,44 @@ const WHEEL = {
   hubPct: 30.6,
 };
 
-function scentPlate(sub) {
-  const entries = (sub.notes || [])
-    .map((en) => TAX.noteIndex.entries.find((x) => normNote(x.en) === normNote(en)))
-    .filter(Boolean);
-  if (!entries.length) return null;
-  /* 只画一枚，画得大。图标内容全部来自 ./icon-specimen/svg/ 的上色版，
-     这里不再有本地线稿：线稿是过渡期的兜底，实测会先闪一帧旧图形再被替换，
-     用户看得见，所以整条线稿通路连同 SUB_MARKS / PLATE_MOTIFS / SUB_FIT 一起删了。
-     彩图没到时先放一个空的同位 <svg>（占住 88px 的位，不画任何东西），
-     等 fetch 落地再把内容写进去 —— 既不会跳版，也不会闪旧图。 */
-  const wrap = el('div', { class: 'hub-plate' });
-  const box = svgEl('svg', {
-    class: 'plate-svg is-art',
-    viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
-    'aria-hidden': 'true', focusable: 'false',
+/* ---------- 盘心 24 小类标本网格（批 3-2b）----------
+   中圈选定小类后，六族 24 格同时出现；选择只由中圈点击决定，
+   网格本身是状态展示，不新增一条作答入口。每格复用 ART_FILE 的
+   按需 SVG 通路，首次选定时并行取齐，之后换族不再重复请求。 */
+function hubSpecimenGrid(families) {
+  const grid = el('div', {
+    class: 'hub-specimen-grid',
+    role: 'list',
+    'aria-label': '24 个小类标本',
   });
-  const ready = artSvgReady(sub.id);
-  if (ready) box.innerHTML = ready;
-  wrap.appendChild(box);
-  wrap.appendChild(el('div', { class: 'plate-rule' }));
-  /* 名字最多列两味。实测四味的名字在 360px 视口是 144px 宽，
-     而盘心只有 156px 且是圆的 —— 一行放不下、折两行又把「换一个大类」顶出去。
-     完整清单留在 aria-label 里，视觉上两味足够说明这格是哪一路气味。 */
-  wrap.appendChild(el('div', { class: 'plate-cap' }, subFullName(sub)));
-  // 图形本身是装饰，语义交给屏幕阅读器读这句话，避免读出「一张图」却没有内容
-  wrap.setAttribute('role', 'img');
-  wrap.setAttribute('aria-label',
-    '代表香材：' + entries.map((e) => e.zh + '（' + (PLATE_LABEL[e.family] || e.family) + '）').join('、'));
-
-  /* 当时还没到（首次进入、预热未完成）：等它到了再写进去。
-     没有线稿可保留，宁可空一小会儿，也不画一个旧的再换掉。 */
-  if (!ready) {
-    artInner(sub.id).then((inner) => {
-      if (!inner) return;
-      box.innerHTML = artNs(inner, 'a' + (++artSeq));
+  families.forEach((fam) => {
+    (fam.subfamilies || []).forEach((sub) => {
+      const item = el('div', {
+        class: 'hub-specimen-item',
+        role: 'listitem',
+        'data-sub': sub.id,
+        'data-fam': fam.id,
+        'aria-label': subFullName(sub),
+        'aria-current': 'false',
+        title: subFullName(sub),
+      });
+      const box = svgEl('svg', {
+        class: 'specimen-svg is-art',
+        viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
+        'aria-hidden': 'true',
+        focusable: 'false',
+      });
+      const ready = artSvgReady(sub.id);
+      if (ready) box.innerHTML = ready;
+      else artInner(sub.id).then((inner) => {
+        if (!inner) return;
+        box.innerHTML = artNs(inner, 'a' + (++artSeq));
+      });
+      item.appendChild(box);
+      grid.appendChild(item);
     });
-  }
-
-  return wrap;
+  });
+  return grid;
 }
 
 /* ---------- 大类文字签（v7 第 1.5 步新增，缺陷 ③）----------
@@ -1037,8 +1027,8 @@ function familyText(fam) {
    `> *:not(.hub-emblem)` 的 z-index），主词与说明的对比度不受影响。
 
    什么时候出现：选中/预览某个大类、且还没落到小类时。
-   落到小类时盘心已经有一枚代表香材（.plate-svg），那时再叠一层徽记
-   等于两个物体抢同一个位置 —— 那一路保持原样，本腿不碰。 */
+   落到小类时盘心已经显示 24 格小类标本，那时再叠一层徽记等于两个物体
+   抢同一个位置 —— 那一路保持互斥，本腿不碰。 */
 function familyEmblem(fam) {
   const box = svgEl('svg', {
     class: 'emblem-svg is-art',
@@ -1048,7 +1038,7 @@ function familyEmblem(fam) {
   });
   const ready = famArtReady(fam.id);
   if (ready) box.innerHTML = ready;
-  /* 与 scentPlate 同一条按需通路：没就绪就等它到，到了再写进来。
+  /* 与 hubSpecimenGrid 同一条按需通路：没就绪就等它到，到了再写进来。
      迟到的图不会写到"换掉之后"的徽记上：外层 .hub-emblem 是常驻节点，
      paint() 换族时做的是 `innerHTML = ''` —— 旧 <svg> 已经被摘下来了，
      回调写的是一个离屏节点，不影响眼前这一枚。 */
@@ -1822,17 +1812,9 @@ function buildWheel(cfg) {
           + '%; --nl: ' + (px[0] / WHEEL.vb * 100).toFixed(2) + '%; --nt: ' + (px[1] / WHEEL.vb * 100).toFixed(2)
           + '%; --arc-max: ' + (arcUnits / WHEEL.vb * 100).toFixed(2) + '%; --pill-rot: ' + pillRot.toFixed(2) + 'deg; --i: ' + i + '; --n: ' + n,
       }, el('span', { class: 'zh', 'aria-hidden': 'true' }, visibleName));
-      /* 中圈标签用**短标签**（src/sub-labels.js）而不是 label/zh：
-         ① 柑橘调的四个 zh 都是"××柑橘"，并排看分不出差别（用户 m05889 原话
-            「我分不清它们的差异」），所以这一层从来不用 zh，用 label；
-         ② 定版是**单行胶囊**（16px 图标 + 12px 文字，不换行，Eddie 2026-11-25
-            22:37 裁决 1 号方案），而 ±90° 那两枚的宽度正好沿半径展开、
-            可用总宽只有「盘心半径 → 盘沿」这一段，四字词横排塞不下 ——
-            于是把 label 再缩掉与家族名重复的后缀（皂感柑橘 → 皂感）。
-         盘心已经写着家族名，胶囊里重复一遍不增加信息，只增加宽度。
-         zh / label 保留不动 —— 它们仍是盘心小类列表（familyText 里的
-         `.fam-text-item`）、盘心主词（scentPlate 里的 `zh = focusSub.label || focusSub.zh`）、
-         表单、推荐理由、无障碍名里用的全名。 */
+      /* 中圈标签用短标签（src/sub-labels.js）而不是 label/zh：
+         同族多个 zh 共享前缀，短标签更容易区分；定版胶囊只留文字、不换行。
+         zh / label 保留不动，继续用于表单、推荐理由与无障碍全名。 */
 
       /* **中圈一旦有选中项，hover 一律不再产生反馈**。
          用户的要求：「中圈一旦被选定，无论鼠标移动到何处，中框的选择状态
@@ -1921,8 +1903,8 @@ function buildWheel(cfg) {
 
   /* --- 统一重绘 --- */
   let builtFor;
-  /* 盘心标本当前画的是哪一个。`sub:<id>` / `fam:<id>` / `none`。
-     只在这个 key 变化时重建盘心 DOM（paint 由 hover 高频调用）。 */
+  /* 盘心标本网格状态：`grid` / `none`。首次选定小类时构建 24 格，
+     之后切换小类只更新 is-selected，不重建 DOM。 */
   let builtGlyphKey = null;
   /* 盘心大类徽记当前画的是哪一族（方向 B）。与 builtGlyphKey 分开记：
      两者在同一帧里会走不同的门（落到小类时徽记退场、标本上场），
@@ -2063,16 +2045,23 @@ function buildWheel(cfg) {
     hubZh.textContent = zh;
     hubDesc.textContent = desc;
 
-    /* 小类标本只在已选小类时出现；家族级由 .hub-emblem 承载。
-       空态不挂任何图形，hover/点选家族时显示 6 枚家族级图形之一。 */
-    const glyphKey = focusSub ? ('sub:' + focusSub.id) : 'none';
-    /* 只在"该画哪个"真的变了时才重建 DOM：
-       paint() 由 hover 高频调用，每次重建会让盘心闪一下。 */
+    /* 小类确认后显示六族 24 格标本；空态/家族态不挂小类图形。
+       网格只在首次确认时构建，之后只更新选中类，避免 hover 重绘闪帧。 */
+    const glyphKey = focusSub ? 'grid' : 'none';
     if (glyphKey !== builtGlyphKey) {
       builtGlyphKey = glyphKey;
       hubGlyph.innerHTML = '';
-      const glyph = focusSub ? scentPlate(focusSub) : null;
-      if (glyph) hubGlyph.appendChild(glyph);
+      if (focusSub) hubGlyph.appendChild(hubSpecimenGrid(families));
+    }
+    if (focusSub) {
+      const grid = hubGlyph.querySelector('.hub-specimen-grid');
+      const selectedName = subFullName(focusSub);
+      grid.setAttribute('aria-label', '24 个小类标本，当前选择：' + selectedName);
+      grid.querySelectorAll('.hub-specimen-item').forEach((item) => {
+        const on = item.getAttribute('data-sub') === focusSub.id;
+        item.classList.toggle('is-selected', on);
+        item.setAttribute('aria-current', String(on));
+      });
     }
     hub.classList.toggle('has-glyph', glyphKey !== 'none');
 

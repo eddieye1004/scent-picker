@@ -6982,17 +6982,40 @@ display: none !important;
 #app[data-step="family"] .wheel .disc-hub.has-glyph .hub-glyph {
 display: block !important;
 }
-#app[data-step="family"] .wheel .disc-hub.is-picked .plate-svg {
-width: 64px;
-height: 64px;
-}
-#app[data-step="family"] .wheel .disc-hub.is-picked .plate-cap {
-display: block;
-font-size: 12px;
-font-weight: 600;
-}
 #app[data-step="family"] .wheel .disc-hub.is-picked .hub-glyph {
+width: max-content;
+margin: 0 auto;
 animation: leg8FlyIn 220ms var(--ease-out) both;
+}
+#app[data-step="family"] .wheel .disc-hub.is-picked .hub-zh,
+#app[data-step="family"] .wheel .disc-hub.is-picked .hub-desc {
+display: none;
+}
+#app[data-step="family"] .wheel .hub-specimen-grid {
+display: grid;
+grid-template-columns: repeat(4, 16px);
+grid-auto-rows: 16px;
+gap: 2px;
+justify-content: center;
+pointer-events: none;
+}
+#app[data-step="family"] .wheel .hub-specimen-item {
+display: grid;
+place-items: center;
+width: 16px;
+height: 16px;
+border-radius: 3px;
+opacity: .78;
+}
+#app[data-step="family"] .wheel .hub-specimen-item .specimen-svg {
+display: block;
+width: 16px;
+height: 16px;
+}
+#app[data-step="family"] .wheel .hub-specimen-item.is-selected {
+opacity: 1;
+background: color-mix(in srgb, var(--wheel-fam) 18%, transparent);
+box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--wheel-fam) 80%, var(--ink));
 }
 @keyframes leg8FlyIn {
 from { opacity: 0; transform: scale(.35); }

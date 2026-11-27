@@ -751,7 +751,7 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
    v7 一圈弧段全部可见，没有「停着的那一项」可推断 —— 凭猜画图会让用户
    以为已经选好。这条与下一条合起来才守得住"预览 vs 已选定"的区别。 */
 {
-  const prevPlates = appRoot.querySelectorAll('.plate-svg');
+  const prevPlates = appRoot.querySelectorAll('.specimen-svg');
   const hubPrev = appRoot.querySelector('.disc-hub');
   ok('只选大类时盘心还没有标本', prevPlates.length === 0, `${prevPlates.length} 枚`);
   ok('只选大类时盘心是「正在看」而非「已选定」',
@@ -874,8 +874,8 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
       && hubHover.querySelector('.hub-kicker').textContent === kickBefore,
     `${zhBefore} → ${hubHover.querySelector('.hub-zh').textContent}`);
   ok('悬停不画标本（未确认就没有标本）',
-    appRoot.querySelectorAll('.plate-svg').length === 0,
-    `${appRoot.querySelectorAll('.plate-svg').length} 枚`);
+    appRoot.querySelectorAll('.specimen-svg').length === 0,
+    `${appRoot.querySelectorAll('.specimen-svg').length} 枚`);
   const hoverFamId = appRoot.querySelectorAll('.sector-g')[0].getAttribute('data-fam');
   const hoverEmblem = appRoot.querySelector('.hub-emblem');
   ok('批 3-2a 悬停中圈保持家族大图标',
@@ -894,14 +894,27 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
 midAfter[0].dispatch('click');
 await new Promise((r) => setTimeout(r, 500));
 
-const plate = appRoot.querySelector('.hub-plate');
-ok('落到小项后盘心长出标本', !!plate);
-/* 腿8-A：选中子类后盘心中央出现该子类图标 + 全名（64px 由 CSS 控制） */
-ok('腿8-A 盘心显示子类图标与全名', !!appRoot.querySelector('.hub-glyph .plate-svg')
-  && appRoot.querySelector('.hub-glyph .plate-cap').textContent
-    === appRoot.querySelectorAll('.disc-sector.lvl2')[0].getAttribute('aria-label'),
-  appRoot.querySelector('.hub-glyph .plate-cap')
-    ? appRoot.querySelector('.hub-glyph .plate-cap').textContent : 'no cap');
+const grid = appRoot.querySelector('.hub-specimen-grid');
+const gridItems = [...appRoot.querySelectorAll('.hub-specimen-item')];
+const selectedItem = appRoot.querySelector('.hub-specimen-item.is-selected');
+const selectedSubId = appRoot.querySelector('.disc-sector.lvl2.is-on')?.getAttribute('data-sub');
+const firstSelectedId = selectedItem?.getAttribute('data-sub');
+ok('批 3-2b 选定小类后盘心显示 24 格标本', !!grid && gridItems.length === 24,
+  `网格 ${gridItems.length} 格`);
+ok('批 3-2b 24 格小类 id 齐全且不重复',
+  new Set(gridItems.map((x) => x.getAttribute('data-sub'))).size === 24,
+  `唯一 id ${new Set(gridItems.map((x) => x.getAttribute('data-sub'))).size} 个`);
+ok('批 3-2b 选中格与中圈选定小类同源',
+  !!selectedItem && selectedItem.getAttribute('data-sub') === selectedSubId,
+  `盘心 ${firstSelectedId}，中圈 ${selectedSubId}`);
+ok('批 3-2b 只有一格高亮', appRoot.querySelectorAll('.hub-specimen-item.is-selected').length === 1,
+  `${appRoot.querySelectorAll('.hub-specimen-item.is-selected').length} 格`);
+ok('批 3-2b 选中格有无障碍当前态',
+  !!selectedItem && selectedItem.getAttribute('aria-current') === 'true',
+  selectedItem && selectedItem.getAttribute('aria-current'));
+ok('批 3-2b 网格播报当前小类全名',
+  !!grid && selectedItem && grid.getAttribute('aria-label').includes(selectedItem.getAttribute('aria-label')),
+  grid && grid.getAttribute('aria-label'));
 ok('批 3-1a 中圈弧字层已删除（不再露出胶囊残字）',
   appRoot.querySelectorAll('.sub-arc-text').length === 0);
 ok('批 3-1a 中圈只保留胶囊文字',
@@ -910,49 +923,45 @@ ok('批 3-1a 外圈六名由主题弧字渲染',
   appRoot.querySelectorAll('.fam-arc-text textPath').length
     === appRoot.querySelectorAll('.sector-g.lvl1').length
   && appRoot.querySelectorAll('.fam-arc-text textPath').length > 0);
-const plates = appRoot.querySelectorAll('.plate-svg');
-/* 一枚，不是三枚：实测每个小类的代表香材全部同属一个家族，
-   逐味画会出来一排一模一样的图标。这条断言就是钉住那个结论的。 */
-ok('标本只画一枚（不是每味香材一枚）', plates.length === 1, `${plates.length} 枚`);
-/* 统一视框 —— 这就是"风格统一"的可断言部分。
-   上色稿自带自己的 fill / stroke，所以外框不再要求 fill="none"，
-   而是要求它挂 is-art 且真的把上色内容写了进去（见下面 shapeCount）。 */
-ok('标本是 24×24 同一视框', plates[0].getAttribute('viewBox') === '0 0 24 24',
-  plates[0].getAttribute('viewBox'));
-ok('标本走的是上色通路（is-art）', plates[0].classList.contains('is-art'), plates[0].className);
-
-/* 里必须真有几何。桩里塞 markup 字符串的话会被剥成纯文本，
-   容器在、图形空 —— 这是"看起来做了其实没做"的典型形态，必须抓住。 */
-const shapeCount = plates[0].querySelectorAll('circle').length
-  + plates[0].querySelectorAll('path').length + plates[0].querySelectorAll('ellipse').length;
-ok('标本里真画了几何', shapeCount >= 2, `图元数 ${shapeCount}`);
-
-/* 香材名必须落到中文 —— 和香材标签同一套取词逻辑 */
-const cap = appRoot.querySelector('.plate-cap');
-ok('标本下带香材名', !!cap && cap.textContent.length > 0, cap && cap.textContent);
-ok('香材名是中文', !!cap && !/[a-z]/i.test(cap.textContent), cap && cap.textContent);
-
-/* 图形本身是装饰，语义交给这一句。缺了它屏幕阅读器只会读出"图"。 */
-ok('标本有可读的 aria-label',
-  !!plate && /代表香材/.test(plate.getAttribute('aria-label') || ''),
-  plate && plate.getAttribute('aria-label'));
+const specimens = [...appRoot.querySelectorAll('.hub-specimen-item .specimen-svg')];
+ok('批 3-2b 每格都是 24×24 同一视框',
+  specimens.length === 24 && specimens.every((s) => s.getAttribute('viewBox') === '0 0 24 24'),
+  `${specimens.length} 枚`);
+ok('批 3-2b 每格都走上色通路（is-art）',
+  specimens.length === 24 && specimens.every((s) => s.classList.contains('is-art')),
+  `${specimens.filter((s) => s.classList.contains('is-art')).length} 枚`);
+ok('批 3-2b 24 格都真有几何',
+  specimens.length === 24 && specimens.every((s) => s.querySelectorAll('circle').length
+    + s.querySelectorAll('path').length + s.querySelectorAll('ellipse').length >= 2),
+  `最少图元 ${Math.min(...specimens.map((s) => s.querySelectorAll('circle').length
+    + s.querySelectorAll('path').length + s.querySelectorAll('ellipse').length))}`);
+ok('批 3-2b 每格都有可读的小类名',
+  gridItems.length === 24 && gridItems.every((x) => (x.getAttribute('aria-label') || '').length > 0),
+  `${gridItems.filter((x) => (x.getAttribute('aria-label') || '').length > 0).length} 格`);
+ok('批 3-2b 网格是状态展示而非第二作答入口',
+  !!grid && grid.getAttribute('role') === 'list'
+    && grid.querySelectorAll('button').length + grid.querySelectorAll('a').length
+      + grid.querySelectorAll('input').length + grid.querySelectorAll('[tabindex]').length === 0,
+  grid && grid.getAttribute('role'));
+{
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  ok('批 3-2b 网格默认 4 列 × 6 行、16px 图标、2px 间距',
+    /\.hub-specimen-grid\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*16px\)[^}]*grid-auto-rows:\s*16px[^}]*gap:\s*2px/.test(css));
+  ok('批 3-2b 选中格有内描边高亮',
+    /\.hub-specimen-item\.is-selected\s*\{[^}]*box-shadow:\s*inset 0 0 0 2px/.test(css));
+}
 /* 盘心必须挂上 has-glyph，否则 CSS 里 .hub-glyph 保持 display:none —— 图形等于没画 */
 const hubAfter = appRoot.querySelector('.disc-hub');
 ok('盘心挂上了 has-glyph', !!hubAfter && hubAfter.classList.contains('has-glyph'),
   hubAfter && hubAfter.className);
 
-/* 同一家族下换个小类，图案必须**不同** —— 这枚图编码的是小类，不是家族。
-   这一条推翻了上一轮的做法（那时同族共用家族母题）。推翻的理由是用户提出的：
-   古龙水型要有古龙独有的标识，青绿柑橘与芳香柑橘各自不同。
-   那个要求是对的 —— 旧做法下选完古龙水型和青绿柑橘，盘心画的是同一枚图，
-   用户看不出自己选的是哪一格。
-   注意这里仍然不是「给同一形状做哈希微差」：每枚画的是该小类的代表香材本体。 */
+/* 同一家族下换个小类，24 格保留，但选中格与代表图形必须更新。 */
 const sigOf = () => {
-  const s = appRoot.querySelectorAll('.plate-svg')[0];
+  const s = appRoot.querySelector('.hub-specimen-item.is-selected .specimen-svg');
   if (!s) return '';
   return s.querySelectorAll('path').map((q) => q.getAttribute('d') || '').join('|')
     + s.querySelectorAll('circle').map((q) => q.getAttribute('r') || '').join('|')
-    + s.querySelectorAll('ellipse').map((q) => (q.getAttribute('rx') || '') + (q.getAttribute('ry') || '')).join('|');
+    + s.querySelectorAll('ellipse').map((q) => (q.getAttribute('rx') || '') + ',' + (q.getAttribute('ry') || '')).join('|');
 };
 const sigCitrus = sigOf();
 ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice(0, 40));
@@ -974,11 +983,15 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
   }
   ok('同族不同小类各有各的图形', compared > 0 && same === 0,
     `比较 ${compared} 组，其中 ${same} 组与首个相同`);
-  /* 停在另一项上，后面那条「换小类后香材名跟着变」才有对照。 */
 }
-/* 不断言具体是哪一味：中圈格子的顺序由 taxonomy 决定，写死「葡萄柚」
-   会把测试绑死在当前数据顺序上，数据一改就假失败。要守的是
-   「名字跟着小类变」，这才是这条断言的意义。 */
+ok('换小类后高亮跟随中圈选择',
+  appRoot.querySelector('.hub-specimen-item.is-selected')?.getAttribute('data-sub')
+    === appRoot.querySelector('.disc-sector.lvl2.is-on')?.getAttribute('data-sub')
+    && appRoot.querySelector('.hub-specimen-item.is-selected')?.getAttribute('data-sub') !== firstSelectedId,
+  `${firstSelectedId} → ${appRoot.querySelector('.hub-specimen-item.is-selected')?.getAttribute('data-sub')}`);
+ok('换小类后 24 格不重建、不减少',
+  appRoot.querySelectorAll('.hub-specimen-item .specimen-svg').length === 24,
+  `${appRoot.querySelectorAll('.hub-specimen-item .specimen-svg').length} 枚`);
 /* ---- 每类一枚图标：数据完整性 + 两两不重复 ----
    线稿（SUB_MARKS / SUB_FIT）已于 2026-11-08 整块删除，盘心直接用
    icon-specimen/svg/ 里的上色稿。所以这里改成校验 ART_FILE 这张映射表，
@@ -1034,9 +1047,6 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
   });
   ok('全部上色 SVG 两两不同', dupF.length === 0, dupF.join(' ; '));
 }
-
-ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textContent !== cap.textContent,
-  `${cap.textContent} → ${appRoot.querySelector('.plate-cap').textContent}`);
 
 /* ---- 两层切换的返回路径（v14）----
    三条：① 返回按钮把大类一起清掉、回到闭合盘；
