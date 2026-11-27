@@ -3214,11 +3214,11 @@ function renderOccasion() {
 }
 
 /* ============================================================
-   第 6 屏：季节（2×2 方格与跟手白雾）
+   第 4 屏：季节（一条线拖动 + 四季全屏氛围）
    ------------------------------------------------------------
-   春夏在上、秋冬在下。白雾由 pointermove 驱动弹簧插值；点击只改目标，
-   不重置当前位置与速度，因此飞行途中可以连续改道。
-   季节译文沿用定版句：「湿冷的风，要压得住。」；「冬」翻译成"冷风要压得住。"。
+   滑块位置是 0–3 的连续值；答案是离滑块最近的一季，拖动过程中实时
+   跟随，松手后吸附到停靠点。四季通用是中立位 1.5，状态值保持 null。
+   背景色只插值腿 B 已落地的四组渐变色板，不另造季节色。
    ============================================================ */
 const SEASONS = [
   {
@@ -3239,7 +3239,16 @@ const SEASONS = [
   },
 ];
 
-/* 四季通用只改变季节屏的选择状态；进入评分引擎时映射为 null，
+/* 与 styles.css 的季节渐变逐字同源；dark 档只换明度，不换四季色相。 */
+const SEASON_PALETTES = {
+  spring: { light: ['#f6d7e5', '#e6f2dc', '#fff8f1'], dark: ['#5b3e50', '#344c3c', '#241f24'] },
+  summer: { light: ['#ffe66b', '#ffb547', '#fff4d6'], dark: ['#6e571c', '#75441e', '#332b1d'] },
+  autumn: { light: ['#d9944b', '#f0c58a', '#8c5b37'], dark: ['#6b4526', '#49321f', '#251b15'] },
+  winter: { light: ['#dceff8', '#f7fcff', '#b7d6e8'], dark: ['#294554', '#314f62', '#172a35'] },
+};
+const SEASON_NEUTRAL_POSITION = 1.5;
+
+/* 四季通用只改变季节屏的选择状态；进入评分引擎时仍映射为 null，
    与跳过季节题完全一致（尤其不能成为 activeDims 中的额外一维）。 */
 const ALL_SEASON = 'all';
 const scoringAnswers = (answers) => ({
@@ -3254,7 +3263,10 @@ const scoringAnswers = (answers) => ({
 let seasonRepaint = null;
 
 function renderSeason() {
-  const wrap = el('div', { class: 'fade-in' });
+  const wrap = el('div', { class: 'fade-in season-screen' });
+  const atmosphere = el('div', { class: 'season-atmosphere', 'aria-hidden': 'true' });
+  wrap.appendChild(atmosphere);
+
   const head = stepHead('season');
   wrap.appendChild(el('div', { class: 'stage-lead' },
     el('div', { class: 'q-kicker' }, head.kicker),
@@ -3262,120 +3274,98 @@ function renderSeason() {
     el('p', { class: 'q-help' }, head.help)
   ));
 
-  const group = el('div', { class: 'season-panel', role: 'radiogroup', 'aria-label': '主季节' });
-  const grid = el('div', { class: 'season-grid' });
-  group.appendChild(grid);
+  const panel = el('div', { class: 'season-panel', role: 'group', 'aria-label': '季节选择' });
+  const rail = el('div', { class: 'season-rail' });
+  const track = el('span', { class: 'season-track', 'aria-hidden': 'true' },
+    el('span', { class: 'season-track-fill' }));
   const mist = el('span', { class: 'season-mist', 'aria-hidden': 'true' });
-  grid.appendChild(mist);
+  const handle = el('div', {
+    class: 'season-handle', role: 'slider', tabindex: '0',
+    'aria-label': '季节滑块', 'aria-valuemin': '1', 'aria-valuemax': '4',
+    'aria-orientation': 'horizontal',
+  }, el('span', { class: 'season-handle-dot', 'aria-hidden': 'true' }));
+  const grid = el('div', { class: 'season-grid', role: 'radiogroup', 'aria-label': '主季节' });
+  rail.appendChild(track);
+  rail.appendChild(mist);
+  rail.appendChild(handle);
+  rail.appendChild(grid);
+  panel.appendChild(rail);
+
   const cells = [];
   const reduceMotion = typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-reduced-motion: reduce)')
     : { matches: false, addEventListener() {} };
-  const SPRING = 170;
-  const DAMPING = 26;
-  let mistX = 0;
-  let mistY = 0;
-  let targetX = 0;
-  let targetY = 0;
-  let velocityX = 0;
-  let velocityY = 0;
-  let raf = 0;
-  let lastFrame = 0;
-  let pointer = null;
-
+  const darkMotion = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-color-scheme: dark)')
+    : { matches: false, addEventListener() {} };
   const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
-  const boxOf = (node) => typeof node?.getBoundingClientRect === 'function'
-    ? node.getBoundingClientRect()
-    : { left: 0, top: 0, width: 0, height: 0 };
-  const centerOf = (index) => {
-    const gridBox = boxOf(grid);
-    const cellBox = boxOf(cells[index]);
-    return {
-      x: cellBox.left - gridBox.left + cellBox.width / 2,
-      y: cellBox.top - gridBox.top + cellBox.height / 2,
-    };
-  };
-  const drawMist = () => {
-    mist.style.setProperty('--mist-x', mistX.toFixed(2) + 'px');
-    mist.style.setProperty('--mist-y', mistY.toFixed(2) + 'px');
-  };
-  const stopMotion = () => {
-    if (raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf);
-    raf = 0;
-    lastFrame = 0;
-  };
-  const snapTo = (point) => {
-    stopMotion();
-    targetX = mistX = point.x;
-    targetY = mistY = point.y;
-    velocityX = velocityY = 0;
-    drawMist();
-  };
-  const tick = (now) => {
-    raf = 0;
-    const time = Number.isFinite(now) ? now : performance.now();
-    const dt = lastFrame ? Math.min((time - lastFrame) / 1000, 0.032) : 1 / 60;
-    lastFrame = time;
-    velocityX += (SPRING * (targetX - mistX) - DAMPING * velocityX) * dt;
-    velocityY += (SPRING * (targetY - mistY) - DAMPING * velocityY) * dt;
-    mistX += velocityX * dt;
-    mistY += velocityY * dt;
-    drawMist();
-    if (Math.hypot(targetX - mistX, targetY - mistY) < 0.1
-      && Math.hypot(velocityX, velocityY) < 0.1) {
-      snapTo({ x: targetX, y: targetY });
-      return;
+  const seasonIndex = (id) => SEASONS.findIndex((season) => season.id === id);
+  const isNeutralId = (id) => id == null || id === ALL_SEASON;
+  let neutral = isNeutralId(state.answers.season);
+  let position = neutral ? SEASON_NEUTRAL_POSITION : clamp(seasonIndex(state.answers.season), 0, 3);
+  let pointer = null;
+  let allCell = null;
+
+  const rgbOf = (color) => {
+    if (color && color[0] === '#') {
+      const value = parseInt(color.slice(1), 16);
+      return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
     }
-    raf = requestAnimationFrame(tick);
+    const parts = String(color || '').match(/\d+/g);
+    return parts && parts.length >= 3 ? parts.slice(0, 3).map(Number) : [243, 238, 230];
   };
-  const animateTo = (point) => {
-    targetX = point.x;
-    targetY = point.y;
-    if (reduceMotion.matches || typeof requestAnimationFrame !== 'function') {
-      snapTo(point);
-      return;
+  const mixColor = (a, b, t) => {
+    const ca = rgbOf(a);
+    const cb = rgbOf(b);
+    return `rgb(${ca.map((value, index) => Math.round(value + (cb[index] - value) * t)).join(', ')})`;
+  };
+  const neutralPalette = () => {
+    const root = typeof getComputedStyle === 'function' ? getComputedStyle(document.documentElement) : null;
+    const colors = ['--bg-2', '--bg-3', '--bg'].map((name) => root ? root.getPropertyValue(name).trim() : '');
+    return colors.every((color) => color && color[0] === '#')
+      ? colors : ['#f3eee6', '#e8eee9', '#faf7f1'];
+  };
+  const applyPalette = () => {
+    let colors;
+    if (neutral) {
+      colors = neutralPalette();
+    } else {
+      const left = Math.floor(position);
+      const right = Math.min(left + 1, SEASONS.length - 1);
+      const t = position - left;
+      const mode = darkMotion.matches ? 'dark' : 'light';
+      const a = SEASON_PALETTES[SEASONS[left].id][mode];
+      const b = SEASON_PALETTES[SEASONS[right].id][mode];
+      colors = a.map((color, index) => mixColor(color, b[index], t));
     }
-    if (!raf) raf = requestAnimationFrame(tick);
+    colors.forEach((color, index) => document.body.style.setProperty(`--season-bg-${index + 1}`, color));
   };
-  const layoutMist = (immediate = false) => {
-    const cellBox = boxOf(cells[0]);
-    if (cellBox.width > 0 && cellBox.height > 0) {
-      mist.style.setProperty('--season-cell-w', cellBox.width + 'px');
-      mist.style.setProperty('--season-cell-h', cellBox.height + 'px');
+  const applyEffects = () => {
+    const weights = [0, 0, 0, 0];
+    if (!neutral) {
+      const left = Math.floor(position);
+      const right = Math.min(left + 1, SEASONS.length - 1);
+      const t = position - left;
+      weights[left] += 1 - t;
+      weights[right] += t;
     }
-    const index = SEASONS.findIndex((s) => s.id === state.answers.season);
-    if (index < 0) {
-      stopMotion();
-      mist.classList.remove('is-visible');
-      return;
-    }
-    const center = centerOf(index);
-    if (immediate || !mist.classList.contains('is-visible')) snapTo(center);
-    else animateTo(center);
-  };
-  const pointFromEvent = (event) => {
-    const gridBox = boxOf(grid);
-    const cellBox = boxOf(cells[0]);
-    const halfW = cellBox.width / 2;
-    const halfH = cellBox.height / 2;
-    return {
-      x: clamp(event.clientX - gridBox.left, halfW, Math.max(halfW, gridBox.width - halfW)),
-      y: clamp(event.clientY - gridBox.top, halfH, Math.max(halfH, gridBox.height - halfH)),
-    };
-  };
-  const nearestSeason = (point) => {
-    let nearest = 0;
-    let distance = Infinity;
-    SEASONS.forEach((_, index) => {
-      const center = centerOf(index);
-      const next = Math.hypot(point.x - center.x, point.y - center.y);
-      if (next < distance) { distance = next; nearest = index; }
+    SEASONS.forEach((season, index) => {
+      atmosphere.style.setProperty(`--${season.id}-weight`, weights[index].toFixed(3));
     });
-    return nearest;
   };
-  const cellFromTarget = (target) => {
-    const node = typeof target?.closest === 'function' ? target.closest('.season-cell') : target;
-    return node && typeof node.getAttribute === 'function' ? node : null;
+  const renderPosition = () => {
+    const left = 12.5 + (position / (SEASONS.length - 1)) * 75;
+    rail.style.setProperty('--season-left', `${left.toFixed(3)}%`);
+    rail.style.setProperty('--season-progress', String(neutral ? 0 : position / (SEASONS.length - 1)));
+    rail.classList.toggle('is-neutral', neutral);
+    rail.dataset.seasonPosition = position.toFixed(3);
+    rail.dataset.seasonValue = neutral ? 'null' : SEASONS[Math.round(position)].id;
+    handle.classList.toggle('is-neutral', neutral);
+    handle.setAttribute('aria-valuenow', (position + 1).toFixed(2));
+    handle.setAttribute('aria-valuetext', neutral ? '四季通用' : SEASONS[Math.round(position)].zh);
+    mist.classList.toggle('is-visible', !neutral);
+    applyPalette();
+    applyEffects();
   };
 
   const gloss = el('p', { class: 'temp-gloss is-idle' });
@@ -3387,13 +3377,10 @@ function renderSeason() {
     autumn: '干、凉、空气薄 —— 木质和微甜都能上场',
     winter: '冷，要压得住风 —— 需要厚度，不然出门就散',
   };
-
-  let allCell = null;
-  const paint = (cur) => {
-    const it = SEASONS.find((s) => s.id === cur) || null;
-    const allOn = cur === ALL_SEASON;
+  const paintSelection = (cur) => {
+    const it = SEASONS.find((season) => season.id === cur) || null;
+    const allOn = isNeutralId(cur);
     grid.classList.toggle('has-selection', !!it);
-    mist.classList.toggle('is-visible', !!it);
     cells.forEach((cell, index) => {
       const on = SEASONS[index].id === cur;
       cell.classList.toggle('is-on', on);
@@ -3408,45 +3395,76 @@ function renderSeason() {
     const line = it ? (seasonScene(state.answers.family, it.id) || it.desc) : '';
     scene.hidden = !line;
     scene.textContent = line;
-    layoutMist();
   };
   const choose = (id) => {
-    state.answers.season = id;
-    paint(id);
+    state.answers.season = id === ALL_SEASON ? null : id;
+    neutral = isNeutralId(state.answers.season);
+    position = neutral ? SEASON_NEUTRAL_POSITION : clamp(seasonIndex(state.answers.season), 0, 3);
+    paintSelection(state.answers.season);
+    renderPosition();
     applyAmbient();
   };
+
+  const particle = (layer, kind, index, count) => {
+    const node = el('span', { class: `season-particle season-particle-${kind}`, 'aria-hidden': 'true' });
+    const duration = kind === 'snow'
+      ? 18 + (index % 6) * 2.2
+      : kind === 'leaf'
+        ? 13 + (index % 5) * 2
+        : kind === 'petal'
+          ? 12 + (index % 5) * 1.8
+          : 18 + (index % 4) * 4;
+    const size = kind === 'snow'
+      ? 2 + (index % 4) * 1.1
+      : kind === 'leaf'
+        ? 8 + (index % 5) * 1.4
+        : kind === 'petal'
+          ? 6 + (index % 4) * 1.6
+          : 180 + (index % 3) * 70;
+    const opacity = kind === 'snow'
+      ? .22 + (index % 3) * .08
+      : kind === 'leaf'
+        ? .18 + (index % 4) * .05
+        : kind === 'petal'
+          ? .20 + (index % 3) * .06
+          : .26;
+    node.style.setProperty('--x', `${(index * 37 + count) % 100}%`);
+    node.style.setProperty('--y', `${8 + (index * 17) % 72}%`);
+    node.style.setProperty('--size', `${size.toFixed(1)}px`);
+    node.style.setProperty('--duration', `${duration.toFixed(1)}s`);
+    node.style.setProperty('--delay', `${(-(index * 1.7) % duration).toFixed(1)}s`);
+    node.style.setProperty('--drift', `${(index % 2 ? 1 : -1) * (20 + (index % 5) * 12)}px`);
+    node.style.setProperty('--particle-opacity', opacity.toFixed(2));
+    layer.appendChild(node);
+  };
+  const effectCounts = { spring: 16, summer: 6, autumn: 14, winter: 22 };
+  SEASONS.forEach((season) => {
+    const layer = el('div', { class: `season-fx season-fx-${season.id}`, 'aria-hidden': 'true' });
+    const count = effectCounts[season.id];
+    const kind = season.id === 'spring' ? 'petal' : season.id === 'autumn' ? 'leaf' : season.id === 'winter' ? 'snow' : 'sunspot';
+    for (let index = 0; index < count; index += 1) particle(layer, kind, index, count);
+    atmosphere.appendChild(layer);
+  });
 
   SEASONS.forEach((season, index) => {
     const on = state.answers.season === season.id;
     const cell = el('button', {
       class: 'season-cell' + (on ? ' is-on' : ''),
-      type: 'button',
-      role: 'radio',
-      'aria-checked': String(on),
+      type: 'button', role: 'radio', 'aria-checked': String(on),
       'data-season': season.id,
       tabindex: on || (state.answers.season == null && index === 0) ? '0' : '-1',
       onclick: (event) => {
-        /* 指针操作由 grid 的 pointer 事件处理；detail=0 是键盘/辅助技术触发的 click。 */
+        /* 指针操作由 rail 处理；detail=0 留给键盘与辅助技术。 */
         if (event.detail === 0 || event.detail == null) choose(season.id);
       },
       onkeydown: (event) => {
-        const delta = {
-          ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0],
-        }[event.key];
-        if (!delta) return;
+        let next = null;
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') next = index - 1;
+        else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = index + 1;
+        else if (event.key === 'Home') next = 0;
+        else if (event.key === 'End') next = SEASONS.length - 1;
+        if (next == null || next < 0 || next >= SEASONS.length) return;
         event.preventDefault();
-        const row = Math.floor(index / 2);
-        const col = index % 2;
-        const nextRow = clamp(row + delta[0], 0, 1);
-        const nextCol = clamp(col + delta[1], 0, 1);
-        const next = nextRow * 2 + nextCol;
-        if (next === index) {
-          if (index === SEASONS.length - 1 && delta[0] === 1) {
-            allCell.focus({ preventScroll: true });
-            choose(ALL_SEASON);
-          }
-          return;
-        }
         cells[next].focus({ preventScroll: true });
         choose(SEASONS[next].id);
       },
@@ -3459,19 +3477,16 @@ function renderSeason() {
   });
 
   allCell = el('button', {
-    class: 'season-cell season-cell-all',
-    type: 'button',
-    role: 'radio',
-    'aria-checked': String(state.answers.season === ALL_SEASON),
+    class: 'season-cell season-cell-all season-all-chip',
+    type: 'button', role: 'radio',
+    'aria-checked': String(isNeutralId(state.answers.season)),
     'data-season': ALL_SEASON,
-    tabindex: state.answers.season === ALL_SEASON ? '0' : '-1',
+    tabindex: isNeutralId(state.answers.season) ? '0' : '-1',
     onclick: () => choose(ALL_SEASON),
     onkeydown: (event) => {
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
       event.preventDefault();
-      const target = event.key === 'ArrowUp'
-        ? cells[SEASONS.length - 1]
-        : cells[0];
+      const target = event.key === 'ArrowUp' ? cells[SEASONS.length - 1] : cells[0];
       target.focus({ preventScroll: true });
       choose(SEASONS[target === cells[0] ? 0 : SEASONS.length - 1].id);
     },
@@ -3479,52 +3494,103 @@ function renderSeason() {
     el('span', { class: 'season-name' }, '四季通用'),
     el('span', { class: 'season-all-sub' }, '不挑季节')
   );
-  group.appendChild(allCell);
+  grid.appendChild(allCell);
 
-  grid.addEventListener('pointerdown', (event) => {
+  const positionFromEvent = (event) => {
+    const box = rail.getBoundingClientRect();
+    const inset = box.width * .125;
+    const span = Math.max(1, box.width - inset * 2);
+    return clamp((event.clientX - box.left - inset) / span, 0, 1) * (SEASONS.length - 1);
+  };
+  const cellFromTarget = (target) => {
+    const node = typeof target?.closest === 'function' ? target.closest('.season-cell') : target;
+    return node && typeof node.getAttribute === 'function' ? node : null;
+  };
+  const restoreSelectedPosition = () => {
+    neutral = isNeutralId(state.answers.season);
+    position = neutral ? SEASON_NEUTRAL_POSITION : clamp(seasonIndex(state.answers.season), 0, 3);
+    renderPosition();
+  };
+  rail.addEventListener('pointerdown', (event) => {
     if (pointer || (event.pointerType === 'mouse' && event.button !== 0)) return;
     const cell = cellFromTarget(event.target);
-    const index = cells.indexOf(cell);
-    if (index < 0) return;
+    if (cell && cell.classList.contains('season-cell-all')) return;
     pointer = {
-      id: event.pointerId, index, startX: event.clientX, startY: event.clientY, dragged: false,
+      id: event.pointerId, startX: event.clientX, startY: event.clientY,
+      dragged: false, index: cells.indexOf(cell),
     };
-    if (!mist.classList.contains('is-visible')) snapTo(pointFromEvent(event));
-    if (typeof grid.setPointerCapture === 'function' && event.pointerId != null) {
-      grid.setPointerCapture(event.pointerId);
+    if (typeof rail.setPointerCapture === 'function' && event.pointerId != null) {
+      rail.setPointerCapture(event.pointerId);
     }
   });
-  grid.addEventListener('pointermove', (event) => {
+  rail.addEventListener('pointermove', (event) => {
     if (!pointer || event.pointerId !== pointer.id) return;
     if (!pointer.dragged && Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY) > 4) {
       pointer.dragged = true;
-      /* 未选时静止态不显示白雾；手指一旦开始拖动，就立即显形并跟手。 */
-      mist.classList.add('is-visible');
+      rail.classList.add('is-dragging');
     }
     if (!pointer.dragged) return;
     event.preventDefault();
-    animateTo(pointFromEvent(event));
-  });
-  grid.addEventListener('pointerup', (event) => {
-    if (!pointer || event.pointerId !== pointer.id) return;
-    const index = pointer.dragged ? nearestSeason(pointFromEvent(event)) : pointer.index;
-    pointer = null;
-    if (typeof grid.releasePointerCapture === 'function' && event.pointerId != null) {
-      grid.releasePointerCapture(event.pointerId);
+    position = positionFromEvent(event);
+    neutral = false;
+    const index = clamp(Math.round(position), 0, SEASONS.length - 1);
+    if (state.answers.season !== SEASONS[index].id) {
+      state.answers.season = SEASONS[index].id;
+      paintSelection(state.answers.season);
+      applyAmbient();
     }
-    choose(SEASONS[index].id);
+    renderPosition();
   });
+  const endPointer = (event) => {
+    if (!pointer || event.pointerId !== pointer.id) return;
+    const dragged = pointer.dragged;
+    const index = pointer.index;
+    pointer = null;
+    rail.classList.remove('is-dragging');
+    if (typeof rail.releasePointerCapture === 'function' && event.pointerId != null
+      && typeof rail.hasPointerCapture === 'function' && rail.hasPointerCapture(event.pointerId)) {
+      rail.releasePointerCapture(event.pointerId);
+    }
+    if (dragged) {
+      position = clamp(Math.round(position), 0, SEASONS.length - 1);
+      choose(SEASONS[position].id);
+    } else if (index >= 0) {
+      choose(SEASONS[index].id);
+    } else {
+      position = clamp(Math.round(positionFromEvent(event)), 0, SEASONS.length - 1);
+      choose(SEASONS[position].id);
+    }
+  };
+  rail.addEventListener('pointerup', endPointer);
   const cancelPointer = (event) => {
     if (!pointer || event.pointerId !== pointer.id) return;
     pointer = null;
-    layoutMist(true);
+    rail.classList.remove('is-dragging');
+    restoreSelectedPosition();
   };
-  grid.addEventListener('pointercancel', cancelPointer);
-  grid.addEventListener('lostpointercapture', cancelPointer);
+  rail.addEventListener('pointercancel', cancelPointer);
+  rail.addEventListener('lostpointercapture', cancelPointer);
 
-  seasonRepaint = () => paint(state.answers.season);
-  paint(state.answers.season);
-  wrap.appendChild(group);
+  handle.addEventListener('keydown', (event) => {
+    let next = null;
+    if (event.key === 'ArrowLeft') next = neutral ? 1 : Math.round(position) - 1;
+    else if (event.key === 'ArrowRight') next = neutral ? 2 : Math.round(position) + 1;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = SEASONS.length - 1;
+    if (next == null || next < 0 || next >= SEASONS.length) return;
+    event.preventDefault();
+    choose(SEASONS[next].id);
+  });
+
+  seasonRepaint = () => {
+    neutral = isNeutralId(state.answers.season);
+    position = neutral ? SEASON_NEUTRAL_POSITION : clamp(seasonIndex(state.answers.season), 0, 3);
+    paintSelection(state.answers.season);
+    renderPosition();
+  };
+  paintSelection(state.answers.season);
+  renderPosition();
+  wrap.appendChild(panel);
   wrap.appendChild(gloss);
   wrap.appendChild(scene);
 
@@ -3537,10 +3603,11 @@ function renderSeason() {
 
   wrap.appendChild(navBar('season'));
 
-  window.addEventListener('resize', () => layoutMist(true));
-  if (typeof ResizeObserver === 'function') new ResizeObserver(() => layoutMist(true)).observe(grid);
+  if (typeof darkMotion.addEventListener === 'function') {
+    darkMotion.addEventListener('change', renderPosition);
+  }
   if (typeof reduceMotion.addEventListener === 'function') {
-    reduceMotion.addEventListener('change', () => layoutMist(true));
+    reduceMotion.addEventListener('change', renderPosition);
   }
   return wrap;
 }
