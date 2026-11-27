@@ -97,6 +97,9 @@ const PARTS = [
      不命中圆盘、问卷各屏、首屏比较表（.cmp*）与购买按钮。
      与 101 层共用 --spec-tint-* 族色与 --radius-sm，不新增色值。 */
   '102-results-detail.css',
+  /* 3-8 全站小提示纸条化：放最后，覆盖前面各层 plain 小字。
+     选择器都是既有小提示类 + 结果页三行，不改 DOM/文案/位置。 */
+  '103-micro-hints.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');
