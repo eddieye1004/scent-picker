@@ -3754,7 +3754,7 @@ function renderConcentration() {
     + '</svg>' });
   scene.append(glow, rippleIn, rippleMid, rippleOut, pulse, figure);
 
-  /* 波纹半径 = 档位。直径 16%（贴肤）→ 128%（铺满场景、向右涌出去）。
+  /* 波纹半径 = 档位。直径 16%（贴肤）→ 128%（从人物向外铺过舞台）。
      拖动时这里收**连续值**（1.00–5.00 都有），不按档跳；
      松手后再缓动吸附到整数档。 */
   const paintScene = (v) => {

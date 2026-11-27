@@ -1944,6 +1944,45 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
     + `ripples ${scene ? scene.querySelectorAll('.conc-ripple').length : 0} / `
     + `buttons ${scene ? scene.querySelectorAll('button').length : 0}`);
 
+  /* ---- 3-5a：固定舞台与人物/涟漪同心（几何规则由真实浏览器另行验收）---- */
+  const concCss = fs.readFileSync(path.join(ROOT, 'styles/src/90-quiz-v6.css'), 'utf8');
+  const sceneRule = (concCss.match(/\.conc-scene\s*\{([^}]*)\}/) || [])[1] || '';
+  const mobileSceneRule = (concCss.match(/@media\s*\(max-width:\s*620px\)[\s\S]*?\.conc-scene\s*\{([^}]*)\}/) || [])[1] || '';
+  ok('浓度舞台桌面 280×280、手机 240×240，且溢出可见',
+    /position:\s*relative/.test(sceneRule)
+    && /width:\s*280px/.test(sceneRule) && /height:\s*280px/.test(sceneRule)
+    && /margin:\s*0\s+auto/.test(sceneRule) && /overflow:\s*visible/.test(sceneRule)
+    && /width:\s*240px/.test(mobileSceneRule) && /height:\s*240px/.test(mobileSceneRule),
+    `${sceneRule.trim()} ｜ mobile ${mobileSceneRule.trim()}`);
+  const centerRule = (concCss.match(/\.conc-glow,\s*\.conc-ripple,\s*\.conc-pulse\s*\{([^}]*)\}/s) || [])[1] || '';
+  ok('glow/ripple/pulse 用 inset + margin + 独立 translate 居中，定位不占 transform',
+    /position:\s*absolute/.test(centerRule) && /inset:\s*0/.test(centerRule)
+    && /left:\s*50%/.test(centerRule) && /top:\s*50%/.test(centerRule)
+    && /right:\s*auto/.test(centerRule) && /bottom:\s*auto/.test(centerRule)
+    && /margin:\s*auto/.test(centerRule) && /translate:\s*-50%\s+-50%/.test(centerRule)
+    && /aspect-ratio:\s*1\s*\/\s*1/.test(centerRule) && !/\btransform\s*:/.test(centerRule),
+    centerRule.trim());
+  const figureRule = (concCss.match(/\.conc-figure\s*\{([^}]*)\}/s) || [])[1] || '';
+  ok('人物 128×168、z-index 3，与涟漪共用舞台中心',
+    /position:\s*absolute/.test(figureRule) && /inset:\s*0/.test(figureRule)
+    && /width:\s*128px/.test(figureRule) && /height:\s*168px/.test(figureRule)
+    && /z-index:\s*3/.test(figureRule) && /margin:\s*auto/.test(figureRule)
+    && /right:\s*auto/.test(figureRule) && /bottom:\s*auto/.test(figureRule)
+    && /translate:\s*-50%\s+-50%/.test(figureRule)
+    && /padding:\s*0/.test(figureRule) && /pointer-events:\s*none/.test(figureRule),
+    figureRule.trim());
+  const svg = scene.querySelector('svg');
+  const head = scene.querySelector('circle');
+  const body = scene.querySelector('path');
+  const viewBox = String(svg?.attrs.viewBox || '').split(/\s+/).map(Number);
+  const pulseFrames = (concCss.match(/@keyframes\s+conc-pulse\s*\{([\s\S]*?)\n\}/) || [])[1] || '';
+  ok('SVG 垂直中轴在 viewBox 宽度 50%，pulse 动画只写 scale',
+    viewBox.length === 4 && Number(head?.attrs.cx) === viewBox[2] * .5
+    && /M13 84 L13 68 C13 55 19\.5 43 28 43 C36\.5 43 43 55 43 68 L43 84 Z/.test(String(body?.attrs.d || ''))
+    && /scale\(\.9\)/.test(pulseFrames) && /scale\(1\.22\)/.test(pulseFrames)
+    && !/translate/.test(pulseFrames),
+    `viewBox ${svg?.attrs.viewBox} / head cx ${head?.attrs.cx} / pulse ${pulseFrames.trim()}`);
+
   /* 滑杆：唯一命中来源，原生语义齐全。 */
   const slider = appRoot.querySelector('.conc-slider');
   ok('浓淡控件是原生 input[type=range]（min1 max5 step1）',
