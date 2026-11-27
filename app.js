@@ -1086,7 +1086,8 @@ function buildWheel(cfg) {
   const SUB_R2I = 118;
   const SUB_R2O = 152;
   const SUB_GROOVE = 2.4;   // 凹槽比弧带每侧多出的宽度
-  /* 标签只按扇区真实可见跨度取质心；所有断点共用同一坐标。 */
+  /* 标签落在弧带的径向中点；角度仍取该弧段的角平分线。
+     不用面积质心：质心会随扇区角度向圆心收缩，2 类时甚至落进盘心。 */
   const FAM_LABEL_GAP = 2.0;
 
   function sectorCentroidRadius(rIn, rOut, angleDeg) {
@@ -1742,7 +1743,11 @@ function buildWheel(cfg) {
       subGs.push(g);
 
       const spanDeg = step - gap;
-      const labelR = sectorCentroidRadius(SUB_R2I, SUB_R2O, spanDeg);
+      /* 弧段角平分线 × 弧带径向中点 = 标签锚点。
+         sectorCentroidRadius() 是面积质心，不是弧带中点：n=2 时它给出
+         r≈88，标签被 60% 盘心（r=144）整枚盖住；n=3/4 时也明显偏内。
+         统一取 (118+152)/2=135，n=2/3/4/6 都保持同一几何口径。 */
+      const labelR = (SUB_R2I + SUB_R2O) / 2;
       const px = polar(labelR, mid);
       const arcUnits = SUB_R2O * (spanDeg * Math.PI / 180);
       const fullName = subFullName(item);
@@ -7294,6 +7299,34 @@ function ensureTmallShops() {
   return tmallPromise;
 }
 
+/* 首屏两个必需 JSON 都可能把 fetch 或 body 读取卡住；8 秒上限覆盖整段请求，
+   超时后按普通失败进入各自的降级路径，不留下永远 pending 的 Promise。 */
+function fetchJsonWithTimeout(url, timeoutMs = 8000) {
+  let timer;
+  const request = fetch(url).then((response) => {
+    if (!response.ok) throw new Error(`${url.pathname} HTTP ${response.status}`);
+    return response.json();
+  });
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${url.pathname} 加载超时（${timeoutMs / 1000} 秒）`));
+    }, timeoutMs);
+  });
+  return Promise.race([request, timeout]).finally(() => clearTimeout(timer));
+}
+
+/* taxonomy 是首屏渲染的硬依赖：第一次失败后重试一次，仍失败才交给 boot()
+   的现有加载失败页。price-bands 不走重试，失败时继续用空预算降级。 */
+async function fetchTaxonomyWithRetry(url) {
+  try {
+    return await fetchJsonWithTimeout(url);
+  } catch {
+    return fetchJsonWithTimeout(url).catch((err) => {
+      throw new Error(`taxonomy.json 加载失败（已重试 1 次）：${err.message}`);
+    });
+  }
+}
+
 async function boot() {
   /* index.html 里已有静态骨架屏（不能靠这里注入 —— app.js 是 module，
      自己下载完才执行，那几秒里页面会是空的）。这里只负责抹掉它。 */
@@ -7326,16 +7359,14 @@ async function boot() {
        改成 Promise.all 并行，**到齐之后**的写入顺序与初始化调用保持原样：
        price-bands 先落 PRICE_INDEX、taxonomy 后落 TAX，然后 render() 一次。
        两条各自的降级互不牵连（price-bands 读不到只影响预算屏的价签，
-       taxonomy 失败仍走 catch 的「加载失败」页）。 */
-    const [priceRes, taxRes] = await Promise.all([
-      fetch(new URL('data/price-bands.json', base)).catch(() => null),
-      fetch(new URL('data/taxonomy.json', base)),
+       taxonomy 失败重试一次，仍失败才走 catch 的「加载失败」页）。
+       两路都覆盖 fetch 与 JSON body 读取，单路上限 8 秒。 */
+    const [priceData, taxData] = await Promise.all([
+      fetchJsonWithTimeout(new URL('data/price-bands.json', base)).catch(() => null),
+      fetchTaxonomyWithRetry(new URL('data/taxonomy.json', base)),
     ]);
-    try {
-      if (priceRes && priceRes.ok) PRICE_INDEX = await priceRes.json();
-    } catch { PRICE_INDEX = null; }
-    if (!taxRes.ok) throw new Error(`taxonomy.json HTTP ${taxRes.status}`);
-    TAX = await taxRes.json();
+    PRICE_INDEX = priceData || null;
+    TAX = taxData;
     render();
   } catch (err) {
     $('#app').innerHTML = `<div class="masthead"><h1>加载失败</h1></div>

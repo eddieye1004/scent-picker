@@ -5697,6 +5697,21 @@ border-color 260ms var(--ease-std),
 box-shadow 260ms var(--ease-std),
 transform 260ms var(--ease-out);
 }
+/* 深色圆盘表面统一走主题暗档：只在 .wheel 作用域映射 token，
+   盘心、中圈弧片与凹槽环一起继承 --bg-2 / --bg-3 / --edge，
+   文字继承 --ink；不提升到 :root，避免圆盘外控件被连带改色。
+   盘心仍保留内高光与柔影，不使用纯黑死色。 */
+@media (prefers-color-scheme: dark) {
+#app[data-step="family"] .wheel {
+--spec-plate: var(--bg-2);
+--spec-plate-2: var(--bg-3);
+--spec-rim: var(--edge);
+--spec-ink: var(--ink);
+--spec-hair: var(--edge);
+--spec-sh: rgba(0, 0, 0, .38);
+--spec-glow: rgba(255, 255, 255, .08);
+}
+}
 #app[data-step="family"] .wheel .disc-hub .hub-zh {
 font-family: var(--font-body);
 font-weight: 500;
