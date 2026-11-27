@@ -783,6 +783,10 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
   const midSecs = appRoot.querySelectorAll('.disc-sector.lvl2').filter((b) => b.getAttribute('data-sub'));
   const midIds = midSecs.map((b) => b.getAttribute('data-sub'));
   const pillNames = midSecs.map((b) => (b.querySelector('.zh')?.textContent || '').trim());
+  const pillIconCount = appRoot.querySelectorAll('.sub-arc-btn .sub-arc-icon').length;
+  const pillRotMissing = midSecs.filter((b) => !b.style.getPropertyValue('--pill-rot')).length;
+  ok('批 3-1b 胶囊只留文字、不带小类图标', pillIconCount === 0, `${pillIconCount} 枚`);
+  ok('批 3-1b 每枚胶囊都带切向旋转角度', pillRotMissing === 0, `缺 ${pillRotMissing} 枚`);
   const famNames = famItems.map((n) => n.textContent.trim());
   const expectFull = midIds.map((id) => subFullName(subById.get(id)));
   const expectShort = midIds.map((id) => subShortLabel(subById.get(id)));

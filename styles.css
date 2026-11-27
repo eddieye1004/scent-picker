@@ -7100,6 +7100,41 @@ white-space: nowrap;
 }
 #app:not([data-step="season"]) * { backdrop-filter: none !important; }
 .wheel .disc-hub .fam-text { display: none !important; }
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+display: inline-flex;
+align-items: center;
+justify-content: center;
+width: max-content;
+max-width: none;
+min-height: 0;
+padding: 0 4px;
+gap: 0;
+border-radius: 999px;
+font-size: 13px;
+line-height: 1.05;
+white-space: nowrap;
+word-break: normal;
+transform: rotate(var(--pill-rot, 0deg)) scale(var(--pill-scale, 1));
+transform-origin: center;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="6"] .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="7"] .zh {
+max-width: none;
+font-size: 12px;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .sub-arc-icon {
+display: none !important;
+}
+@media (max-width: 620px) {
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn { --pill-scale: .72; }
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="6"] .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="7"] .zh {
+max-width: none;
+padding: 0 4px;
+font-size: 12px;
+}
+}
 .qw-share-row {
 display: flex;
 flex-wrap: wrap;

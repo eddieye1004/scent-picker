@@ -1809,6 +1809,8 @@ function buildWheel(cfg) {
       const labelR = (SUB_R2I + SUB_R2O) / 2;
       const px = polar(labelR, mid);
       const arcUnits = SUB_R2O * (spanDeg * Math.PI / 180);
+      /* 胶囊长轴沿弧带切线；角度归一化到 [-90°, 90°]，避免下半盘倒字。 */
+      const pillRot = ((mid + 180) % 180) - 90;
       const fullName = subFullName(item);
       const visibleName = subShortLabel(item);
       const btn = el('button', {
@@ -1842,7 +1844,7 @@ function buildWheel(cfg) {
            内联 transform 会盖掉 .disc-sector 基类的居中位移。 */
         style: '--l: ' + (px[0] / WHEEL.vb * 100).toFixed(2) + '%; --t: ' + (px[1] / WHEEL.vb * 100).toFixed(2)
           + '%; --nl: ' + (px[0] / WHEEL.vb * 100).toFixed(2) + '%; --nt: ' + (px[1] / WHEEL.vb * 100).toFixed(2)
-          + '%; --arc-max: ' + (arcUnits / WHEEL.vb * 100).toFixed(2) + '%; --i: ' + i + '; --n: ' + n,
+          + '%; --arc-max: ' + (arcUnits / WHEEL.vb * 100).toFixed(2) + '%; --pill-rot: ' + pillRot.toFixed(2) + 'deg; --i: ' + i + '; --n: ' + n,
       }, el('span', { class: 'zh', 'aria-hidden': 'true' }, visibleName));
       /* 中圈标签用**短标签**（src/sub-labels.js）而不是 label/zh：
          ① 柑橘调的四个 zh 都是"××柑橘"，并排看分不出差别（用户 m05889 原话
