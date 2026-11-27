@@ -7135,6 +7135,18 @@ padding: 0 4px;
 font-size: 12px;
 }
 }
+#app[data-step="family"] .wheel .hub-emblem.is-confirming {
+animation: leg8HubConfirm 180ms ease-out;
+transform-origin: center;
+}
+@keyframes leg8HubConfirm {
+0% { transform: scale(1); }
+45% { transform: scale(1.12); }
+100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+#app[data-step="family"] .wheel .hub-emblem.is-confirming { animation: none; }
+}
 .qw-share-row {
 display: flex;
 flex-wrap: wrap;

@@ -704,6 +704,15 @@ ok('盘心不在可旋转层内', !inRot(appRoot.querySelector('.disc-hub')));
 ok('进度条存在', appRoot.querySelectorAll('.progress').length === 1);
 ok('页脚有许可声明', getStepText().includes('CC BY 4.0'));
 
+/* 空态盘心只留引导文案：准星纹样节点不挂载，而不是用透明度隐藏。 */
+ok('批 3-2a 空态盘心不渲染准星纹样',
+  appRoot.querySelectorAll('.hub-orn').length === 0,
+  `${appRoot.querySelectorAll('.hub-orn').length} 枚`);
+ok('批 3-2a 空态盘心保持 is-idle 引导态',
+  !!appRoot.querySelector('.disc-hub')
+    && appRoot.querySelector('.disc-hub').classList.contains('is-idle'),
+  appRoot.querySelector('.disc-hub')?.className);
+
 /* 扇形本体必须自己挂着点击 —— 只把事件绑在标签上的话，
    用户戳扇区那一大块面积会毫无反应，等于"看起来能点"。 */
 const sectorGroups = appRoot.querySelectorAll('.sector-g');
@@ -748,16 +757,13 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
   ok('只选大类时盘心是「正在看」而非「已选定」',
     !!hubPrev && !hubPrev.classList.contains('is-picked'), hubPrev && hubPrev.className);
 
-  /* ---- 只选大类时中心盘 = 纯文字（本步临时裁定）----
-     24 枚上色标本画的是"小类"那一层，大类这一层没有自己的图标。
-     只选大类就摆一排小类图标，等于用下一层的词汇回答当前这一层的问题。
-     所以这里守两条，缺一条裁定就落空：
-       ① 盘心不许有任何图标（小类图标也不行）
-       ② 盘心必须有文字（小类名 + 个数），否则"承载信息"这条又退回空圆 */
+  /* ---- 只选大类时中心盘 = 家族大图标 + 文字（批 3-2a）----
+     24 枚上色标本画的是"小类"那一层，大家族这一层使用 6 枚家族级图形。
+     所以 .hub-glyph 里仍不许出现小类标本，家族图形由 .hub-emblem 承载。 */
   const hubGlyphBox = appRoot.querySelector('.hub-glyph');
   const hubSvgs = hubGlyphBox ? hubGlyphBox.querySelectorAll('svg') : [];
-  ok('只选大类时盘心没有任何图标', hubSvgs.length === 0,
-    `盘心 SVG ${hubSvgs.length} 枚`);
+  ok('只选大类时盘心还没有小类标本', hubSvgs.length === 0,
+    `盘心小类 SVG ${hubSvgs.length} 枚`);
   const famText = appRoot.querySelector('.fam-text');
   const famItems = appRoot.querySelectorAll('.fam-text-item');
   /* 名字口径（2026-11-24 裁定 A；2026-11-25 短标签腿修订）：盘心小类列表与
@@ -870,6 +876,12 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
   ok('悬停不画标本（未确认就没有标本）',
     appRoot.querySelectorAll('.plate-svg').length === 0,
     `${appRoot.querySelectorAll('.plate-svg').length} 枚`);
+  const hoverFamId = appRoot.querySelectorAll('.sector-g')[0].getAttribute('data-fam');
+  const hoverEmblem = appRoot.querySelector('.hub-emblem');
+  ok('批 3-2a 悬停中圈保持家族大图标',
+    !!hoverEmblem && hoverEmblem.getAttribute('data-fam') === hoverFamId
+      && hoverEmblem.querySelectorAll('svg').length === 1,
+    `期望 ${hoverFamId}，实际 ${hoverEmblem && hoverEmblem.getAttribute('data-fam')}`);
   ok('悬停态还没到「已选定」', !!hubHover && !hubHover.classList.contains('is-picked'),
     hubHover && hubHover.className);
   ok('悬停只给那一段挂 is-hot', g0.classList.contains('is-hot'), g0.className);
@@ -1091,7 +1103,7 @@ ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textCon
    验收线三条状态，缺一条这件事就落空：
      ① 选中 → 盘心出现该大类的图标（且是**那一族**的，不是随便一枚）
      ② 切换 → 图标跟着换（不是渲染一次就冻住）
-     ③ 取消 → 盘心恢复原样（徽记退场、空态纹样回来、文字回到「还没选」）
+     ③ 取消 → 盘心恢复原样（徽记退场、准星纹样不挂载、文字回到「还没选」）
 
    为什么走真实点击而不注入 state：图标挂在 paint() 里，而 paint() 由
    onChange / 扇区点击驱动。注入 state 就把要验的那一段绕掉了 ——
@@ -1153,7 +1165,7 @@ ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textCon
       `data-fam=${em && em.fam} svg=${em && em.svgCount}`);
     ok('取消选择后盘心不挂 has-emblem', !!hub && !hub.classList.contains('has-emblem'),
       hub && hub.className);
-    ok('取消选择后空态纹样回来（原样，不是新的东西）', !!orn,
+    ok('批 3-2a 取消选择后空态不挂准星纹样', !orn,
       orn ? orn.className : 'no .hub-orn');
     ok('取消选择后盘心回到「还没选」', appRoot.querySelector('.hub-zh').textContent === '还没选',
       appRoot.querySelector('.hub-zh').textContent);
@@ -1163,12 +1175,33 @@ ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textCon
       `glyph=${appRoot.querySelectorAll('.hub-glyph svg').length} emblem=${appRoot.querySelectorAll('.hub-emblem svg').length}`);
   }
 
-  /* ① 选中第一个大类 → 盘心出现那一族的图标。 */
+  /* 空态 hover 大圈：临时出现该家族大图标；移开后回空态。 */
   const famIdOfSector = (g) => g.getAttribute('data-fam');
   const firstSector = appRoot.querySelectorAll('.sector-g')[0];
   const firstFam = famIdOfSector(firstSector);
+  firstSector.dispatch('mouseenter');
+  await new Promise((r) => setTimeout(r, 300));
+  const hoverPreview = emblemOf();
+  ok('批 3-2a 空态 hover 大圈预览该家族大图标',
+    !!hoverPreview && hoverPreview.fam === firstFam && hoverPreview.svgCount === 1,
+    `期望 ${firstFam}，实际 ${hoverPreview && hoverPreview.fam}／svg ${hoverPreview && hoverPreview.svgCount}`);
+  firstSector.dispatch('mouseleave');
+  await new Promise((r) => setTimeout(r, 120));
+  ok('批 3-2a 指针离开后回到空态徽记',
+    !!emblemOf() && emblemOf().fam === null && emblemOf().svgCount === 0,
+    `data-fam=${emblemOf().fam} svg=${emblemOf().svgCount}`);
+
+  /* ① 选中第一个大类 → 盘心出现那一族的图标，并只播放一次确认动效。 */
   firstSector.dispatch('click');
+  ok('批 3-2a 选定家族时触发一次确认动效',
+    !!appRoot.querySelector('.hub-emblem')
+      && appRoot.querySelector('.hub-emblem').classList.contains('is-confirming'),
+    appRoot.querySelector('.hub-emblem')?.className);
   await new Promise((r) => setTimeout(r, 500));
+  ok('批 3-2a 确认动效 180ms 后收尾',
+    !!appRoot.querySelector('.hub-emblem')
+      && !appRoot.querySelector('.hub-emblem').classList.contains('is-confirming'),
+    appRoot.querySelector('.hub-emblem')?.className);
   const sel1 = emblemOf();
   const hubSel1 = appRoot.querySelector('.disc-hub');
   ok('选中大类后盘心出现该类图标', !!sel1 && sel1.fam === firstFam && sel1.svgCount === 1,
@@ -1187,9 +1220,17 @@ ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textCon
     !!sel1 && sel1.gradientIds.length > 0 && sel1.gradientIds.every((s) => /-a\d+$/.test(s)),
     sel1 && sel1.gradientIds.slice(0, 3).join(' '));
 
-  /* ② 切换 → 图标跟着换。点第四个大类（与第一个不同族）。 */
+  /* 已选家族优先于 hover 预览：划过别族不抢走盘心，点击才切换。 */
   const fourthSector = appRoot.querySelectorAll('.sector-g')[3];
   const fourthFam = famIdOfSector(fourthSector);
+  fourthSector.dispatch('mouseenter');
+  await new Promise((r) => setTimeout(r, 160));
+  ok('批 3-2a 已选家族优先于 hover 预览',
+    !!emblemOf() && emblemOf().fam === firstFam,
+    `期望保持 ${firstFam}，实际 ${emblemOf().fam}`);
+  fourthSector.dispatch('mouseleave');
+
+  /* ② 切换 → 图标跟着换。点第四个大类（与第一个不同族）。 */
   fourthSector.dispatch('click');
   await new Promise((r) => setTimeout(r, 500));
   const sel2 = emblemOf();

@@ -307,3 +307,17 @@
     font-size: 12px;
   }
 }
+
+/* ---------- 批 3-2a：盘心空态 / 家族预览 / 一次确认动效 ---------- */
+#app[data-step="family"] .wheel .hub-emblem.is-confirming {
+  animation: leg8HubConfirm 180ms ease-out;
+  transform-origin: center;
+}
+@keyframes leg8HubConfirm {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #app[data-step="family"] .wheel .hub-emblem.is-confirming { animation: none; }
+}

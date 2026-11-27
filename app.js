@@ -1061,39 +1061,6 @@ function familyEmblem(fam) {
   return box;
 }
 
-/* ---------- 盘心空态纹样（缺陷 ③ 的另一半）----------
-   还没选大类时，盘心是一块空圆 + 两行小字。补一枚与盘同构的纹样：
-   一圈发丝环、六枚定位点、中心十字。六个点就是外圈六族的位置，
-   于是"空盘"仍在讲这张盘的结构，而不是一块白。
-   这里是内联 SVG（不是 fetch 的上色图），因为它属于界面骨架，
-   不能等网络。 */
-function hubOrnament(families) {
-  const svg = svgEl('svg', {
-    class: 'hub-orn',
-    viewBox: '0 0 100 100',
-    'aria-hidden': 'true',
-    focusable: 'false',
-  });
-  const ring = (r, cls) => svg.appendChild(svgEl('circle', {
-    class: cls, cx: 50, cy: 50, r,
-  }));
-  ring(46, 'orn-ring is-outer');
-  ring(30, 'orn-ring');
-  /* 六枚定位点：与外圈六族同一角度约定（-90 起，每 60°） */
-  const n = families.length || 6;
-  for (let k = 0; k < n; k++) {
-    const rad = ((-90 + (360 / n) * k) * Math.PI) / 180;
-    svg.appendChild(svgEl('circle', {
-      class: 'orn-dot',
-      cx: (50 + 46 * Math.cos(rad)).toFixed(2),
-      cy: (50 + 46 * Math.sin(rad)).toFixed(2),
-      r: 1.8,
-    }));
-  }
-  svg.appendChild(svgEl('path', { class: 'orn-cross', d: 'M46 50 H54 M50 46 V54' }));
-  return svg;
-}
-
 /* 圆盘弧文字轨道的全局唯一 id（重建不重复） */
 let wheelArcSeq = 0;
 
@@ -1310,17 +1277,24 @@ function buildWheel(cfg) {
   }, '← 重选大类');
   backBtn.hidden = true;
   (backHost || root).appendChild(backBtn);
-  /* 空态纹样（缺陷 ③）：六枚定位点就是外圈六族的位置，空盘也在讲盘的结构。
-     单独一棵节点而不是塞进 hubGlyph：hubGlyph 归标本管，两者互斥，
-     混用会让 paint() 里"清空标本"那一步顺手把纹样也删掉。 */
-  const hubOrn = hubOrnament(families);
   /* 未选大类时盘心唯一的一行弱提示。其余既有节点保留在 DOM 中供无障碍
-     与既有自检读取，但由 CSS 在该态隐藏，视觉上只出现纹样与这一句。 */
+     与既有自检读取，但由 CSS 在该态隐藏，视觉上只出现这一句。 */
   const hubIdleHint = el('div', { class: 'hub-idle-hint' }, '先选香调大类');
   /* 大类徽记：进入正常 flex 流，固定 64×64；不再叠在文字背后。 */
   const hubEmblem = el('div', { class: 'hub-emblem', 'aria-hidden': 'true' });
+  let confirmTimer = 0;
+  function confirmFamilyEmblem() {
+    if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = 0; }
+    hubEmblem.classList.remove('is-confirming');
+    void hubEmblem.offsetWidth;
+    hubEmblem.classList.add('is-confirming');
+    confirmTimer = setTimeout(() => {
+      hubEmblem.classList.remove('is-confirming');
+      confirmTimer = 0;
+    }, 180);
+  }
   const hub = el('div', { class: 'disc-hub is-idle' },
-    hubEmblem, hubOrn, hubIdleHint, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
+    hubEmblem, hubIdleHint, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
   root.appendChild(hub);
 
   /* ---- 液态玻璃交互层（B 段）----
@@ -1623,6 +1597,7 @@ function buildWheel(cfg) {
       splash(ev);
       selFamily = f.id; selSub = null; hoverFam = null; hoverSub = null;
       paint();
+      confirmFamilyEmblem();
       onChange(f, null);
     });
     btn.addEventListener('keydown', (ev) => keyNav(ev, outerBtn, i));
@@ -1637,6 +1612,7 @@ function buildWheel(cfg) {
       splash(ev);
       selFamily = f.id; selSub = null; hoverFam = null; hoverSub = null;
       paint();
+      confirmFamilyEmblem();
       onChange(f, null);
     });
   });
@@ -1972,9 +1948,10 @@ function buildWheel(cfg) {
     /* 只有"真的选了"才缩放并铺方格；悬停只改盘心预览。
        悬停就缩放会让指针划过时整个版面跳动，比少一个反馈更糟。 */
     const open = !!selFamily;
-    /* 悬停优先于已选：缩小后的盘六个扇区都能直接点（见 ③），
-       不给预览就等于蒙眼换类。悬停时盘心先讲那个大类。 */
-    const showFamId = hoverFam || selFamily;
+    /* 盘心优先级（指南 v2）：已选小类 > 已选家族 > hover 预览 > 空态。
+       已选家族一旦确定，指针划过其它大圈只保留命中提示，不抢走盘心；
+       未选时 hover 才临时预览该家族。 */
+    const showFamId = selFamily || hoverFam;
     const showFam = showFamId ? famById.get(showFamId) : null;
     const builtKey = selFamily || null;
     if (builtFor !== builtKey) {
@@ -2038,29 +2015,24 @@ function buildWheel(cfg) {
       });
     }
 
-    /* 正在悬停另一个大类（不是已选的那个）—— 这时盘心必须讲悬停的那一个 */
-    const hoverOther = !!(hoverFam && hoverFam !== selFamily);
-    const sub = (showFam && !hoverOther && selSub)
-      ? (showFam.subfamilies || []).find((x) => x.id === selSub) : null;
-    /* v15：hover 不再参与任何状态。
-       用户的原话是「箱型选择应由左键点击确定，而非鼠标悬停或拖动位置决定，
-       只有再次左键点击其他箱型时才切换」。所以盘心主词只认 selSub 一个值：
-       指针划过某段只让那一段描边加深（.is-hot，纯视觉），
-       盘心既不换词、也不挂 is-picked、更不写 selSub。
-       这条同时修掉 v14 的一个隐患：hover 驱动 paint()，而 paint() 会被
-       高频调用，一旦 hover 改状态，盘心文字就会跟着指针抖。 */
+    /* 已选小类是最高优先级；hover 只在大类未选定时参与预览。 */
+    const selectedFam = selFamily ? famById.get(selFamily) : null;
+    const sub = (selectedFam && selSub)
+      ? (selectedFam.subfamilies || []).find((x) => x.id === selSub) : null;
     const focusSub = sub;
 
-    /* 盘心只讲已经选中的大类；悬停与子类不再替换这个视觉焦点。
-       子类仍照常参与 is-picked / 弧段状态，问卷状态与打分入口不变。 */
-    const hubFamily = selFamily ? famById.get(selFamily) : null;
+    /* 已选家族优先于 hover；只有完全未选时，hover 才临时预览家族名与图标。 */
+    const hubFamily = selectedFam || null;
+    const previewFam = !selectedFam ? showFam : null;
     let kick;
     let zh;
     let desc;
     let idle = false;
     let picked = false;
-    if (!hubFamily) {
+    if (!hubFamily && !previewFam) {
       kick = '香型轮盘'; zh = '还没选'; desc = '从外圈挑一个大类'; idle = true;
+    } else if (previewFam) {
+      kick = '香型轮盘'; zh = previewFam.zh; desc = '点一下选定'; idle = false;
     } else {
       picked = !!sub;
       kick = '已选定大类';
@@ -2091,25 +2063,9 @@ function buildWheel(cfg) {
     hubZh.textContent = zh;
     hubDesc.textContent = desc;
 
-    /* ⑤ 图标常态与选中态要能区分开。
-       常态（预览）画灰线稿、不写香材名；落到具体项后线稿转蓝、名字出现。
-       原来只在"已选定"时才画，等于常态没有图标可比，也就无所谓区分。
-
-       ==== v7 第 1.5 步：盘心在"只选大类"时也要有内容（缺陷 ③）====
-       原来这一行是 `if (focusSub) {...}`，于是只选大类时盘心只剩三行字，
-       底下是一块 343px 的空圆 —— 用户看到的面积最大的东西是空白。
-       现在三种状态都有东西：
-         落到小类   → 一枚代表香材（.plate-svg，语义不变）
-         只选大类   → 这一族的小类名 + 个数，**纯文字**（.fam-text）
-         什么都没选 → 空态纹样（六枚定位点，见 hubOrnament）
-       只选大类那一路为什么不放图标：24 枚上色标本画的是小类那一层，
-       大类这一层没有自己的图标；摆一排小类图标等于用下一层的词汇
-       回答当前这一层的问题（详见 familyText 上方）。裁定：纯文字。
-       三种状态互斥，所以 `has-glyph` 只在 ①② 为真时挂上 ——
-       CSS 靠它决定纹样是否退场。 */
-    const famForGlyph = showFam || null;
-    const glyphKey = focusSub ? ('sub:' + focusSub.id)
-      : (famForGlyph ? ('fam:' + famForGlyph.id) : 'none');
+    /* 小类标本只在已选小类时出现；家族级由 .hub-emblem 承载。
+       空态不挂任何图形，hover/点选家族时显示 6 枚家族级图形之一。 */
+    const glyphKey = focusSub ? ('sub:' + focusSub.id) : 'none';
     /* 只在"该画哪个"真的变了时才重建 DOM：
        paint() 由 hover 高频调用，每次重建会让盘心闪一下。 */
     if (glyphKey !== builtGlyphKey) {
@@ -2120,27 +2076,11 @@ function buildWheel(cfg) {
     }
     hub.classList.toggle('has-glyph', glyphKey !== 'none');
 
-    /* ==== 大类徽记（方向 B，2026-11-23）====
-       盘心显示"这一大类的图标"，跟随 showFam —— 与盘心主词同一个来源，
-       所以图标和文字永远讲同一件事（悬停预览「点一下换到 X」时，
-       图标也一起换成 X，不会出现"字说花香、图还是柑橘"）。
-
-       落到小类（focusSub 为真）时不出徽记：那一路盘心已经有一枚代表香材
-       （.plate-svg），再叠一层就是两个物体抢同一个圆心 —— 那是既有观感，
-       本腿的围栏是"不许借机改盘心既有元素"，所以保持原样。
-       未选中（showFam 为空）时同样不出 —— 盘心恢复空态纹样，逐位原样。
-
-       重建只在 key 变化时发生：paint() 被 hover 高频调用，每次重建会让
-       图标闪一帧（artInner 走缓存，但仍然是一次 innerHTML 写入）。
-
-       取哪一族：与盘心主词同源（`hoverFam || selFamily`），但**必须已经有
-       选中的大类**才出图。理由两条：
-         · 未选中时盘心是空态（纹样 + 「还没选」），任务书要求"不选中时盘心
-           保持原样"。空态下把指针划过扇区就让徽记浮出来，等于改了空态。
-         · 已选中之后悬停另一族，盘心主词已经在说「点一下换到 X」——
-           图标跟着换到 X，字与图才讲同一件事（否则读起来像没跟上）。 */
-    const emblemFam = (!focusSub && selFamily)
-      ? (famById.get(hoverFam || selFamily) || null) : null;
+    /* ==== 大类徽记（方向 B，2026-11-23；批 3-2a 状态机）====
+       已选小类时徽记退场，让盘心标本独占中心；否则已选家族优先，
+       未选时才显示 hover 预览。手机点选与桌面 hover 走同一状态机。
+       重建只在 key 变化时发生，避免 hover 高频重绘时图标闪帧。 */
+    const emblemFam = !focusSub ? (showFam || null) : null;
     const emblemKey = emblemFam ? emblemFam.id : 'none';
     if (emblemKey !== builtEmblemKey) {
       builtEmblemKey = emblemKey;
