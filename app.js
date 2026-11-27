@@ -2701,6 +2701,16 @@ const CONCENTRATIONS = [
   { id: 'parfum', zh: '香精 Parfum', desc: '香精浓度约 20–30%；留香 8 小时以上，一两喷就够' },
 ];
 
+/* 类型只改变散发展示，不参与打分：以“适中”档现有外圈为基准，
+   EDC / EDT / EDP / Parfum = 0.6 / 0.8 / 1.0 / 1.25。
+   粒子池固定 24 个，按档位显示前 N 个；反复切类型不会增长节点。 */
+const CONCENTRATION_FX = {
+  'eau-de-cologne': { factor: .6, particles: 6, opacity: .35 },
+  'eau-de-toilette': { factor: .8, particles: 10, opacity: .5 },
+  'eau-de-parfum': { factor: 1, particles: 16, opacity: .65 },
+  'parfum': { factor: 1.25, particles: 24, opacity: .8, pulse: true },
+};
+
 /* ---------- 第 9 步：留香时长 ----------
    **这一屏的值全部是推断的。** 数据源没有持香实测字段，
    longevityInferred 是由浓度按 taxonomy.concentrationLongevity.map 推出来的。
@@ -3688,8 +3698,8 @@ function renderSeason() {
    第 7 屏：浓淡 + 浓度（波纹场 + 原生滑杆）
    ------------------------------------------------------------
    ==== 内容隐喻 ====
-   浓淡问的是"这团气味能走多远"。画面：左边一个人形剪影，
-   右边是从他身上向外扩散的同心波纹 —— 波纹半径就是扩散距离。
+   浓淡问的是"这团气味能走多远"。画面：中间一个人形剪影，
+   周围是从他身上向外扩散的同心波纹 —— 波纹半径就是扩散距离。
 
    ==== 为什么换成原生滑杆 ====
    旧版把五个环做成五枚按钮，命中环带在窄屏互相遮挡
@@ -3703,8 +3713,8 @@ function renderSeason() {
 
    ==== 浓度类型为什么留在同一屏 ====
    浓度（香精占比）决定"这团气味能撑多久"，是同一个物理量的另一半。
-   收在「按香水类型筛选」一格里；切换只写自己的 state、不整屏重绘 ——
-   其他屏的答案一个都不碰（不允许悄悄清空）。
+   收在「按香水类型筛选」一格里；切换只写自己的 state、原地刷新散发效果，
+   不整屏重绘 —— 其他屏的答案一个都不碰（不允许悄悄清空）。
    ============================================================ */
 function renderConcentration() {
   const wrap = el('div', { class: 'fade-in' });
@@ -3737,7 +3747,7 @@ function renderConcentration() {
     5: '香精 Parfum',
   };
 
-  /* ---- 场景图：左边人形剪影，右边向外扩散的同心波纹 ----
+  /* ---- 场景图：中间人形剪影，周围向外扩散的同心波纹 ----
      整块 aria-hidden + pointer-events:none —— 波纹只做展示，不可点；
      这一屏的命中只靠滑杆（含刻度落点），别处一概不收点击。 */
   const scene = el('div', { class: 'conc-scene', 'aria-hidden': 'true' });
@@ -3746,25 +3756,59 @@ function renderConcentration() {
   const rippleMid = el('div', { class: 'conc-ripple', 'data-r': '2' });
   const rippleOut = el('div', { class: 'conc-ripple', 'data-r': '3' });
   const pulse = el('div', { class: 'conc-pulse' });
+  const particleField = el('div', { class: 'conc-particles' });
+  /* 固定 24 个粒子，按类型只显示前 6/10/16/24 个；位置按黄金角均匀铺开，
+     粒子场与外圈同直径，因此滑块与类型共同决定实际扩散范围。 */
+  const particles = Array.from({ length: 24 }, (_, index) => {
+    const particle = el('span', { class: 'conc-particle', hidden: '' });
+    particle.style.setProperty('--size', [2, 2.5, 3, 3.5, 4][index % 5] + 'px');
+    particleField.appendChild(particle);
+    return particle;
+  });
   /* 人形剪影：头 + 肩的整块形，颜色跟 token（深色档自动翻）。 */
   const figure = el('div', { class: 'conc-figure', html:
     '<svg viewBox="0 0 56 84" focusable="false">'
     + '<circle cx="28" cy="11" r="8.5"/>'
     + '<path d="M13 84 L13 68 C13 55 19.5 43 28 43 C36.5 43 43 55 43 68 L43 84 Z"/>'
     + '</svg>' });
-  scene.append(glow, rippleIn, rippleMid, rippleOut, pulse, figure);
+  scene.append(glow, rippleIn, rippleMid, rippleOut, pulse, particleField, figure);
 
-  /* 波纹半径 = 档位。直径 16%（贴肤）→ 128%（从人物向外铺过舞台）。
-     拖动时这里收**连续值**（1.00–5.00 都有），不按档跳；
-     松手后再缓动吸附到整数档。 */
+  /* 波纹直径 = 滑块档位 × 类型系数。16%（贴肤）→ 128%（铺过舞台），
+     拖动时收连续值（1.00–5.00 都有），不按档跳；松手后再缓动吸附到整数档。
+     CSS 的 max-width 再把所有场景层限制在视口宽减 32px。 */
   const paintScene = (v) => {
     const t = Math.min(1, Math.max(0, (Number(v) - 1) / 4));
-    const d = 16 + t * (128 - 16);
+    const fx = CONCENTRATION_FX[state.answers.concentration];
+    const d = Number(((16 + t * (128 - 16)) * (fx ? fx.factor : 1)).toFixed(3));
     glow.style.width = (d * 0.5) + '%';
     rippleIn.style.width = (d * 0.42) + '%';
     rippleMid.style.width = (d * 0.72) + '%';
     rippleOut.style.width = d + '%';
     pulse.style.width = d + '%';
+    particleField.style.width = d + '%';
+  };
+
+  /* 类型切换只改散发层：半径由 paintScene 同步，粒子数量/透明度与 Parfum
+     的第四圈在这里更新；人物、滑杆、读数与其他答案都保持原地不动。 */
+  const paintTypeEffect = () => {
+    const fx = CONCENTRATION_FX[state.answers.concentration];
+    const count = fx ? fx.particles : 0;
+    const opacity = fx ? fx.opacity : 0;
+    scene.style.setProperty('--conc-opacity', fx ? String(opacity) : '1');
+    scene.style.setProperty('--conc-particle-opacity', String(opacity));
+    scene.dataset.concentrationFx = fx ? state.answers.concentration : 'none';
+    pulse.classList.toggle('is-parfum', !!fx && !!fx.pulse);
+    particles.forEach((particle, index) => {
+      if (index >= count) {
+        particle.setAttribute('hidden', '');
+        return;
+      }
+      particle.removeAttribute('hidden');
+      const angle = index * 2.399963229728653 + .3;
+      const radius = 44 * Math.sqrt((index + .5) / count);
+      particle.style.setProperty('--x', (50 + Math.cos(angle) * radius).toFixed(3) + '%');
+      particle.style.setProperty('--y', (50 + Math.sin(angle) * radius).toFixed(3) + '%');
+    });
   };
 
   /* ---- 原生滑杆：这一屏唯一的命中来源 ---- */
@@ -3873,6 +3917,7 @@ function renderConcentration() {
   });
 
   paintScene(state.answers.intensity);
+  paintTypeEffect();
   paintRead();
   wrap.appendChild(scene);
   wrap.appendChild(el('div', { class: 'conc-slider-wrap' }, slider, ticks));
@@ -3886,9 +3931,11 @@ function renderConcentration() {
     state.answers.concentration = id;
     const inferred = CONC_TO_LONGEVITY[id];
     if (inferred != null) state.answers.longevity = inferred;
-    /* 只写 state，不整屏 render()：choiceGrid 自己会把选中态刷到整组，
-     屏上也没有别的物件随这一选择变化。不重绘 = 滑杆/波纹/读数原地不动，
-     其他屏的答案一个都不碰 —— 切换浓度类型不允许悄悄清空别的答案。 */
+    /* 只写 state 并原地刷新散发效果，不整屏 render()：choiceGrid 自己会把
+     选中态刷到整组；滑杆、读数与人物保持不动，其他屏的答案一个都不碰。 */
+    paintScene(Number(slider.value));
+    paintTypeEffect();
+    if (id === 'parfum') firePulse();
   });
   wrap.appendChild(grid);
 
