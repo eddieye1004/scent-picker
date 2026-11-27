@@ -90,6 +90,11 @@ const PARTS = [
      放在最后；选择器只有 .cmp* 与 .cmp-sr，不命中圆盘、问卷各屏、
      结果卡（article.pick）与详情区 —— 详情区归腿 7b。 */
   '101-compare-table.css',
+  /* 结果屏详情区（腿 7b，2026-11-26）：三调三段条 + 推荐依据对照表。
+     放在最后；选择器只有 .pick-detail / .pd-* / .pick-basis，
+     不命中圆盘、问卷各屏、首屏比较表（.cmp*）与购买按钮。
+     与 101 层共用 --spec-tint-* 族色与 --radius-sm，不新增色值。 */
+  '102-results-detail.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');
