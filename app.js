@@ -3411,6 +3411,7 @@ function renderSeason() {
     SEASONS.forEach((season, index) => {
       atmosphere.style.setProperty(`--${season.id}-weight`, weights[index].toFixed(3));
     });
+    atmosphere.style.setProperty('--all-weight', neutral ? '1.000' : '0.000');
   };
   const renderPosition = () => {
     const left = 12.5 + (position / (SEASONS.length - 1)) * 75;
@@ -3511,6 +3512,12 @@ function renderSeason() {
     for (let index = 0; index < count; index += 1) particle(layer, kind, index, count);
     atmosphere.appendChild(layer);
   });
+  /* 四季通用是独立的轻量混合场景，不再借用夏季光斑；CSS 将节奏再放慢 1.5 倍。 */
+  const allLayer = el('div', { class: 'season-fx season-fx-all', 'aria-hidden': 'true' });
+  [['petal', 6], ['leaf', 6], ['snow', 6], ['sunspot', 4]].forEach(([kind, count]) => {
+    for (let index = 0; index < count; index += 1) particle(allLayer, kind, index, count);
+  });
+  atmosphere.appendChild(allLayer);
 
   SEASONS.forEach((season, index) => {
     const on = state.answers.season === season.id;

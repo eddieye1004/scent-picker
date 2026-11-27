@@ -1782,6 +1782,25 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
     quadrantCounts.every((counts) => counts.every((count) => count === counts[0])),
     JSON.stringify(quadrantCounts));
 
+  /* ---- 3-4b：独立通用混合层 + 浅色雪花 ---- */
+  const allLayer = atmosphere.querySelector('.season-fx-all');
+  const allKinds = ['petal', 'leaf', 'snow', 'sunspot'];
+  const allCounts = allKinds.map((kind) => allLayer.querySelectorAll(`.season-particle-${kind}`).length);
+  ok('四季通用是独立混合层（花瓣/落叶/雪花/光斑 = 6/6/6/4）',
+    allCounts.join('/') === '6/6/6/4' && allLayer.children.length === 22,
+    `${allLayer.children.length} 个：${allCounts.join('/')}`);
+  ok('通用场景权重独立且整体节奏放慢 1.5 倍',
+    atmosphere.style.getPropertyValue('--all-weight') === '1.000'
+    && /\.season-fx-all\s*\{\s*opacity:\s*var\(--all-weight,\s*0\)/.test(css)
+    && /\.season-fx-all\s+\.season-particle\s*\{\s*animation-duration:\s*calc\(var\(--duration\)\s*\*\s*1\.5\)/.test(css),
+    `--all-weight=${atmosphere.style.getPropertyValue('--all-weight')}`);
+  const seasonSource = fs.readFileSync(path.join(ROOT, 'styles/src/95-quiz-v7-design.css'), 'utf8');
+  ok('浅色雪花为淡蓝灰 0.85 并带细描边，深色仍保留白雪花',
+    /@media\s*\(prefers-color-scheme:\s*light\)\s*\{\s*\.season-particle-snow\s*\{[^}]*--snow-opacity:\s*\.85;[^}]*background:\s*#9DB8C8;[^}]*border:\s*1px\s+solid\s+#B8C4CC;/s.test(seasonSource)
+    && /\.season-particle-snow\s*\{[^}]*rgba\(255,\s*255,\s*255,\s*\.96\)/s.test(seasonSource)
+    && /opacity:\s*var\(--snow-opacity,\s*var\(--particle-opacity\)\)/.test(seasonSource),
+    '浅色 --snow-opacity=.85 / #9DB8C8 / #B8C4CC');
+
   const totalBeforeSwitch = appRoot.querySelectorAll('.season-particle').length;
   ['spring', 'summer', 'autumn', 'winter', 'all'].forEach((id) => {
     const cell = cells.find((node) => node.getAttribute('data-season') === id);
@@ -1789,7 +1808,7 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
   });
   const totalAfterSwitch = appRoot.querySelectorAll('.season-particle').length;
   ok('反复切换四季与通用后粒子节点数不增长',
-    totalBeforeSwitch === 116 && totalAfterSwitch === totalBeforeSwitch,
+    totalBeforeSwitch === 138 && totalAfterSwitch === totalBeforeSwitch,
     `${totalBeforeSwitch} → ${totalAfterSwitch}`);
 
   cells[3].dispatch('click', { detail: 0 });

@@ -6553,6 +6553,8 @@ transition: opacity 600ms ease;
 .season-fx-summer { opacity: var(--summer-weight, 0); }
 .season-fx-autumn { opacity: var(--autumn-weight, 0); }
 .season-fx-winter { opacity: var(--winter-weight, 0); }
+.season-fx-all { opacity: var(--all-weight, 0); }
+.season-fx-all .season-particle { animation-duration: calc(var(--duration) * 1.5); }
 .season-particle {
 position: absolute;
 left: var(--x);
@@ -6568,6 +6570,14 @@ border-radius: 50%;
 background: radial-gradient(circle, rgba(255, 255, 255, .96), rgba(255, 255, 255, .38) 62%, transparent 72%);
 box-shadow: 0 0 5px rgba(255, 255, 255, .34);
 animation: season-snow-fall var(--duration) linear var(--delay) infinite;
+}
+@media (prefers-color-scheme: light) {
+.season-particle-snow {
+--snow-opacity: .85;
+background: #9DB8C8;
+border: 1px solid #B8C4CC;
+box-shadow: none;
+}
 }
 .season-particle-leaf {
 border-radius: 0 78% 0 78%;
@@ -6594,8 +6604,8 @@ animation: season-sun-drift var(--duration) ease-in-out var(--delay) infinite al
 }
 @keyframes season-snow-fall {
 0% { transform: translate3d(0, -12vh, 0); opacity: 0; }
-12% { opacity: var(--particle-opacity); }
-68% { opacity: var(--particle-opacity); }
+12% { opacity: var(--snow-opacity, var(--particle-opacity)); }
+68% { opacity: var(--snow-opacity, var(--particle-opacity)); }
 100% { transform: translate3d(var(--drift), 112vh, 0); opacity: 0; }
 }
 @keyframes season-leaf-fall {
