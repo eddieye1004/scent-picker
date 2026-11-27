@@ -21,9 +21,9 @@
 /* 2026-11-23：盖章入口补到心仪清单每行（复用同一枚 stampSlot），app.js 与
    styles.css 再变一次 —— VERSION 跟着进一位。没有新增模块，CORE 不动。 */
 /* 2026-11-27（冻结合并）：心仪清单与圆盘短标签模块并入 main，app.js 的静态
-   导入图新增 src/wishlist.js / src/wish-ui.js / src/sub-labels.js；三者必须进
-   CORE，缺一会让离线 module 图加载失败。季节文案与试香盖章（tasting）相关
-   模块已在 CORE。VERSION 进位到 v2-20261127a，让旧缓存整套失效。 */
+   导入图新增 src/wishlist.js / src/wish-ui.js / src/wish-page.js / src/sub-labels.js；
+   四者必须进 CORE，缺一会让离线 module 图加载失败。季节文案与试香盖章
+   （tasting）相关模块已在 CORE。VERSION 进位到 v2-20261127a，让旧缓存整套失效。 */
 const VERSION = 'v2-20261127a';
 /* 2026-11-23（冻结线）：CORE 加入 src/season-copy.js（季节屏 24 句）。它是 app.js
    的静态导入，缺了会让整个 module 图加载失败 —— 离线时不是"少一行文案"，
@@ -62,6 +62,7 @@ const CORE = [
   './src/avoid-map.js',
   './src/wishlist.js',
   './src/wish-ui.js',
+  './src/wish-page.js',
   './src/sub-labels.js',
   './src/stamp.js',
   './src/stamp-ui.js',
