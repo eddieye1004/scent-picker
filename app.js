@@ -37,7 +37,7 @@ import { createWishSession, wishMessage, wishReasonOf } from './src/wish-ui.js';
    不碰 DOM —— 所以「没有价格就不显示价格」「没有链接就不显示链接」这两条
    最容易被写成兜底值的判据，能在 node 里一格一格地验（scripts/test-wishlist-page.mjs）。 */
 import {
-  WISH_PAGE_MSG, wishListModel, perfumeIndex, priceLabelOf, savedLabel,
+  WISH_PAGE_MSG, wishListModel, perfumeIndex, priceLabelOf, priceBandOf, savedLabel,
   CLEAR_LABEL, CLEAR_ARM_LABEL, nextClearState, removableOf,
 } from './src/wish-page.js';
 /* 试香盖章（2026-11-23）。数据层 src/stamp.js 只认传入的 storage，
@@ -564,6 +564,51 @@ function poolForBudget(perfumes, budgetId) {
   return pool;
 }
 
+/* ---------- 价签上的数与主按钮文案（预算屏重设计 leg6，2026-11-26） ----------
+   口径：退回「这一档已知价 N 瓶」。
+   为什么不是「符合你前面答案的有 N 瓶」：任务要求该数 = poolForBudget 去掉
+   **避雷硬排除**后的余量，并先与引擎确认。实测引擎对避雷只做惩罚不做排除 ——
+   dislikedNotes -40、dislikedFamily -30（src/scoring.js），命中瓶仍在池里、
+   仍可能被推荐；全库没有任何「避雷硬排除」机制（avoid.js 的软降权也明言
+   「不硬排除，结果池门一行不动」）。既然没有硬排除可去，「符合你前面答案」
+   这个口径就无从成立，按任务退回「这一档已知价 N 瓶」。
+   这个数恰好等于 poolForBudget 该档的池子大小（bandOfId[band].length，
+   档 >= 12 时），与候选查询同源 —— 手算展示数与候选查询一致这条验收由此成立。 */
+function bandKnownCount(budgetId) {
+  const idx = priceIndex();
+  if (!idx || !budgetId || budgetId === (idx.anyId || 'any')) return null;
+  const c = idx.stats && idx.stats.counts ? idx.stats.counts[budgetId] : null;
+  return typeof c === 'number' ? c : null;
+}
+
+/* 主按钮文案始终跟着当前选择走：N<3 的档明示「看 N 瓶 + 2 瓶稍超预算的」，
+   其余（含「不限」）仍是「看推荐 →」。N<3 在当前数据下不会出现（四档都
+   150+ 瓶），但判据按 N 写死，档一旦变窄就自动生效，不靠人记得改文案。 */
+function budgetCtaText(budgetId) {
+  const n = bandKnownCount(budgetId);
+  if (n != null && n < 3) return `看 ${n} 瓶 + 2 瓶稍超预算的`;
+  return '看推荐 →';
+}
+
+/* 预算放宽检测：最终结果里有没有超出所选档的瓶。
+   poolForBudget 在档太窄（<12）时退回全库，引擎内部也逐级放宽族池 ——
+   这些都可能让结果含档外瓶。不再悄悄放宽：数出档内/档外，结果页顶部明示。
+   「不限」没有预算约束，恒返回 null（不声明放宽）。 */
+function budgetRelaxInfo(results, budgetId) {
+  const idx = priceIndex();
+  if (!idx || !budgetId || budgetId === (idx.anyId || 'any')) return null;
+  let inBand = 0;
+  const overIds = [];
+  for (const r of results || []) {
+    const id = r && r.perfume ? r.perfume.id : null;
+    const band = priceBandOf(id, idx);
+    if (band && band.id === budgetId) inBand += 1;
+    else overIds.push(id);
+  }
+  if (!overIds.length) return null;
+  return { inBand, over: overIds.length, overIds, total: (results || []).length };
+}
+
 /* ---------- 大方向 → 气质原型（引擎的 character 因子仍按原样工作） ----------
    为什么需要这一步：v6 第 2 屏就是大方向，而 v5 的「气质」屏已退场。
    character 是引擎里权重不低的一维（16 分），缺了它等于白丢一维证据。
@@ -609,7 +654,7 @@ function applyDirectionToCharacter(emotionId) {
    页面里 `document.documentElement.dataset.build` 会带上它。
    用途是"这次看到的到底是哪份代码"—— 改完 app.js 如果这个值没变，
    说明浏览器还在跑缓存的旧文件，别去猜渲染逻辑。 */
-const BUILD_ID = '2026-11-23-pre-freeze-avoid-3state';
+const BUILD_ID = '2026-11-26-budget-leg6';
 
 /* ---------- 上色图标（结果页实物图的降级瓶形，与盘心标本共用同一批） ----------
    24 枚上色版在 ./icon-specimen/svg/ 合计 295.6KB / gzip 80.1KB，
@@ -2666,18 +2711,23 @@ const LONGEVITY = [
    ------------------------------------------------------------
    ==== 内容隐喻 ====
    预算不是"填一个数字"，是**从货架上取下一个价位区间**。
-   所以交互不是输入框，是四枚价签横排：每枚写着区间与"这一档有几瓶"，
+   所以交互不是输入框，是四枚价签横排：每枚写着区间与"这一档已知价几瓶"，
    选中时价签的下沿像被剪开一样翻起 —— 剪口是标本签的固有形态
    （挂绳穿过的地方），也是这一屏唯一属于它的效果。
 
-   ==== 为什么候选数必须写在价签上 ====
-   实测 622/1388 瓶能查到价。不写数字，"300 元以内"看起来和"1200 元以上"
-   一样大；写了数字，用户立刻看见 152 vs 165 —— 四档是**等量级**的，
-   不会出现"选了个只有 12 瓶的档"，也就不会出现"答完发现没货"。
+   ==== 价签上的数（leg6 重设计，2026-11-26）====
+   每枚具体档只标一个数：「已知价 N 瓶」，N = 该档已知价瓶数，等于
+   poolForBudget 该档池子大小（口径与推导见 bandKnownCount）。不写数字，
+   "300 元以内"看起来和"1200 元以上"一样大；写了数字，用户立刻看见
+   152 vs 165 —— 四档是**等量级**的。N<3 的档标「只有 N 瓶」并变浅（is-low），
+   仍可选；选中它时主按钮改成「看 N 瓶 + 2 瓶稍超预算的」（budgetCtaText）。
+   622 / 1388 两个全库总数从屏上撤掉：它们与"这一档有几瓶"无关。
 
    ==== 为什么价位未知的瓶子在具体档里不参与 ====
-   见 poolForBudget() 的注释。这一屏的说明行必须把这句话写出来：
-   用户可以接受"少了 766 瓶"，不能接受"选 300 以内却推荐 3000 元的"。
+   见 poolForBudget() 的注释。屏上只留一行说明把这个事实写出来：
+   「价位未知的 766 瓶只在『不限』里出现」。用户可以接受"少了 766 瓶"，
+   不能接受"选 300 以内却推荐 3000 元的"。结果若真的放宽了预算，
+   结果页顶部明示（budgetRelaxInfo），不再悄悄放宽。
    ============================================================ */
 function renderBudget() {
   const wrap = el('div', { class: 'fade-in' });
@@ -2690,24 +2740,28 @@ function renderBudget() {
 
   const idx = priceIndex();
   const bands = idx && Array.isArray(idx.bands) ? idx.bands : [];
-  const stats = idx && idx.stats ? idx.stats : null;
+  const anyId = (idx && idx.anyId) || 'any';
 
   const row = el('div', { class: 'price-row', role: 'radiogroup', 'aria-label': '价位区间' });
   /* 「不限 / 还不知道」永远在最后：它是退路，不该出现在第一个位置
-     —— 第一个位置会被读成"推荐选项"。 */
-  const opts = [...bands.map((b) => ({
-    id: b.id,
-    zh: b.zh,
-    n: stats && stats.counts ? (stats.counts[b.id] || 0) : null,
-  })), { id: (idx && idx.anyId) || 'any', zh: '不限 / 还不知道', n: null }];
+     —— 第一个位置会被读成"推荐选项"。
+     每枚具体档只标一个数：「已知价 N 瓶」（口径见 bandKnownCount）。
+     N<3 的档标「只有 N 瓶」并加 is-low 变浅，但仍可选。 */
+  const opts = [...bands.map((b) => ({ id: b.id, zh: b.zh, n: bandKnownCount(b.id) })),
+    { id: anyId, zh: '不限 / 还不知道', n: null }];
 
-  const total = stats ? stats.priced : null;
-  const unknown = stats ? stats.unpriced : null;
+  /* 主按钮文案随选择走（任务第 2 条）。按钮由 navBar('budget') 画出，
+     带 .js-budget-cta 钩子；这里选中后原地改文案，不整屏重画。 */
+  const paintCta = () => {
+    const cta = wrap.querySelector('.js-budget-cta');
+    if (cta) cta.textContent = budgetCtaText(state.answers.budget || 'any');
+  };
 
   for (const o of opts) {
     const on = (state.answers.budget || 'any') === o.id;
+    const low = o.n != null && o.n < 3;
     row.appendChild(el('button', {
-      class: 'price-tab' + (on ? ' is-on' : ''),
+      class: 'price-tab' + (on ? ' is-on' : '') + (low ? ' is-low' : ''),
       type: 'button',
       role: 'radio',
       'aria-checked': String(on),
@@ -2719,39 +2773,26 @@ function renderBudget() {
           c.classList.toggle('is-on', mine);
           c.setAttribute('aria-checked', String(mine));
         });
-        paintNote();
+        paintCta();
       },
     },
       /* 剪口：一枚小三角，选中时翻起。用 span 而不是伪元素，
          因为要能被读屏忽略（aria-hidden）。 */
       el('span', { class: 'price-notch', 'aria-hidden': 'true' }),
       el('span', { class: 'price-zh' }, o.zh),
-      o.n != null ? el('span', { class: 'price-n' }, o.n + ' 瓶') : null
+      o.n != null ? el('span', { class: 'price-n' }, low ? `只有 ${o.n} 瓶` : `已知价 ${o.n} 瓶`) : null
     ));
   }
   wrap.appendChild(row);
 
-  /* 说明行跟着选择变：选具体档说"未知价位不参与"，选不限说"全库都上"。
-     这两句不能合并成一句 —— 它们说的是完全不同的事实。 */
-  const note = el('p', { class: 'price-note' });
-  const paintNote = () => {
-    const cur = state.answers.budget || 'any';
-    const isAny = cur === ((idx && idx.anyId) || 'any');
-    note.classList.toggle('is-idle', isAny);
-    note.textContent = isAny
-      ? `全库 ${(stats ? stats.totalPerfumes : 1388)} 瓶都能挑；其中 ${unknown != null ? unknown : 766} 瓶价位未知，也会一起参与`
-      : `只在这一档里挑。${unknown != null ? unknown : 766} 瓶价位未知的不参与 —— 它们在每一档都可能，混进来会推出买不起的瓶子`;
-  };
-  paintNote();
-  wrap.appendChild(note);
-
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '关于这个价位：'),
-    ` 价来自淘宝商品页标价，不是同规格瓶的专柜价；全库 ${(stats ? stats.totalPerfumes : 1388)} 瓶里 ${total != null ? total : 622} 瓶能查到价，`
-    + ' 其余价位未知。选具体档时，价位未知的不参与；选「不限」时它们也在。'
-  ));
+  /* 只留一行说明（任务第 3 条）：价位未知的瓶只在「不限」里出现。
+     原来的两句动态说明与「关于这个价位」长注（含 622 / 1388 两个总数）
+     一并撤掉 —— 那两个总数与"这一档有几瓶"无关，撤掉后屏上只剩这一个事实。 */
+  const unknown = idx && idx.stats && idx.stats.unpriced != null ? idx.stats.unpriced : 766;
+  wrap.appendChild(el('p', { class: 'price-note' }, `价位未知的 ${unknown} 瓶只在「不限」里出现`));
 
   wrap.appendChild(navBar('budget'));
+  paintCta();
   return wrap;
 }
 
@@ -3792,8 +3833,8 @@ function navBar(stepId) {
   if (stepId === 'budget') {
     bar.appendChild(el('span', { class: 'hint' }, '不限也行，选完就能看推荐'));
     bar.appendChild(el('button', {
-      class: 'btn', type: 'button', onclick: (ev) => finish(ev.currentTarget),
-    }, '看推荐 →'));
+      class: 'btn js-budget-cta', type: 'button', onclick: (ev) => finish(ev.currentTarget),
+    }, budgetCtaText(state.answers.budget || 'any')));
     return bar;
   }
   if (stepId === 'concentration' || stepId === 'season' || stepId === 'occasion') {
@@ -3873,6 +3914,10 @@ async function finish(btn) {
       res = recommend(state.answers, d.perfumes, TAX, { topN: 3, avoidSoftNotes });
       res.poolFellBack = true;
     }
+    /* 不再悄悄放宽：把档内/档外数出来交给结果页顶部明示（leg6）。
+       无论是 poolForBudget 的窄档退全库，还是引擎内部放宽，只要结果含
+       档外瓶，budgetRelax 就非空，结果页会写清「只找到 X 瓶，另外 Y 瓶超出预算」。 */
+    res.budgetRelax = budgetRelaxInfo(res.results, state.answers.budget);
     state.result = res;
     state.resultView = { round: 0, soldOut: [] };
     /* 本地档案只在「一次测试真正出结果」时写一条；换一批不写第二遍 ——
@@ -5727,6 +5772,26 @@ function renderResult() {
   );
   wrap.appendChild(head);
 
+  /* 预算放宽声明（leg6，任务第 3 条）：结果若含档外瓶，顶部明示，不再悄悄放宽。
+     档内 0 瓶 → 「这个价位暂无匹配」+「改预算」；档内 >=1 瓶 →
+     「这一档只找到 X 瓶，另外 Y 瓶超出预算（价签标红）」+「换一档」。
+     两个按钮都回到预算屏（goBudget），其余答案不动。 */
+  const relax = state.result.budgetRelax;
+  if (relax) {
+    wrap.appendChild(el('div', {
+      class: 'budget-relax' + (relax.inBand === 0 ? ' is-zero' : ''),
+      role: 'alert',
+      'data-budget-relax': String(relax.inBand),
+    },
+      el('span', { class: 'budget-relax-text' }, relax.inBand === 0
+        ? '这个价位暂无匹配'
+        : `这一档只找到 ${relax.inBand} 瓶，另外 ${relax.over} 瓶超出预算（价签标红）`),
+      el('button', {
+        class: 'btn ghost js-budget-change', type: 'button', onclick: goBudget,
+      }, relax.inBand === 0 ? '改预算' : '换一档')
+    ));
+  }
+
   /* 存入反馈：一条**不挡操作、自动消失**的轻提示。
      为什么不用 toast 框架：本页只有这一处需要"说过就完"的短句，
      为它引入定位层、队列与堆叠规则，代价远大于收益。
@@ -5806,6 +5871,18 @@ function renderResult() {
     const isTop = i === 0 && !tied;
     const art = el('article', { class: 'pick' + (isTop ? ' is-top' : '') });
 
+    /* 每瓶可见一致的价格范围（leg6，任务验收）：标自身价位带（如「300 元以内」），
+       价位未知就写「价位未知」，不编价格。超出所选档的瓶标红（is-over），
+       与顶部放宽声明里的「价签标红」是同一件事的两处落点。 */
+    const pBand = priceBandOf(p.id, priceIndex());
+    const curBudget = state.answers.budget || 'any';
+    const anyId = (priceIndex() && priceIndex().anyId) || 'any';
+    const overBudget = curBudget !== anyId && !(pBand && pBand.id === curBudget);
+    const priceTag = el('span', {
+      class: 'price-tag' + (overBudget ? ' is-over' : ''),
+      'data-price-band': pBand ? pBand.id : 'unknown',
+    }, pBand ? pBand.zh : '价位未知');
+
     art.appendChild(el('div', { class: 'pick-rank' },
       el('span', { class: 'n' }, `候选 ${String(i + 1).padStart(2, '0')}`),
       /* 徽标措辞要跟着"有没有百分比"走，否则自相矛盾：
@@ -5821,7 +5898,8 @@ function renderResult() {
          "信息不够，算不准"。所以 null 时改说「初步匹配」，绝不显示 0% ——
          显示 0% 等于告诉用户这瓶完全不合适，而实际上只是我们问得太少。 */
       el('span', { class: r.matchPct == null ? 'score is-preliminary' : 'score' },
-        r.matchPct == null ? '初步匹配' : `匹配度 ${r.matchPct}%`)
+        r.matchPct == null ? '初步匹配' : `匹配度 ${r.matchPct}%`),
+      priceTag
     ));
 
     /* 瓶形放在名字右边，与「候选 01 / 匹配度」同一视觉带。
@@ -6204,7 +6282,7 @@ async function reshuffle(btn) {
     } else {
       view.round = (view.round || 0) + 1;
     }
-    state.result = { ...res, results: picked };
+    state.result = { ...res, results: picked, budgetRelax: budgetRelaxInfo(picked, state.answers.budget) };
     render();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } finally {
@@ -6230,6 +6308,17 @@ function openRetune(btn) {
   state.step = idx >= 0 ? idx : 0;
   /* 从结果页回到问卷时，结果先留着：用户改完一题按「看推荐」会重算并覆盖。
      这里不清 state.result —— 清了的话退回上一屏会看到空白。 */
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* 换一档 / 改预算（leg6）：结果页放宽声明旁的按钮回到预算屏，其余答案不动。
+   与 openRetune 同一条路（只改 state.step 再重画），只是目标屏固定为 budget。
+   不清 state.result —— 用户改完档按「看推荐」会重算并覆盖。 */
+function goBudget() {
+  const list = curSteps();
+  const idx = list.findIndex((x) => x.id === 'budget');
+  state.step = idx >= 0 ? idx : list.length - 1;
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -6768,6 +6857,11 @@ export const __budget = {
   pool: poolForBudget,
   bands: () => priceIndex(),
   setIndex: (v) => { PRICE_INDEX = v; },
+  /* leg6：价签数 / 主按钮文案 / 放宽检测都要能在 node 里手算核对，
+     与候选查询同源（验收：手算展示数与候选查询一致）。 */
+  knownCount: bandKnownCount,
+  ctaText: budgetCtaText,
+  relaxInfo: budgetRelaxInfo,
 };
 
 /* 圆盘 → 底噪轴的换算层（v7 第 1 步）。

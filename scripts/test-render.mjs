@@ -1972,10 +1972,23 @@ ok('预算屏说明了「价位未知的不参与」', /价位未知/.test(getSt
   }
   ok('点价签后它变成选中态', !!tab && tab.attrs['aria-checked'] === 'true',
     tab ? String(tab.attrs['aria-checked']) : '（取不到第 2 枚价签）');
-  const note = appRoot.querySelectorAll('.price-note')[0];
-  ok('选中具体档后说明行改成「只在这一档里挑」',
-    !!tab && !!note && /只在这一档里挑/.test(note.textContent),
-    note ? note.textContent.slice(0, 80) : '（取不到 .price-note）');
+  /* leg6：说明行收成**唯一一行**「价位未知的 766 瓶只在『不限』里出现」，
+     不再随选择变两句；622 / 1388 两个全库总数从屏上撤掉。 */
+  const notes = appRoot.querySelectorAll('.price-note');
+  ok('预算屏只留一行说明（价位未知的 766 瓶只在「不限」里出现）',
+    notes.length === 1 && /价位未知.*766.*只在.*不限/.test(notes[0].textContent),
+    notes.length ? notes[0].textContent.slice(0, 80) : '（取不到 .price-note）');
+  ok('屏上不再出现 622 / 1388 两个全库总数',
+    !/622|1388/.test(getStepText()), getStepText().slice(0, 160));
+  /* 每枚具体档只标一个数，口径是「已知价 N 瓶」（不是「符合前面答案」——
+     引擎对避雷只惩罚不硬排除，该口径无从成立，见 app.js bandKnownCount）。 */
+  const nTags = appRoot.querySelectorAll('.price-n');
+  ok('具体档价签标「已知价 N 瓶」（每枚一个数）',
+    nTags.length === 4 && nTags.every((x) => /^已知价 \d+ 瓶$/.test(x.textContent)),
+    nTags.map((x) => x.textContent).join(' | '));
+  /* 主按钮文案随选择走：当前选的是正常档（>=3 瓶），仍是「看推荐」。 */
+  ok('选中正常档时主按钮仍是「看推荐」', !!btnBy(/看推荐/),
+    appRoot.querySelectorAll('.btn').map((x) => x.textContent.trim()).join(' | ').slice(0, 120));
 }
 
 /* ---------- ⑧ 末屏「看推荐」+ 已知款入口已撤（v7 第 1 步） ----------
@@ -2124,6 +2137,66 @@ ok('刻度写着方向与档位', /[冷暖清沉亮柔]·[起渐满]/.test(
       realPool.length < perfs2.length && realPool.length > 0,
       `池 ${realPool.length} / 全库 ${perfs2.length}`);
   }
+}
+
+/* ---------- ⑬ 预算屏重设计（leg6）：展示数与候选查询同源 + 放宽明示 ----------
+   验收要求「手算展示数与候选查询一致」。价签数 knownCount(band) 必须等于
+   poolForBudget(perfs, band) 的池子大小（档 >= 12 时）—— 两者同源，逐档核对。
+   放宽检测 relaxInfo 用合成结果集手算：全档内→null、含档外→{inBand,over}、
+   零档内→inBand 0、不限→恒 null。N<3 的主按钮文案也按 N 手算。 */
+{
+  const b = appMod.__budget;
+  const idx = b.bands();
+  const perfs2 = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'perfumes.json'), 'utf8')).perfumes;
+  /* 逐档：价签数 == 候选池大小（手算展示数与候选查询一致） */
+  let mismatch = [];
+  for (const band of (idx.bands || [])) {
+    const shown = b.knownCount(band.id);
+    const poolSize = b.pool(perfs2, band.id).length;
+    if (shown !== poolSize) mismatch.push(`${band.id}: 展示 ${shown} / 池 ${poolSize}`);
+  }
+  ok('四档价签数逐一等于候选池大小（展示数与候选查询一致）',
+    mismatch.length === 0, mismatch.join(' | ') || '四档全等');
+  ok('「不限」没有价签数（不标全库总数）', b.knownCount(idx.anyId || 'any') === null,
+    String(b.knownCount(idx.anyId || 'any')));
+
+  /* 主按钮文案：正常档「看推荐」；N<3 档「看 N 瓶 + 2 瓶稍超预算的」。
+     造一个只有 2 瓶的档（带 stats.counts）验文案随 N 走。 */
+  ok('正常档主按钮是「看推荐 →」', b.ctaText(idx.bands[0].id) === '看推荐 →',
+    b.ctaText(idx.bands[0].id));
+  const prevIdx2 = b.bands();
+  b.setIndex({
+    anyId: 'any',
+    bands: [{ id: 'two', zh: '两瓶档', lo: 0, hi: 1 }],
+    stats: { counts: { two: 2 } },
+    bandOfId: { two: ['ysl-libre', 'creed-aventus'] },
+  });
+  ok('N<3 档主按钮改成「看 2 瓶 + 2 瓶稍超预算的」',
+    b.ctaText('two') === '看 2 瓶 + 2 瓶稍超预算的', b.ctaText('two'));
+  ok('N<3 档价签数是 2（只有 N 瓶的 N）', b.knownCount('two') === 2, String(b.knownCount('two')));
+  b.setIndex(prevIdx2);
+
+  /* 放宽检测：用真实档 under300 + 合成结果集手算。
+     取 under300 池里前两瓶当「档内」，再拿一瓶档外（b300-600）当「超出」。 */
+  const idx2 = b.bands();
+  const under = idx2.bands.find((x) => x.id === 'under300');
+  const other = idx2.bands.find((x) => x.id !== 'under300');
+  const inIds = (idx2.bandOfId[under.id] || []).slice(0, 2);
+  const outId = (idx2.bandOfId[other.id] || [])[0];
+  const mk = (id) => ({ perfume: { id } });
+  ok('全档内 → 不声明放宽（null）',
+    b.relaxInfo(inIds.map(mk), under.id) === null,
+    JSON.stringify(b.relaxInfo(inIds.map(mk), under.id)));
+  const mixed = b.relaxInfo([...inIds.map(mk), mk(outId)], under.id);
+  ok('含档外 → 明示「档内 2 / 超出 1」',
+    !!mixed && mixed.inBand === 2 && mixed.over === 1,
+    JSON.stringify(mixed));
+  const zero = b.relaxInfo([mk(outId)], under.id);
+  ok('零档内 → inBand 0（结果页显示「这个价位暂无匹配」）',
+    !!zero && zero.inBand === 0 && zero.over === 1, JSON.stringify(zero));
+  ok('「不限」恒不声明放宽（无预算约束）',
+    b.relaxInfo([mk(outId)], idx2.anyId || 'any') === null,
+    JSON.stringify(b.relaxInfo([mk(outId)], idx2.anyId || 'any')));
 }
 
 const finishBtn = appRoot.querySelectorAll('.btn').find((b) => b.textContent.includes('看推荐'));
