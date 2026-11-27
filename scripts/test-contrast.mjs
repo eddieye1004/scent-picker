@@ -282,7 +282,7 @@ else fails.push(`存在 <12px 的文字: ${SMALL.join(' / ')}`);
 /* ---------- 键盘焦点：每个可交互元素都要有 :focus-visible ----------
    只写 .opt 不写 .chip，键盘用户 Tab 到香调时就完全看不到自己在哪。
    圆盘的 .disc-sector 是新加的可点目标，必须一起守。 */
-const INTERACTIVE = ['.opt', '.chip', '.btn', 'input[type="range"]', '.disc-sector'];
+const INTERACTIVE = ['.opt', '.chip', '.btn', 'input[type="range"]', '.disc-sector', '.season-cell'];
 const missingFocus = INTERACTIVE.filter((sel) => !CSS.includes(`${sel}:focus-visible`));
 if (missingFocus.length === 0) pass++;
 else fails.push(`可交互元素缺 :focus-visible: ${missingFocus.join(', ')}`);
@@ -354,6 +354,7 @@ const TOUCH_TARGETS = [
   ['.chip', 44, '香调标签'],
   ['input[type="range"]', 44, '浓度滑块'],
   ['.disc-sector', 44, '圆盘扇区'],
+  ['.season-cell', 44, '季节方格'],
 ];
 const touchBad = [];
 for (const [sel, need, name] of TOUCH_TARGETS) {
@@ -429,8 +430,9 @@ else fails.push(`触控目标偏小: ${touchBad.join(' / ')}`);
    不许出现整体降亮度的 filter。 */
 {
   const NO_COMMENT = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
-  /* 这些容器内部有真实文字（.temp-zh / .diffuse-label / .sky-gloss …） */
-  const TEXTHOSTS = ['.temp-band', '.sky-band', '.life-card', '.occ-stop',
+  /* 这些容器内部有真实文字（.diffuse-label / .sky-gloss …）。
+     未选的 .season-cell 按产品要求整体 brightness(.6)，不在此父级禁令内。 */
+  const TEXTHOSTS = ['.sky-band', '.life-card', '.occ-stop',
     '.price-tab', '.diffuse', '.choice'];
   const filterBad = [];
   for (const host of TEXTHOSTS) {

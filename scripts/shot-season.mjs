@@ -123,7 +123,7 @@ await sleep(450);
 
 /* ③ 点季节落点（data-season）。 */
 const clickedSeason = await ev(`(() => {
-  const b = [...document.querySelectorAll('.temp-stop')]
+  const b = [...document.querySelectorAll('.season-cell')]
     .find((x) => x.getAttribute('data-season') === ${JSON.stringify(SEASON)});
   if (!b) return false;
   b.dispatchEvent(new MouseEvent('click', { bubbles: true }));

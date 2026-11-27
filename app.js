@@ -240,7 +240,7 @@ const el = (tag, attrs = {}, ...kids) => {
      2 unwanted      动态避雷 —— 紧跟方向，只问这个方向最容易踩雷的几个
                      （src/avoid.js 现算，封顶 6 张；算不出整屏跳过 → 共 5 步）
      3 occasion      场合 —— 决定浓淡与时段
-     4 season        季节 —— 温度光带（.temp-band），Eddie 定版范例之一
+     4 season        季节 —— 2×2 方格与跟手白雾
      5 concentration 浓淡＋浓度（波纹场：人形剪影＋同心波纹，原生滑杆命中）
      6 budget        预算（末屏）—— 圈定候选池，选完即出结果
 
@@ -312,7 +312,7 @@ const STEPS = [
     id: 'season',
     short: '季节',
     title: '主要在哪个季节用？',
-    help: '季节决定它会不会在夏天闷、冬天散太快。不确定就跳过，不答不扣分',
+    help: '不确定就跳过',
     render: renderSeason,
   },
   {
@@ -3220,31 +3220,28 @@ function renderOccasion() {
 }
 
 /* ============================================================
-   第 6 屏：季节（温度光带）
+   第 6 屏：季节（2×2 方格与跟手白雾）
    ------------------------------------------------------------
-   ==== 内容隐喻 ====
-   季节不是四个并列的名字，是**一根温度轴**：冷 ←→ 热。
-   所以控件是一条从冷到热的连续光带，四个季节落在带上各自的温度位置 ——
-   位置本身就是温度读数，用户不用理解"春/夏/秋/冬"作为分类名词的含义，
-   只需要指"我打算在哪个温度下用它"。
-
-   ==== 为什么这一屏是定版范例 ====
-   规格 5·补：季节题→温度光带。它的成立条件是
-   "效果从本題内容里长出来"：温度是季节真正影响推荐的那个量
-   （引擎侧 season 因子 10 分 + 次选 5 分），所以光带的色温必须真的
-   随档位变，而不是四条等宽按钮换了个颜色。
-   注意：这条光带**只属于这一屏**，不许拿去当全卷底噪 ——
-   全卷底噪来自第 2 屏的大方向（见 src/ambient.js 第 1 条纪律）。
-
-   ==== 反馈是内容本身的变化 ====
-   选中一档，光带整体移到那一档的温度：色相从青转橙、亮度给出"这一天有多晒"，
-   下方译文换成该季节的体感（"湿冷、要压得住的风"）。
+   春夏在上、秋冬在下。白雾由 pointermove 驱动弹簧插值；点击只改目标，
+   不重置当前位置与速度，因此飞行途中可以连续改道。
    ============================================================ */
 const SEASONS = [
-  { id: 'spring', zh: '春', desc: '花开、微湿。轻盈花香与绿感最合适', temp: 0.1 },
-  { id: 'summer', zh: '夏', desc: '热、出汗多。要清透，浓香会闷', temp: 1 },
-  { id: 'autumn', zh: '秋', desc: '干爽。木质与微甜都能上场', temp: 0.35 },
-  { id: 'winter', zh: '冬', desc: '冷。需要能压住冷风的厚度', temp: -1 },
+  {
+    id: 'spring', zh: '春', desc: '花开、微湿。轻盈花香与绿感最合适',
+    icon: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="3"/><path d="M16 13c-5-1-6-5-4-7 3-2 6 1 4 7Zm0 0c1-5 5-6 7-4 2 3-1 6-7 4Zm0 0c5 1 6 5 4 7-3 2-6-1-4-7Zm0 0c-1 5-5 6-7 4-2-3 1-6 7-4Z"/></svg>',
+  },
+  {
+    id: 'summer', zh: '夏', desc: '热、出汗多。要清透，浓香会闷',
+    icon: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="16" cy="16" r="6"/><path d="M16 3v4m0 18v4M3 16h4m18 0h4M6.8 6.8l2.8 2.8m12.8 12.8 2.8 2.8m0-18.4-2.8 2.8M9.6 22.4l-2.8 2.8"/></svg>',
+  },
+  {
+    id: 'autumn', zh: '秋', desc: '干爽。木质与微甜都能上场',
+    icon: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M26 5C14 5 7 10 7 18c0 4 3 7 7 7 8 0 12-9 12-20Z"/><path d="M5 28c4-8 9-13 16-18M12 19l1-6m4 3 5 1"/></svg>',
+  },
+  {
+    id: 'winter', zh: '冬', desc: '冷。需要能压住冷风的厚度',
+    icon: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3v26M4.7 9.5l22.6 13M4.7 22.5l22.6-13M12 6l4 4 4-4M12 26l4-4 4 4M6 14l5-1-1-5m16 10-5 1 1 5M6 18l5 1-1 5m16-10-5-1 1-5"/></svg>',
+  },
 ];
 
 /* 季节屏的「重画一次」句柄（测试专用，见 renderSeason 里的赋值）。
@@ -3252,7 +3249,6 @@ const SEASONS = [
    不需要这个口子；但"方向变了情境句跟着变"这条断言要能在同一屏内验，
    否则只能靠走完整流程，测起来既慢又脆。 */
 let seasonRepaint = null;
-
 
 function renderSeason() {
   const wrap = el('div', { class: 'fade-in' });
@@ -3263,58 +3259,123 @@ function renderSeason() {
     el('p', { class: 'q-help' }, head.help)
   ));
 
-  /* 光带本体。--band-temp 由选中档写进（-1..1），CSS 用它算色相与亮度。
-     这样"温度"是一个连续量，而不是四个开关量 —— 换成四个色块就退回按钮组了。
+  const grid = el('div', { class: 'season-grid', role: 'radiogroup', 'aria-label': '主季节' });
+  const mist = el('span', { class: 'season-mist', 'aria-hidden': 'true' });
+  grid.appendChild(mist);
+  const cells = [];
+  const reduceMotion = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : { matches: false, addEventListener() {} };
+  const SPRING = 170;
+  const DAMPING = 26;
+  let mistX = 0;
+  let mistY = 0;
+  let targetX = 0;
+  let targetY = 0;
+  let velocityX = 0;
+  let velocityY = 0;
+  let raf = 0;
+  let lastFrame = 0;
+  let pointer = null;
 
-     为什么落点位置要走 --stop-pos 而不是直接写 left：
-     最冷（冬, temp=-1）与最热（夏, temp=+1）正好落在光带的 0% 和 100% 边缘，
-     而落点靠 translate(-50%) 以自己为中心对齐 —— 直接写 left 会让这两档
-     有一半探出带外，被 .temp-band 的 overflow:hidden 切掉字形（实测截图里
-     「冬」「夏」只剩半个字）。所以光带两端各留出一段内缩安全区，
-     落点在这段安全区内重新映射：位置语义仍是温度，但不会贴边。
-     这是纯视觉修正，不动"位置即温度"这条断言（顺序与单调性都不变）。 */
-  const band = el('div', { class: 'temp-band' + (state.answers.season ? '' : ' is-idle'),
-    role: 'radiogroup', 'aria-label': '主季节' });
-  const glow = el('span', { class: 'temp-glow', 'aria-hidden': 'true' });
-  band.appendChild(glow);
-
-  /* 两端安全区内缩比例。0.08 = 每端留 8% 给半个落点宽度（落点 min-width 60px，
-     光带在 1100px 桌面下约 88px 的 8%），足够放下「冬」「夏」两个字。 */
-  const STOP_INSET = 0.08;
-  const stopPos = (temp) => (STOP_INSET + ((temp + 1) / 2) * (1 - STOP_INSET * 2)) * 100;
-  /* 同一个内缩量交给 CSS（2026-11-24 复查反馈第 5 条）。
-     光斑（.temp-glow）的横坐标必须落在**同一个映射**上，否则两个公式各算各的：
-     改前 CSS 写的是 `var(--band-temp) * 50% + 33% - 17%`（按"温度铺满 0–100%"算），
-     而落点走的是上面这条带 8% 安全区的映射 —— 于是光斑系统性偏冷一格：
-     1440×900 实测四季逐个偏 冬 −163.5px / 春 −106.0 / 秋 −92.9 / 夏 −58.9，
-     点「春」时光斑正压在冬与春之间（Eddie 报的"错位半格"）。
-     变量从这里写给 CSS，是因为安全区只有这一个来源；CSS 里写死 8% 就会
-     再分叉一次（改内缩时只改到 JS，光斑又错位）。 */
-  band.style.setProperty('--stop-inset', (STOP_INSET * 100).toFixed(2) + '%');
+  const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+  const boxOf = (node) => typeof node?.getBoundingClientRect === 'function'
+    ? node.getBoundingClientRect()
+    : { left: 0, top: 0, width: 0, height: 0 };
+  const centerOf = (index) => {
+    const gridBox = boxOf(grid);
+    const cellBox = boxOf(cells[index]);
+    return {
+      x: cellBox.left - gridBox.left + cellBox.width / 2,
+      y: cellBox.top - gridBox.top + cellBox.height / 2,
+    };
+  };
+  const drawMist = () => {
+    mist.style.setProperty('--mist-x', mistX.toFixed(2) + 'px');
+    mist.style.setProperty('--mist-y', mistY.toFixed(2) + 'px');
+  };
+  const stopMotion = () => {
+    if (raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf);
+    raf = 0;
+    lastFrame = 0;
+  };
+  const snapTo = (point) => {
+    stopMotion();
+    targetX = mistX = point.x;
+    targetY = mistY = point.y;
+    velocityX = velocityY = 0;
+    drawMist();
+  };
+  const tick = (now) => {
+    raf = 0;
+    const time = Number.isFinite(now) ? now : performance.now();
+    const dt = lastFrame ? Math.min((time - lastFrame) / 1000, 0.032) : 1 / 60;
+    lastFrame = time;
+    velocityX += (SPRING * (targetX - mistX) - DAMPING * velocityX) * dt;
+    velocityY += (SPRING * (targetY - mistY) - DAMPING * velocityY) * dt;
+    mistX += velocityX * dt;
+    mistY += velocityY * dt;
+    drawMist();
+    if (Math.hypot(targetX - mistX, targetY - mistY) < 0.1
+      && Math.hypot(velocityX, velocityY) < 0.1) {
+      snapTo({ x: targetX, y: targetY });
+      return;
+    }
+    raf = requestAnimationFrame(tick);
+  };
+  const animateTo = (point) => {
+    targetX = point.x;
+    targetY = point.y;
+    if (reduceMotion.matches || typeof requestAnimationFrame !== 'function') {
+      snapTo(point);
+      return;
+    }
+    if (!raf) raf = requestAnimationFrame(tick);
+  };
+  const layoutMist = (immediate = false) => {
+    const cellBox = boxOf(cells[0]);
+    if (cellBox.width > 0 && cellBox.height > 0) {
+      mist.style.setProperty('--season-cell-w', cellBox.width + 'px');
+      mist.style.setProperty('--season-cell-h', cellBox.height + 'px');
+    }
+    const index = SEASONS.findIndex((s) => s.id === state.answers.season);
+    if (index < 0) {
+      stopMotion();
+      mist.classList.remove('is-visible');
+      return;
+    }
+    const center = centerOf(index);
+    if (immediate || !mist.classList.contains('is-visible')) snapTo(center);
+    else animateTo(center);
+  };
+  const pointFromEvent = (event) => {
+    const gridBox = boxOf(grid);
+    const cellBox = boxOf(cells[0]);
+    const halfW = cellBox.width / 2;
+    const halfH = cellBox.height / 2;
+    return {
+      x: clamp(event.clientX - gridBox.left, halfW, Math.max(halfW, gridBox.width - halfW)),
+      y: clamp(event.clientY - gridBox.top, halfH, Math.max(halfH, gridBox.height - halfH)),
+    };
+  };
+  const nearestSeason = (point) => {
+    let nearest = 0;
+    let distance = Infinity;
+    SEASONS.forEach((_, index) => {
+      const center = centerOf(index);
+      const next = Math.hypot(point.x - center.x, point.y - center.y);
+      if (next < distance) { distance = next; nearest = index; }
+    });
+    return nearest;
+  };
+  const cellFromTarget = (target) => {
+    const node = typeof target?.closest === 'function' ? target.closest('.season-cell') : target;
+    return node && typeof node.getAttribute === 'function' ? node : null;
+  };
 
   const gloss = el('p', { class: 'temp-gloss is-idle' });
-
-  /* ==== 情境句（2026-11-23 定版 24 句）====
-     上面那行 gloss 说的是"这个季节的身体经验"（温度、风、闷不闷），
-     它对四季成立、与用户选的方向无关。下面这一行说的是**这一刻具体在做什么**：
-     「围炉煮茶，顺手烤几颗砂糖橘」——它同时绑住一个方向（美食）与一个季节（冬），
-     所以只有两者都选过之后才出现。
-
-     为什么是新增一行而不是替换 gloss：
-       gloss 是「温度读数的译文」，它随光带一起解释**季节**这个量；
-       情境句解释的是「你选的这个方向，在这个季节里的一个画面」。
-       合成一行会让"没选方向"的人看到一个跟方向无关的画面，或者反过来
-       让"只选了方向"的人提前读到一句只对某个季节成立的话。
-
-     查不到就退回该季原有的 desc（SEASONS[].desc），不白屏、不留空行：
-       · 没选季节 → 整行不出现（还没到那一步，不假装有内容）；
-       · 选了季节、方向来自情绪入口（answers.family 为空）→ 用该季 desc，
-         因为情绪入口的答案与"6 个方向"不是同一根轴，硬凑会给出误导画面。 */
   const scene = el('p', { class: 'season-scene' });
   scene.hidden = true;
-
-  /* 每档配一句"温度 + 身体感受"。这是译文行（规格 5），不是装饰文案：
-     它把「冬」这个字翻译成"冷、要压得住的风"。 */
   const FEEL = {
     spring: '十几度，风里有水汽 —— 轻盈的花香和绿感最合适',
     summer: '三十度以上，会出汗 —— 太浓的会闷，清透才活得下来',
@@ -3322,88 +3383,120 @@ function renderSeason() {
     winter: '冷，要压得住风 —— 需要厚度，不然出门就散',
   };
 
-  /* 停靠点先建好、再 paint —— 顺序不能反。
-     paint() 要遍历四个 .temp-stop 点亮当前档；若在 appendChild 之前调用，
-     那四个节点还不存在，一个都点不亮（第一版就是这个顺序，
-     test-render 的"点一季后落点亮起"抓到）。所以这里先建，再 paint。 */
-  const stops = [];
-  SEASONS.forEach((s, i) => {
-    const on = state.answers.season === s.id;
-    /* 每档在光带上的位置由它的 temp 决定，**不平均分四格** ——
-       平均分就把"温度轴"退回成"四个并列选项"。
-       归一化：(temp + 1) / 2 → 0..1，再经 stopPos() 收进两端安全区
-       （避免最冷/最热两档被光带的 overflow:hidden 切掉半个字）。 */
-    const pos = stopPos(s.temp);
-    const stop = el('button', {
-      class: 'temp-stop' + (on ? ' is-on' : ''),
-      type: 'button',
-      role: 'radio',
-      'aria-checked': String(on),
-      'data-season': s.id,
-      style: 'left:' + pos.toFixed(1) + '%',
-      tabindex: on || (state.answers.season == null && i === 0) ? '0' : '-1',
-      onclick: () => {
-        state.answers.season = s.id;
-        paint(s.id);
-        applyAmbient();
-      },
-    },
-      el('span', { class: 'temp-zh' }, s.zh),
-      el('span', { class: 'temp-dot', 'aria-hidden': 'true' })
-    );
-    stops.push(stop);
-    band.appendChild(stop);
-  });
-
   const paint = (cur) => {
     const it = SEASONS.find((s) => s.id === cur) || null;
-    /* 温度写进 CSS 变量：没选时停在中间（0），不假装已经选了一档。 */
-    band.style.setProperty('--band-temp', String(it ? it.temp : 0));
-    band.classList.toggle('is-idle', !it);
-    /* 遍历 stops 而不是 band.querySelectorAll：桩里的 querySelectorAll
-       对 `.temp-stop` 支持没问题，但用静态数组更直接，也省一次树遍历。 */
-    stops.forEach((n) => {
-      const on = n.getAttribute('data-season') === cur;
-      n.classList.toggle('is-on', on);
-      n.setAttribute('aria-checked', String(on));
+    grid.classList.toggle('has-selection', !!it);
+    mist.classList.toggle('is-visible', !!it);
+    cells.forEach((cell, index) => {
+      const on = SEASONS[index].id === cur;
+      cell.classList.toggle('is-on', on);
+      cell.setAttribute('aria-checked', String(on));
+      cell.setAttribute('tabindex', on || (!it && index === 0) ? '0' : '-1');
     });
     gloss.classList.toggle('is-idle', !it);
-    gloss.textContent = it
-      ? FEEL[it.id]
-      : '按你打算主要在哪个季节用选一个；不确定就跳过，不答不扣分';
-
-    /* 情境句：方向 × 季节 都有才出现，否则退回该季 desc（仍是有内容的一行）。
-       回退只发生在"选了季节"的前提下 —— 没选季节就整行不出现，
-       因为屏幕上还没有任何一个季节可以解释，塞一句默认文案等于替用户选了。 */
+    gloss.textContent = it ? FEEL[it.id] : '';
     const line = it ? (seasonScene(state.answers.family, it.id) || it.desc) : '';
     scene.hidden = !line;
     scene.textContent = line;
+    layoutMist();
+  };
+  const choose = (id) => {
+    state.answers.season = id;
+    paint(id);
+    applyAmbient();
   };
 
-  /* 把 paint 的句柄留给测试（__seasonRepaint）：方向是在**第 1 屏**改的，
-     季节屏只重建一次，所以要验"方向变了这一句跟着变"必须能在不重画整屏的
-     前提下再 paint 一次。真流程里不会走到（改方向要走回第 1 屏，回来时整屏重建），
-     所以这是测试专用的口子，不是产品路径。 */
+  SEASONS.forEach((season, index) => {
+    const on = state.answers.season === season.id;
+    const cell = el('button', {
+      class: 'season-cell' + (on ? ' is-on' : ''),
+      type: 'button',
+      role: 'radio',
+      'aria-checked': String(on),
+      'data-season': season.id,
+      tabindex: on || (state.answers.season == null && index === 0) ? '0' : '-1',
+      onclick: (event) => {
+        /* 指针操作由 grid 的 pointer 事件处理；detail=0 是键盘/辅助技术触发的 click。 */
+        if (event.detail === 0 || event.detail == null) choose(season.id);
+      },
+      onkeydown: (event) => {
+        const delta = {
+          ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0],
+        }[event.key];
+        if (!delta) return;
+        event.preventDefault();
+        const row = Math.floor(index / 2);
+        const col = index % 2;
+        const nextRow = clamp(row + delta[0], 0, 1);
+        const nextCol = clamp(col + delta[1], 0, 1);
+        const next = nextRow * 2 + nextCol;
+        if (next === index) return;
+        cells[next].focus({ preventScroll: true });
+        choose(SEASONS[next].id);
+      },
+    },
+      el('span', { class: 'season-symbol', 'aria-hidden': 'true', html: season.icon }),
+      el('span', { class: 'season-name' }, season.zh)
+    );
+    cells.push(cell);
+    grid.appendChild(cell);
+  });
+
+  grid.addEventListener('pointerdown', (event) => {
+    if (pointer || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    const cell = cellFromTarget(event.target);
+    const index = cells.indexOf(cell);
+    if (index < 0) return;
+    pointer = {
+      id: event.pointerId, index, startX: event.clientX, startY: event.clientY, dragged: false,
+    };
+    if (!mist.classList.contains('is-visible')) snapTo(pointFromEvent(event));
+    if (typeof grid.setPointerCapture === 'function' && event.pointerId != null) {
+      grid.setPointerCapture(event.pointerId);
+    }
+  });
+  grid.addEventListener('pointermove', (event) => {
+    if (!pointer || event.pointerId !== pointer.id) return;
+    if (!pointer.dragged && Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY) > 4) {
+      pointer.dragged = true;
+      /* 未选时静止态不显示白雾；手指一旦开始拖动，就立即显形并跟手。 */
+      mist.classList.add('is-visible');
+    }
+    if (!pointer.dragged) return;
+    event.preventDefault();
+    animateTo(pointFromEvent(event));
+  });
+  grid.addEventListener('pointerup', (event) => {
+    if (!pointer || event.pointerId !== pointer.id) return;
+    const index = pointer.dragged ? nearestSeason(pointFromEvent(event)) : pointer.index;
+    pointer = null;
+    if (typeof grid.releasePointerCapture === 'function' && event.pointerId != null) {
+      grid.releasePointerCapture(event.pointerId);
+    }
+    choose(SEASONS[index].id);
+  });
+  const cancelPointer = (event) => {
+    if (!pointer || event.pointerId !== pointer.id) return;
+    pointer = null;
+    layoutMist(true);
+  };
+  grid.addEventListener('pointercancel', cancelPointer);
+  grid.addEventListener('lostpointercapture', cancelPointer);
+
   seasonRepaint = () => paint(state.answers.season);
-
-
   paint(state.answers.season);
-  wrap.appendChild(band);
+  wrap.appendChild(grid);
   wrap.appendChild(gloss);
   wrap.appendChild(scene);
-
-  /* 这段数字是**用户可见**的，必须跟数据同步（1388 瓶实测，D56）。
-     写错等于自拆台 —— 这类文字恰恰靠"说得具体"建立可信度。 */
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '关于候选多少：'),
-    ' 库里按季节标注为「春 1331 · 夏 840 · 秋 1357 · 冬 548」（1388 瓶中的标注覆盖数，每瓶平均标 2.9 个季节）。',
-    ' 冬天能选的最少，这是数据分布，不是推荐变差了。'
-  ));
-
   wrap.appendChild(navBar('season'));
+
+  window.addEventListener('resize', () => layoutMist(true));
+  if (typeof ResizeObserver === 'function') new ResizeObserver(() => layoutMist(true)).observe(grid);
+  if (typeof reduceMotion.addEventListener === 'function') {
+    reduceMotion.addEventListener('change', () => layoutMist(true));
+  }
   return wrap;
 }
-
 /* ============================================================
    第 7 屏：浓淡 + 浓度（波纹场 + 原生滑杆）
    ------------------------------------------------------------

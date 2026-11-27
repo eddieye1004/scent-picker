@@ -617,106 +617,106 @@
 #app[data-step="occasion"] footer.foot { margin-top: 20px; }
 
 /* ============================================================
-   第 6 屏：季节（温度光带）
+   第 6 屏：季节（2×2 方格与跟手白雾）
    ------------------------------------------------------------
-   前景效果：一条**连续的温度光带**，冷在左、热在右。
-   四个季节落在带上各自的温度位置（由 SEASONS[].temp 算，不平均分四格）——
-   位置就是温度读数。选中时整条带移到那一档的色温。
-   这一屏的光带**只属于这一屏**，不许拿去当全卷底噪。
+   四格按春夏 / 秋冬排列，8px 缝由 grid gap 保证；按钮留在正常流里，
+   不再用绝对定位造成热区重叠。白雾是独立的指针透明层，由 JS 写位移。
    ============================================================ */
-.temp-band {
+.season-grid {
   position: relative;
-  height: 132px;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  max-width: 440px;
   margin: 8px 0 0;
-  border-radius: 2px;
-  z-index: 1;
-  /* 光带本体：色相由 --band-temp 插值。冷 #dbe7ef → 热 #efd3ad。
-     两个端点都过对比度核算（它们只做背景，不承载文字）。 */
-  --band-temp: 0;
-  /* 两端安全区（2026-11-24 复查反馈第 5 条）。这里是**兜底值**：
-     app.js 在 renderSeason 里用同名的 STOP_INSET 写一个内联值进来，
-     落点与光斑因此共用一个映射。写死在这儿只是防"JS 没跑到"时
-     光斑退回中心，而不是飞到带外。 */
-  --stop-inset: 8%;
-  background: linear-gradient(90deg, #dbe7ef 0%, #e9e6dc 50%, #efd3ad 100%);
-  border: 1px solid var(--stroke-ui);
-  overflow: hidden;
-  transition: filter .35s var(--ease, ease), border-color .35s;
+  touch-action: none;
+  user-select: none;
 }
 
-/* 光带上的温度光：一团跟着选中档移动的暖光，位置由选中档的 temp 决定。
-   它让"温度"成为一个连续量而不是四个开关量。
-
-   位置公式（2026-11-24 复查反馈第 5 条修的就是这一行）：
-   光斑中心 = 内缩后的温度映射 = --stop-inset + (t+1)/2 × (100% − 2×内缩)
-   与 app.js 的 stopPos() 逐字同构；`− 17%` 是半个光斑宽（34% / 2）。
-   改前用 `var(--band-temp) * 50% + 33% − 17%`：把温度当成铺满 0–100%，
-   而落点其实收进了 8% 安全区 —— 四季逐个偏 59–163px，点「春」时
-   光斑正落在冬与春之间（Eddie 报的"错位半格"）。
-   两条公式从此只有一个在算：内缩量由 JS 注入，这里只读。 */
-.temp-band .temp-glow {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 34%;
-  left: calc(
-    (var(--stop-inset) + (var(--band-temp) + 1) / 2 * (100% - 2 * var(--stop-inset)))
-    - 17%
-  );
-  background: radial-gradient(circle at 50% 50%,
-    rgba(255, 255, 255, .9), rgba(255, 248, 236, .35) 46%, transparent 72%);
-  transition: left .4s var(--ease, ease);
-  pointer-events: none;
-}
-
-/* 未选：整条带降饱和 —— 诚实地表示"还没定温度"。
-   filter 不动文字（带里只有短词与圆点）。 */
-.temp-band.is-idle { filter: saturate(.35) brightness(.99); }
-
-.temp-stop {
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  min-width: 60px;
-  min-height: 60px;
-  padding: 8px 10px;
+.season-cell {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  min-height: 44px;
+  aspect-ratio: 1;
+  padding: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  gap: 8px;
+  color: var(--ink);
   background: transparent;
-  border: 0;
+  border: 1px solid var(--stroke-ui);
+  border-radius: var(--radius);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: filter .25s var(--ease-std), border-color .25s var(--ease-std);
 }
 
-.temp-stop .temp-zh {
-  font: 500 16px/1 var(--font-display, sans-serif);
-  color: var(--ink);
+.season-grid.has-selection .season-cell:not(.is-on) { filter: brightness(.6); }
+.season-cell.is-on { border-color: var(--accent); }
+
+.season-symbol {
+  width: 32px;
+  height: 32px;
+  display: block;
+  flex: 0 0 32px;
+}
+
+.season-symbol svg { width: 100%; height: 100%; display: block; }
+
+.season-name {
+  font: 500 18px/1 var(--font-display, sans-serif);
   letter-spacing: .06em;
 }
 
-/* 档位圆点：选中时填实并放大 —— 微小但确定的"落点"。 */
-.temp-stop .temp-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--ink-3);
-  transition: transform .22s var(--ease, ease), background .22s;
+.season-mist {
+  --season-cell-w: calc((100% - 8px) / 2);
+  --season-cell-h: calc((100% - 8px) / 2);
+  --mist-x: 0px;
+  --mist-y: 0px;
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  width: var(--season-cell-w);
+  height: var(--season-cell-h);
+  border: 1px solid rgba(255, 255, 255, .92);
+  border-radius: var(--radius);
+  background: linear-gradient(145deg, rgba(255, 255, 255, .8), rgba(255, 255, 255, .38));
+  box-shadow: 0 8px 24px rgba(14, 14, 14, .08), inset 0 1px 0 rgba(255, 255, 255, .9);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  transform: translate3d(var(--mist-x), var(--mist-y), 0) translate(-50%, -50%);
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform;
 }
 
-.temp-stop.is-on .temp-dot {
-  background: var(--accent);
-  transform: scale(1.9);
-}
+.season-mist.is-visible { visibility: visible; opacity: 1; }
 
-.temp-stop.is-on .temp-zh { color: var(--accent); }
-
-/* 键盘焦点必须看得见（test-contrast 的 INTERACTIVE 清单里有 .btn，
-   这里补 .price-tab / .sky-band / .life-card / .hour-band / .occ-stop /
-   .temp-stop / .conc-slider / .diffuse-ring 的焦点环）。 */
-.temp-stop:focus-visible {
+.season-cell:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .season-grid,
+  .season-cell,
+  .season-mist {
+    transition: none;
+  }
+  .season-mist {
+    background: transparent;
+    border-color: var(--accent);
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 .temp-gloss {
@@ -943,8 +943,6 @@
      · .sky 六列 → 两列：六条并排在 390 上每格只有 58px，
        地平线的"左冷右暖"位置信息在这么窄的格子里已经读不出来，
        改成两列后位置信息让给"每条自己的天光"，方向仍然一眼可见；
-     · .hour-rail 五列 → 横向滚动：地平线的顺序必须保留（那是内容），
-       所以不换行、改成可横滑，顺序不动；
      · .conc-scene 的最大宽度收到 100%、高度压到 170px：波纹靠百分比直径，
        缩容器即可；刻度 min-width 收到 52px（320px 档距 ≈ 68px，仍不重叠）；
      · 场合时间轴是竖向的，窄屏不需要降级 —— 64px 行高在 320 宽也放得下
@@ -957,18 +955,6 @@
   .sky { grid-template-columns: repeat(2, 1fr); }
   .sky-band { min-height: 132px; }
 
-  .hour-rail {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: 62%;
-    gap: 6px;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 6px;
-  }
-  .hour-band { scroll-snap-align: start; }
-
   .conc-scene { max-width: 100%; height: 170px; }
   .conc-tick { min-width: 52px; }
 
@@ -978,13 +964,10 @@
 
   .price-tab { flex: 1 1 100%; min-height: 74px; }
 
-  .temp-band { height: 116px; }
-  .temp-stop { min-width: 52px; padding: 6px 6px; }
-
   .masthead .amb-tick { display: none; }
 
-  .price-tab, .sky-band, .life-card, .hour-band, .occ-stop,
-  .temp-stop, .conc-ripple, .diffuse-ring {
+  .price-tab, .sky-band, .life-card, .occ-stop,
+  .conc-ripple, .diffuse-ring {
     transition-duration: .12s;
   }
 }

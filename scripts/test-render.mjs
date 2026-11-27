@@ -1676,47 +1676,52 @@ ok(`${screenOf('occasion')}是场合（data-step=occasion）`, stepId() === 'occ
     '仍有 occasion 专属 sticky 规则');
 }
 
-/* ---------- ⑥ 季节（温度光带，定版范例之二） ----------
+/* ---------- ⑥ 季节（2×2 方格与跟手白雾） ----------
    屏号派生（见 ⑤）：预算搬走后季节从第 5 屏前移到第 4 屏。 */
 await advance();
 ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season',
   `实际 ${stepId()}（表长 ${appMod.__steps.cur().length}）`);
 {
-  const stops = appRoot.querySelectorAll('.temp-stop');
-  ok('季节屏是温度光带上的四个落点', stops.length === 4, `实际 ${stops.length}`);
-  /* **位置即温度**：每个落点的 left 必须由该季的 temp 算出来，不许平均分四格。
-     平均分就把"温度轴"退回成"四个并列选项"。这里读内联 style 的 left。 */
-  const lefts = stops.map((x) => parseFloat(String(x.style.left)));
-  ok('四个落点按温度排布（不是等分四格）',
-    lefts.every((v) => Number.isFinite(v))
-    && new Set(lefts).size === 4
-    && Math.abs(lefts[0] - lefts[1]) > 3,
-    lefts.join(','));
-  /* 春(0.1)→55%、秋(0.35)→67.5%，两者不能挨得太近也不该重合 */
-  ok('冬在最冷端、夏在最热端',
-    lefts.indexOf(Math.min(...lefts)) === 3 && lefts.indexOf(Math.max(...lefts)) === 1,
-    lefts.join(','));
-  ok('光带有一条温度光（跟着选中档移动）', appRoot.querySelectorAll('.temp-glow').length === 1);
-  /* 译文行先验"未选时是诚实的指引"，再验"选了之后换成了体感描述"。
-     顺序很重要：空态那句是「按你打算主要在哪个季节用选一个…」，
-     它本来就不该含"度/冷/热"这些体感词 —— 第一版把这条断言写在点击**之前**，
-     于是拿空态文案去要求它讲体感，那是一条挂错位置的断言（会永远红）。 */
-  ok('未选季节时译文是诚实的指引（不假装已选）',
-    /选一个|跳过/.test(appRoot.querySelectorAll('.temp-gloss')[0].textContent),
-    appRoot.querySelectorAll('.temp-gloss')[0].textContent.slice(0, 50));
-  stops[3].dispatch('click');
+  const grid = appRoot.querySelectorAll('.season-grid')[0];
+  const cells = appRoot.querySelectorAll('.season-cell');
+  const mist = appRoot.querySelectorAll('.season-mist')[0];
+  ok('季节屏是一个 2×2 方格组', appRoot.querySelectorAll('.season-grid').length === 1
+    && cells.length === 4, `实际格 ${cells.length}`);
+  ok('四格按春夏 / 秋冬排列', cells.map((x) => x.getAttribute('data-season')).join(',')
+    === 'spring,summer,autumn,winter', cells.map((x) => x.getAttribute('data-season')).join(','));
+  ok('每格都有 32px 符号槽与季节名', cells.every((x) =>
+    x.querySelectorAll('.season-symbol').length === 1
+    && x.querySelectorAll('.season-symbol svg').length === 1
+    && x.querySelectorAll('.season-name').length === 1));
+  ok('未选态不显示白雾', !!mist && !mist.classList.contains('is-visible'));
+  ok('标题与副标只出现一次', getStepText().split('主要在哪个季节用？').length === 2
+    && getStepText().split('不确定就跳过').length === 2);
+  ok('季节统计已删除', !/春 1331|夏 840|秋 1357|冬 548/.test(getStepText()));
+
+  cells[3].dispatch('click');
   await new Promise((r) => setTimeout(r, 60));
+  ok('点选后白雾显示且目标格选中', !!mist && mist.classList.contains('is-visible')
+    && cells[3].attrs['aria-checked'] === 'true'
+    && cells.slice(0, 3).every((x) => x.attrs['aria-checked'] === 'false'));
   ok('选一季后译文换成体感描述（含温度/风这类身体经验）',
     /度|冷|热|风/.test(appRoot.querySelectorAll('.temp-gloss')[0].textContent),
     appRoot.querySelectorAll('.temp-gloss')[0].textContent.slice(0, 50));
   ok('选一季后译文行的 is-idle 摘掉',
     !appRoot.querySelectorAll('.temp-gloss')[0].classList.contains('is-idle'),
     appRoot.querySelectorAll('.temp-gloss')[0].className);
-  ok('选一季后温度被写进 CSS 变量（--band-temp）',
-    appRoot.querySelectorAll('.temp-band')[0].style['--band-temp'] != null,
-    String(appRoot.querySelectorAll('.temp-band')[0].style['--band-temp']));
-  await new Promise((r) => setTimeout(r, 60));
-  ok('点一季后落点亮起', stops[3].attrs['aria-checked'] === 'true', String(stops[3].attrs['aria-checked']));
+
+  cells[3].dispatch('keydown', { key: 'ArrowUp' });
+  ok('方向键上移：冬 → 夏', appMod.__state.answers.season === 'summer');
+  cells[0].dispatch('keydown', { key: 'ArrowRight' });
+  ok('方向键右移：春 → 夏', appMod.__state.answers.season === 'summer');
+  cells[1].dispatch('keydown', { key: 'ArrowLeft' });
+  ok('方向键左移：夏 → 春', appMod.__state.answers.season === 'spring');
+  cells[0].dispatch('keydown', { key: 'ArrowDown' });
+  ok('方向键下移：春 → 秋', appMod.__state.answers.season === 'autumn');
+  cells[2].dispatch('keydown', { key: 'ArrowRight' });
+  ok('方向键右移：秋 → 冬', appMod.__state.answers.season === 'winter');
+  ok('键盘焦点与 radio tabindex 跟随选中格', cells[3].attrs.tabindex === '0'
+    && cells.slice(0, 3).every((x) => x.attrs.tabindex === '-1'));
 
   /* ---- 两屏的区分（redesign-leg3-20261126 验收项）----
      场合屏已是竖向五行时间轴，季节屏是温度光带/2×2 —— 结构本身一眼可分。
@@ -1757,7 +1762,7 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
     ok('季节屏有情境句这一行（只有一个）', appRoot.querySelectorAll('.season-scene').length === 1,
       `实际 ${appRoot.querySelectorAll('.season-scene').length}`);
 
-    /* 此刻 stops[3]（冬）已被点上，家族是 citrus —— 应是「果香 × 冬」那句。 */
+    /* 此刻 cells[3]（冬）已被点上，家族是 citrus —— 应是「果香 × 冬」那句。 */
     const wantWinter = cell('citrus', 'winter');
     ok('选了季节 + 有方向时，屏上是该方向 × 该季那一句',
       !!sceneEl() && sceneEl().hidden === false && sceneEl().textContent === wantWinter,
@@ -1776,7 +1781,7 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
       `表「${cellOf('citrus', 'winter')}」屏「${wantWinter}」`);
 
     /* 换一季：句子必须跟着换，且仍然来自同一张表。 */
-    stops[0].dispatch('click');
+    cells[0].dispatch('click');
     await new Promise((r) => setTimeout(r, 60));
     const wantSpring = cell('citrus', 'spring');
     ok('换季后情境句跟着换（不是渲染一次就冻住）',
