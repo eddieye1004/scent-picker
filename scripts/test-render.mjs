@@ -108,6 +108,12 @@ class TNode {
   set className(v) {
     this.classList._set = new Set(String(v).split(/\s+/).filter(Boolean));
   }
+  /* value：input 的受控值。真实 DOM 里 .value 是属性（attribute 只是初值），
+     app.js 的浓淡滑杆会写 slider.value = v、再在 input 事件里读
+     ev.target.value —— 桩不同步两处，测试里就是 NaN，
+     表现成"拖了没反应"。补桩而不是改业务代码（本文件开头那条规则）。 */
+  get value() { return this.attrs.value != null ? String(this.attrs.value) : ''; }
+  set value(v) { this.attrs.value = String(v); }
   get textContent() {
     if (this._text != null) return this._text;
     return this.children.map((c) => (typeof c === 'string' ? c : c.textContent)).join('');
@@ -1761,60 +1767,126 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
   }
 }
 
-/* ---------- ⑦ 浓淡（扩散场，定版范例之三） ----------
-   屏号派生（见 ⑤）：预算搬走后浓淡从第 6 屏前移到第 5 屏。 */
+/* ---------- ⑦ 浓淡（波纹场 + 原生滑杆，2026-11-26 leg5 改版） ----------
+   屏号派生（见 ⑤）：预算搬走后浓淡从第 6 屏前移到第 5 屏。
+   改版要点：场景图（人形剪影 + 同心波纹）整块 aria-hidden 不可点；
+   命中只靠原生 input[type=range]；刻度可点但只是滑杆的捷径；
+   读数只写白话；浓度类型收进「按香水类型筛选」且切换不清空别的答案。 */
 await advance();
 ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId() === 'concentration',
   `实际 ${stepId()}（表长 ${appMod.__steps.cur().length}）`);
 {
-  const rings = appRoot.querySelectorAll('.diffuse-ring');
-  ok('扩散场是五个同心环', rings.length === 5, `实际 ${rings.length}`);
-  /* **半径即扩散距离**：环的直径必须随档位递增，不能五环同尺寸
-     （同尺寸就退回成五个按钮）。 */
-  const pcts = rings.map((x) => parseFloat(String(x.style['--ring-pct'])));
-  ok('五环半径随档位递增（半径=扩散距离）',
-    pcts.every((v) => Number.isFinite(v))
-    && pcts.every((v, i) => i === 0 || v > pcts[i - 1]),
-    pcts.join(','));
-  ok('场心色团存在', appRoot.querySelectorAll('.diffuse-core').length === 1);
-  /* 三个物件都有编号（一屏三物必须能说清"这是第几个"）。 */
-  const t = getStepText();
-  ok('浓淡屏三个物件都带编号（① ② ③）', /①/.test(t) && /②/.test(t) && /③/.test(t), t.slice(0, 100));
-  ok('未选浓度时 ③ 留香是空态（不凭空给推断值）',
-    appRoot.querySelectorAll('.long-read.is-empty').length === 1,
-    `空态 ${appRoot.querySelectorAll('.long-read.is-empty').length} 个`);
-  /* 浓度卡仍是 EDC…Extrait 那一组档位 */
+  /* 场景图：整块 aria-hidden，里面没有任何人可点的控件。 */
+  const scene = appRoot.querySelector('.conc-scene');
+  ok('场景图存在且整块 aria-hidden（波纹只做展示）',
+    !!scene && scene.attrs['aria-hidden'] === 'true',
+    scene ? String(scene.attrs['aria-hidden']) : '(无场景图)');
+  ok('场景图里是人形剪影 + 三圈同心波纹，且没有一个 button',
+    !!scene
+    && scene.querySelectorAll('svg').length === 1
+    && scene.querySelectorAll('.conc-ripple').length === 3
+    && scene.querySelectorAll('button').length === 0,
+    `svg ${scene ? scene.querySelectorAll('svg').length : 0} / `
+    + `ripples ${scene ? scene.querySelectorAll('.conc-ripple').length : 0} / `
+    + `buttons ${scene ? scene.querySelectorAll('button').length : 0}`);
+
+  /* 滑杆：唯一命中来源，原生语义齐全。 */
+  const slider = appRoot.querySelector('.conc-slider');
+  ok('浓淡控件是原生 input[type=range]（min1 max5 step1）',
+    !!slider && slider.tagName === 'INPUT'
+    && slider.attrs.type === 'range' && slider.attrs.min === '1'
+    && slider.attrs.max === '5' && slider.attrs.step === '1',
+    slider ? `${slider.tagName} ${slider.attrs.type} ${slider.attrs.min}-${slider.attrs.max}/${slider.attrs.step}` : '(无滑杆)');
+  ok('滑杆初值等于当前答案（默认 3）',
+    Number(slider.value) === Number(appMod.__state.answers.intensity),
+    `滑杆 ${slider.value} / state ${appMod.__state.answers.intensity}`);
+  ok('滑杆 aria-valuetext 是白话档名（读屏不念 3/5）',
+    /适中/.test(String(slider.attrs['aria-valuetext']))
+    && !/\d\s*\/\s*5/.test(String(slider.attrs['aria-valuetext'])),
+    String(slider.attrs['aria-valuetext']));
+
+  /* 刻度：五档白话名，点刻度直接跳档；不进 tab 序、对读屏隐藏。 */
+  const ticks = appRoot.querySelectorAll('.conc-tick');
+  ok('五个刻度：贴肤/很淡/适中/明显/很浓',
+    ticks.length === 5 && ticks.map((t) => t.textContent).join(',') === '贴肤,很淡,适中,明显,很浓',
+    ticks.map((t) => t.textContent).join(','));
+  ok('刻度不进 tab 序且对读屏隐藏（键盘与读屏只走滑杆）',
+    ticks.length === 5 && ticks.every((t) => t.attrs.tabindex === '-1' && t.attrs['aria-hidden'] === 'true'),
+    ticks.map((t) => `${t.attrs.tabindex}/${t.attrs['aria-hidden']}`).join(' '));
+
+  const read = appRoot.querySelector('.conc-read');
+  const concLine = appRoot.querySelector('.conc-conc');
+  ok('读数只写白话「适中：办公室里刚好」，不写「3/5」',
+    !!read && read.textContent === '适中：办公室里刚好'
+    && !/\d\s*\/\s*\d/.test(read.textContent),
+    read ? read.textContent : '(无读数)');
+  ok('读数下有一行灰字「大致对应：淡香水 EDT」',
+    !!concLine && concLine.textContent === '大致对应：淡香水 EDT',
+    concLine ? concLine.textContent : '(无灰字)');
+
+  /* 旧扩散场的按钮/环/读数不得复活（它们的命中问题正是这次改版的起因）。 */
+  const residue = appRoot.querySelectorAll('.diffuse-hit').length
+    + appRoot.querySelectorAll('.diffuse-ring').length
+    + appRoot.querySelectorAll('.diffuse-read').length;
+  ok('旧扩散场结构不再出现（.diffuse-hit / .diffuse-ring / .diffuse-read）',
+    residue === 0, `残留 ${residue} 个`);
+
+  /* 点刻度直接跳档：state、滑杆值、读数一次到位。 */
+  ticks[4].dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  ok('点「很浓」刻度直接跳到第 5 档',
+    Number(appMod.__state.answers.intensity) === 5 && slider.value === '5',
+    `state ${appMod.__state.answers.intensity} / 滑杆 ${slider.value}`);
+  ok('跳档后读数与灰字都换成第 5 档的',
+    read.textContent === '很浓：一两喷就够' && concLine.textContent === '大致对应：香精 Parfum',
+    `${read.textContent} / ${concLine.textContent}`);
+
+  /* 波纹半径跟档位走（半径=扩散距离）：外圈直径随档位增大。
+     （.conc-pulse 的宽与外圈同值，用单一 class 选择器取它，桩不支持复合选择器。） */
+  const pulse = appRoot.querySelector('.conc-pulse');
+  const wideAt5 = parseFloat(String(pulse.style.width));
+  slider.value = '2';
+  slider.dispatch('input'); /* 方向键与滑杆换值同走 input 事件 */
+  await new Promise((r) => setTimeout(r, 60));
+  const wideAt2 = parseFloat(String(pulse.style.width));
+  ok('波纹半径跟档位走（档位越小波纹越小）',
+    Number.isFinite(wideAt5) && Number.isFinite(wideAt2) && wideAt2 < wideAt5,
+    `5 档 ${wideAt5}% / 2 档 ${wideAt2}%`);
+
+  /* 方向键换值（input 路径）与读屏语义一致：state、读数、valuetext 同步。 */
+  ok('滑杆换值（方向键同路）后 state 同步为 2',
+    Number(appMod.__state.answers.intensity) === 2,
+    `state ${appMod.__state.answers.intensity}`);
+  ok('换值后读数、灰字、aria-valuetext 一起换到 2 档',
+    read.textContent === '很淡：自己和身边人闻得到'
+    && concLine.textContent === '大致对应：淡香水 EDT'
+    && /很淡/.test(String(slider.attrs['aria-valuetext'])),
+    `${read.textContent} / ${concLine.textContent} / ${slider.attrs['aria-valuetext']}`);
+
+  /* ② 按香水类型筛选：档位还是 EDC…Parfum 那一组。 */
+  ok('浓度类型区标题是「按香水类型筛选」',
+    /按香水类型筛选/.test(getStepText()), getStepText().slice(0, 120));
   const grid = appRoot.querySelector('.choice-grid');
   const concIds = grid ? grid.querySelectorAll('[role="radio"]').map((x) => x.attrs['data-id']) : [];
-  ok('浓度卡是 EDC…Extrait 这一组档位',
+  ok('香水类型卡是 EDC…Parfum 这一组档位',
     concIds.includes('eau-de-parfum') && concIds.includes('eau-de-toilette'), concIds.join(','));
-  /* 点最外环 → 它成为当前档。
-     注意：可点的是 .diffuse-hit（视觉环 .diffuse-ring 是 aria-hidden 的装饰），
-     两者分开是因为五个环同心，若按钮自己占满整圆，外环会盖住内环的点击。
-     所以断言要读 hit 上的 aria-checked，不是 ring 上的。 */
-  const hits = appRoot.querySelectorAll('.diffuse-hit');
-  ok('扩散场有五枚真实命中按钮（每档一个）', hits.length === 5, `实际 ${hits.length}`);
-  ok('命中按钮互不重叠（同一时刻只有一个 tabindex=0）',
-    hits.filter((b) => b.attrs.tabindex === '0').length <= 1,
-    hits.map((b) => b.attrs.tabindex || '-').join(','));
-  hits[4].dispatch('click');
-  await new Promise((r) => setTimeout(r, 60));
-  ok('点最外环后它成为当前档', hits[4].attrs['aria-checked'] === 'true',
-    String(hits[4].attrs['aria-checked']));
-  ok('点最外环后场心色团跟着涨大（--ring-pct 最大档生效）',
-    appRoot.querySelectorAll('.diffuse-ring').some((r) => r.classList.contains('is-on')
-      && r.attrs['data-v'] === '5'),
-    appRoot.querySelectorAll('.diffuse-ring').map((r) => r.attrs['data-v'] + ':' + r.className).join(' | '));
-  /* ==== 回归：五环必须同心（2026-11-17 修） ====
-     曾经把 top 写成 50 - pct/2，而 .diffuse-ring 的 transform 已经是
-     translate(-50%,-50%) —— 半径被扣了两次，五个环圆心各不相同、
-     底边全相切于容器中心，最大那个向上溢出 193px 盖住页头标题
-     （playwright 实测 cy = 590.7/556.2/521.7/487.2/452.7）。
-     同心圆的定义就是圆心固定、直径不同，所以 top 必须恒为 50%。 */
-  const tops = rings.map((x) => String(x.style.top).replace(/\s/g, ''));
-  ok('五环同心（圆心 top 恒为 50%，不被半径扣两次）',
-    new Set(tops).size === 1 && /^50(\.0+)?%$/.test(tops[0]),
-    tops.join(','));
+
+  /* 切换浓度类型：只写自己的答案，其他答案一律保留（不清空）。 */
+  const before = { ...appMod.__state.answers };
+  const edpBtn = grid ? grid.querySelector('[data-id="eau-de-parfum"]') : null;
+  if (edpBtn) { edpBtn.dispatch('click'); await new Promise((r) => setTimeout(r, 60)); }
+  const after = appMod.__state.answers;
+  const others = Object.keys(before).filter((k) => k !== 'concentration' && k !== 'longevity');
+  ok('切换浓度类型后其他答案一律保留（含滑杆的 2 档）',
+    !!edpBtn && others.every((k) => String(after[k]) === String(before[k]))
+    && Number(after.intensity) === 2,
+    others.filter((k) => String(after[k]) !== String(before[k])).join(',') || '(全部保留)');
+  ok('浓度类型与留香推断已写入（EDP → 5–8 小时档）',
+    after.concentration === 'eau-de-parfum' && Number(after.longevity) === 4,
+    `${after.concentration} / ${after.longevity}`);
+  ok('切浓度类型后滑杆与读数原地不动（不整屏重绘）',
+    slider.value === '2' && read.textContent === '很淡：自己和身边人闻得到',
+    `滑杆 ${slider.value} / ${read.textContent}`);
 }
 
 /* ---------- ② 预算（末屏；v7 第 3 步③ 从第 3 位搬到末位） ----------

@@ -241,7 +241,7 @@ const el = (tag, attrs = {}, ...kids) => {
                      （src/avoid.js 现算，封顶 6 张；算不出整屏跳过 → 共 5 步）
      3 occasion      场合 —— 决定浓淡与时段
      4 season        季节 —— 温度光带（.temp-band），Eddie 定版范例之一
-     5 concentration 浓淡＋浓度（扩散场：同心环半径＝扩散距离）
+     5 concentration 浓淡＋浓度（波纹场：人形剪影＋同心波纹，原生滑杆命中）
      6 budget        预算（末屏）—— 圈定候选池，选完即出结果
 
    **预算已从第 3 位搬到末位**（第 ③ 步）。搬位置不改口径：`poolForBudget` 的两个
@@ -3412,28 +3412,26 @@ function renderSeason() {
 }
 
 /* ============================================================
-   第 7 屏：浓淡 + 浓度（扩散场）
+   第 7 屏：浓淡 + 浓度（波纹场 + 原生滑杆）
    ------------------------------------------------------------
    ==== 内容隐喻 ====
-   浓淡问的是"这团气味能走多远"。所以控件不是滑块，是一个**扩散场**：
-   同心环从内到外是一臂 → 一桌 → 一屋 → 走廊，环的半径就是扩散距离。
-   拖动穿过环时，场心的色团跟着涨大 —— 用户看到的是自己刚做的那个决定
-   在空间里铺开，而不是一根条子上的数字从 2 变成 4。
+   浓淡问的是"这团气味能走多远"。画面：左边一个人形剪影，
+   右边是从他身上向外扩散的同心波纹 —— 波纹半径就是扩散距离。
 
-   ==== 为什么浓度必须留在同一屏 ====
-   浓度（香精占比）决定"这团气味能撑多久"，是同一个物理量的另一半：
-   扩散距离 × 持续时间 = 分量。拆成两屏后用户看不见自己选了几个环，
-   会答出"要很浓但选古龙水"这种互相打架的组合（旧版为此专门挂过跨屏提醒）。
-   收进同一个场里之后，冲突变成**可见**的：内圈撑不住外圈时，
-   最外那圈会虚掉并给一句提示 —— 界面自己解释矛盾，不靠文案打断。
+   ==== 为什么换成原生滑杆 ====
+   旧版把五个环做成五枚按钮，命中环带在窄屏互相遮挡
+   （320/390 实测点 1/5 会被 5/5 拦住），拖动与方向键也不通。现在：
+     · 命中只靠滑杆（含刻度落点）；波纹整块 aria-hidden、不可点；
+     · 拖动时波纹半径跟手连续变，不按档跳；
+       松手吸附到最近档，同时一次轻微波纹扩散；
+     · 点刻度直接跳档，方向键左右切档 —— 三条路写同一个 state。
+   读数只写白话（「适中：办公室里刚好」），不写「3/5」；
+   当前档大致对应的浓度类型（EDC/EDT/EDP）收在读数下一行灰字。
 
-   ==== 三个物件仍然编号 ====
-   一屏里出现三个可读的东西时，必须能一眼说出"这是第几个"：
-     ① 扩散到哪儿（同心环，可拖）
-     ② 浓度类型（内圈那一排档位）
-     ③ 大概能留多久（由 ② 推断，纯展示，不可点）
-   ③ 不可点是刻意的：能改但不影响结果的控件比不给更糟
-   （见 src/scoring.js 8c 段：同浓度下全库等加，对排序零贡献）。
+   ==== 浓度类型为什么留在同一屏 ====
+   浓度（香精占比）决定"这团气味能撑多久"，是同一个物理量的另一半。
+   收在「按香水类型筛选」一格里；切换只写自己的 state、不整屏重绘 ——
+   其他屏的答案一个都不碰（不允许悄悄清空）。
    ============================================================ */
 function renderConcentration() {
   const wrap = el('div', { class: 'fade-in' });
@@ -3444,189 +3442,182 @@ function renderConcentration() {
     el('p', { class: 'q-help' }, head.help)
   ));
 
-  /* ---- ① 扩散场 ---- */
-  wrap.appendChild(el('div', { class: 'chips-label' }, '① 想让它在多远的地方闻得到'));
+  /* ---- ① 想让它在多远的地方闻得到：场景图 + 原生滑杆 ---- */
+  wrap.appendChild(el('div', { class: 'chips-label' }, '想让它在多远的地方闻得到'));
 
-  /* 五个环 = 五档体感。半径不是随便排的：外环面积按档位线性分配，
-     否则"最外一圈"会占掉一半面积、看起来像唯一选项。 */
-  const RINGS = [
-    { v: 1, zh: '贴很近', hint: '只有抱着才闻到' },
-    { v: 2, zh: '一臂', hint: '自己和身边人闻得到' },
-    { v: 3, zh: '一桌', hint: '办公室环境刚好' },
-    { v: 4, zh: '一间屋', hint: '进门会被注意到' },
-    { v: 5, zh: '整条走廊', hint: '一两喷就够，围巾留好几天' },
+  /* 五档体感 + 每档一句白话。读数只写「适中：办公室里刚好」这种话，
+     不写「3/5」—— 新手要的是分量感，不是分数。 */
+  const LEVELS = [
+    { v: 1, zh: '贴肤', hint: '只有贴近才闻得到' },
+    { v: 2, zh: '很淡', hint: '自己和身边人闻得到' },
+    { v: 3, zh: '适中', hint: '办公室里刚好' },
+    { v: 4, zh: '明显', hint: '进门会被注意到' },
+    { v: 5, zh: '很浓', hint: '一两喷就够' },
   ];
-  const field = el('div', { class: 'diffuse', role: 'radiogroup', 'aria-label': '扩散范围' });
-  const core = el('div', { class: 'diffuse-core', 'aria-hidden': 'true' });
-  field.appendChild(core);
+  /* 档位 → 大致对应的浓度类型（读数下那行灰字）。2、3 两档都落在
+     淡香水 EDT 的体感带里，所以「适中」对应的是 EDT 而不是 EDP。 */
+  const LEVEL_CONC = {
+    1: '古龙水 EDC',
+    2: '淡香水 EDT',
+    3: '淡香水 EDT',
+    4: '淡香精 EDP',
+    5: '香精 Parfum',
+  };
 
-  /* 状态刷新：视觉环（div，纯装饰）与命中按钮（button，真实可点）要一起亮。
-     两者是分开的节点，因为它们承担不同职责 —— 环负责"这一圈在哪儿"，
-     按钮负责"点这里"。合成一个节点就会回到"外环盖住内环"的老问题。 */
-  const paintRings = () => {
+  /* ---- 场景图：左边人形剪影，右边向外扩散的同心波纹 ----
+     整块 aria-hidden + pointer-events:none —— 波纹只做展示，不可点；
+     这一屏的命中只靠滑杆（含刻度落点），别处一概不收点击。 */
+  const scene = el('div', { class: 'conc-scene', 'aria-hidden': 'true' });
+  const glow = el('div', { class: 'conc-glow' });
+  const rippleIn = el('div', { class: 'conc-ripple', 'data-r': '1' });
+  const rippleMid = el('div', { class: 'conc-ripple', 'data-r': '2' });
+  const rippleOut = el('div', { class: 'conc-ripple', 'data-r': '3' });
+  const pulse = el('div', { class: 'conc-pulse' });
+  /* 人形剪影：头 + 肩的整块形，颜色跟 token（深色档自动翻）。 */
+  const figure = el('div', { class: 'conc-figure', html:
+    '<svg viewBox="0 0 56 84" focusable="false">'
+    + '<circle cx="28" cy="11" r="8.5"/>'
+    + '<path d="M13 84 L13 68 C13 55 19.5 43 28 43 C36.5 43 43 55 43 68 L43 84 Z"/>'
+    + '</svg>' });
+  scene.append(glow, rippleIn, rippleMid, rippleOut, pulse, figure);
+
+  /* 波纹半径 = 档位。直径 16%（贴肤）→ 128%（铺满场景、向右涌出去）。
+     拖动时这里收**连续值**（1.00–5.00 都有），不按档跳；
+     松手后再缓动吸附到整数档。 */
+  const paintScene = (v) => {
+    const t = Math.min(1, Math.max(0, (Number(v) - 1) / 4));
+    const d = 16 + t * (128 - 16);
+    glow.style.width = (d * 0.5) + '%';
+    rippleIn.style.width = (d * 0.42) + '%';
+    rippleMid.style.width = (d * 0.72) + '%';
+    rippleOut.style.width = d + '%';
+    pulse.style.width = d + '%';
+  };
+
+  /* ---- 原生滑杆：这一屏唯一的命中来源 ---- */
+  const slider = el('input', {
+    class: 'conc-slider',
+    type: 'range',
+    min: '1',
+    max: '5',
+    step: '1',
+    value: String(state.answers.intensity),
+    'aria-label': '香味浓淡',
+  });
+
+  /* 刻度：5 个落点排开在滑杆下方，点刻度直接跳档。
+     它们是鼠标/触屏的捷径，不进 tab 序（tabindex=-1）、对读屏隐藏 ——
+     键盘与读屏的唯一通路是滑杆本身（方向键左右、aria-valuetext 白话），
+     控件语义只有一个，不会出现两套控件各说各话。 */
+  const ticks = el('div', { class: 'conc-ticks' });
+  const paintTicks = () => {
     const v = Number(state.answers.intensity);
-    [...field.querySelectorAll('.diffuse-ring')].forEach((r) => {
-      const rv = Number(r.getAttribute('data-v'));
-      r.classList.toggle('is-on', rv === v);
-      r.classList.toggle('is-in', rv < v);
-    });
-    [...field.querySelectorAll('.diffuse-hit')].forEach((b) => {
-      const bv = Number(b.getAttribute('data-v'));
-      const on = bv === v;
-      b.classList.toggle('is-on', on);
-      b.setAttribute('aria-checked', String(on));
-      b.setAttribute('tabindex', on ? '0' : '-1');
+    [...ticks.children].forEach((b) => {
+      b.classList.toggle('is-on', Number(b.getAttribute('data-v')) === v);
     });
   };
 
-  /* 五个环 = 五个真实 button，但**按钮盒子本身不重叠**。
-     第一版让每个环的 button 占满整个圆（width = --ring-pct），结果外环的盒子
-     把内环整个盖住 —— 只有最外那圈收得到点击，里面四档永远点不动
-     （playwright 实测：点 1/5 被 5/5 拦截）。
-     现在的做法：button 只占**环带上的一个小方块**（贴在 12 点方向），
-     环的视觉仍由 CSS 的 .diffuse-ring::before 画成一整圈 ——
-     视觉是整圈、命中是这个环带上的一个 44px 落点。
-     这样五档都点得到，而且落点位置各不相同（沿半径排开），不会互相遮挡。
-     SVG 那条"整圈"的命中通路不走：在 SVG 里做命中拿不到 44px 触控保护，
-     键盘也进不去（这是本仓早就记过的教训，见圆盘那段的注释）。 */
-  let paintWarn = () => {};
-
-  RINGS.forEach((r) => {
-    const on = Number(state.answers.intensity) === r.v;
-    /* 环的直径由档位派生：最小 32%、每档 +15%，与 RINGS 顺序一致。
-       这样"往外走一档"在视觉上真的多一圈，不是一个数字变了。 */
-    const pct = 32 + (r.v - 1) * 15;
-    /* 命中落点：沿 12 点方向向上排开，贴在第 v 档那个圆的**最高点**上。
-       环心在容器正中（50%），所以圆的最高点 = 50 - pct/2。 */
-    const topPct = 50 - pct / 2;
-    const ringNode = el('div', {
-      class: 'diffuse-ring' + (on ? ' is-on' : '') + (r.v < Number(state.answers.intensity) ? ' is-in' : ''),
-      'data-v': String(r.v),
-      'data-pct': String(pct),
-      'aria-hidden': 'true',
-      /* top 必须写死 50%（= 容器中心），**不能写 topPct**。
-         这里踩过一个坑：.diffuse-ring 的 transform 已经是 translate(-50%,-50%)，
-         它自己就会把盒子居中到 top 指定的那个点上。若 top 再写 50 - pct/2，
-         扣了两次半径 ⇒ 五个环的**圆心各不相同**、而底边全部相切于容器中心
-         （实测 cy = 590.7 / 556.2 / 521.7 / 487.2 / 452.7，底边一律 664.3），
-         最大那个还向上溢出容器 193px、盖住了页头标题。
-         同心圆只需要：圆心固定在 50%，直径各不相同。 */
-      style: '--ring-pct:' + pct + '%;top:50%',
-    });
-    /* φ 角上的按钮：真实可点、键盘可达、44px。它落在环带的最高点上。 */
-    const btn = el('button', {
-      class: 'diffuse-hit' + (on ? ' is-on' : ''),
-      type: 'button',
-      role: 'radio',
-      'aria-checked': String(on),
-      'data-v': String(r.v),
-      'aria-label': r.v + ' / 5 · ' + r.zh + '：' + r.hint,
-      tabindex: on ? '0' : '-1',
-      style: 'top:' + topPct.toFixed(2) + '%',
-      onclick: () => {
-        state.answers.intensity = r.v;
-        paintRings();
-        paintRead();
-        paintWarn();
-        applyAmbient();
-      },
-    }, el('span', { class: 'diffuse-label' }, r.zh));
-    field.appendChild(ringNode);
-    field.appendChild(btn);
-  });
-  wrap.appendChild(field);
-
-  const read = el('div', { class: 'diffuse-read' });
+  const read = el('div', { class: 'conc-read' });
+  const concLine = el('p', { class: 'conc-conc' });
   const paintRead = () => {
     const v = Number(state.answers.intensity);
-    const r = RINGS.find((x) => x.v === v) || RINGS[2];
+    const L = LEVELS.find((x) => x.v === v) || LEVELS[2];
     read.innerHTML = '';
-    read.appendChild(el('b', {}, `${v} / 5 · ${r.zh}`));
-    read.appendChild(el('span', {}, r.hint));
+    read.appendChild(el('b', {}, L.zh));
+    read.appendChild(el('span', {}, '：' + L.hint));
+    concLine.textContent = '大致对应：' + (LEVEL_CONC[v] || LEVEL_CONC[3]);
+    slider.setAttribute('aria-valuetext', L.zh + '：' + L.hint);
+    paintTicks();
   };
-  paintRings();
-  paintRead();
-  wrap.appendChild(read);
 
-  /* ---- ② 浓度 + ③ 留香，同在一个横条里 ---- */
+  /* 松手吸附时的一次轻微波纹扩散：摘掉 is-live 强制重排再挂回去，
+     动画才能重播（0.6s 一次，减少动态偏好下全局规则会把它压到 1ms）。 */
+  const firePulse = () => {
+    pulse.classList.remove('is-live');
+    void pulse.offsetWidth;
+    pulse.classList.add('is-live');
+  };
+
+  let dragging = false;
+  let dragMoved = false;
+  /* 拖动：波纹半径跟手连续变。pointerdown 后浏览器把指针捕获在滑杆上，
+     pointermove 全程送到这里；坐标只用来画半径，档位仍由滑杆自己量化。 */
+  const valFromPointer = (clientX) => {
+    const rect = slider.getBoundingClientRect();
+    if (!rect || !rect.width) return null;
+    const frac = (clientX - rect.left) / rect.width;
+    return 1 + Math.min(1, Math.max(0, frac)) * 4;
+  };
+  const release = () => {
+    if (!dragging) return;
+    dragging = false;
+    scene.classList.remove('is-dragging');
+    /* 松手吸附：半径从手上的连续位置缓动到最近档（滑杆值即最近档）。 */
+    paintScene(Number(slider.value));
+    if (dragMoved) firePulse();
+    dragMoved = false;
+  };
+  slider.addEventListener('pointerdown', () => {
+    dragging = true;
+    dragMoved = false;
+    scene.classList.add('is-dragging');
+  });
+  slider.addEventListener('pointermove', (ev) => {
+    if (!dragging) return;
+    dragMoved = true;
+    const v = valFromPointer(ev.clientX);
+    if (v != null) paintScene(v);
+  });
+  slider.addEventListener('pointerup', release);
+  slider.addEventListener('pointercancel', release);
+  /* 键盘方向键 / 刻度点击之外的换值都走这里：档位 + 读数 + 波纹一起换。 */
+  slider.addEventListener('input', (ev) => {
+    const v = Number(ev.target && ev.target.value);
+    if (!Number.isFinite(v)) return;
+    state.answers.intensity = v;
+    if (!dragging) paintScene(v);
+    paintRead();
+    applyAmbient();
+  });
+
+  LEVELS.forEach((L) => {
+    ticks.appendChild(el('button', {
+      class: 'conc-tick',
+      type: 'button',
+      'data-v': String(L.v),
+      tabindex: '-1',
+      'aria-hidden': 'true',
+      onclick: () => {
+        /* 点刻度直接跳档：滑杆值、state、读数一次到位（不带脉冲——
+           轻微扩散只属于拖动松手那一下）。 */
+        state.answers.intensity = L.v;
+        slider.value = String(L.v);
+        if (!dragging) paintScene(L.v);
+        paintRead();
+        applyAmbient();
+      },
+    }, L.zh));
+  });
+
+  paintScene(state.answers.intensity);
+  paintRead();
+  wrap.appendChild(scene);
+  wrap.appendChild(el('div', { class: 'conc-slider-wrap' }, slider, ticks));
+  wrap.appendChild(read);
+  wrap.appendChild(concLine);
+
+  /* ---- ② 按香水类型筛选（EDC / EDT / EDP / Parfum） ---- */
   wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:20px' },
-    '② 浓度类型（决定这团气味能撑多久，选一个）'));
+    '按香水类型筛选'));
   const grid = choiceGrid(CONCENTRATIONS, state.answers.concentration, (id) => {
     state.answers.concentration = id;
     const inferred = CONC_TO_LONGEVITY[id];
     if (inferred != null) state.answers.longevity = inferred;
-    /* 联动重画整屏：③ 那一行与冲突提示都要跟着变。
-       这一屏没有滚动长列表，重绘不丢位置；① 的值存在 state 里，也不会丢。 */
-    render();
+    /* 只写 state，不整屏 render()：choiceGrid 自己会把选中态刷到整组，
+     屏上也没有别的物件随这一选择变化。不重绘 = 滑杆/波纹/读数原地不动，
+     其他屏的答案一个都不碰 —— 切换浓度类型不允许悄悄清空别的答案。 */
   });
   wrap.appendChild(grid);
-
-  /* ① 与 ② 打架时提醒一句。阈值取 2 档：差 1 档是常态，说了等于每屏挂废话。
-     v6 起这句话同时点亮最外那圈（.is-strained），让冲突先被**看见**、再被读到。 */
-  {
-    const INTENSITY_BAND = {
-      'eau-de-cologne': [1, 2],
-      'eau-de-toilette': [2, 3],
-      'eau-de-parfum': [3, 4],
-      'parfum': [4, 5],
-      'extrait': [4, 5],
-      'elixir': [4, 5],
-    };
-    const conc = state.answers.concentration;
-    const band = conc ? INTENSITY_BAND[conc] : null;
-    const want = Number(state.answers.intensity);
-    const warn = el('div', { class: 'term-note is-warn' });
-    paintWarn = () => {
-      const gap = band && want ? (want < band[0] ? band[0] - want : (want > band[1] ? want - band[1] : 0)) : 0;
-      /* 最外那圈在撑不住时虚掉：这是"反馈是内容本身的变化" ——
-         同一个物件给出警告，不另起一条提示。 */
-      const rings = [...field.querySelectorAll('.diffuse-ring')];
-      rings.forEach((r) => r.classList.toggle('is-strained',
-        gap >= 2 && Number(r.getAttribute('data-v')) === want));
-      /* 命中按钮也要跟着标记：它在环上，警示色必须两边一致，
-         否则"看到的圈"和"摸到的点"会各说一套。 */
-      [...field.querySelectorAll('.diffuse-hit')].forEach((b) => {
-        b.classList.toggle('is-strained', gap >= 2 && Number(b.getAttribute('data-v')) === want);
-      });
-      warn.innerHTML = '';
-      if (gap < 2) { warn.style.display = 'none'; return; }
-      warn.style.display = '';
-      const concZh = (CONCENTRATIONS.find((c) => c.id === conc) || {}).zh || conc;
-      warn.append(
-        el('strong', {}, '① 和 ② 差得有点远：'),
-        ` 你要它走到「${RINGS.find((x) => x.v === want) ? RINGS.find((x) => x.v === want).zh : want}」，`
-        + `但${concZh}通常撑不到那里。`,
-        ' 浓淡是体感、浓度是香精占比，两者不完全同步 —— 真想要那个距离，',
-        ' 把 ② 往上调一档更稳妥；不改也能出结果，只是候选会少一些。'
-      );
-    };
-    paintWarn();
-    wrap.appendChild(warn);
-  }
-
-  /* ---- ③ 留香：由 ② 浓度推算，纯展示 ---- */
-  const curLong = state.answers.longevity;
-  const shownLong = curLong == null ? null : String(curLong);
-  wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:16px' },
-    '③ 大概能留多久' + (shownLong == null ? '（选 ② 后自动给出）' : '（由 ② 推断）')));
-
-  const longBox = el('div', { class: 'long-read' + (shownLong == null ? ' is-empty' : '') });
-  if (shownLong == null) {
-    longBox.appendChild(el('span', { class: 'long-val is-empty' }, '先选上面的 ② 浓度'));
-  } else {
-    const L = LONGEVITY.find((l) => String(l.id) === shownLong) || LONGEVITY[0];
-    longBox.appendChild(el('span', { class: 'long-val' }, L.zh));
-    longBox.appendChild(el('span', { class: 'long-desc' }, L.desc));
-    longBox.appendChild(el('span', { class: 'long-tag' }, '推断'));
-  }
-  wrap.appendChild(longBox);
-
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '关于浓度与留香：'),
-    ' 浓度是香精占比，比例越高留得越久，也越容易在密闭空间里让人不舒服（日常最常见的是 EDT 与 EDP）。',
-    ' ③ 那一档是按 ② 推算的，不是实测 —— 同一瓶在干皮和油皮、冬天和夏天差别可以很大，',
-    '所以它不参与打分。想要留得久，把 ② 选高一点的浓度就是同一个动作。'
-  ));
 
   wrap.appendChild(navBar('concentration'));
   return wrap;
