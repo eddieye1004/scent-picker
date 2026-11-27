@@ -1061,8 +1061,41 @@ function familyEmblem(fam) {
   return box;
 }
 
-/* 腿8-A 起不再生成 SVG textPath：中圈文字改用水平 HTML 标签。
-   全局 id 序列随之移除，避免留下无效的轨道状态。 */
+/* ---------- 盘心空态纹样（缺陷 ③ 的另一半）----------
+   还没选大类时，盘心是一块空圆 + 两行小字。补一枚与盘同构的纹样：
+   一圈发丝环、六枚定位点、中心十字。六个点就是外圈六族的位置，
+   于是"空盘"仍在讲这张盘的结构，而不是一块白。
+   这里是内联 SVG（不是 fetch 的上色图），因为它属于界面骨架，
+   不能等网络。 */
+function hubOrnament(families) {
+  const svg = svgEl('svg', {
+    class: 'hub-orn',
+    viewBox: '0 0 100 100',
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+  const ring = (r, cls) => svg.appendChild(svgEl('circle', {
+    class: cls, cx: 50, cy: 50, r,
+  }));
+  ring(46, 'orn-ring is-outer');
+  ring(30, 'orn-ring');
+  /* 六枚定位点：与外圈六族同一角度约定（-90 起，每 60°） */
+  const n = families.length || 6;
+  for (let k = 0; k < n; k++) {
+    const rad = ((-90 + (360 / n) * k) * Math.PI) / 180;
+    svg.appendChild(svgEl('circle', {
+      class: 'orn-dot',
+      cx: (50 + 46 * Math.cos(rad)).toFixed(2),
+      cy: (50 + 46 * Math.sin(rad)).toFixed(2),
+      r: 1.8,
+    }));
+  }
+  svg.appendChild(svgEl('path', { class: 'orn-cross', d: 'M46 50 H54 M50 46 V54' }));
+  return svg;
+}
+
+/* 腿8-A：textPath 弧文字轨道的全局唯一 id（重建不重复） */
+let leg8ArcSeq = 0;
 
 function buildWheel(cfg) {
   /* backHost：返回胶囊的挂载点。2026-11-24 裁决 A 之后它不在 .wheel 里了
@@ -1277,13 +1310,17 @@ function buildWheel(cfg) {
   }, '← 重选大类');
   backBtn.hidden = true;
   (backHost || root).appendChild(backBtn);
+  /* 空态纹样（缺陷 ③）：六枚定位点就是外圈六族的位置，空盘也在讲盘的结构。
+     单独一棵节点而不是塞进 hubGlyph：hubGlyph 归标本管，两者互斥，
+     混用会让 paint() 里"清空标本"那一步顺手把纹样也删掉。 */
+  const hubOrn = hubOrnament(families);
   /* 未选大类时盘心唯一的一行弱提示。其余既有节点保留在 DOM 中供无障碍
-     与既有自检读取，但由 CSS 在该态隐藏，视觉上只出现这一句。 */
+     与既有自检读取，但由 CSS 在该态隐藏，视觉上只出现纹样与这一句。 */
   const hubIdleHint = el('div', { class: 'hub-idle-hint' }, '先选香调大类');
   /* 大类徽记：进入正常 flex 流，固定 64×64；不再叠在文字背后。 */
   const hubEmblem = el('div', { class: 'hub-emblem', 'aria-hidden': 'true' });
   const hub = el('div', { class: 'disc-hub is-idle' },
-    hubEmblem, hubIdleHint, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
+    hubEmblem, hubOrn, hubIdleHint, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
   root.appendChild(hub);
 
   /* ---- 液态玻璃交互层（B 段）----
@@ -1738,7 +1775,27 @@ function buildWheel(cfg) {
         class: 'sub-arc',
         d: annulusPath(SUB_R2O, SUB_R2I, a0, a1),
       }));
-      /* 弧段只负责色块与命中；文字放在独立的水平 HTML 标签层。 */
+      /* 腿8-A：子类名沿弧带中线排成弧形字（SVG textPath），12px，不出弧带。
+         全名常态显示；320 档由 CSS 切到短标签（.lg-full / .lg-short）。 */
+      const rText = (SUB_R2O + SUB_R2I) / 2;
+      const [tx0, ty0] = polar(rText, a0 + gap);
+      const [tx1, ty1] = polar(rText, a1 - gap);
+      const arcTextId = 'leg8-arc-' + (++leg8ArcSeq);
+      g.appendChild(svgEl('path', {
+        id: arcTextId, class: 'sub-arc-guide',
+        d: 'M ' + tx0.toFixed(2) + ' ' + ty0.toFixed(2)
+          + ' A ' + rText + ' ' + rText + ' 0 0 1 ' + tx1.toFixed(2) + ' ' + ty1.toFixed(2),
+        fill: 'none', stroke: 'none',
+      }));
+      const labelText = svgEl('text', { class: 'sub-arc-text', 'text-anchor': 'middle' });
+      const tpFull = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%', class: 'lg-full' });
+      tpFull.textContent = subFullName(item);
+      const tpShort = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%', class: 'lg-short' });
+      tpShort.textContent = subShortLabel(item);
+      labelText.appendChild(tpFull);
+      labelText.appendChild(tpShort);
+      g.appendChild(labelText);
+      /* 水平 HTML 按钮保留为命中与键盘焦点层；可见文字由弧文字承担。 */
       svg.appendChild(g);
       subGs.push(g);
 
@@ -2078,7 +2135,8 @@ function buildWheel(cfg) {
            保持原样"。空态下把指针划过扇区就让徽记浮出来，等于改了空态。
          · 已选中之后悬停另一族，盘心主词已经在说「点一下换到 X」——
            图标跟着换到 X，字与图才讲同一件事（否则读起来像没跟上）。 */
-    const emblemFam = hubFamily;
+    const emblemFam = (!focusSub && selFamily)
+      ? (famById.get(hoverFam || selFamily) || null) : null;
     const emblemKey = emblemFam ? emblemFam.id : 'none';
     if (emblemKey !== builtEmblemKey) {
       builtEmblemKey = emblemKey;
@@ -3219,6 +3277,7 @@ function renderOccasion() {
    滑块位置是 0–3 的连续值；答案是离滑块最近的一季，拖动过程中实时
    跟随，松手后吸附到停靠点。四季通用是中立位 1.5，状态值保持 null。
    背景色只插值腿 B 已落地的四组渐变色板，不另造季节色。
+   下方译文换成该季节的体感（"湿冷的风，要压得住。"）
    ============================================================ */
 const SEASONS = [
   {
@@ -3371,6 +3430,8 @@ function renderSeason() {
   const gloss = el('p', { class: 'temp-gloss is-idle' });
   const scene = el('p', { class: 'season-scene' });
   scene.hidden = true;
+  /* 每档配一句"温度 + 身体感受"。这是译文行（规格 5），不是装饰文案：
+     它把「冬」这个字翻译成"冷风要压得住。"。 */
   const FEEL = {
     spring: '十几度，风里有水汽 —— 轻盈的花香和绿感最合适',
     summer: '三十度以上，会出汗 —— 太浓的会闷，清透才活得下来',

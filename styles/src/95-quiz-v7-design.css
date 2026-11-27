@@ -63,12 +63,12 @@
   --spec-glow: rgba(255, 255, 255, .78);
 
   /* ---- 六族色相（暖纸内可辨，明度 L* 92–95）---- */
-  --spec-tint-citrus: #F8EFD2;   /* 柑橘：淡柚皮黄 */
-  --spec-tint-floral: #F9ECE6;   /* 花香：藕粉 */
-  --spec-tint-woody: #EAE4D4;    /* 木质：灰橄榄 */
-  --spec-tint-amber: #F2E0C6;    /* 东方琥珀：树脂 */
-  --spec-tint-fresh: #E6EEE0;    /* 清新：嫩叶绿 */
-  --spec-tint-gourmand: #F4E3D9; /* 美食：焦糖 */
+  --spec-tint-citrus: #F8EFD2;/* 柑橘：淡柚皮黄 */
+  --spec-tint-floral: #F9ECE6;/* 花香：藕粉 */
+  --spec-tint-woody: #EAE4D4;/* 木质：灰橄榄 */
+  --spec-tint-amber: #F2E0C6;/* 东方琥珀：树脂 */
+  --spec-tint-fresh: #E6EEE0;/* 清新：嫩叶绿 */
+  --spec-tint-gourmand: #F4E3D9;/* 美食：焦糖 */
   /* 选中/悬停各提一档，仍不出版面 */
   --spec-tint-hot: #FFFDF8;
   --spec-tint-on: #F0E6D2;
@@ -1653,3 +1653,384 @@
   }
 }
 
+
+/* ============================================================
+   Block 17 · 季节横线轨道与连续四季氛围（2026-11-27）
+   ------------------------------------------------------------
+   从styles.css产物迁回源层：一条可拖动横线 + 四个停靠点 + 四季通用。
+   颜色由app.js在四季色板间连续插值；本层只负责轨道、符号、粒子和渐变铺设。
+   ============================================================ */
+
+.season-panel {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  max-width: 560px;
+  margin: 26px 0 0;
+}
+.season-rail {
+  --season-left: 50%;
+  --season-progress: 0;
+  position: relative;
+  padding: 18px 0 0;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.season-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+}
+.season-track {
+  position: absolute;
+  z-index: 0;
+  top: 18px;
+  left: 12.5%;
+  right: 12.5%;
+  height: 2px;
+  background: color-mix(in srgb, var(--ink) 18%, transparent);
+  pointer-events: none;
+}
+.season-track-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  transform: scaleX(var(--season-progress));
+  transform-origin: left center;
+  transition: transform 260ms cubic-bezier(.2, .7, .2, 1);
+}
+.season-mist {
+  position: absolute;
+  z-index: 1;
+  top: 18px;
+  left: var(--season-left);
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--accent) 16%, transparent),
+    transparent 70%);
+  transform: translate(-50%, -50%);
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: left 260ms cubic-bezier(.2, .7, .2, 1), opacity 220ms ease;
+}
+.season-mist.is-visible { visibility: visible; opacity: 1; }
+.season-handle {
+  position: absolute;
+  z-index: 4;
+  top: 18px;
+  left: var(--season-left);
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 4px 14px rgba(20, 16, 12, .16), inset 0 1px 0 rgba(255, 255, 255, .72);
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+  transition: left 260ms cubic-bezier(.2, .7, .2, 1), box-shadow 180ms ease;
+}
+.season-handle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.season-handle.is-neutral {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  box-shadow: 0 3px 10px rgba(20, 16, 12, .10);
+}
+.season-handle.is-neutral .season-handle-dot { opacity: .45; }
+.season-rail.is-dragging .season-handle {
+  left: var(--season-left);
+  cursor: grabbing;
+  box-shadow: 0 5px 18px rgba(20, 16, 12, .22);
+  transition: none;
+}
+.season-rail.is-dragging .season-mist,
+.season-rail.is-dragging .season-track-fill { transition: none; }
+.season-handle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+}
+.season-cell {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  min-height: 86px;
+  padding: 38px 4px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius);
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 220ms ease, opacity 220ms ease, transform 220ms ease;
+}
+.season-cell::before {
+  content: "";
+  position: absolute;
+  top: 13px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border: 2px solid color-mix(in srgb, var(--ink) 26%, transparent);
+  border-radius: 50%;
+  background: var(--bg);
+  transform: translateX(-50%);
+  transition: border-color 220ms ease, background-color 220ms ease;
+}
+.season-cell.is-on { color: var(--ink); }
+.season-cell.is-on::before {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.season-grid.has-selection .season-cell:not(.is-on):not(.season-cell-all) { opacity: .58; }
+.season-cell:hover:not(.season-cell-all) { color: var(--ink); }
+.season-cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.season-symbol {
+  width: 30px;
+  height: 30px;
+  display: block;
+  flex: 0 0 30px;
+}
+.season-symbol svg { width: 100%; height: 100%; display: block; }
+.season-name {
+  font: 500 18px/1 var(--font-display, sans-serif);
+  letter-spacing: .06em;
+}
+.season-cell-all {
+  grid-column: 1 / -1;
+  justify-self: center;
+  min-height: 34px;
+  width: auto;
+  margin-top: 10px;
+  padding: 7px 14px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 74%, transparent);
+  box-shadow: 0 4px 14px rgba(20, 16, 12, .05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.season-cell-all::before { display: none; }
+.season-cell-all .season-name { font-size: 14px; letter-spacing: .03em; }
+.season-cell-all.is-on {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+}
+.season-all-sub {
+  font: 400 11px/1.2 var(--font-ui, system-ui);
+  color: var(--ink-3);
+  letter-spacing: .04em;
+}
+.season-cell-all.is-on .season-all-sub { color: var(--accent); }
+
+/* 四季氛围只占背景层：固定全屏、负层级、pointer-events:none，
+   粒子透明度再压一层，确保标题、季节名与情境句始终清楚。 */
+.season-atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+.season-fx {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+.season-fx-spring { opacity: var(--spring-weight, 0); }
+.season-fx-summer { opacity: var(--summer-weight, 0); }
+.season-fx-autumn { opacity: var(--autumn-weight, 0); }
+.season-fx-winter { opacity: var(--winter-weight, 0); }
+.season-particle {
+  position: absolute;
+  left: var(--x);
+  top: -12vh;
+  width: var(--size);
+  height: var(--size);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.season-particle-snow {
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, .96), rgba(255, 255, 255, .38) 62%, transparent 72%);
+  box-shadow: 0 0 5px rgba(255, 255, 255, .34);
+  animation: season-snow-fall var(--duration) linear var(--delay) infinite;
+}
+.season-particle-leaf {
+  border-radius: 0 78% 0 78%;
+  background: linear-gradient(135deg, rgba(210, 138, 69, .94), rgba(140, 77, 40, .82));
+  box-shadow: inset 0 0 0 1px rgba(92, 48, 22, .12);
+  animation: season-leaf-fall var(--duration) linear var(--delay) infinite;
+}
+.season-particle-petal {
+  border-radius: 72% 22% 70% 24%;
+  background: linear-gradient(135deg, rgba(255, 238, 244, .94), rgba(236, 164, 190, .72));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28);
+  animation: season-petal-fall var(--duration) linear var(--delay) infinite;
+}
+.season-particle-sunspot {
+  top: var(--y);
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(255, 255, 255, .52),
+    rgba(255, 255, 255, .12) 46%,
+    transparent 72%);
+  filter: blur(12px);
+  mix-blend-mode: screen;
+  animation: season-sun-drift var(--duration) ease-in-out var(--delay) infinite alternate;
+}
+@keyframes season-snow-fall {
+  0% { transform: translate3d(0, -12vh, 0); opacity: 0; }
+  12% { opacity: var(--particle-opacity); }
+  68% { opacity: var(--particle-opacity); }
+  100% { transform: translate3d(var(--drift), 112vh, 0); opacity: 0; }
+}
+@keyframes season-leaf-fall {
+  0% { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 0; }
+  12% { opacity: var(--particle-opacity); }
+  48% { transform: translate3d(var(--drift), 48vh, 0) rotate(190deg); opacity: var(--particle-opacity); }
+  78% { transform: translate3d(0, 82vh, 0) rotate(290deg); opacity: var(--particle-opacity); }
+  100% { transform: translate3d(var(--drift), 112vh, 0) rotate(410deg); opacity: 0; }
+}
+@keyframes season-petal-fall {
+  0% { transform: translate3d(0, -12vh, 0) rotate(-20deg); opacity: 0; }
+  14% { opacity: var(--particle-opacity); }
+  50% { transform: translate3d(var(--drift), 50vh, 0) rotate(120deg); opacity: var(--particle-opacity); }
+  82% { transform: translate3d(0, 86vh, 0) rotate(220deg); opacity: var(--particle-opacity); }
+  100% { transform: translate3d(var(--drift), 112vh, 0) rotate(320deg); opacity: 0; }
+}
+@keyframes season-sun-drift {
+  from { transform: translate3d(-2%, -1%, 0) scale(.92); opacity: var(--particle-opacity); }
+  to { transform: translate3d(3%, 2%, 0) scale(1.08); opacity: var(--particle-opacity); }
+}
+.temp-gloss {
+  margin: 18px 0 0;
+  min-height: 40px;
+  font: 400 14px/1.65 var(--font-ui, system-ui);
+  color: var(--ink-2);
+}
+.temp-gloss.is-idle { color: var(--ink-3); }
+.season-scene {
+  margin: 10px 0 0;
+  font: 500 16px/1.55 var(--font-display, sans-serif);
+  color: var(--ink);
+  letter-spacing: .01em;
+}
+.season-scene[hidden] { display: none; }
+@media (max-width: 520px) {
+  .season-panel { margin-top: 20px; }
+  .season-rail { padding-top: 14px; }
+  .season-track,
+  .season-mist,
+  .season-handle { top: 14px; }
+  .season-cell { min-height: 78px; padding-top: 32px; }
+  .season-cell::before { top: 9px; }
+  .season-symbol { width: 26px; height: 26px; flex-basis: 26px; }
+  .season-name { font-size: 16px; }
+  .season-cell-all { margin-top: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .season-atmosphere { display: none; }
+  .season-track-fill,
+  .season-mist,
+  .season-handle,
+  .season-cell,
+  .season-cell::before,
+  .season-fx { transition: none !important; }
+}
+
+/* 季节渐变：颜色值由 app.js 在现有四季色板之间连续插值。
+   这里只负责全屏铺设与过渡，不再用离散 :has(.is-on) 规则跳色。 */
+@property --season-bg-1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #f3eee6;
+}
+@property --season-bg-2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #e8eee9;
+}
+@property --season-bg-3 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #faf7f1;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(78% 58% at 12% 4%, rgba(255, 255, 255, .52), transparent 64%),
+    linear-gradient(135deg,
+      var(--season-bg-1) 0%,
+      var(--season-bg-2) 54%,
+      var(--season-bg-3) 100%);
+  transition:
+    --season-bg-1 300ms cubic-bezier(.2, .7, .2, 1),
+    --season-bg-2 300ms cubic-bezier(.2, .7, .2, 1),
+    --season-bg-3 300ms cubic-bezier(.2, .7, .2, 1),
+    opacity 220ms ease;
+}
+#app {
+  position: relative;
+  z-index: 1;
+}
+body:has(#app[data-step="season"])::before { opacity: 1; }
+body:has(#app[data-step="season"] .season-rail.is-dragging)::before {
+  transition: opacity 220ms ease;
+}
+#app[data-step="season"] .masthead {
+  background: rgba(255, 255, 255, .28);
+  border-top-color: rgba(14, 14, 14, .72);
+  backdrop-filter: blur(14px) saturate(112%);
+  -webkit-backdrop-filter: blur(14px) saturate(112%);
+}
+@media (prefers-color-scheme: dark) {
+  #app[data-step="season"] .masthead {
+    background: rgba(20, 24, 28, .44);
+    border-top-color: rgba(255, 255, 255, .20);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before { transition: none !important; }
+}
+@media print {
+  body::before { display: none; }
+}

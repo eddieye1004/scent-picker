@@ -3,9 +3,24 @@
    最后加载：覆盖 95 层里被腿8 废弃的胶囊/钴蓝规则。
    ============================================================ */
 
-/* ---------- 中圈：水平标签，不再使用 SVG textPath ---------- */
+/* ---------- 中圈：胶囊外框去掉，文字交给 textPath ---------- */
 #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
-  display: flex;
+  display: none;
+}
+/* 弧形文字：12px，沿弧带中线，不出弧带 */
+.wheel .sub-arc-text {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  fill: var(--ink);
+  pointer-events: none;
+}
+/* 全名常态；短标签只在 320 档兜底 */
+.wheel .sub-arc-text .lg-short { display: none; }
+.wheel .sub-arc-text .lg-full  { display: inline; }
+@media (max-width: 386px) {
+  .wheel .sub-arc-text .lg-full  { display: none; }
+  .wheel .sub-arc-text .lg-short { display: inline; }
 }
 
 /* ---------- 弧段：族色浅底 17%，选中加深到 60%（不用钴蓝灌满） ----------
@@ -124,46 +139,7 @@
   transform: translate(-50%, -50%) rotate(0deg) scale(.97);
 }
 
-/* 中圈：水平正排，最多两行；段色只做标签底，不做整块按钮底。 */
-#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
-  display: -webkit-box;
-  box-sizing: border-box;
-  max-width: 38px;
-  margin: auto;
-  padding: 2px 3px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--wheel-fam) 56%, var(--line));
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--wheel-fam) 22%, var(--bg));
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.12;
-  letter-spacing: 0;
-  text-align: center;
-  white-space: normal;
-  word-break: break-all;
-  overflow-wrap: anywhere;
-  color: var(--ink);
-  transform: none;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="6"] .zh,
-#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="7"] .zh,
-#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-long .zh {
-  max-width: 38px;
-  font-size: 12px;
-}
-#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-hot .zh,
-#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-on .zh {
-  background: color-mix(in srgb, var(--wheel-fam) 32%, var(--bg));
-  border-color: color-mix(in srgb, var(--wheel-fam) 78%, var(--ink));
-}
-#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn:focus-visible .zh {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-}
+/* 子类标签统一由 SVG textPath 渲染；保留 HTML 按钮作为命中与键盘焦点层。 */
 @media (max-width: 620px) {
   #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
     max-width: min(var(--arc-max), 12.5vw);
@@ -178,9 +154,6 @@
   }
   #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes {
     display: none;
-  }
-  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
-    transform: scale(.72);
   }
 }
 @media (max-width: 360px) {
@@ -233,10 +206,32 @@
   height: 64px;
 }
 #app[data-step="family"] .wheel .disc-hub .hub-kicker,
-#app[data-step="family"] .wheel .disc-hub .hub-glyph,
 #app[data-step="family"] .wheel .disc-hub .hub-go,
 #app[data-step="family"] .wheel .disc-hub .hub-skip {
   display: none !important;
+}
+/* 子类态让标本接管盘心；标本不能被上面的旧隐藏规则压掉。 */
+#app[data-step="family"] .wheel .disc-hub.has-glyph .hub-glyph {
+  display: block !important;
+}
+#app[data-step="family"] .wheel .disc-hub.is-picked .plate-svg {
+  width: 64px;
+  height: 64px;
+}
+#app[data-step="family"] .wheel .disc-hub.is-picked .plate-cap {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+}
+#app[data-step="family"] .wheel .disc-hub.is-picked .hub-glyph {
+  animation: leg8FlyIn 220ms var(--ease-out) both;
+}
+@keyframes leg8FlyIn {
+  from { opacity: 0; transform: scale(.35); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #app[data-step="family"] .wheel .disc-hub.is-picked .hub-glyph { animation: none; }
 }
 #app[data-step="family"] .wheel .disc-hub .hub-zh {
   display: block;
@@ -265,8 +260,8 @@
 }
 #app[data-step="family"] .wheel .disc-hub .hub-idle-hint {
   display: none;
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
   align-items: center;
   justify-content: center;
   font-family: var(--font-body);

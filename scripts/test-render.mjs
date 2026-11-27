@@ -1687,32 +1687,62 @@ ok(`${screenOf('occasion')}是场合（data-step=occasion）`, stepId() === 'occ
     '仍有 occasion 专属 sticky 规则');
 }
 
-/* ---------- ⑥ 季节（2×2 方格与跟手白雾） ----------
+/* ---------- ⑥ 季节（四季横线轨道、拖动吸附与跟手白雾） ----------
    屏号派生（见 ⑤）：预算搬走后季节从第 5 屏前移到第 4 屏。 */
+let seasonSkipHintPresent = false;
 await advance();
 ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season',
   `实际 ${stepId()}（表长 ${appMod.__steps.cur().length}）`);
 {
+  const rail = appRoot.querySelectorAll('.season-rail')[0];
   const grid = appRoot.querySelectorAll('.season-grid')[0];
   const cells = appRoot.querySelectorAll('.season-cell');
   const mist = appRoot.querySelectorAll('.season-mist')[0];
-  ok('季节屏是一个 2×2 方格组', appRoot.querySelectorAll('.season-grid').length === 1
-    && cells.length === 4, `实际格 ${cells.length}`);
-  ok('四格按春夏 / 秋冬排列', cells.map((x) => x.getAttribute('data-season')).join(',')
-    === 'spring,summer,autumn,winter', cells.map((x) => x.getAttribute('data-season')).join(','));
-  ok('每格都有 32px 符号槽与季节名', cells.every((x) =>
-    x.querySelectorAll('.season-symbol').length === 1
-    && x.querySelectorAll('.season-symbol svg').length === 1
-    && x.querySelectorAll('.season-name').length === 1));
+  ok('季节屏是一条四季横线轨道（含独立四季通用）',
+    !!rail && !!grid && cells.length === 5
+    && appRoot.querySelectorAll('.season-track').length === 1
+    && appRoot.querySelectorAll('.season-handle').length === 1,
+    `实际格 ${cells.length}`);
+  const seasonIds = cells.map((x) => x.getAttribute('data-season')).join(',');
+  /* 横线等价断言：春夏秋冬仍按同一顺序可达；拖动经过 1.5 时答案取最近季、
+     背景色发生插值，松手后吸附到整数停靠点；四季通用独立可达且映射为 null。 */
+  rail.getBoundingClientRect = () => ({ left: 0, top: 0, width: 400, height: 100 });
+  const pointer = { pointerId: 7, pointerType: 'mouse', button: 0, clientY: 20 };
+  rail.dispatch('pointerdown', { ...pointer, clientX: 50 });
+  rail.dispatch('pointermove', { ...pointer, clientX: 200 });
+  const midColor = bodyRoot.style.getPropertyValue('--season-bg-1');
+  rail.dispatch('pointerup', { ...pointer, clientX: 200 });
+  const snappedPosition = rail.dataset.seasonPosition;
+  const snappedSeason = appMod.__state.answers.season;
+  const allCell = cells[4];
+  allCell.dispatch('click', { detail: 0 });
+  ok('四季按横线顺序可达，松手吸附并插值，四季通用可达',
+    seasonIds === 'spring,summer,autumn,winter,all'
+    && snappedPosition === '2.000' && snappedSeason === 'autumn'
+    && appMod.__state.answers.season === null
+    && allCell.attrs['aria-checked'] === 'true'
+    && /^rgb\(/.test(midColor)
+    && midColor !== '#f6d7e5' && midColor !== '#ffe66b',
+    `顺序 ${seasonIds} ｜ 吸附 ${snappedPosition} ｜ 插值 ${midColor}`);
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  ok('每个季节都有符号槽与季节名（横线档符号槽 30px）',
+    cells.slice(0, 4).every((x) =>
+      x.querySelectorAll('.season-symbol').length === 1
+      && x.querySelectorAll('.season-symbol svg').length === 1
+      && x.querySelectorAll('.season-name').length === 1)
+    && /\.season-symbol\s*\{[^}]*width:\s*30px;[^}]*height:\s*30px;/s.test(css),
+    '缺符号、名称或 30px 符号槽样式');
   ok('未选态不显示白雾', !!mist && !mist.classList.contains('is-visible'));
   const seasonText = getStepText();
+  seasonSkipHintPresent = /不选也能继续/.test(seasonText);
+  const seasonHead = appMod.__steps.head('season');
   ok('标题与副标只出现一次',
-    seasonText.split('主要在哪个季节用？').length === 2
-    && seasonText.split('选主要使用季节；不确定可跳过').length === 2,
-    `标题 ${seasonText.split('主要在哪个季节用？').length - 1} 次 / 副标 ${seasonText.split('选主要使用季节；不确定可跳过').length - 1} 次`);
+    seasonText.split(seasonHead.title).length === 2
+    && seasonText.split(seasonHead.help).length === 2,
+    `标题 ${seasonText.split(seasonHead.title).length - 1} 次 / 副标 ${seasonText.split(seasonHead.help).length - 1} 次`);
   ok('季节统计已删除', !/春 1331|夏 840|秋 1357|冬 548/.test(getStepText()));
 
-  cells[3].dispatch('click');
+  cells[3].dispatch('click', { detail: 0 });
   await new Promise((r) => setTimeout(r, 60));
   ok('点选后白雾显示且目标格选中', !!mist && mist.classList.contains('is-visible')
     && cells[3].attrs['aria-checked'] === 'true'
@@ -1725,15 +1755,15 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
     appRoot.querySelectorAll('.temp-gloss')[0].className);
 
   cells[3].dispatch('keydown', { key: 'ArrowUp' });
-  ok('方向键上移：冬 → 夏', appMod.__state.answers.season === 'summer');
+  ok('方向键上移：冬 → 秋', appMod.__state.answers.season === 'autumn');
   cells[0].dispatch('keydown', { key: 'ArrowRight' });
   ok('方向键右移：春 → 夏', appMod.__state.answers.season === 'summer');
   cells[1].dispatch('keydown', { key: 'ArrowLeft' });
   ok('方向键左移：夏 → 春', appMod.__state.answers.season === 'spring');
   cells[0].dispatch('keydown', { key: 'ArrowDown' });
-  ok('方向键下移：春 → 秋', appMod.__state.answers.season === 'autumn');
-  cells[2].dispatch('keydown', { key: 'ArrowRight' });
-  ok('方向键右移：秋 → 冬', appMod.__state.answers.season === 'winter');
+  ok('方向键下移：春 → 夏', appMod.__state.answers.season === 'summer');
+  cells[1].dispatch('keydown', { key: 'End' });
+  ok('End 键：夏 → 冬', appMod.__state.answers.season === 'winter');
   ok('键盘焦点与 radio tabindex 跟随选中格', cells[3].attrs.tabindex === '0'
     && cells.slice(0, 3).every((x) => x.attrs.tabindex === '-1'));
 
@@ -3880,15 +3910,17 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
      它不是步骤表里的字段，所以这一屏按屏号排除，并单独钉住那行文案还在：
      否则「排除」会退化成静默放过。 */
   const noSkipWord = S.all.filter((x) => x.id !== 'family' && x.id !== 'budget'
-    && x.id !== 'concentration'
+    && x.id !== 'concentration' && x.id !== 'season'
     && !/跳过|不选也能|不答|不点就是接受|不点＝接受|拿不准选日常/.test(x.help || ''));
-  ok('除圆盘外每屏都写明了可跳过（不逼答）', noSkipWord.length === 0,
-    noSkipWord.map((x) => x.id).join(','));
-  /* 浓度屏被排除的唯一依据就是这行导航提示还在。它一旦被删，那一屏就真的
-     变成"必须答完才能走"，而上面那条会因为排除而全绿。 */
-  ok('浓度屏的跳过口径仍由导航条那行承担（源码里有「不选也能继续」）',
-    fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8').includes("'不选也能继续'"),
-    'app.js 里找不到 navBar 的「不选也能继续」');
+  ok('除圆盘外每屏都写明了可跳过（不逼答）',
+    noSkipWord.length === 0 && seasonSkipHintPresent,
+    noSkipWord.map((x) => x.id).join(',') || '季节屏缺少导航条跳过提示');
+  /* 浓度屏与季节屏被排除的唯一依据都是导航条那行提示仍在；
+     季节 help 只解释「四季通用」，跳过口径由 navBar 明确承担。 */
+  ok('浓度/季节屏的跳过口径仍由导航条那行承担（源码里有「不选也能继续」）',
+    fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8').includes("'不选也能继续'")
+    && seasonSkipHintPresent,
+    'app.js 或季节屏导航条里找不到「不选也能继续」');
   ok('圆盘的 help 不写「跳过」而写怎么选（它是必答题）',
     !/跳过/.test((S.all.find((x) => x.id === 'family') || {}).help || ''),
     (S.all.find((x) => x.id === 'family') || {}).help);
