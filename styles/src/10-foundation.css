@@ -1119,6 +1119,15 @@ article.pick:last-of-type { border-bottom: 1px solid var(--line); }
   font-size: 12px;
   margin-left: 6px;
 }
+/* 3-7b：英文原名作 11px 灰字附在中文译名后；中文继承 .pyramid 的 14px。
+   用 small 而不是 span：102-results-detail.css 的 `.pyramid dd span { display:block }`
+   会让 dd 里每个 span 独占一行，英文一多就散成第四条香材。 */
+.pyramid dd small.note-en {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-left: 3px;
+  font-weight: 400;
+}
 
 /* 理由：短横线做项目符号，不用圆点不用勾 */
 .reasons { margin: 0; padding: 0; list-style: none; }
