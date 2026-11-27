@@ -23,7 +23,7 @@ const DIRS = [
     'avoid.js', 'avoid-map.js', 'season-copy.js', 'wishlist.js', 'wish-ui.js',
     'wish-page.js', 'sub-labels.js', 'stamp.js', 'stamp-ui.js']],
   ['data', ['perfumes.json', 'taxonomy.json', 'price-bands.json', 'photos.json',
-    'affiliate-links.json', 'tmall-shops.json', 'avoid-scenarios.json']],
+    'affiliate-links.json', 'tmall-shops.json', 'avoid-scenarios.json', 'note-zh.json']],
   ['fonts', null],
   ['icons', null],
   ['images', null],
@@ -65,7 +65,7 @@ const missing = FILES.filter((f) => !fs.existsSync(path.join(DIST, f)));
 
 for (const f of ['index.html', 'app.js', 'styles.css', 'manifest.json', 'sw.js',
   'data/perfumes.json', 'icons/icon-192.png', 'icon-specimen/svg',
-  'src/avoid.js', 'src/avoid-map.js', 'data/avoid-scenarios.json']) {
+  'src/avoid.js', 'src/avoid-map.js', 'data/avoid-scenarios.json', 'data/note-zh.json']) {
   if (!fs.existsSync(path.join(DIST, f))) missing.push(f);
 }
 
