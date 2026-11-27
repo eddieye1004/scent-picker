@@ -549,6 +549,18 @@ function zhOfPhrases(ids) {
 let PRICE_INDEX = null;
 function priceIndex() { return PRICE_INDEX; }
 
+/* 库容（瓶数）的唯一来源。所有**用户可见**的「全库 N 瓶」都必须从这里取，
+   不许在文案里写死 —— 文案二轮裁决全局问题 4：1388 这类数字会随上游更新过期，
+   写死就等于让屏幕替我们说错话。
+   三档降级：price-bands 的 stats（与预算屏价签同源）→ 已载入的香水表长度 →
+   null。调用方拿到 null 时要把数字整句省掉：宁可不说，也不说一个会过期的数。 */
+function librarySize() {
+  const idx = priceIndex();
+  if (idx && idx.stats && Number.isFinite(idx.stats.totalPerfumes)) return idx.stats.totalPerfumes;
+  if (DATA && Array.isArray(DATA.perfumes) && DATA.perfumes.length) return DATA.perfumes.length;
+  return null;
+}
+
 function poolForBudget(perfumes, budgetId) {
   const idx = priceIndex();
   if (!idx || !budgetId || budgetId === (idx.anyId || 'any')) return perfumes;
@@ -2777,6 +2789,8 @@ function renderBudget() {
     const cta = wrap.querySelector('.js-budget-cta');
     if (cta) cta.textContent = budgetCtaText(state.answers.budget || 'any');
   };
+  /* 文案二轮裁决全局问题 4：数字只在有数据时说，不写死兜底值。 */
+  const unknown = idx && idx.stats && idx.stats.unpriced != null ? idx.stats.unpriced : null;
 
   for (const o of opts) {
     const on = (state.answers.budget || 'any') === o.id;
@@ -2807,10 +2821,10 @@ function renderBudget() {
   wrap.appendChild(row);
 
   /* 只留一行说明（任务第 3 条）：价位未知的瓶只在「不限」里出现。
-     原来的两句动态说明与「关于这个价位」长注（含 622 / 1388 两个总数）
-     一并撤掉 —— 那两个总数与"这一档有几瓶"无关，撤掉后屏上只剩这一个事实。 */
-  const unknown = idx && idx.stats && idx.stats.unpriced != null ? idx.stats.unpriced : 766;
-  wrap.appendChild(el('p', { class: 'price-note' }, `价位未知的 ${unknown} 瓶只在「不限」里出现`));
+     文案二轮裁决全局问题 4：有数据才报数，没有数据就不写死兜底值。 */
+  wrap.appendChild(el('p', { class: 'price-note' }, unknown != null
+    ? `价位未知的 ${unknown} 瓶只在「不限」里出现`
+    : '价位未知的瓶子只在「不限」里出现'));
 
   wrap.appendChild(navBar('budget'));
   paintCta();
@@ -3550,6 +3564,14 @@ function renderSeason() {
   wrap.appendChild(grid);
   wrap.appendChild(gloss);
   wrap.appendChild(scene);
+
+  /* 文案二轮裁决全局问题 4 / 第 45 条：统计数字不指导操作，且会随数据更新过期；
+     删掉具体瓶数，只保留不带数字的分布判断。 */
+  wrap.appendChild(el('div', { class: 'term-note' },
+    el('strong', {}, '关于候选多少：'),
+    ' 冬天能选的最少，这是数据分布，不是推荐变差了。'
+  ));
+
   wrap.appendChild(navBar('season'));
 
   window.addEventListener('resize', () => layoutMist(true));
@@ -6965,8 +6987,11 @@ function renderFooter(onResult = false) {
       el('strong', {}, '已知局限 '),
       /* 原文写「不含价格与购买渠道」—— 自 v27 起结果页就有购买入口了，
          这句话早就不成立（2026-11-10 发现）。不改会让页脚同时说
-         「有推广链接」和「不含购买渠道」，自相矛盾。 */
-      '持香与扩散为按浓度推断，非实测；不展示价格、不做比价；库容随上游开放数据集更新，可能仍选不到你已经知道的那一瓶'
+         「有推广链接」和「不含购买渠道」，自相矛盾。
+         同理删掉「不展示价格」（文案二轮裁决全局问题 3 / 第 79 条）：
+         第 63 条已写明「参考价和去哪买」、71/72 讲「价格未排序、请自行核对」，
+         这里再说「不展示价格」就是自相矛盾。保留「不做比价」即可。 */
+      '持香与扩散为按浓度推断，非实测；不做比价；库容随上游开放数据集更新，可能仍选不到你已经知道的那一瓶'
     ),
     /* 介绍页入口（2026-11-12 上线包）。放在页脚最后一行、独立一段，
        因为它是**导航**而不是说明文字 —— 混进上面任何一段都会读成"局限之一"。

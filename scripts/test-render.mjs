@@ -3432,6 +3432,18 @@ ok('三颗主按钮里不含「重新来一次」（它代价最大，不该并�
   ok('双渠道说明包含「价格未排序」',
     searchNotes.every((n) => /价格未排序|未排序/.test(n.textContent)),
     searchNotes.map((n) => n.textContent.slice(0, 20)).join(' | '));
+
+  /* 价格口径统一（文案二轮裁决全局问题 3 / 第 79 条）：
+     第 63 条说「参考价和去哪买」、71/72 说「价格未排序、请自行核对」，
+     79 页脚原来却写「不展示价格」，与参考价直接矛盾。定版删掉「不展示价格」、
+     保留「不做比价」。钉住页脚不再说「不展示价格」，且「不做比价」仍在 ——
+     四处指向同一产品事实：显示参考价 + 去哪买，但不做比价。 */
+  const footTextAll = (appRoot.querySelector('footer.foot') || {}).textContent || '';
+  ok('页脚「已知局限」不再说「不展示价格」（价格口径统一）',
+    !/不展示价格/.test(footTextAll), footTextAll.slice(0, 120));
+  ok('页脚保留「不做比价」（与参考价口径一致）',
+    /不做比价/.test(footTextAll), footTextAll.slice(0, 120));
+
   const cardsDirectOnly = cards.filter((c) => !hasOfficial(c));
   ok('只有直达链的卡不挂双渠道说明',
     cardsDirectOnly.every((c) => c.querySelectorAll('.link-note').length === 0),
