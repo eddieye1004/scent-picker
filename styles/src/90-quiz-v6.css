@@ -625,34 +625,52 @@
 /* ============================================================
    第 7 屏：浓淡（波纹场 + 原生滑杆）
    ------------------------------------------------------------
-   前景效果：左边人形剪影，右边从他身上向外扩散的同心波纹 ——
+   前景效果：中间人形剪影，周围从他身上向外扩散的同心波纹 ——
    **波纹半径就是扩散距离**。整块 aria-hidden、不收指针事件，只做展示；
    拖动时波纹跟手连续变，松手吸附最近档并轻扩散一次。
+   类型系数只改变扩散范围、粒子密度与透明度，人物剪影保持不动。
    ============================================================ */
 .conc-scene {
   position: relative;
   z-index: 1;
-  width: 100%;
-  max-width: 460px;
-  height: 190px;
-  margin: 8px auto 0;
-  overflow: hidden;
+  width: 280px;
+  height: 280px;
+  margin: 0 auto;
+  overflow: visible;
   pointer-events: none;
 }
 
-/* 波纹圆心固定在人形胸口（--cx/--cy）；直径由 JS 按档位写 width，
-   aspect-ratio 保证它始终是正圆。 */
+/* 波纹、粒子场与人物共用舞台几何中心。128% 外圈大于容器时，单独 auto margin
+   会退化成左上角对齐；保留 inset + margin 声明，以 right/bottom:auto 解除过度约束，
+   再用独立 translate 静态居中；transform 只留给 pulse 的 scale 动画。
+   max-width 保证类型系数放大后的最大直径也不超过视口宽减 32px。 */
 .conc-glow,
 .conc-ripple,
-.conc-pulse {
+.conc-pulse,
+.conc-particles {
   position: absolute;
-  left: var(--cx, 20%);
-  top: var(--cy, 62%);
+  inset: 0;
+  left: 50%;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  margin: auto;
+  translate: -50% -50%;
   aspect-ratio: 1 / 1;
+  max-width: calc(100vw - 32px);
   border-radius: 50%;
-  transform: translate(-50%, -50%);
   pointer-events: none;
 }
+
+/* 类型切换统一 300ms；拖动时由 is-dragging 关闭宽度缓动，保持跟手。 */
+.conc-glow,
+.conc-ripple,
+.conc-pulse,
+.conc-particles {
+  transition: width .3s var(--ease, ease), opacity .3s var(--ease, ease);
+}
+.conc-glow,
+.conc-ripple { opacity: var(--conc-opacity, 1); }
 
 /* 场心：一团随档位涨大的色雾 —— "这团气味"的本体。 */
 .conc-glow {
@@ -663,34 +681,60 @@
 /* 同心波纹：三圈，外圈是当前档位到达的距离；内两圈是回声。 */
 .conc-ripple {
   border: 1.5px solid color-mix(in srgb, var(--accent) 42%, transparent);
-  transition: width .28s var(--ease, ease);
 }
 .conc-ripple[data-r="2"] { border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
 .conc-ripple[data-r="1"] { border-color: color-mix(in srgb, var(--accent) 22%, transparent); }
 
 /* 拖动中半径跟手：关掉缓动（松手再缓动吸附回档位）。 */
 .conc-scene.is-dragging .conc-ripple,
-.conc-scene.is-dragging .conc-glow { transition: none; }
+.conc-scene.is-dragging .conc-glow,
+.conc-scene.is-dragging .conc-particles { transition: none; }
 
-/* 松手吸附时的一次轻微波纹扩散（只播一次）。 */
+/* 类型驱动的散发粒子：节点固定，隐藏档位不参与布局；透明度由 JS 写场景变量。 */
+.conc-particle {
+  position: absolute;
+  left: var(--x, 50%);
+  top: var(--y, 50%);
+  width: var(--size, 3px);
+  height: var(--size, 3px);
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: var(--conc-particle-opacity, 0);
+  transform: translate(-50%, -50%);
+  transition: left .3s var(--ease, ease), top .3s var(--ease, ease),
+    opacity .3s var(--ease, ease);
+  pointer-events: none;
+}
+.conc-particle[hidden] { display: none; }
+
+/* 松手吸附时的一次轻微波纹扩散（只播一次）；Parfum 复用同一节点作为第四圈。 */
 .conc-pulse {
   border: 1.5px solid color-mix(in srgb, var(--accent) 55%, transparent);
   opacity: 0;
 }
+.conc-pulse.is-parfum { opacity: var(--conc-particle-opacity, .8); }
 .conc-pulse.is-live { animation: conc-pulse .6s var(--ease, ease) 1; }
 @keyframes conc-pulse {
-  0% { opacity: .5; transform: translate(-50%, -50%) scale(.9); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.22); }
+  0% { opacity: .5; transform: scale(.9); }
+  100% { opacity: 0; transform: scale(1.22); }
 }
 
-/* 人形剪影（头 + 肩），站在波纹圆心旁；颜色跟 token，深色档自动翻。 */
+/* 人形剪影（头 + 肩）与涟漪严格同心；颜色跟 token，深色档自动翻。 */
 .conc-figure {
   position: absolute;
-  left: 6px;
-  bottom: 14px;
-  width: 56px;
-  height: 84px;
+  inset: 0;
+  left: 50%;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  z-index: 3;
+  width: 128px;
+  height: 168px;
+  margin: auto;
+  padding: 0;
+  translate: -50% -50%;
   color: var(--ink-2);
+  pointer-events: none;
 }
 .conc-figure svg { display: block; width: 100%; height: 100%; fill: currentColor; }
 
@@ -814,19 +858,19 @@
      · .sky 六列 → 两列：六条并排在 390 上每格只有 58px，
        地平线的"左冷右暖"位置信息在这么窄的格子里已经读不出来，
        改成两列后位置信息让给"每条自己的天光"，方向仍然一眼可见；
-     · .conc-scene 的最大宽度收到 100%、高度压到 170px：波纹靠百分比直径，
-       缩容器即可；刻度 min-width 收到 52px（320px 档距 ≈ 68px，仍不重叠）；
+     · .conc-scene 在手机固定为 240×240：波纹靠百分比直径，缩舞台即可；
+       刻度 min-width 收到 52px（320px 档距 ≈ 68px，仍不重叠）；
      · 场合时间轴是竖向的，窄屏不需要降级 —— 64px 行高在 320 宽也放得下
        （右列文案自动折行），顺序与触达都不动；
      · .diffuse 的最大宽度收到 100%：同心环靠百分比定位，缩容器即可；
-     · 所有 transition 时长减半（省电、少掉帧）。**选中段亮光除外**：
-       .occ-seg 的 260ms 从中心向两端亮起是任务书钉死的时长，不进减半清单。
+     · 下列 transition 时长减半（省电、少掉帧）。浓度类型切换固定 300ms，
+       拖动中由 is-dragging 关闭缓动；.occ-seg 的 260ms 也不进减半清单。
    ============================================================ */
 @media (max-width: 620px) {
   .sky { grid-template-columns: repeat(2, 1fr); }
   .sky-band { min-height: 132px; }
 
-  .conc-scene { max-width: 100%; height: 170px; }
+  .conc-scene { width: 240px; height: 240px; }
   .conc-tick { min-width: 52px; }
 
   .diffuse { max-width: 100%; }
@@ -837,8 +881,7 @@
 
   .masthead .amb-tick { display: none; }
 
-  .price-tab, .sky-band, .life-card, .occ-stop,
-  .conc-ripple, .diffuse-ring {
+  .price-tab, .sky-band, .life-card, .occ-stop, .diffuse-ring {
     transition-duration: .12s;
   }
 }
@@ -887,8 +930,8 @@
     background: linear-gradient(90deg, #2d3438 0%, #35332f 50%, #3d362e 100%);
   }
 
-  /* 波纹场的色雾在暗底上要更淡，否则环线看不清。 */
-  .conc-glow { opacity: .6; }
+  /* 波纹场的色雾在暗底上再乘 .6；类型透明度仍由场景变量驱动。 */
+  .conc-glow { opacity: calc(var(--conc-opacity, 1) * .6); }
 
   /* 天际线的六条渐变在暗底上需要整体压暗，否则最亮那条（bright）
      会成为整屏最亮的元素 —— 那正是"底噪抢前景"的一种。 */

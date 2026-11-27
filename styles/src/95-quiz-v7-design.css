@@ -1873,6 +1873,8 @@
 .season-fx-summer { opacity: var(--summer-weight, 0); }
 .season-fx-autumn { opacity: var(--autumn-weight, 0); }
 .season-fx-winter { opacity: var(--winter-weight, 0); }
+.season-fx-all { opacity: var(--all-weight, 0); }
+.season-fx-all .season-particle { animation-duration: calc(var(--duration) * 1.5); }
 .season-particle {
   position: absolute;
   left: var(--x);
@@ -1889,6 +1891,14 @@
   box-shadow: 0 0 5px rgba(255, 255, 255, .34);
   animation: season-snow-fall var(--duration) linear var(--delay) infinite;
 }
+@media (prefers-color-scheme: light) {
+  .season-particle-snow {
+    --snow-opacity: .85;
+    background: #9DB8C8;
+    border: 1px solid #B8C4CC;
+    box-shadow: none;
+  }
+}
 .season-particle-leaf {
   border-radius: 0 78% 0 78%;
   background: linear-gradient(135deg, rgba(210, 138, 69, .94), rgba(140, 77, 40, .82));
@@ -1897,8 +1907,8 @@
 }
 .season-particle-petal {
   border-radius: 72% 22% 70% 24%;
-  background: linear-gradient(135deg, rgba(255, 238, 244, .94), rgba(236, 164, 190, .72));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28);
+  background: linear-gradient(135deg, rgba(244, 177, 204, .98), rgba(217, 119, 160, .90));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .32);
   animation: season-petal-fall var(--duration) linear var(--delay) infinite;
 }
 .season-particle-sunspot {
@@ -1914,8 +1924,8 @@
 }
 @keyframes season-snow-fall {
   0% { transform: translate3d(0, -12vh, 0); opacity: 0; }
-  12% { opacity: var(--particle-opacity); }
-  68% { opacity: var(--particle-opacity); }
+  12% { opacity: var(--snow-opacity, var(--particle-opacity)); }
+  68% { opacity: var(--snow-opacity, var(--particle-opacity)); }
   100% { transform: translate3d(var(--drift), 112vh, 0); opacity: 0; }
 }
 @keyframes season-leaf-fall {

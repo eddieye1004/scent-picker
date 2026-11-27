@@ -1901,6 +1901,75 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
     `标题 ${seasonText.split(seasonHead.title).length - 1} 次 / 副标 ${seasonText.split(seasonHead.help).length - 1} 次`);
   ok('季节统计已删除', !/春 1331|夏 840|秋 1357|冬 548/.test(getStepText()));
 
+  /* ---- 3-4a：季节氛围粒子（v2 按基线翻倍）---- */
+  const expectedEffectCounts = { spring: 32, summer: 12, autumn: 28, winter: 44 };
+  const expectedKinds = { spring: 'petal', summer: 'sunspot', autumn: 'leaf', winter: 'snow' };
+  const atmosphere = appRoot.querySelector('.season-atmosphere');
+  const fxLayers = Object.keys(expectedEffectCounts).map((id) =>
+    atmosphere.querySelector(`.season-fx-${id}`));
+  const actualEffectCounts = fxLayers.map((layer) => layer.children.length);
+  ok('四季粒子按实际基线翻倍（32/12/28/44）',
+    fxLayers.every(Boolean)
+    && Object.keys(expectedEffectCounts).every((id, i) =>
+      actualEffectCounts[i] === expectedEffectCounts[id]),
+    actualEffectCounts.join('/'));
+
+  const particleStats = fxLayers.map((layer) => {
+    const nodes = layer.children;
+    return {
+      kinds: [...new Set(nodes.map((node) => node.classList.value.match(/season-particle-(\w+)/)[1]))],
+      sizes: [...new Set(nodes.map((node) => node.style.getPropertyValue('--size')))],
+      durations: [...new Set(nodes.map((node) => node.style.getPropertyValue('--duration')))],
+    };
+  });
+  ok('四类粒子各自可辨，且均为三档尺寸、两档速度',
+    particleStats.every((stat, i) => stat.kinds.length === 1
+      && stat.kinds[0] === expectedKinds[Object.keys(expectedKinds)[i]]
+      && stat.sizes.length === 3 && stat.durations.length === 2),
+    JSON.stringify(particleStats));
+
+  const quadrantCounts = fxLayers.map((layer) => {
+    const quadrants = [0, 0, 0, 0];
+    layer.children.forEach((node) => {
+      const x = parseFloat(node.style.getPropertyValue('--x'));
+      const y = parseFloat(node.style.getPropertyValue('--y'));
+      quadrants[(x >= 50 ? 1 : 0) + (y >= 50 ? 2 : 0)] += 1;
+    });
+    return quadrants;
+  });
+  ok('粒子横向按四象限等量分层，不只集中中央',
+    quadrantCounts.every((counts) => counts.every((count) => count === counts[0])),
+    JSON.stringify(quadrantCounts));
+
+  /* ---- 3-4b：独立通用混合层 + 浅色雪花 ---- */
+  const allLayer = atmosphere.querySelector('.season-fx-all');
+  const allKinds = ['petal', 'leaf', 'snow', 'sunspot'];
+  const allCounts = allKinds.map((kind) => allLayer.querySelectorAll(`.season-particle-${kind}`).length);
+  ok('四季通用是独立混合层（花瓣/落叶/雪花/光斑 = 6/6/6/4）',
+    allCounts.join('/') === '6/6/6/4' && allLayer.children.length === 22,
+    `${allLayer.children.length} 个：${allCounts.join('/')}`);
+  ok('通用场景权重独立且整体节奏放慢 1.5 倍',
+    atmosphere.style.getPropertyValue('--all-weight') === '1.000'
+    && /\.season-fx-all\s*\{\s*opacity:\s*var\(--all-weight,\s*0\)/.test(css)
+    && /\.season-fx-all\s+\.season-particle\s*\{\s*animation-duration:\s*calc\(var\(--duration\)\s*\*\s*1\.5\)/.test(css),
+    `--all-weight=${atmosphere.style.getPropertyValue('--all-weight')}`);
+  const seasonSource = fs.readFileSync(path.join(ROOT, 'styles/src/95-quiz-v7-design.css'), 'utf8');
+  ok('浅色雪花为淡蓝灰 0.85 并带细描边，深色仍保留白雪花',
+    /@media\s*\(prefers-color-scheme:\s*light\)\s*\{\s*\.season-particle-snow\s*\{[^}]*--snow-opacity:\s*\.85;[^}]*background:\s*#9DB8C8;[^}]*border:\s*1px\s+solid\s+#B8C4CC;/s.test(seasonSource)
+    && /\.season-particle-snow\s*\{[^}]*rgba\(255,\s*255,\s*255,\s*\.96\)/s.test(seasonSource)
+    && /opacity:\s*var\(--snow-opacity,\s*var\(--particle-opacity\)\)/.test(seasonSource),
+    '浅色 --snow-opacity=.85 / #9DB8C8 / #B8C4CC');
+
+  const totalBeforeSwitch = appRoot.querySelectorAll('.season-particle').length;
+  ['spring', 'summer', 'autumn', 'winter', 'all'].forEach((id) => {
+    const cell = cells.find((node) => node.getAttribute('data-season') === id);
+    if (cell) cell.dispatch('click', { detail: 0 });
+  });
+  const totalAfterSwitch = appRoot.querySelectorAll('.season-particle').length;
+  ok('反复切换四季与通用后粒子节点数不增长',
+    totalBeforeSwitch === 138 && totalAfterSwitch === totalBeforeSwitch,
+    `${totalBeforeSwitch} → ${totalAfterSwitch}`);
+
   cells[3].dispatch('click', { detail: 0 });
   await new Promise((r) => setTimeout(r, 60));
   ok('点选后白雾显示且目标格选中', !!mist && mist.classList.contains('is-visible')
@@ -2034,6 +2103,45 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
     + `ripples ${scene ? scene.querySelectorAll('.conc-ripple').length : 0} / `
     + `buttons ${scene ? scene.querySelectorAll('button').length : 0}`);
 
+  /* ---- 3-5a：固定舞台与人物/涟漪同心（几何规则由真实浏览器另行验收）---- */
+  const concCss = fs.readFileSync(path.join(ROOT, 'styles/src/90-quiz-v6.css'), 'utf8');
+  const sceneRule = (concCss.match(/\.conc-scene\s*\{([^}]*)\}/) || [])[1] || '';
+  const mobileSceneRule = (concCss.match(/@media\s*\(max-width:\s*620px\)[\s\S]*?\.conc-scene\s*\{([^}]*)\}/) || [])[1] || '';
+  ok('浓度舞台桌面 280×280、手机 240×240，且溢出可见',
+    /position:\s*relative/.test(sceneRule)
+    && /width:\s*280px/.test(sceneRule) && /height:\s*280px/.test(sceneRule)
+    && /margin:\s*0\s+auto/.test(sceneRule) && /overflow:\s*visible/.test(sceneRule)
+    && /width:\s*240px/.test(mobileSceneRule) && /height:\s*240px/.test(mobileSceneRule),
+    `${sceneRule.trim()} ｜ mobile ${mobileSceneRule.trim()}`);
+  const centerRule = (concCss.match(/\.conc-glow,\s*\.conc-ripple,\s*\.conc-pulse(?:,\s*\.conc-particles)?\s*\{([^}]*)\}/s) || [])[1] || '';
+  ok('glow/ripple/pulse/particles 用 inset + margin + 独立 translate 居中，定位不占 transform',
+    /position:\s*absolute/.test(centerRule) && /inset:\s*0/.test(centerRule)
+    && /left:\s*50%/.test(centerRule) && /top:\s*50%/.test(centerRule)
+    && /right:\s*auto/.test(centerRule) && /bottom:\s*auto/.test(centerRule)
+    && /margin:\s*auto/.test(centerRule) && /translate:\s*-50%\s+-50%/.test(centerRule)
+    && /aspect-ratio:\s*1\s*\/\s*1/.test(centerRule) && !/\btransform\s*:/.test(centerRule),
+    centerRule.trim());
+  const figureRule = (concCss.match(/\.conc-figure\s*\{([^}]*)\}/s) || [])[1] || '';
+  ok('人物 128×168、z-index 3，与涟漪共用舞台中心',
+    /position:\s*absolute/.test(figureRule) && /inset:\s*0/.test(figureRule)
+    && /width:\s*128px/.test(figureRule) && /height:\s*168px/.test(figureRule)
+    && /z-index:\s*3/.test(figureRule) && /margin:\s*auto/.test(figureRule)
+    && /right:\s*auto/.test(figureRule) && /bottom:\s*auto/.test(figureRule)
+    && /translate:\s*-50%\s+-50%/.test(figureRule)
+    && /padding:\s*0/.test(figureRule) && /pointer-events:\s*none/.test(figureRule),
+    figureRule.trim());
+  const svg = scene.querySelector('svg');
+  const head = scene.querySelector('circle');
+  const body = scene.querySelector('path');
+  const viewBox = String(svg?.attrs.viewBox || '').split(/\s+/).map(Number);
+  const pulseFrames = (concCss.match(/@keyframes\s+conc-pulse\s*\{([\s\S]*?)\n\}/) || [])[1] || '';
+  ok('SVG 垂直中轴在 viewBox 宽度 50%，pulse 动画只写 scale',
+    viewBox.length === 4 && Number(head?.attrs.cx) === viewBox[2] * .5
+    && /M13 84 L13 68 C13 55 19\.5 43 28 43 C36\.5 43 43 55 43 68 L43 84 Z/.test(String(body?.attrs.d || ''))
+    && /scale\(\.9\)/.test(pulseFrames) && /scale\(1\.22\)/.test(pulseFrames)
+    && !/translate/.test(pulseFrames),
+    `viewBox ${svg?.attrs.viewBox} / head cx ${head?.attrs.cx} / pulse ${pulseFrames.trim()}`);
+
   /* 滑杆：唯一命中来源，原生语义齐全。 */
   const slider = appRoot.querySelector('.conc-slider');
   ok('浓淡控件是原生 input[type=range]（min1 max5 step1）',
@@ -2115,6 +2223,18 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
   ok('香水类型卡是 EDC…Parfum 这一组档位',
     concIds.includes('eau-de-parfum') && concIds.includes('eau-de-toilette'), concIds.join(','));
 
+  /* 3-5b：未选类型时保持滑块默认效果，不额外显示粒子或第四圈。 */
+  const particlePool = scene ? scene.querySelectorAll('.conc-particle') : [];
+  const visibleParticles = () => particlePool.filter((p) => p.getAttribute('hidden') == null).length;
+  const fxSceneStyle = scene ? scene.style : null;
+  ok('未选浓度类型时无散发粒子、透明度倍率为 1，保留滑块默认半径',
+    particlePool.length === 24 && visibleParticles() === 0
+    && fxSceneStyle?.getPropertyValue('--conc-opacity') === '1'
+    && fxSceneStyle?.getPropertyValue('--conc-particle-opacity') === '0'
+    && !pulse.classList.contains('is-parfum')
+    && Math.abs(parseFloat(String(pulse.style.width)) - 44) < .001,
+    `粒子 ${visibleParticles()}/${particlePool.length} / opacity ${fxSceneStyle?.getPropertyValue('--conc-opacity')} / 外圈 ${pulse.style.width}`);
+
   /* 切换浓度类型：只写自己的答案，其他答案一律保留（不清空）。 */
   const before = { ...appMod.__state.answers };
   const edpBtn = grid ? grid.querySelector('[data-id="eau-de-parfum"]') : null;
@@ -2131,6 +2251,91 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
   ok('切浓度类型后滑杆与读数原地不动（不整屏重绘）',
     slider.value === '2' && read.textContent === '很淡：自己和身边人闻得到',
     `滑杆 ${slider.value} / ${read.textContent}`);
+
+  /* 3-5b：四类型参数 = 五档滑块基准 × 类型系数；粒子 6/10/16/24，
+     Parfum 复用现有 pulse。逐档复算，避免只验“适中”而漏掉其他档位。 */
+  const figureMark = JSON.stringify({
+    viewBox: scene.querySelector('svg')?.attrs.viewBox,
+    head: scene.querySelector('circle')?.attrs.cx,
+    body: scene.querySelector('path')?.attrs.d,
+  });
+  const particleField = scene.querySelector('.conc-particles');
+  const fxCases = [
+    { id: 'eau-de-cologne', factor: .6, count: 6, alpha: .35, pulse: false },
+    { id: 'eau-de-toilette', factor: .8, count: 10, alpha: .5, pulse: false },
+    { id: 'eau-de-parfum', factor: 1, count: 16, alpha: .65, pulse: false },
+    { id: 'parfum', factor: 1.25, count: 24, alpha: .8, pulse: true },
+  ];
+  const baseWidths = [16, 44, 72, 100, 128];
+  const fxRecords = fxCases.map((item) => {
+    const button = grid.querySelector(`[data-id="${item.id}"]`);
+    if (button) button.dispatch('click');
+    const widths = [];
+    let fieldAligned = true;
+    for (let level = 1; level <= 5; level += 1) {
+      slider.value = String(level);
+      slider.dispatch('input');
+      const width = parseFloat(String(pulse.style.width));
+      widths.push(width);
+      fieldAligned = fieldAligned
+        && Math.abs(parseFloat(String(particleField.style.width)) - width) < .001;
+    }
+    return {
+      ...item, widths, fieldAligned, pool: particlePool.length, visible: visibleParticles(),
+      sceneOpacity: Number(fxSceneStyle.getPropertyValue('--conc-opacity')),
+      particleOpacity: Number(fxSceneStyle.getPropertyValue('--conc-particle-opacity')),
+      hasPulse: pulse.classList.contains('is-parfum'),
+    };
+  });
+  ok('四类型逐档半径、粒子数、透明度与 Parfum pulse 全部符合定版',
+    fxRecords.every((record) => record.widths.every((width, index) =>
+      Math.abs(width - Number((baseWidths[index] * record.factor).toFixed(3))) < .001)
+      && record.fieldAligned && record.pool === 24 && record.visible === record.count
+      && Math.abs(record.sceneOpacity - record.alpha) < .001
+      && Math.abs(record.particleOpacity - record.alpha) < .001
+      && record.hasPulse === record.pulse),
+    fxRecords.map((r) => `${r.id}: ${r.widths.join('/')}% · ${r.visible} · ${r.alpha}`).join(' ｜ '));
+  ok('人物剪影不随类型改变，粒子池固定 24 个不随反复切换增长',
+    JSON.stringify({
+      viewBox: scene.querySelector('svg')?.attrs.viewBox,
+      head: scene.querySelector('circle')?.attrs.cx,
+      body: scene.querySelector('path')?.attrs.d,
+    }) === figureMark
+    && scene.querySelectorAll('.conc-particle').length === 24
+    && scene.querySelectorAll('svg').length === 1,
+    `粒子 ${scene.querySelectorAll('.conc-particle').length} / SVG ${scene.querySelectorAll('svg').length}`);
+
+  const particleRule = (concCss.match(/\.conc-particle\s*\{([^}]*)\}/s) || [])[1] || '';
+  const hiddenParticleRule = (concCss.match(/\.conc-particle\[hidden\]\s*\{([^}]*)\}/s) || [])[1] || '';
+  const parfumPulseRule = (concCss.match(/\.conc-pulse\.is-parfum\s*\{([^}]*)\}/s) || [])[1] || '';
+  ok('类型切换 300ms、场景直径封顶视口减 32px，隐藏粒子不占布局',
+    /transition:\s*width\s+\.3s\s+var\(--ease,\s*ease\),\s*opacity\s+\.3s/.test(concCss)
+    && /max-width:\s*calc\(100vw\s*-\s*32px\)/.test(centerRule)
+    && /opacity:\s*var\(--conc-particle-opacity,\s*0\)/.test(particleRule)
+    && /pointer-events:\s*none/.test(particleRule)
+    && /display:\s*none/.test(hiddenParticleRule)
+    && /opacity:\s*var\(--conc-particle-opacity,\s*\.8\)/.test(parfumPulseRule)
+    && !/\.conc-ripple,\s*\.diffuse-ring\s*\{\s*transition-duration:\s*\.12s/.test(concCss)
+    && /\.conc-glow\s*\{\s*opacity:\s*calc\(var\(--conc-opacity,\s*1\)\s*\*\s*\.6\)/.test(concCss),
+    `${centerRule.trim()} ｜ ${particleRule.trim()} ｜ ${hiddenParticleRule.trim()}`);
+
+  /* 类型与滑块是两条独立输入：切类型不重写档位/读数，切档位仍能连续改半径。 */
+  slider.value = '3';
+  slider.dispatch('input');
+  for (const item of fxCases) {
+    const button = grid.querySelector(`[data-id="${item.id}"]`);
+    if (button) button.dispatch('click');
+  }
+  ok('反复切类型后滑杆与读数保持独立，场景节点仍不增长',
+    slider.value === '3' && read.textContent === '适中：办公室里刚好'
+    && scene.querySelectorAll('.conc-particle').length === 24
+    && scene.querySelectorAll('.conc-ripple').length === 3,
+    `滑杆 ${slider.value} / ${read.textContent} / 粒子 ${scene.querySelectorAll('.conc-particle').length}`);
+
+  /* 恢复本段原有下游状态：2 档 + EDP。 */
+  slider.value = '2';
+  slider.dispatch('input');
+  if (edpBtn) edpBtn.dispatch('click');
 }
 
 /* ---------- ② 预算（末屏；v7 第 3 步③ 从第 3 位搬到末位） ----------
