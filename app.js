@@ -300,11 +300,11 @@ const STEPS = [
   {
     id: 'occasion',
     short: '场合',
-    title: '主要什么时候用？',
-    /* 任务8 B1（Eddie 2026-11-12 批准）：原文「主战场决定浓度下限」
-       是两处黑话之一（POLISH-20261112.md §2 标出的候选）。
-       「主战场」→「你最常在什么场合用」、「浓度下限」→「推荐的浓淡」，
-       保留原句的因果结构（场合决定什么）与兜底动作（拿不准就选日常）。 */
+    title: '主要在什么时候用？',
+    /* help 自竖向时间轴改版（redesign-leg3-20261126）起**不再上屏**：
+       这一屏只留标题与底栏那句「不选也能继续」（navBar 里），屏内不再重复提示。
+       字符串保留在步骤表里：test-render 的「除圆盘外每屏都写明了可跳过」
+       按步骤表的 help 字段核对，删字段会让那条门红。 */
     help: '你最常在什么场合用，决定了推荐的浓淡。选一个最像的，拿不准就选日常；不选也能继续',
     render: renderOccasion,
   },
@@ -3074,53 +3074,39 @@ function renderAvoid() {
 
 
 /* ============================================================
-   第 5 屏：场合（昼夜光景）
+   第 5 屏：场合（竖向一天 · redesign-leg3-20261126）
    ------------------------------------------------------------
    ==== 内容隐喻 ====
-   场合问的是"什么时候用"，那就把它画成**一天**：五个场合依时段
-   从左到右排在一条地平线上 —— 上班/上课、日常/居家、运动/户外在白天，
-   约会、正式场合在傍晚之后。位置的顺序就是时间的顺序，
-   用户不用理解"场合"这个抽象名词，看一眼天色就知道自己在选哪一段。
+   场合问的是"什么时候用"，那就把它画成**一天**：五个站点沿一条竖向
+   时间轴从上到下排开 —— 上班/上课（08:00）、日常/居家（12:00）、
+   运动/户外（15:00）在白天，约会（19:00）、正式场合（21:00）在傍晚之后。
+   顺序取自 src/scoring.js 的 OCCASION_TIME（day 在前、evening 在后），
+   位置就是时刻，用户看一眼天色就知道自己在选哪一段。
 
-   ==== 为什么保留圆盘 ====
-   圆盘的成立条件是「控件几何 = 内容结构」，而场合的几何不是树，
-   是一天。所以**圆心那套同心环不搬**，只留它可点、可读、可键盘操作的
-   交互纪律（真实 button + radiogroup + roving tabindex + 44px 触达），
-   几何交给地平线：弧段角度 = 时刻，段长 = 这段时间有多常用。
+   ==== 几何 ====
+   每行 64px，五行共 320px：左列是时刻 + 16px 图标，中列是轴线与站点圆点，
+   右列是场合名 + 一句话（taxonomy 的 desc，一句）。390 宽下页头 ≤160px、
+   底栏 72px，整屏一屏放下 —— 所以 PR #26 的屏内 sticky 题头随改版撤掉：
+   没有滚动，就没有"题头滚出视口"这个问题。
 
-   ==== 反馈是内容本身的变化 ====
-   选中一段，那段的天色由灰转实（.is-on 给一段天光渐变），
-   同时下方译文换成这个场合的「光线 + 距离」描述：
-   通勤是"白天的办公室里、一臂距离"，约会是"晚上、靠近才闻到"。
-   不再新增控件、不弹层。
+   ==== 轴是天光 ====
+   轴线本身是一条竖向渐变：晨白 → 午暖 → 暮橙 → 夜蓝。选中一个站点，
+   轴上属于它的那一段从中心向两端亮起（.occ-seg 的 scaleY 0→1，260ms）。
+   反馈是内容本身的变化，不新增控件、不弹层、不再放译文行。
+
+   ==== 交互纪律（沿用地平线版）====
+   真实 button + radiogroup + roving tabindex：整组只有一个 Tab 落点，
+   且永远落在当前选中项上（未选时落在第一站）—— 焦点离开再 Tab 回来，
+   回到的是选中的那一站。方向键上下（左右也认）在组内移动选择。
    ============================================================ */
 function renderOccasion() {
   const wrap = el('div', { class: 'fade-in' });
   const head = stepHead('occasion');
 
-  /* ==== 固定题头（design-item5-20261125，Muse 裁决「采纳修改」）====
-     场合屏与季节屏共用同一套版式模板（这是定版的形态，不换卡片列），
-     所以两屏的第一眼区分只能落在**文字**上：题号（第 X 步 / 共 Y 步）
-     与标题。原先这两行只是一个普通的 .stage-lead，滚到屏底就整块滚出视口 ——
-     用户翻到地平线底部时，屏上只剩控件，两屏看起来就是"同一屏换了颜色"，
-     于是"我是不是没切过去"这类误判有了土壤。
-
-     做法：把题号 + 标题拆成屏内的 sticky 题头（.q-fixed-head），滚动时贴在
-     屏顶；help 留在流里（.q-fixed-tail），跟着内容滚走。
-     为什么 help 不进固定块：它有三行，固定住会在 390/320 上吃掉 120px 视口，
-     把地平线挤到一半 —— 固定的只保留"第几题、问什么"这两行，
-     地平线仍是本屏视觉主位。
-     为什么拆成两个 .stage-lead 而不是加一层包裹：两个块都沿用 .stage-lead
-     的居中与间距语义（`.stage-lead .q-help` 的居中规则因此一行不用改）；
-     DOM 里文字的顺序、措辞、data 属性一字未动。
-     灰度/色弱下这条区分成立：第 3 步 vs 第 4 步、两个不同的问句，
-     都是纯文字信息，不依赖任何颜色。 */
-  wrap.appendChild(el('div', { class: 'stage-lead q-fixed-head' },
-    el('div', { class: 'q-kicker' }, head.kicker),
+  /* 屏内只留标题。题号由页顶进度尺（.progress-meta）报，
+     help 不再上屏（见 STEPS.occasion 的注释），底栏提示由 navBar 给。 */
+  wrap.appendChild(el('div', { class: 'stage-lead occ-lead' },
     el('h2', { class: 'q-title' }, head.title)
-  ));
-  wrap.appendChild(el('div', { class: 'stage-lead q-fixed-tail' },
-    el('p', { class: 'q-help' }, head.help)
   ));
 
   const items = TAX && TAX.occasionMap ? TAX.occasionMap : [];
@@ -3128,58 +3114,68 @@ function renderOccasion() {
   /* 排序：按**时段**（白天在前、傍晚在后），同时段内保持 taxonomy 的原始顺序。
      时段取自 src/scoring.js 的 OCCASION_TIME（与引擎的 timesOfDay 因子同一份口径），
      在这里复述一次而不是 import：这一屏在库加载失败时也要能画出来。
-     **这份顺序就是地平线的顺序，不由 CSS 决定** —— 位置是内容，不能靠样式排。 */
+     **这份顺序就是时间轴的顺序，不由 CSS 决定** —— 位置是内容，不能靠样式排。 */
   const TIME = { commute: 'day', daily: 'day', outdoor: 'day', date: 'evening', formal: 'evening' };
   const TIME_ORDER = { day: 0, evening: 1 };
   const ordered = items
-    .map((o, i) => ({ o, i, t: TIME_ORDER[TIME[o.id]] ?? 0.5, time: TIME[o.id] || 'day' }))
+    .map((o, i) => ({ o, i, t: TIME_ORDER[TIME[o.id]] ?? 0.5 }))
     .sort((a, b) => (a.t - b.t) || (a.i - b.i));
 
-  /* 每个场合的「光线 + 距离」译文。这两件事正是场合真正影响推荐的地方：
-     时段（timesOfDay 因子 6 分）与扩散上限（maxSillage）。 */
-  const SCENE = {
-    commute: '白天的办公室，一臂距离 —— 要让同事闻到一点点，不能更多',
-    date: '晚上，靠近才闻到 —— 距离近，所以要有记忆点',
-    daily: '自己家里，不为了谁 —— 舒服优先，味道淡一点也没关系',
-    formal: '晚上，正装场合 —— 要站得住，不能轻飘',
-    outdoor: '白天，户外 —— 会出汗、会补喷，所以清爽比浓度重要',
+  /* 每站的时刻读数（左列）。顺序与时刻必须同向递增 ——
+     08:00 → 12:00 → 15:00 → 19:00 → 21:00，轴上位置就是这些钟点。 */
+  const CLOCK = { commute: '08:00', daily: '12:00', outdoor: '15:00', date: '19:00', formal: '21:00' };
+  /* 站点圆点的取色：与轴线渐变在各自时刻处的颜色一致（晨白偏灰蓝、
+     午暖沙金、暮橙、夜蓝）。圆点是装饰（aria-hidden），选中态另有
+     accent + aria-checked 表达，不靠这枚颜色传达状态。 */
+  const TINT = { commute: '#b9c9d8', daily: '#dfc188', outdoor: '#dd9c55', date: '#d0703c', formal: '#3d4c7c' };
+
+  /* 16px 线性图标：公文包 / 房子 / 山 / 心 / 领结。
+     stroke 取 currentColor，颜色由 CSS 管（选中转 accent）。 */
+  const ICON = {
+    commute: [['rect', { x: 2, y: 5, width: 12, height: 8.5, rx: 1 }], ['path', { d: 'M6 5V3.2h4V5 M2 8.5h12' }]],
+    daily: [['path', { d: 'M2.5 7.3 8 2.5l5.5 4.8V13.5h-11Z M6.5 13.5v-3.8h3v3.8' }]],
+    outdoor: [['path', { d: 'M1.5 12.5 6 5.5l3 4.2 2-2.8 3.5 5.6Z' }], ['circle', { cx: 12.2, cy: 3.6, r: 1.4 }]],
+    date: [['path', { d: 'M8 13.2C4.2 10.4 2.2 8.5 2.2 6.3 2.2 4.6 3.5 3.3 5.1 3.3c1.2 0 2.3.6 2.9 1.6.6-1 1.7-1.6 2.9-1.6 1.6 0 2.9 1.3 2.9 3 0 2.2-2 4.1-5.8 6.9Z' }]],
+    formal: [['path', { d: 'M2.3 4.6 6.4 6.6v2.8L2.3 11.4Z M13.7 4.6 9.6 6.6v2.8l4.1 2Z' }], ['rect', { x: 6.4, y: 6.4, width: 3.2, height: 3.2, rx: .6 }]],
+  };
+  const iconOf = (id) => {
+    const svg = svgEl('svg', {
+      class: 'occ-ico', viewBox: '0 0 16 16', width: '16', height: '16',
+      fill: 'none', stroke: 'currentColor', 'stroke-width': '1.4',
+      'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true',
+    });
+    (ICON[id] || []).forEach(([tag, attrs]) => svg.appendChild(svgEl(tag, attrs)));
+    return svg;
   };
 
-  const sky = el('div', { class: 'hour-sky' });
-  const gloss = el('p', { class: 'hour-gloss is-idle' });
+  const day = el('div', { class: 'occ-day' });
+  /* 天光轴：一条从晨到夜的竖向连续渐变，铺在整条时间轴之下。
+     它在 radiogroup 外面 —— 组里只有五个 radio，装饰不掺进语义组。 */
+  day.appendChild(el('div', { class: 'occ-axis', 'aria-hidden': 'true' }));
+  const rail = el('div', { class: 'occ-rail', role: 'radiogroup', 'aria-label': '使用场合' });
 
   const paint = (cur) => {
-    /* 必须在 rail 里找，不能在 sky 里找 —— sky 的直接子节点是
-       .hour-glow / .hour-rail / .hour-ends 三块容器，段本身住在 rail 里。
-       第一版写成 [...sky.children] 遍历，一个 .hour-band 都碰不到，
-       于是"点一段后天色转实"永远不成立（test-render 抓到）。 */
-    [...rail.children].forEach((c) => {
+    [...rail.children].forEach((c, i) => {
       const on = c.getAttribute('data-occ') === cur;
       c.classList.toggle('is-on', on);
       c.setAttribute('aria-checked', String(on));
+      /* roving tabindex 跟着选中项走：焦点离开这一组再 Tab 回来时，
+         落点是当前选中的那一站（未选时是第一站），不是上一次点过的。 */
+      c.setAttribute('tabindex', on || (cur == null && i === 0) ? '0' : '-1');
     });
-    const it = ordered.find((x) => x.o.id === cur);
-    const occ = it ? it.o : null;
-    gloss.classList.toggle('is-idle', !occ);
-    gloss.textContent = occ
-      ? `${SCENE[occ.id] || occ.desc}`
-      : '选一个最像的。拿不准就选日常 —— 它是最宽的那一档';
   };
 
-  /* 地平线本体。用 radiogroup 托管，子项是真实 button：
-     弧段的视觉由 CSS 的 .hour-band 负责，可点的是叠在上面的 button。 */
-  const rail = el('div', { class: 'hour-rail', role: 'radiogroup', 'aria-label': '使用场合' });
   ordered.forEach((row, i) => {
     const it = row.o;
     const on = state.answers.occasion === it.id;
     rail.appendChild(el('button', {
-      class: 'hour-band' + (on ? ' is-on' : '') + (row.time === 'evening' ? ' is-night' : ''),
+      class: 'occ-stop' + (on ? ' is-on' : ''),
       type: 'button',
       role: 'radio',
       'aria-checked': String(on),
       'data-occ': it.id,
-      /* roving tabindex：整组只留一个 Tab 落点，方向键在组内移动。 */
       tabindex: on || (state.answers.occasion == null && i === 0) ? '0' : '-1',
+      style: `--occ-tint: ${TINT[it.id] || 'var(--ink-3)'}`,
       onclick: () => {
         state.answers.occasion = it.id;
         paint(it.id);
@@ -3189,8 +3185,8 @@ function renderOccasion() {
       },
       onkeydown: (ev) => {
         let d = 0;
-        if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') d = 1;
-        else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') d = -1;
+        if (ev.key === 'ArrowDown' || ev.key === 'ArrowRight') d = 1;
+        else if (ev.key === 'ArrowUp' || ev.key === 'ArrowLeft') d = -1;
         else return;
         ev.preventDefault();
         const to = (i + d + ordered.length) % ordered.length;
@@ -3200,27 +3196,24 @@ function renderOccasion() {
         rail.children[to].focus();
       },
     },
-      el('span', { class: 'hour-zh' }, it.zh),
-      el('span', { class: 'hour-desc' }, it.desc)
+      el('span', { class: 'occ-when' },
+        el('span', { class: 'occ-time' }, CLOCK[it.id] || ''),
+        iconOf(it.id)
+      ),
+      el('span', { class: 'occ-node', 'aria-hidden': 'true' },
+        el('span', { class: 'occ-seg' }),
+        el('span', { class: 'occ-dot' })
+      ),
+      el('span', { class: 'occ-text' },
+        el('span', { class: 'occ-zh' }, it.zh),
+        el('span', { class: 'occ-desc' }, it.desc)
+      )
     ));
   });
 
-  sky.appendChild(el('div', { class: 'hour-glow', 'aria-hidden': 'true' }));
-  sky.appendChild(rail);
-  /* 晨 / 夜两个端点刻度：让"这是一条时间轴"这件事成立，
-     否则五段只是五个横格子。它们是刻度，不是装饰标签。 */
-  sky.appendChild(el('div', { class: 'hour-ends', 'aria-hidden': 'true' },
-    el('span', {}, '早晨'), el('span', {}, '夜里')));
-
+  day.appendChild(rail);
   paint(state.answers.occasion);
-  wrap.appendChild(sky);
-  wrap.appendChild(gloss);
-
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '为什么问场合：'),
-    ' 场合决定浓度下限与时段。同一瓶香水在通勤和约会里的宽容度差得很远，'
-    + ' 这一项比"你觉得自己喜欢什么"更稳定。'
-  ));
+  wrap.appendChild(day);
 
   wrap.appendChild(navBar('occasion'));
   return wrap;

@@ -1577,65 +1577,103 @@ ok('避雷屏标题是「只问最容易踩雷的几个」',
 // --------------------------------------------------------------------------- */
 
 
-/* ---------- ⑤ 场合（昼夜光景，定版范例之一） ----------
+/* ---------- ⑤ 场合（竖向一天，redesign-leg3-20261126） ----------
    v7 第 2 步：旧第 5 屏「受不了的味道」已移到第 2 位并改成避雷墙（见 ①），
    所以 wanted 之后直接 advance 到场合，这里不再有一屏 unwanted。
-   v7 第 3 步③：预算屏搬到末位后，场合从第 4 屏前移到第 3 屏 —— 屏号用
-   `screenOf('occasion')` 从当前生效步骤表派生，不写死：避雷屏被跳过时
-   （共 5 步）它会自动变成「第 2 屏」，写死就会在另一条分支上误报。 */
+   屏号用 `screenOf('occasion')` 从当前生效步骤表派生，不写死：避雷屏被跳过时
+   （共 5 步）它会自动变成「第 2 屏」，写死就会在另一条分支上误报。
+   本版把地平线换成竖向时间轴：五行 × 64px，左时刻右场合，轴是天光渐变。 */
 await advance();
 ok(`${screenOf('occasion')}是场合（data-step=occasion）`, stepId() === 'occasion',
   `实际 ${stepId()}（表长 ${appMod.__steps.cur().length}）`);
 {
-  const bands = appRoot.querySelectorAll('.hour-band');
-  ok('场合屏是五个时段段（不是圆盘）', bands.length === 5, `实际 ${bands.length}`);
-  /* **位置即时间**：白天三档必须排在傍晚两档之前。这条是本屏的对应关系，
+  const stops = appRoot.querySelectorAll('.occ-stop');
+  ok('场合屏是五个时间轴站点（不是圆盘、不是横排）', stops.length === 5, `实际 ${stops.length}`);
+  /* **位置即时间**：顺序取 OCCASION_TIME（day 在前、evening 在后），
      用 data 顺序核，不靠 CSS。 */
-  const seq = bands.map((x) => (x.classList.contains('is-night') ? 'night' : 'day'));
-  ok('地平线按时段排序：白天在前、夜间在后',
-    seq.join(',') === 'day,day,day,night,night', seq.join(','));
-  ok('天光层存在（一条从晨到夜的连续渐变）', appRoot.querySelectorAll('.hour-glow').length === 1);
-  ok('地平线两端有晨/夜刻度', appRoot.querySelectorAll('.hour-ends').length === 1);
-  bands[0].dispatch('click');
-  await new Promise((r) => setTimeout(r, 60));
-  ok('点一段后天色转实', bands[0].attrs['aria-checked'] === 'true', String(bands[0].attrs['aria-checked']));
-  /* 译文必须说「光线 + 距离」—— 这两件事才是场合真正影响推荐的地方。 */
-  ok('场合译文说到了距离/光线', /距离|光线|闻到/.test(appRoot.querySelectorAll('.hour-gloss')[0].textContent),
-    appRoot.querySelectorAll('.hour-gloss')[0].textContent.slice(0, 50));
+  const seq = stops.map((x) => x.attrs['data-occ']);
+  ok('站点按时刻排序：上班→日常→户外→约会→正式',
+    seq.join(',') === 'commute,daily,outdoor,date,formal', seq.join(','));
+  ok('天光轴存在（一条竖向连续渐变）', appRoot.querySelectorAll('.occ-axis').length === 1);
+  /* 左列：每站都有钟点读数与 16px 图标，钟点自上而下递增。 */
+  const times = stops.map((x) => {
+    const t = x.querySelectorAll('.occ-time')[0];
+    return t ? t.textContent : '';
+  });
+  ok('每站左列有时刻（HH:MM）', times.every((t) => /^\d{2}:\d{2}$/.test(t)), times.join(','));
+  ok('时刻自上而下递增（08:00 → 21:00）',
+    times.every((t, i) => i === 0 || t > times[i - 1]), times.join(','));
+  ok('每站左列有 16px 图标',
+    stops.every((x) => {
+      const ico = x.querySelectorAll('.occ-ico')[0];
+      return !!ico && ico.attrs.width === '16' && ico.attrs.height === '16';
+    }));
+  /* 右列：场合名 + 一句话（taxonomy 的 desc 原句）。 */
+  ok('每站右列是场合名 + 一句话',
+    stops.every((x) => x.querySelectorAll('.occ-zh').length === 1
+      && x.querySelectorAll('.occ-desc').length === 1
+      && x.querySelectorAll('.occ-desc')[0].textContent.length > 0));
 
-  /* ---- 固定题头（design-item5-20261125，Muse 裁决「采纳修改」）----
-     背景：场合屏与季节屏共用同一套版式模板，第一眼区分只能落在文字上。
-     原先题号 + 标题在普通 .stage-lead 里，滚到地平线底部就整块滚出视口，
-     屏上只剩控件 —— 两屏就退回"同一屏换了颜色"。
-     这三条守的是结构（题头单独成块、只挂在场合屏、题号与标题都在里面），
-     样式侧（position: sticky）在下面那条 CSS 断言里守 —— 两处都守住，
-     才谈得上"滚动时始终可见"。 */
-  {
-    const heads = appRoot.querySelectorAll('.q-fixed-head');
-    ok('场合屏题头单独成块（.q-fixed-head 恰好一个）', heads.length === 1, `实际 ${heads.length}`);
-    const h = heads[0];
-    ok('固定题头里有题号（第 X 步 / 共 Y 步）',
-      !!h && /第\s*\d+\s*步\s*\/\s*共\s*\d+\s*步/.test(h.textContent),
-      h ? h.textContent.slice(0, 40) : '(无节点)');
-    ok('固定题头里有题目标题原文（主要什么时候用？）',
-      !!h && h.textContent.includes('主要什么时候用？'),
-      h ? h.textContent.slice(0, 40) : '(无节点)');
-    /* help 不进固定块：它有三行，窄屏固定住会把地平线挤下半屏。
-       但它必须仍在屏上（文案一字未动，只是跟着内容滚）。 */
-    ok('help 不在固定块里、但仍在屏上',
-      !!h && !h.textContent.includes('你最常在什么场合用')
-      && appRoot.textContent.includes('你最常在什么场合用'),
-      h ? 'hh' : '(无节点)');
-    /* CSS 侧：sticky 必须挂在场合屏的题头上，且背景是实心纸面。
-       没有实心底，滚动时下面的字会从题头的行缝里穿过去。 */
-    const cssNoC = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-    ok('固定题头在 CSS 里是 sticky（滚动时贴屏顶）',
-      /#app\[data-step="occasion"\]\s*\.q-fixed-head\s*\{[^}]*?position:\s*sticky/.test(cssNoC),
-      '缺 position: sticky');
-    ok('固定题头有实心纸底（内容不许从字缝穿过）',
-      /#app\[data-step="occasion"\]\s*\.q-fixed-head\s*\{[^}]*?background:\s*var\(--bg\)/.test(cssNoC),
-      '缺 background: var(--bg)');
-  }
+  /* CSS 侧的几何与动效（桩算不了布局，钉在源产物上）：
+     行高 64px、五行 320px；轴是 180deg 竖向渐变；
+     选中段从中心向两端亮起 = scaleY 0→1、origin 居中、260ms。 */
+  const cssNoC = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  ok('每行 64px（五行共 320px）',
+    /\.occ-rail\s*\{[^}]*?grid-auto-rows:\s*64px/.test(cssNoC)
+    && /\.occ-stop\s*\{[^}]*?height:\s*64px/.test(cssNoC),
+    '缺 grid-auto-rows: 64px 或 .occ-stop height: 64px');
+  ok('天光轴是竖向渐变（晨白→午暖→暮橙→夜蓝）',
+    /\.occ-axis\s*\{[^}]*?linear-gradient\(180deg/.test(cssNoC), '缺 180deg 渐变');
+  ok('选中段亮光 260ms、从中心向两端（scaleY + 居中 origin）',
+    /\.occ-seg\s*\{[^}]*?transform:\s*scaleY\(0\)[^}]*?transform-origin:\s*50%\s*50%[^}]*?transition:\s*transform\s*\.26s/.test(cssNoC)
+    && /\.occ-stop\.is-on\s+\.occ-seg\s*\{[^}]*?transform:\s*scaleY\(1\)/.test(cssNoC),
+    '缺 scaleY(0)→(1) / 居中 origin / .26s');
+
+  stops[0].dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  ok('点一站后该站选中（aria-checked + is-on）',
+    stops[0].attrs['aria-checked'] === 'true' && stops[0].classList.contains('is-on'),
+    String(stops[0].attrs['aria-checked']));
+
+  /* roving tabindex：Tab 落点永远跟着当前选中项 ——
+     焦点离开这一组再回来，回到的是选中的那一站。 */
+  stops[2].dispatch('click');
+  await new Promise((r) => setTimeout(r, 60));
+  ok('焦点落点跟着选中项（选中 tabindex=0，其余 -1）',
+    stops.every((x, i) => x.attrs.tabindex === (i === 2 ? '0' : '-1')),
+    stops.map((x) => x.attrs.tabindex).join(','));
+  /* 方向键向下移动选择（任务书：上下移动）。 */
+  stops[2].dispatch('keydown', { key: 'ArrowDown' });
+  await new Promise((r) => setTimeout(r, 60));
+  ok('ArrowDown 把选择移到下一站',
+    stops[3].attrs['aria-checked'] === 'true' && stops[2].attrs['aria-checked'] === 'false',
+    stops.map((x) => x.attrs['aria-checked']).join(','));
+  stops[3].dispatch('keydown', { key: 'ArrowUp' });
+  await new Promise((r) => setTimeout(r, 60));
+  ok('ArrowUp 把选择移回上一站',
+    stops[2].attrs['aria-checked'] === 'true',
+    stops.map((x) => x.attrs['aria-checked']).join(','));
+
+  /* ---- 屏内只留标题 + 底栏一句（redesign-leg3-20261126 任务 3）----
+     kicker/help/译文行/术语注都不上屏；PR #26 的 sticky 题头随一屏放下撤掉。 */
+  ok('题头只有标题「主要在什么时候用？」',
+    appRoot.querySelectorAll('.q-title')[0]
+    && appRoot.querySelectorAll('.q-title')[0].textContent === '主要在什么时候用？'
+    && appRoot.querySelectorAll('.q-kicker').length === 0
+    && appRoot.querySelectorAll('.q-help').length === 0,
+    appRoot.querySelectorAll('.q-title')[0] ? appRoot.querySelectorAll('.q-title')[0].textContent : '(无标题)');
+  ok('卡片下不再有重复提示（无译文行、无术语注）',
+    appRoot.querySelectorAll('.hour-gloss').length === 0
+    && appRoot.querySelectorAll('.term-note').length === 0);
+  ok('「不选也能继续」全屏只出现一次（底栏）',
+    appRoot.textContent.split('不选也能继续').length - 1 === 1,
+    `出现 ${appRoot.textContent.split('不选也能继续').length - 1} 次`);
+  ok('sticky 题头已撤（DOM 无 .q-fixed-head）',
+    appRoot.querySelectorAll('.q-fixed-head').length === 0,
+    `实际 ${appRoot.querySelectorAll('.q-fixed-head').length} 个`);
+  ok('sticky 题头已撤（CSS 不再给 occasion 挂 sticky）',
+    !/#app\[data-step="occasion"\][^{}]*\{[^}]*?position:\s*sticky/.test(cssNoC),
+    '仍有 occasion 专属 sticky 规则');
 }
 
 /* ---------- ⑥ 季节（温度光带，定版范例之二） ----------
@@ -1680,13 +1718,11 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
   await new Promise((r) => setTimeout(r, 60));
   ok('点一季后落点亮起', stops[3].attrs['aria-checked'] === 'true', String(stops[3].attrs['aria-checked']));
 
-  /* ---- 两屏的区分必须靠文字（design-item5-20261125 验收项 2）----
-     任务书要求：场合屏 vs 季节屏去色后，凭标题 + 题号仍能一眼区分。
-     这条在 DOM 里就能验到核心：两屏的**题号不同、问句不同**。
-     去色只是抹掉颜色，抹不掉文字 —— 所以只要这两处不同，
-     "凭标题 + 题号区分"在灰度下必然成立（截图证据在回执里给）。
-     反向也守一条：季节屏不许挂 .q-fixed-head —— 本腿只动场合屏，
-     季节屏的版面一个像素都不该变。 */
+  /* ---- 两屏的区分（redesign-leg3-20261126 验收项）----
+     场合屏已是竖向五行时间轴，季节屏是温度光带/2×2 —— 结构本身一眼可分。
+     文字区分仍守着（灰度下题号 + 问句不同）。
+     反向也守一条：季节屏不许挂 .q-fixed-head —— sticky 题头已整体撤掉，
+     任何屏都不该再出现；本腿只动场合屏，季节屏的版面一个像素都不该变。 */
   {
     const seasonHead = appMod.__steps.head('season');
     const occHead = appMod.__steps.head('occasion');
