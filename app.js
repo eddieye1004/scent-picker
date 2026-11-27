@@ -888,9 +888,7 @@ function scentPlate(sub) {
   /* 名字最多列两味。实测四味的名字在 360px 视口是 144px 宽，
      而盘心只有 156px 且是圆的 —— 一行放不下、折两行又把「换一个大类」顶出去。
      完整清单留在 aria-label 里，视觉上两味足够说明这格是哪一路气味。 */
-  const capText = entries.slice(0, 2).map((e) => e.zh).join(' · ')
-    + (entries.length > 2 ? ' 等' : '');
-  wrap.appendChild(el('div', { class: 'plate-cap' }, capText));
+  wrap.appendChild(el('div', { class: 'plate-cap' }, subFullName(sub)));
   // 图形本身是装饰，语义交给屏幕阅读器读这句话，避免读出「一张图」却没有内容
   wrap.setAttribute('role', 'img');
   wrap.setAttribute('aria-label',
@@ -1039,6 +1037,9 @@ function hubOrnament(families) {
   svg.appendChild(svgEl('path', { class: 'orn-cross', d: 'M46 50 H54 M50 46 V54' }));
   return svg;
 }
+
+/* 腿8-A：textPath 弧文字轨道的全局唯一 id（重建不重复） */
+let leg8ArcSeq = 0;
 
 function buildWheel(cfg) {
   /* backHost：返回胶囊的挂载点。2026-11-24 裁决 A 之后它不在 .wheel 里了
@@ -1737,12 +1738,33 @@ function buildWheel(cfg) {
       const g = svgEl('g', {
         class: 'sub-g',
         'data-sub': item.id,
+        'data-fam': fam.id,
         style: '--i: ' + i + '; --n: ' + n,
       });
       g.appendChild(svgEl('path', {
         class: 'sub-arc',
         d: annulusPath(SUB_R2O, SUB_R2I, a0, a1),
       }));
+      /* 腿8-A：子类名沿弧带中线排成弧形字（SVG textPath），12px，不出弧带。
+         全名常态显示；320 档由 CSS 切到短标签（.lg-full / .lg-short）。 */
+      const rText = (SUB_R2O + SUB_R2I) / 2;
+      const [tx0, ty0] = polar(rText, a0 + gap);
+      const [tx1, ty1] = polar(rText, a1 - gap);
+      const arcTextId = 'leg8-arc-' + (++leg8ArcSeq);
+      g.appendChild(svgEl('path', {
+        id: arcTextId, class: 'sub-arc-guide',
+        d: 'M ' + tx0.toFixed(2) + ' ' + ty0.toFixed(2)
+          + ' A ' + rText + ' ' + rText + ' 0 0 1 ' + tx1.toFixed(2) + ' ' + ty1.toFixed(2),
+        fill: 'none', stroke: 'none',
+      }));
+      const labelText = svgEl('text', { class: 'sub-arc-text', 'text-anchor': 'middle' });
+      const tpFull = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%', class: 'lg-full' });
+      tpFull.textContent = subFullName(item);
+      const tpShort = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%', class: 'lg-short' });
+      tpShort.textContent = subShortLabel(item);
+      labelText.appendChild(tpFull);
+      labelText.appendChild(tpShort);
+      g.appendChild(labelText);
       svg.appendChild(g);
       subGs.push(g);
 
@@ -1778,7 +1800,7 @@ function buildWheel(cfg) {
         style: '--l: ' + (px[0] / WHEEL.vb * 100).toFixed(2) + '%; --t: ' + (px[1] / WHEEL.vb * 100).toFixed(2)
           + '%; --nl: ' + (pxm[0] / WHEEL.vb * 100).toFixed(2) + '%; --nt: ' + (pxm[1] / WHEEL.vb * 100).toFixed(2)
           + '%; --i: ' + i + '; --n: ' + n,
-      }, el('span', { class: 'zh' }, subArcIcon(item.id), subShortLabel(item)));
+      }, el('span', { class: 'zh', 'aria-hidden': 'true' }, subFullName(item)));
       /* 中圈标签用**短标签**（src/sub-labels.js）而不是 label/zh：
          ① 柑橘调的四个 zh 都是"××柑橘"，并排看分不出差别（用户 m05889 原话
             「我分不清它们的差异」），所以这一层从来不用 zh，用 label；
@@ -2024,6 +2046,9 @@ function buildWheel(cfg) {
     root.classList.toggle('is-sub-locked', !!selSub);
     hub.classList.toggle('is-idle', idle);
     hub.classList.toggle('is-picked', picked);
+    /* 腿8-A：选中子类时把族 id 写进盘心，供族色实色图标钩子读取 */
+    if (picked && selFamily) hub.setAttribute('data-fam', selFamily);
+    else hub.removeAttribute('data-fam');
     // 整盘翻深由 root 上的 is-picked 驱动：加深的是盘，不是盘心方块
     root.classList.toggle('is-picked', picked);
     hub.classList.toggle('is-hover', !!(hoverFam || hoverSub) && !picked && !focusSub);
@@ -2060,8 +2085,7 @@ function buildWheel(cfg) {
     if (glyphKey !== builtGlyphKey) {
       builtGlyphKey = glyphKey;
       hubGlyph.innerHTML = '';
-      const glyph = focusSub ? scentPlate(focusSub)
-        : (famForGlyph ? familyText(famForGlyph) : null);
+      const glyph = focusSub ? scentPlate(focusSub) : null;
       if (glyph) hubGlyph.appendChild(glyph);
     }
     hub.classList.toggle('has-glyph', glyphKey !== 'none');
