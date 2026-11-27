@@ -5299,6 +5299,15 @@ margin-top: 12px;
 padding: 10px 0 10px;
 }
 #app[data-step="occasion"] footer.foot { margin-top: 20px; }
+.season-panel {
+position: relative;
+isolation: isolate;
+display: grid;
+gap: 8px;
+width: 100%;
+max-width: 440px;
+margin: 8px 0 0;
+}
 .season-grid {
 position: relative;
 isolation: isolate;
@@ -5306,8 +5315,7 @@ display: grid;
 grid-template-columns: repeat(2, minmax(0, 1fr));
 gap: 8px;
 width: 100%;
-max-width: 440px;
-margin: 8px 0 0;
+margin: 0;
 touch-action: none;
 user-select: none;
 }
@@ -5333,6 +5341,18 @@ transition: filter .25s var(--ease-std), border-color .25s var(--ease-std);
 }
 .season-grid.has-selection .season-cell:not(.is-on) { filter: brightness(.6); }
 .season-cell.is-on { border-color: var(--accent); }
+.season-cell-all {
+aspect-ratio: auto;
+min-height: 64px;
+gap: 3px;
+}
+.season-cell-all .season-name { font-size: 16px; }
+.season-all-sub {
+font: 400 12px/1.4 var(--font-ui, system-ui);
+color: var(--ink-3);
+letter-spacing: .04em;
+}
+.season-cell-all.is-on .season-all-sub { color: var(--accent); }
 .season-symbol {
 width: 32px;
 height: 32px;

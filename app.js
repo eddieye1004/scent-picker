@@ -310,7 +310,7 @@ const STEPS = [
     id: 'season',
     short: '季节',
     title: '主要在哪个季节用？',
-    help: '选主要使用季节；不确定可跳过',
+    help: '不确定就选四季通用',
     render: renderSeason,
   },
   {
@@ -3234,6 +3234,14 @@ const SEASONS = [
   },
 ];
 
+/* 四季通用只改变季节屏的选择状态；进入评分引擎时映射为 null，
+   与跳过季节题完全一致（尤其不能成为 activeDims 中的额外一维）。 */
+const ALL_SEASON = 'all';
+const scoringAnswers = (answers) => ({
+  ...answers,
+  season: answers.season === ALL_SEASON ? null : answers.season,
+});
+
 /* 季节屏的「重画一次」句柄（测试专用，见 renderSeason 里的赋值）。
    方向在第 1 屏改、季节在第 4 屏读，中间隔着整屏重建，所以产品路径里
    不需要这个口子；但"方向变了情境句跟着变"这条断言要能在同一屏内验，
@@ -3249,7 +3257,9 @@ function renderSeason() {
     el('p', { class: 'q-help' }, head.help)
   ));
 
-  const grid = el('div', { class: 'season-grid', role: 'radiogroup', 'aria-label': '主季节' });
+  const group = el('div', { class: 'season-panel', role: 'radiogroup', 'aria-label': '主季节' });
+  const grid = el('div', { class: 'season-grid' });
+  group.appendChild(grid);
   const mist = el('span', { class: 'season-mist', 'aria-hidden': 'true' });
   grid.appendChild(mist);
   const cells = [];
@@ -3373,18 +3383,23 @@ function renderSeason() {
     winter: '冷，要压得住风 —— 需要厚度，不然出门就散',
   };
 
+  let allCell = null;
   const paint = (cur) => {
     const it = SEASONS.find((s) => s.id === cur) || null;
+    const allOn = cur === ALL_SEASON;
     grid.classList.toggle('has-selection', !!it);
     mist.classList.toggle('is-visible', !!it);
     cells.forEach((cell, index) => {
       const on = SEASONS[index].id === cur;
       cell.classList.toggle('is-on', on);
       cell.setAttribute('aria-checked', String(on));
-      cell.setAttribute('tabindex', on || (!it && index === 0) ? '0' : '-1');
+      cell.setAttribute('tabindex', on || (!it && !allOn && index === 0) ? '0' : '-1');
     });
+    allCell.classList.toggle('is-on', allOn);
+    allCell.setAttribute('aria-checked', String(allOn));
+    allCell.setAttribute('tabindex', allOn ? '0' : '-1');
     gloss.classList.toggle('is-idle', !it);
-    gloss.textContent = it ? FEEL[it.id] : '';
+    gloss.textContent = it ? FEEL[it.id] : (allOn ? '不限定季节，保留所有适合的香水' : '');
     const line = it ? (seasonScene(state.answers.family, it.id) || it.desc) : '';
     scene.hidden = !line;
     scene.textContent = line;
@@ -3420,7 +3435,13 @@ function renderSeason() {
         const nextRow = clamp(row + delta[0], 0, 1);
         const nextCol = clamp(col + delta[1], 0, 1);
         const next = nextRow * 2 + nextCol;
-        if (next === index) return;
+        if (next === index) {
+          if (index === SEASONS.length - 1 && delta[0] === 1) {
+            allCell.focus({ preventScroll: true });
+            choose(ALL_SEASON);
+          }
+          return;
+        }
         cells[next].focus({ preventScroll: true });
         choose(SEASONS[next].id);
       },
@@ -3431,6 +3452,29 @@ function renderSeason() {
     cells.push(cell);
     grid.appendChild(cell);
   });
+
+  allCell = el('button', {
+    class: 'season-cell season-cell-all',
+    type: 'button',
+    role: 'radio',
+    'aria-checked': String(state.answers.season === ALL_SEASON),
+    'data-season': ALL_SEASON,
+    tabindex: state.answers.season === ALL_SEASON ? '0' : '-1',
+    onclick: () => choose(ALL_SEASON),
+    onkeydown: (event) => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      event.preventDefault();
+      const target = event.key === 'ArrowUp'
+        ? cells[SEASONS.length - 1]
+        : cells[0];
+      target.focus({ preventScroll: true });
+      choose(SEASONS[target === cells[0] ? 0 : SEASONS.length - 1].id);
+    },
+  },
+    el('span', { class: 'season-name' }, '四季通用'),
+    el('span', { class: 'season-all-sub' }, '不挑季节')
+  );
+  group.appendChild(allCell);
 
   grid.addEventListener('pointerdown', (event) => {
     if (pointer || (event.pointerType === 'mouse' && event.button !== 0)) return;
@@ -3475,7 +3519,7 @@ function renderSeason() {
 
   seasonRepaint = () => paint(state.answers.season);
   paint(state.answers.season);
-  wrap.appendChild(grid);
+  wrap.appendChild(group);
   wrap.appendChild(gloss);
   wrap.appendChild(scene);
 
@@ -3865,11 +3909,12 @@ async function finish(btn) {
     /* 避雷屏没上屏的低频模糊元素在这里软降权（0.94），不硬排除。 */
     const avoidSoftNotes = avoidSoftNow();
     const boostIds = gapBoostIds(pool, PHOTOS, AFF_LINKS);
-    let res = recommend(state.answers, pool, TAX, { topN: 3, avoidSoftNotes, boostIds });
+    const scoreInput = scoringAnswers(state.answers);
+    let res = recommend(scoreInput, pool, TAX, { topN: 3, avoidSoftNotes, boostIds });
     if (!res.results || res.results.length < 3) {
       /* ② 级的兜底：圈过的池凑不满 3 瓶时用全库重算。
          宁可给一瓶价位外的，也不给"只找到 1 瓶"。 */
-      res = recommend(state.answers, d.perfumes, TAX, { topN: 3, avoidSoftNotes, boostIds });
+      res = recommend(scoreInput, d.perfumes, TAX, { topN: 3, avoidSoftNotes, boostIds });
       res.poolFellBack = true;
     }
     /* 不再悄悄放宽：把档内/档外数出来交给结果页顶部明示（leg6）。
