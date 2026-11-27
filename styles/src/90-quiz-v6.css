@@ -129,6 +129,59 @@
    前景效果：四枚标本签横排，选中时签子下沿的**剪口翻起**。
    剪口是标本签的固有形态（挂绳穿过的地方），也是这一屏唯一属于它的效果。
    ============================================================ */
+/* 3-6 预算金钱主题 token（纯装饰，不改文字色 token）。
+   浅色：深金钱币 #B08D2E、钞纹 rgba(...,.06)；深色在文件末 dark 块覆盖。 */
+:root {
+  --money-ink: #B08D2E;
+  --money-wash: repeating-linear-gradient(115deg, rgba(176,141,46,.06) 0 1px, transparent 1px 7px);
+}
+
+/* 钱袋标尺：横向纸币带 + ¥ 水印 + 面额刻度（刻度与 bands 一一对应，纯装饰）。 */
+.money-ruler {
+  position: relative;
+  height: 36px;
+  margin: 2px 0 16px;
+  overflow: hidden;
+  border: 1px solid var(--stroke-ui);
+  border-radius: 2px;
+  background: var(--money-wash), var(--bg-2);
+  display: flex;
+  align-items: flex-end;
+  padding: 0 12px 5px;
+}
+.money-watermark {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font: 700 28px/1 var(--font-ui, system-ui);
+  color: var(--money-ink);
+  opacity: .3;
+}
+.money-scale {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+.money-tick {
+  position: relative;
+  padding-top: 7px;
+  font: 500 12px/1 var(--font-ui, system-ui);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.money-tick::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 5px;
+  background: var(--money-ink);
+}
+
 .price-row {
   display: flex;
   flex-wrap: wrap;
@@ -141,7 +194,7 @@
   position: relative;
   flex: 1 1 148px;
   min-height: 88px;
-  padding: 16px 14px 14px;
+  padding: 16px 14px 14px 38px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -150,6 +203,8 @@
   border: 1px solid var(--stroke-ui);
   border-radius: 2px;
   cursor: pointer;
+  isolation: isolate; /* 3-6：让钞纹 ::before(z-index:-1) 落在文字之下 */
+  overflow: hidden;   /* 3-6：钞纹裁在卡片圆角内 */
   transition: transform .22s var(--ease, ease), border-color .22s, background .22s;
 }
 
@@ -197,6 +252,52 @@
 }
 
 .price-tab.is-on .price-zh { color: var(--accent); }
+
+/* 3-6 左上角金币：直径 20px、深金描边，选中放大到 1.15 并做 200ms 弹跳。
+   absolute + padding-left 让位，不遮挡档位名/瓶数。 */
+.price-tab .price-coin {
+  position: absolute;
+  top: 13px;
+  left: 10px;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 1px solid var(--money-ink);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--money-ink);
+  font: 700 12px/18px var(--font-ui, system-ui);
+  text-align: center;
+  transition: transform .2s var(--ease, ease-out);
+}
+/* 钞纹覆盖层：叠在卡片底色之上、文字之下，选中态也保留。 */
+.price-tab::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--money-wash);
+  border-radius: inherit;
+  z-index: -1;
+}
+.price-tab.is-on .price-coin {
+  animation: coin-pop .2s var(--ease, ease-out);
+  transform: scale(1.15);
+}
+@keyframes coin-pop {
+  0% { transform: scale(1); }
+  60% { transform: scale(1.18); }
+  100% { transform: scale(1.15); }
+}
+
+/* 3-6 纸条小字：核实过 budget 不进 scoring，只圈池，故『不参与打分』属实。 */
+.price-disclaimer {
+  margin: 10px 0 0;
+  padding-left: 8px;
+  border-left: 3px solid var(--money-ink);
+  font: 400 12px/1.6 var(--font-ui, system-ui);
+  color: var(--ink-3);
+}
 
 /* 说明行：选具体档 / 选不限 是两句不同的事实，所以它跟着变。
    未选时限（is-idle）降一档浓度，表明"这是当前状态下的说明"。 */
@@ -856,6 +957,12 @@
    / --accent，由 80 层与 test-contrast 统一核算。这里只调表面与描边。
    ============================================================ */
 @media (prefers-color-scheme: dark) {
+  /* 3-6 深色金钱主题：淡金钱币 #D8B45A、钞纹透明度 0.12 */
+  :root {
+    --money-ink: #D8B45A;
+    --money-wash: repeating-linear-gradient(115deg, rgba(216,180,90,.12) 0 1px, transparent 1px 7px);
+  }
+
   /* 价签 / 天际线 / 标本签 / 时间轴站点：选中态在暗底上靠描边不够，
      需要一层极淡的蓝底，否则"选中"读不出来。 */
   .price-tab.is-on,

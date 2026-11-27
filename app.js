@@ -2753,6 +2753,14 @@ function renderBudget() {
   const bands = idx && Array.isArray(idx.bands) ? idx.bands : [];
   const anyId = (idx && idx.anyId) || 'any';
 
+  /* 3-6 钱袋标尺：横向纸币带 + ¥ 水印 + 面额刻度（与 bands 一一对应）。
+     纯装饰（aria-hidden）：刻度取 bands 的 lo/hi，不引入 622/1388 等全库总数。 */
+  wrap.appendChild(el('div', { class: 'money-ruler', 'aria-hidden': 'true' },
+    el('span', { class: 'money-watermark' }, '¥'),
+    el('div', { class: 'money-scale' },
+      ...bands.map((b) => el('span', { class: 'money-tick' },
+        b.hi != null ? `${b.lo}–${b.hi}` : `${b.lo}+`)))));
+
   const row = el('div', { class: 'price-row', role: 'radiogroup', 'aria-label': '价位区间' });
   /* 「不限 / 还不知道」永远在最后：它是退路，不该出现在第一个位置
      —— 第一个位置会被读成"推荐选项"。
@@ -2792,6 +2800,7 @@ function renderBudget() {
       /* 剪口：一枚小三角，选中时翻起。用 span 而不是伪元素，
          因为要能被读屏忽略（aria-hidden）。 */
       el('span', { class: 'price-notch', 'aria-hidden': 'true' }),
+      el('span', { class: 'price-coin', 'aria-hidden': 'true' }, '¥'),
       el('span', { class: 'price-zh' }, o.zh),
       o.n != null ? el('span', { class: 'price-n' }, low ? `只有 ${o.n} 瓶` : `已知价 ${o.n} 瓶`) : null
     ));
@@ -2803,6 +2812,11 @@ function renderBudget() {
   wrap.appendChild(el('p', { class: 'price-note' }, unknown != null
     ? `价位未知的 ${unknown} 瓶只在「不限」里出现`
     : '价位未知的瓶子只在「不限」里出现'));
+
+  /* 3-6 纸条小字：已核实 budget 只在 poolForBudget 圈池、不进 scoringAnswers
+     （src/scoring.js 无 budget），『不参与打分』属实。用独立类 .price-disclaimer，
+     不占 .price-note，守住『预算屏只留一行 .price-note』的既有断言。 */
+  wrap.appendChild(el('p', { class: 'price-disclaimer' }, '价格只筛范围，不参与打分'));
 
   wrap.appendChild(navBar('budget'));
   paintCta();

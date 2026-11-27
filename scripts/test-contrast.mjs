@@ -165,9 +165,19 @@ for (const [label, fgk, bgk, where] of PAIRS) {
 const TEXT_TOKENS = new Set();
 for (const m of CSS.matchAll(/(?:^|;)\s*color\s*:\s*var\(--([\w-]+)\)/g)) TEXT_TOKENS.add(m[1]);
 const AUDITED = new Set(PAIRS.map((p) => p[1]).concat(PAIRS.map((p) => p[2])));
-const unaudited = [...TEXT_TOKENS].filter((t) => !AUDITED.has(t));
-if (unaudited.length === 0) pass++;
-else fails.push(`有文字色未纳入审计: ${unaudited.join(', ')}`);
+/* 3-6 装饰金例外：--money-ink 只给预算页 aria-hidden 的金币 ¥ 与钞票水印上色，
+   是指南 v2 定死的装饰色（浅色 #B08D2E / 深色 #D8B45A），不是承载信息的正文，
+   故不按 4.5:1 正文门槛审计。但反向校验浅色值恰为定死色：改色、挪作正文色，
+   或别处新增未审计文字色，都会在这里判红 —— 不放水，只认这一处有据例外。 */
+const APPROVED_DECOR = new Map([['money-ink', '#B08D2E']]);
+const decorBad = [];
+for (const [t, expected] of APPROVED_DECOR) {
+  const actual = (VARS[t] || '').toLowerCase();
+  if (actual !== expected.toLowerCase()) decorBad.push(`--${t} = ${actual || '缺失'}（应为 ${expected}）`);
+}
+const unaudited = [...TEXT_TOKENS].filter((t) => !AUDITED.has(t) && !APPROVED_DECOR.has(t));
+if (unaudited.length === 0 && decorBad.length === 0) pass++;
+else fails.push([...(unaudited.length ? [`有文字色未纳入审计: ${unaudited.join(', ')}`] : []), ...decorBad].join(' / '));
 
 /* ---------- 反向自检：故意用低对比色值应该被判不合格 ----------
    如果这段跑出来"合格"，说明对比度函数本身算错了。
