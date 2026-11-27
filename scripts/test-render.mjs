@@ -387,6 +387,108 @@ const stepNoOf = (id) => {
   return i < 0 ? 0 : i + 1;
 };
 const screenOf = (id) => `第 ${stepNoOf(id)} 屏`;
+
+/* ==== 批 3-3：首屏入口只切界面，不写答案 ==== */
+{
+  const entryCards = appRoot.querySelectorAll('.entry-card');
+  ok('首屏是入口二选一（data-step=entry）', stepId() === 'entry', stepId());
+  ok('首屏中央恰好两张同级入口卡', entryCards.length === 2, String(entryCards.length));
+  ok('左卡按感觉选、右卡按香型圆盘',
+    entryCards[0]?.getAttribute('data-entry') === 'emotion'
+    && entryCards[1]?.getAttribute('data-entry') === 'family',
+    entryCards.map((c) => c.getAttribute('data-entry')).join(','));
+  ok('两卡都有图标与一行说明',
+    appRoot.querySelectorAll('.entry-icon').length === 2
+    && appRoot.querySelectorAll('.entry-card-desc').length === 2,
+    `图标 ${appRoot.querySelectorAll('.entry-icon').length} / 说明 ${appRoot.querySelectorAll('.entry-card-desc').length}`);
+  ok('入口屏没有藏底部情绪控件或圆盘',
+    appRoot.querySelectorAll('.seg').length === 0 && appRoot.querySelectorAll('.wheel').length === 0,
+    `seg ${appRoot.querySelectorAll('.seg').length} / wheel ${appRoot.querySelectorAll('.wheel').length}`);
+  ok('入口屏不显示进度尺', appRoot.querySelectorAll('.progress').length === 0,
+    String(appRoot.querySelectorAll('.progress').length));
+
+  const pristine = JSON.stringify(appMod.__state.answers);
+  const pristineRefs = {
+    unwanted: appMod.__state.answers.unwanted,
+    noSmell: appMod.__state.answers.noSmell,
+    dislikedNotes: appMod.__state.answers.dislikedNotes,
+    dislikedZh: appMod.__state.answers.dislikedZh,
+  };
+  entryCards[1].dispatch('click');
+  ok('点圆盘卡只进入圆盘屏', stepId() === 'family' && appRoot.querySelectorAll('.wheel').length === 1, stepId());
+  ok('点圆盘卡不写任何答案', JSON.stringify(appMod.__state.answers) === pristine
+    && appMod.__state.answers.unwanted === pristineRefs.unwanted
+    && appMod.__state.answers.noSmell === pristineRefs.noSmell
+    && appMod.__state.answers.dislikedNotes === pristineRefs.dislikedNotes
+    && appMod.__state.answers.dislikedZh === pristineRefs.dislikedZh,
+    JSON.stringify(appMod.__state.answers));
+  ok('入口切换只播放一次 300ms 上浮淡入',
+    appRoot.querySelectorAll('.entry-flow.is-entering').length === 1
+    && appMod.__state.entryMotion === false
+    && /leg8EntryIn 300ms[^}]*both/.test(fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8')),
+    '缺 .entry-flow.is-entering / 300ms / 一次性消费');
+
+  appRoot.querySelector('.entry-return').dispatch('click');
+  ok('重选入口返回中央二选一', stepId() === 'entry' && appRoot.querySelectorAll('.entry-card').length === 2, stepId());
+
+  const a = appMod.__state.answers;
+  const commonBefore = {
+    budget: a.budget, occasion: a.occasion, season: a.season,
+    concentration: a.concentration, intensity: a.intensity,
+  };
+  a.family = 'floral'; a.subfamily = 'white-floral'; a.direction = 'warm'; a.emotion = 'warm';
+  a.unwanted = ['after-rain']; a.noSmell = ['rose-garden'];
+  a.dislikedNotes = ['iris']; a.dislikedZh = { iris: '鸢尾' };
+  a.budget = 'b300-600'; a.occasion = 'commute'; a.season = 'spring';
+  a.concentration = 'eau-de-toilette'; a.intensity = 4;
+  appMod.__state.avoidKey = 'family:floral';
+  appRoot.querySelectorAll('.entry-card')[0].dispatch('click');
+  ok('换到感觉路径进入独立情绪屏', stepId() === 'emotion' && appRoot.querySelectorAll('.emotion-screen').length === 1,
+    stepId());
+  ok('情绪屏进度标签使用感觉而非香型',
+    appRoot.querySelector('.progress-meta')?.textContent.includes('感觉')
+    && !appRoot.querySelector('.progress-meta')?.textContent.includes('香型'),
+    appRoot.querySelector('.progress-meta')?.textContent || '');
+  ok('换入口清空上一路径的家族、小类、方向与情绪',
+    !a.family && !a.subfamily && !a.direction && !a.emotion,
+    JSON.stringify({ family: a.family, subfamily: a.subfamily, direction: a.direction, emotion: a.emotion }));
+  ok('换入口清空旧路径避雷答案与方向缓存',
+    a.unwanted.length === 0 && a.noSmell.length === 0 && a.dislikedNotes.length === 0
+    && Object.keys(a.dislikedZh).length === 0 && appMod.__state.avoidKey === null,
+    JSON.stringify({ unwanted: a.unwanted, noSmell: a.noSmell, disliked: a.dislikedNotes, avoidKey: appMod.__state.avoidKey }));
+  ok('换入口保留场合、季节、浓淡与预算等通用答案',
+    a.occasion === 'commute' && a.season === 'spring' && a.concentration === 'eau-de-toilette'
+    && a.budget === 'b300-600' && a.intensity === 4,
+    JSON.stringify({ occasion: a.occasion, season: a.season, concentration: a.concentration, budget: a.budget, intensity: a.intensity }));
+  const emoButtons = appRoot.querySelectorAll('.seg-item');
+  ok('情绪屏沿用六个既有情绪选项', emoButtons.length === 6, String(emoButtons.length));
+  const warm = emoButtons.find((b) => b.textContent === '温暖');
+  warm.dispatch('click');
+  ok('情绪选项才写 emotion，圆盘字段保持为空',
+    a.emotion === 'warm' && !a.family && !a.subfamily && !a.direction,
+    JSON.stringify({ emotion: a.emotion, family: a.family, direction: a.direction }));
+
+  const beforeReturn = JSON.stringify(a);
+  appRoot.querySelector('.entry-return').dispatch('click');
+  const afterReturn = JSON.stringify(a);
+  ok('返回重选保留答案，直到真正选择另一路径',
+    beforeReturn === afterReturn && afterReturn.includes('"emotion":"warm"'),
+    '返回入口时不应偷偷改答案');
+  appRoot.querySelectorAll('.entry-card')[0].dispatch('click');
+  ok('同路径重选保留已有情绪与通用答案',
+    stepId() === 'emotion' && a.emotion === 'warm' && JSON.stringify(a) === afterReturn,
+    JSON.stringify({ emotion: a.emotion, occasion: a.occasion, budget: a.budget }));
+  appRoot.querySelector('.entry-return').dispatch('click');
+  appRoot.querySelectorAll('.entry-card')[1].dispatch('click');
+  ok('反向换入口清情绪并回到空圆盘',
+    !a.emotion && !a.family && !a.subfamily && !a.direction
+    && appRoot.querySelectorAll('.wheel').length === 1,
+    JSON.stringify({ emotion: a.emotion, family: a.family }));
+  ok('圆盘卡本身仍不写答案',
+    !a.family && !a.emotion && a.unwanted.length === 0,
+    JSON.stringify({ family: a.family, emotion: a.emotion }));
+  Object.assign(a, commonBefore);
+}
 /* ============================================================
    第 1 屏：香型圆盘（2026-11-17 v7 第 1 步恢复）
    ------------------------------------------------------------
@@ -4000,7 +4102,7 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
      不剥离会把"解释为什么改名"的文字当成悬空选择器。 */
   const cssNoComment = css.replace(/\/\*[\s\S]*?\*\//g, '');
   const used = new Set([...cssNoComment.matchAll(/data-step="([a-zA-Z]+)"/g)].map((m) => m[1]));
-  const known = new Set([...appMod.__steps.all.map((x) => x.id), 'result']);
+  const known = new Set([...appMod.__steps.all.map((x) => x.id), 'entry', 'emotion', 'result']);
   const dangling = [...used].filter((v) => !known.has(v));
   ok('认屏 id：CSS 里出现的 data-step 值都是真实步骤 id（防改名后样式静默失效）',
     dangling.length === 0,

@@ -3,7 +3,7 @@
  *
  *   node scripts/verify-qoder.mjs
  *
- * 做的事：起一个无头 Edge，走完 8 屏问卷，在结果页上验证
+ * 做的事：起一个无头 Edge，走完 6 屏问卷，在结果页上验证
  *   ① 我的香水档案：写入形状、展开、计数、清空两段式；
  *   ② 分享卡片 PNG：真点按钮、拦 blob，落一张 PNG 到磁盘；
  *   ③ PWA：manifest 字段、SW 注册、缓存清单、断网重载。
@@ -121,17 +121,29 @@ const next = async () => ev(`(() => {
   return true;
 })()`);
 
+/* 首屏入口卡只负责切界面；走原有圆盘流程前先显式选卡。 */
+const enterFamily = async () => {
+  const ready = await waitFor(`document.querySelector('.entry-card[data-entry="family"]') || document.querySelector('.sector-g')`);
+  if (!ready) return false;
+  const card = await ev(`!!document.querySelector('.entry-card[data-entry="family"]')`);
+  if (card) await ev(`document.querySelector('.entry-card[data-entry="family"]').click()`);
+  return waitFor(`document.querySelector('.sector-g')`);
+};
+
 /* 避雷屏是否真的出现过、点卡是否真的翻成「这个不要」。
    walk 会跑三遍（桌面/窄屏/深色），每遍都重置再采集。 */
 let sawAvoid = false;
 let avoidToggleOk = false;
 let avoidCount = 0;
 
-/** 走完 8 屏（手机/深色复用同一套动作）。
-    新顺序：family → unwanted(避雷) → budget → emotion → wanted → occasion → season → concentration。
-    避雷屏可能被「算不出模糊带」整屏跳过，所以按 data-step 自适应，不硬编码步序。 */
+/** 走完当前 6 屏问卷（手机/深色复用同一套动作）。
+    实际顺序：family → unwanted(避雷) → occasion → season → concentration → budget。
+    避雷屏可能被「算不出模糊带」整屏跳过，所以按 data-step 自适应。
+    每个真实选项都必须点中；旧版忽略 clickText 的 false，曾让已删除的
+    预算/情绪/想要味道步骤静默跳过，仅凭到达结果页形成验收假阳性。 */
 const walk = async () => {
   sawAvoid = false; avoidToggleOk = false; avoidCount = 0;
+  await enterFamily();
   /* SVG <g> 没有 HTMLElement.click()，统一走冒泡的合成 click */
   await ev(`document.querySelectorAll('.sector-g')[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
   await sleep(500);
@@ -153,25 +165,19 @@ const walk = async () => {
     })()`);
     await sleep(250);
     await next();
-    await sleep(450);
+    if (!await waitFor(`document.getElementById('app').dataset.step === 'occasion'`)) return false;
   }
-  await clickText('/300–600 元/');     // 3 预算
+  if (!await clickText('/上班\\/上课/')) return false; // 3 场合
   await next();
-  await sleep(450);
-  await clickText('/^温暖/');           // 4 情绪
+  if (!await waitFor(`document.getElementById('app').dataset.step === 'season'`)) return false;
+  if (!await clickText('/^春/')) return false;            // 4 季节
   await next();
-  await sleep(450);
-  await clickText('/刚剥开的橘子皮/');  // 5 想要
-  await next();
-  await sleep(450);
-  await clickText('/上班\\/上课/');     // 6 场合
-  await next();
-  await sleep(450);
-  await clickText('/^春/');            // 7 季节
-  await next();
-  await sleep(450);
-  await clickText('/淡香水 EDT/');      // 8 浓度
+  if (!await waitFor(`document.getElementById('app').dataset.step === 'concentration'`)) return false;
+  if (!await clickText('/淡香水 EDT/')) return false;      // 5 浓度
   await sleep(350);
+  await next();
+  if (!await waitFor(`document.getElementById('app').dataset.step === 'budget'`)) return false;
+  if (!await clickText('/300–600 元/')) return false;       // 6 预算
   await next();                       // 看推荐
   return waitFor(`document.getElementById('app').dataset.step === 'result'`, 20000);
 };
@@ -179,7 +185,7 @@ const walk = async () => {
 /** 单独导航到避雷屏（第 2 位）用于截图：选柑橘·古龙水型 → 下一步。 */
 const gotoAvoid = async () => {
   await send('Page.navigate', { url: URL_ });
-  await waitFor(`document.querySelector('.sector-g')`);
+  await enterFamily();
   await ev(`document.querySelectorAll('.sector-g')[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
   await sleep(500);
   await ev(`document.querySelectorAll('.disc-sector.lvl2')[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
@@ -191,13 +197,13 @@ const gotoAvoid = async () => {
 
 /* ================= ① 桌面结果页 ================= */
 await send('Page.navigate', { url: URL_ });
-await waitFor(`document.querySelector('.sector-g')`);
+await enterFamily();
 const diskBuild = (fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8').match(/BUILD_ID = '([^']+)'/) || [])[1];
 const liveBuild = await ev(`document.documentElement.dataset.build`);
 check('页面跑的是当前工作树的构建', diskBuild && liveBuild === diskBuild, `${liveBuild} / 磁盘 ${diskBuild}`);
 
 const reached = await walk();
-check('8 屏走完到达结果页', reached);
+check('6 屏走完到达结果页', reached);
 check('流程经过动态避雷屏（第 2 位）', sawAvoid);
 check('避雷屏点卡＝这个不要（aria-pressed 翻 true）', avoidToggleOk);
 check('避雷屏候选封顶 6 张', avoidCount > 0 && avoidCount <= 6, `${avoidCount} 张`);
@@ -323,9 +329,9 @@ for (const must of ['/', '/app.js', '/styles.css', '/manifest.json', '/data/perf
 /* ================= 断网重载 ================= */
 await send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
 await send('Page.reload', { ignoreCache: true });
-const offlineOk = await waitFor(`document.querySelector('.sector-g')`, 15000);
+const offlineOk = await waitFor(`document.querySelector('.entry-card[data-entry="family"]')`, 15000);
 const offlineTitle = await ev(`document.title`);
-check('断网后重载仍能打开第 1 屏', offlineOk, offlineTitle);
+check('断网后重载仍能打开入口二选一', offlineOk, offlineTitle);
 await sleep(500);
 const s7 = await shot('q7-offline-reload.png');
 await send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
@@ -372,9 +378,9 @@ await sleep(450);
 await shot('avoid-390.png');
 /* 390px 结果页（重新走一遍完整流程）*/
 await send('Page.navigate', { url: URL_ });
-await waitFor(`document.querySelector('.sector-g')`);
+await enterFamily();
 const mobileReached = await walk();
-check('390×844 也能走完 8 屏', mobileReached);
+check('390×844 也能走完 6 屏', mobileReached);
 await sleep(800);
 const overflow = await ev(`({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth })`);
 check('窄屏无横向溢出', overflow.sw <= overflow.cw + 1, `${overflow.sw} / ${overflow.cw}`);
@@ -388,9 +394,9 @@ const s5 = await shot('q5-mobile-result.png');
 await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
 await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
 await send('Page.navigate', { url: URL_ });
-await waitFor(`document.querySelector('.sector-g')`);
+await enterFamily();
 const darkReached = await walk();
-check('深色模式也能走完 8 屏', darkReached);
+check('深色模式也能走完 6 屏', darkReached);
 await sleep(800);
 await ev(`document.querySelector('.qw-share-btn').scrollIntoView({block:'center'})`);
 await sleep(350);

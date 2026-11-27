@@ -63,6 +63,10 @@ import { subShortLabel, subFullName } from './src/sub-labels.js';
 
 const state = {
   step: 0,
+  /* 入口路由与答案分离：null=入口二选一，family/emotion=已选界面。
+     卡片点击绝不写 answers；只有进入对应屏后的真实选项才写。 */
+  entry: null,
+  entryMotion: false,
   answers: {
     /* ==== 2026-11-17 问卷 v7 第 1 步：圆盘回到第一屏 ====
        v6 的两处结构性改动里，② 被 Eddie 否决（"删了开屏圆盘、删了 24 个图标"），
@@ -92,9 +96,9 @@ const state = {
        renderFamily 的 onChange —— 圆盘选了家族就换算成轴。
        **不改评分**：scoring.js 不读这个键。 */
     direction: null,
-    /* 第 3 屏「大方向」。值来自 TAX.emotionMap 的六个 id。
-       圆盘没有给方向时（用户跳过了第 1 屏），它才充当底噪来源 ——
-       判定写在 src/ambient.js 的 ambientOf 里，不在这里。 */
+    /* 首屏「按感觉选」路径。值来自 TAX.emotionMap 的六个 id。
+       圆盘没有给方向时，它充当底噪来源 —— 判定写在 src/ambient.js 的
+       ambientOf 里，不在这里。 */
     emotion: null,
     /* 第 1 屏预算。值 = data/price-bands.json 的 bands[].id，或 'any'。
        **刻意不进 activeDims**：它是候选范围，不是偏好证据。把它写进答案会让
@@ -248,15 +252,15 @@ const el = (tag, attrs = {}, ...kids) => {
    调用点（`finish()` 与结果页「换一批」）本来就在最后一屏之后 —— 它一直是
    "出结果那一刻才切一刀"，屏序变化对池过滤的语义与时序零影响。
 
-   **大方向屏（emotion）已按 v7 定版删除**（第 ① 步）。`answers.emotion` 键保留，
-   唯一写入点是圆盘屏底部的「按感觉选」segControl —— 它同时是 `finish()` 的
-   入口守卫、`navBar('family')` 的 disabled 判定与 `src/ambient.js` 底噪兜底
-   所认的键。删屏 ≠ 删键：删掉它会让"跳过圆盘的人无路可走"。
+   **大方向屏（emotion）不再作为独立问卷步骤**（第 ① 步）。`answers.emotion` 键保留，
+   唯一写入点是首屏「按感觉选」进入的情绪控件 —— 它同时是 `finish()` 的
+   入口守卫、`navBar('emotion')` 的 disabled 判定与 `src/ambient.js` 底噪兜底
+   所认的键。不新增步骤 id，但感觉路径仍有完整入口。
 
    **「想要的味道」屏（wanted）也已删除**（第 ② 步）。`answers.wanted` 键同样保留
    且恒为 `[]` —— 见 state.answers 里那段「屏已撤、键保留」的说明。
 
-   为什么第 1 屏是圆盘：Eddie 2026-11-17 否决 v6 的第一条就是「删了开屏圆盘」。
+   为什么圆盘仍是圆盘路径的第 1 步：Eddie 2026-11-17 否决 v6 的第一条就是「删了开屏圆盘」。
    开屏那张盘是这个产品唯一一处"控件即内容"—— 外圈六族、中圈 24 个小类，
    父子关系画在同一张图上。预算从第 3 屏退到末屏仍不破坏 v6 的"先圈池再问偏好"：
    `poolForBudget` 只在 `finish()` 与「换一批」生效，两处都在最后一屏之后，
@@ -265,8 +269,8 @@ const el = (tag, attrs = {}, ...kids) => {
    为什么底噪的方向来源可以是圆盘：src/ambient.js 的第 1 条纪律要求
    "来源只能是第一个大方向"。圆盘选出来的家族就是第一个大方向，
    换算表见 AXIS_OF_FAMILY（六族 ↔ 六轴的最优匹配，720 种配法里最高那组）。
-   圆盘没给方向时，盘下「按感觉选」仍可补上 —— 两个来源都写进 answers
-   （direction / emotion），谁先给谁算数。
+   圆盘没给方向时，首屏「按感觉选」可走另一条路径 —— 两个来源都写进 answers
+   （direction / emotion），切换入口时清空旧路径，永远只有一个生效。
 
    为什么「气质」不在这一版出现：它与「大方向」是同一件事的两种问法。
    v6 里气质原型由大方向反推填充，见 applyDirectionToCharacter()，信息没丢
@@ -664,7 +668,7 @@ function applyDirectionToCharacter(emotionId) {
    页面里 `document.documentElement.dataset.build` 会带上它。
    用途是"这次看到的到底是哪份代码"—— 改完 app.js 如果这个值没变，
    说明浏览器还在跑缓存的旧文件，别去猜渲染逻辑。 */
-const BUILD_ID = '2026-11-27-wheel-layout-fix';
+const BUILD_ID = '2026-11-28-batch3-entry';
 
 /* ---------- 上色图标（结果页实物图的降级瓶形，与盘心标本共用同一批） ----------
    24 枚上色版在 ./icon-specimen/svg/ 合计 295.6KB / gzip 80.1KB，
@@ -2136,6 +2140,118 @@ const AXIS_OF_FAMILY = {
   gourmand: 'lazy',
 };
 
+/* ---------- 首屏入口：卡片只切界面，不写答案 ---------- */
+function entryIcon(kind) {
+  const drawing = kind === 'emotion'
+    ? '<path d="M8 26c5-1 7-6 7-11 4 3 6 7 5 12-1 7-7 12-15 11-8-1-12-7-10-14 1-5 5-9 10-11-1 6-1 10 3 13Z"/><path d="M17 13c2-5 6-7 11-6M15 8c1-3 3-5 6-6"/>'
+    : '<circle cx="24" cy="24" r="5"/><path d="M24 5v9M24 34v9M5 24h9M34 24h9M10.6 10.6l6.4 6.4M31 31l6.4 6.4M37.4 10.6 31 17M17 31l-6.4 6.4"/>';
+  return el('span', {
+    class: 'entry-icon', 'aria-hidden': 'true',
+    html: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false">${drawing}</svg>`,
+  });
+}
+
+function renderEntry() {
+  const wrap = el('section', { class: 'entry-screen', 'aria-labelledby': 'entry-title' },
+    el('h2', { class: 'q-title', id: 'entry-title' }, '你想怎么开始？'),
+    el('p', { class: 'q-help' }, '两种选法都行，选一种就好'),
+    el('div', { class: 'entry-choices', role: 'group', 'aria-label': '选择入口' },
+      el('button', {
+        class: 'entry-card', type: 'button', 'data-entry': 'emotion',
+        onclick: () => chooseEntry('emotion'),
+      }, entryIcon('emotion'),
+         el('span', { class: 'entry-card-title' }, '按感觉选'),
+         el('span', { class: 'entry-card-desc' }, '只答感受，不用懂香调')),
+      el('button', {
+        class: 'entry-card', type: 'button', 'data-entry': 'family',
+        onclick: () => chooseEntry('family'),
+      }, entryIcon('family'),
+         el('span', { class: 'entry-card-title' }, '按香型圆盘'),
+         el('span', { class: 'entry-card-desc' }, '在圆盘上点选香型方向'))
+    )
+  );
+  return wrap;
+}
+
+/* 换入口时只清与路径绑定的答案；场合、季节等通用回答保留。
+   避雷候选随入口重算，旧路径的「不要 / 没闻过」不可见地残留。 */
+function clearPathAnswers() {
+  const a = state.answers;
+  a.family = null;
+  a.subfamily = null;
+  a.direction = null;
+  a.emotion = null;
+  a.unwanted = [];
+  a.noSmell = [];
+  a.dislikedNotes = [];
+  a.dislikedZh = {};
+  state.avoidKey = null;
+}
+
+function showEntry() {
+  state.entry = null;
+  state.entryMotion = false;
+  state.step = 0;
+  state.wishPage = false;
+  render();
+}
+
+function chooseEntry(kind) {
+  if (kind !== 'family' && kind !== 'emotion') return;
+  const a = state.answers;
+  const hasFamily = !!(a.family || a.subfamily || a.direction);
+  const hasEmotion = !!a.emotion;
+  const hasPathData = hasFamily || hasEmotion
+    || (a.unwanted || []).length > 0 || (a.noSmell || []).length > 0
+    || (a.dislikedNotes || []).length > 0 || Object.keys(a.dislikedZh || {}).length > 0
+    || state.avoidKey !== null;
+  /* 返回入口后 entry 会回到 null；此时按真实答案识别“同路径重选”，
+     不能因为 entry 为 null 就把用户刚答的内容清掉。两边都有答案的异常态
+     则按换路处理，清干净再进，避免两个入口同时生效。 */
+  const samePath = state.entry === kind
+    || (!state.entry && kind === 'family' && hasFamily && !hasEmotion)
+    || (!state.entry && kind === 'emotion' && hasEmotion && !hasFamily);
+  if (hasPathData && !samePath) clearPathAnswers();
+  state.entry = kind;
+  state.entryMotion = true;
+  state.step = 0;
+  render();
+  /* render 已同步消费这次动效；立即置 false，避免 300ms 内作答重绘时
+     再挂一次 .is-entering。CSS 的 animationend 只负责摘掉当前节点 class。 */
+  state.entryMotion = false;
+}
+
+function isEmotionScreen() {
+  return !state.wishPage && state.entry === 'emotion' && state.step === 0;
+}
+
+/* 原圆盘底部的六情绪选项搬到这里；选项、写入键与互斥规则不变。 */
+function renderEmotion() {
+  const wrap = el('div', { class: 'emotion-screen' },
+    el('div', { class: 'stage-lead' },
+      el('div', { class: 'q-kicker' }, '第 1 步 / 共 ' + curSteps().length + ' 步'),
+      el('h2', { class: 'q-title' }, '你现在最想要哪种感觉？'),
+      el('p', { class: 'q-help' }, '不用想香调，选最接近的感受'))
+  );
+  const opts = (TAX.emotionMap || []).map((e) => ({ id: e.id, zh: e.zh, desc: e.desc }));
+  wrap.appendChild(segControl(
+    opts,
+    state.answers.emotion,
+    (id) => {
+      state.answers.emotion = id;
+      state.answers.family = null;
+      state.answers.subfamily = null;
+      state.answers.direction = null;
+      ensurePerfumes().catch(() => {});
+      render();
+    },
+    '按感觉选'
+  ));
+  wrap.appendChild(segHint(opts, state.answers.emotion));
+  wrap.appendChild(navBar('emotion'));
+  return wrap;
+}
+
 /* ---------- 第 1 步：香型轮盘（外圈家族 + 中圈子家族）---------- */
 function renderFamily() {
   const wrap = el('div', { class: 'fade-in' });
@@ -2210,22 +2326,7 @@ function renderFamily() {
     },
   }));
 
-  /* --- 说不清？用感觉选 ---
-     香型轮盘要求用户认识「柑橘调 / 东方琥珀调」这些词，而目标用户正是
-     完全不认识它们的人。此前这条路是**死路**：answers.emotion 在
-     app.js 里只有初始化和 restart 两处写入，没有任何控件能赋值，
-     而 finish() 又硬性要求 answers.family —— 于是「按感觉选」这个引擎
-     一直支持的入口，在界面上根本走不通（scoring.js:151 的两条入口只活了
-     一条）。
-
-     六个情绪词全部来自 TAX.emotionMap，不新造词。
-     选情绪会清掉已选的家族并以情绪为准（反过来选家族会清掉情绪），
-     两条入口永远只有一个生效 —— 这也是 buildProfile 的实际语义。
-
-     v35 顺序调整：这一段原来排在主按钮**之前**。它不是主路径，却占了
-     46px 控件 + 标题 + 说明共 147.6px，把「下一步」顶到 1440×900 的 955px
-     处（视口只有 900）—— 用户必须先看完一个可选控件，才看得到唯一的主操作。
-     现在先给主按钮，再给退路。叙事上也更顺：先走主路，走不通再换。 */
+  /* 主路径先给圆盘与下一步；按感觉入口已移到首屏中央，不再藏在底部。 */
   wrap.appendChild(navBar('family'));
 
   /* 第 6 屏「整族排除」在家族入口下**不出现**（实测 0/30 组合改变 top-3，
@@ -2238,28 +2339,6 @@ function renderFamily() {
       '下一屏可点名不要的香调，如“不要香草”。'
     ));
   }
-
-  wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:24px' },
-    '也可按感觉选；与按大类二选一'));
-  const EMO_OPTS = (TAX.emotionMap || []).map((e) => ({ id: e.id, zh: e.zh, desc: e.desc }));
-  wrap.appendChild(segControl(
-    EMO_OPTS,
-    state.answers.emotion,
-    (id) => {
-      state.answers.emotion = id;
-      /* 选了情绪 = 选了另一条入口，圆盘那边必须让位（见 onChange 的同一条注解）。
-         direction 一起清：底噪的来源只能有一个，切换入口时旧来源不能留着，
-         否则盘心说"还没选"、背景却还亮着上一族的光。 */
-      state.answers.family = null;
-      state.answers.subfamily = null;
-      state.answers.direction = null;
-      /* 情绪入口同样会在下一屏算避雷候选；给出方向后就开始取库。 */
-      ensurePerfumes().catch(() => {});
-      render();
-    },
-    '说不清香型时按感觉选'
-  ));
-  wrap.appendChild(segHint(EMO_OPTS, state.answers.emotion));
 
   // 详情放按钮之后：先让用户能立刻前进，再给"这个大类是什么"的补充阅读。
   // 反过来放的话，一选中家族说明区就把"下一步"顶到折叠线以下，
@@ -3873,6 +3952,16 @@ function navBar(stepId) {
     return bar;
   }
 
+  /* 情绪入口不再是圆盘底部的备选控件，而是首屏二选一的一条正式路径。 */
+  if (stepId === 'emotion') {
+    bar.appendChild(el('span', { class: 'hint' }, state.answers.emotion ? '已按感觉确定方向' : '先选一种最接近的感受'));
+    bar.appendChild(el('button', {
+      class: 'btn', type: 'button', disabled: state.answers.emotion ? null : 'disabled',
+      onclick: next,
+    }, '下一步 →'));
+    return bar;
+  }
+
   /* 避雷屏（v7 第 2 步）：多选，一个都不点也能走。
      hint 必须说清"不点是接受"而不是"跳过" —— 这一屏的语义不是弃权，是默认接受。
      原「想要的味道」屏的同类分支已随该屏删除（v7 第 3 步②），此处只剩避雷一条。 */
@@ -3929,6 +4018,10 @@ function next() {
 }
 
 function prev() {
+  if (state.entry === 'emotion' && state.step === 0) {
+    showEntry();
+    return;
+  }
   if (state.step > 0) {
     state.step -= 1;
     render();
@@ -3950,7 +4043,12 @@ async function finish(btn) {
      这是 a39e498 的原文判定，v7 原样恢复（v6 当年只认 emotion，因为 family
      恒为 null；现在圆盘回来了，family 才是主路径）。
      两条都给不出时才回第 1 步：那时引擎确实无从下手，recommend 会 throw。 */
-  if (!state.answers.family && !state.answers.emotion) { state.step = 0; render(); return; }
+  if (!state.entry || (state.entry === 'family' && !state.answers.family)
+      || (state.entry === 'emotion' && !state.answers.emotion)) {
+    state.step = 0;
+    render();
+    return;
+  }
   // 库还没到时，这里会等它下完 —— 只有「四步全答完、但库仍在下载」才会卡到这。
   // 等待期间必须给出可见反馈：按钮换成进度文案并禁用，否则用户会连点几次。
   const busy = setBusy(btn, '正在比对…');
@@ -4021,6 +4119,8 @@ function setBusy(btn, text) {
 
 function restart() {
   state.step = 0;
+  state.entry = null;
+  state.entryMotion = false;
   /* 从 STEPS 重新铺一份空白答案，而不是手抄六个键 ——
      v19 加了 7 个字段，手抄必漏；漏掉的那一屏会带着上一轮的答案复现，
      用户看到的是"我明明重选了，结果没变"。 */
@@ -4076,6 +4176,7 @@ function renderProgress() {
      注意 `state.step` 可能等于 total（结果页），此时 labels[state.step] 是
      undefined —— 下面的三元已经先判了 `>= total`，不会再读到它。 */
   const labels = list.map((st) => st.short || st.title.slice(0, 4));
+  if (isEmotionScreen()) labels[0] = '感觉';
   /* ==== v7 第 1.5 步：第 1 屏不再显示「1 / 8」（缺陷 ⑥）====
      这一屏同时报了三遍同一个数字：分段条、`1 / 8`、`第 1 步 / 共 8 步`。
      三处都在说"你在第几步"，等于没有一处是重点。
@@ -4101,8 +4202,9 @@ function renderSpecimenBar() {
   const bar = el('div', { class: 'specimen-bar', role: 'group', 'aria-label': '作答印记' });
   const list = curSteps();
   const a = state.answers;
+  const emotionPath = state.entry === 'emotion';
   const marks = [
-    { id: 'family', glyph: '●', label: '香型', done: !!(a.family || a.emotion) },
+    { id: 'family', glyph: '●', label: emotionPath ? '感觉' : '香型', done: !!(a.family || a.emotion) },
     { id: 'unwanted', glyph: '✕', label: '避雷', done: (a.unwanted || []).length > 0 || (a.noSmell || []).length > 0 },
     { id: 'occasion', glyph: '◷', label: '时刻', done: !!a.occasion },
     { id: 'season', glyph: '✿', label: '季节', done: !!a.season },
@@ -4139,6 +4241,7 @@ function renderMasthead() {
      标题在说另一页的事（实测截图里一眼就是错的）。
      所以判据排在 isResult 之前：进了清单页，页头就先认这一页。 */
   const isWish = state.wishPage === true;
+  const isEntry = !isWish && state.entry === null;
   /* 腿8-B：完整封面（hero+副标+香印）只第 1 屏；第 2–6 屏用短题头。
      页头本身由 CSS sticky 固定（返回/进度/题号/问题 ≤160px）。 */
   if (!isWish && !isResult && state.step > 0) {
@@ -4170,9 +4273,17 @@ function renderMasthead() {
           ? '每一瓶的理由都能反推回你刚才的选择，没有一句是编的'
           /* 首屏那句 lede 原来写「转盘选香型，再定场合和浓度」（a39e498），
              v6 撤盘时改成「先说预算和想要的感觉」，v7 圆盘回来了 ——
-             现在这句必须同时说准两件事：**第一件事是转盘**，而且不问术语。 */
-          : '不用懂前中后调：先选大方向，再定场合和浓度'
+             入口二选一后，第一件事是选走哪条路，不再预设圆盘。 */
+          : isEntry
+            ? '先选一种开始方式，再定场合和浓度'
+            : isEmotionScreen()
+              ? '先选最接近的感受，再定场合和浓度'
+              : '不用懂前中后调：先选大方向，再定场合和浓度'
     ),
+    /* 入口返回不写答案；真正换路径时的清空集中在 chooseEntry。 */
+    !isEntry && !isWish
+      ? el('button', { class: 'entry-return', type: 'button', onclick: showEntry }, '重选入口')
+      : null,
     /* 印��：纯装饰（aria-hidden），字取「香」—— 这个应用唯一的主题字。 */
     el('span', { class: 'seal', 'aria-hidden': 'true' }, '香')
     /* 刻度（.amb-tick）**不在这里造** —— 它现在由 applyAmbient() 统一写
@@ -7168,13 +7279,12 @@ function render() {
     concentration: 'settle',
   };
   const list = curSteps();
-  /* 越界保护（防御性）。v6 步骤表固定 8 屏、无入口分叉，理论上 state.step
-     只可能等于 length（结果页）。留着是为了让「容器长度与下标」这对不变量
-     有兜底 —— 将来若重新引入条件屏，这里不会炸。
-     夹到末屏而不是回第 1 步：用户刚看一眼结果，不该被扔回开头重答。 */
+  /* 入口不是问卷步骤，不参与 6 步计数；它只决定接下来渲染哪条路径。 */
   state.step = clampStep(state.step, list.length);
   const isResult = state.step >= list.length;
-  app.dataset.scene = isResult
+  const isEntry = !state.wishPage && state.entry === null;
+  const emotionScreen = isEmotionScreen();
+  app.dataset.scene = isEntry ? 'entry' : isResult
     ? 'rise'
     : (SCENE[list[state.step].id] || 'cut');
 
@@ -7182,7 +7292,8 @@ function render() {
      原先靠 `main:has(.disc):has(.seg)` 认"场景屏"，结果是转盘屏被一起命中，
      masthead 的下边距在那一屏被压成 6px —— 换屏时整页跳 12–22px。
      写一个显式属性，认屏就不靠"这个屏碰巧有什么元素"。 */
-  app.dataset.step = isResult ? 'result' : list[state.step].id;
+  app.dataset.step = isEntry ? 'entry' : isResult ? 'result'
+    : emotionScreen ? 'emotion' : list[state.step].id;
 
   app.innerHTML = '';
   app.appendChild(renderMasthead());
@@ -7195,14 +7306,31 @@ function render() {
     applyAmbient();
     return;
   }
-  app.appendChild(renderProgress());
-  app.appendChild(renderSpecimenBar());
-  if (isResult) {
-    app.appendChild(renderResult());
+  if (isEntry) {
+    app.appendChild(renderEntry());
+    app.appendChild(renderFooter(false));
+    applyAmbient();
   } else {
-    app.appendChild(list[state.step].render());
+    /* 从入口进入只播放一次 300ms 上浮淡入；后续翻题沿用原逐屏转场。 */
+    const flow = el('div', { class: 'entry-flow' + (state.entryMotion ? ' is-entering' : '') });
+    flow.addEventListener('animationend', (ev) => {
+      if (ev.animationName === 'leg8EntryIn') {
+        flow.classList.remove('is-entering');
+        state.entryMotion = false;
+      }
+    });
+    flow.appendChild(renderProgress());
+    flow.appendChild(renderSpecimenBar());
+    if (isResult) {
+      flow.appendChild(renderResult());
+    } else {
+      flow.appendChild(isEmotionScreen()
+        ? renderEmotion()
+        : list[state.step].render());
+    }
+    flow.appendChild(renderFooter(isResult));
+    app.appendChild(flow);
   }
-  app.appendChild(renderFooter(isResult));
 
   /* 结果页的吸底操作条（2026-11-24 复查反馈第 6 条）。
      **必须在 .fade-in 之外**：那个容器带进场动画的 transform，动画结束

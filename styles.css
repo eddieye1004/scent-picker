@@ -7170,6 +7170,133 @@ transform-origin: center;
 @media (prefers-reduced-motion: reduce) {
 #app[data-step="family"] .wheel .hub-emblem.is-confirming { animation: none; }
 }
+#app[data-step="entry"] .entry-screen {
+display: flex;
+flex-direction: column;
+justify-content: center;
+min-height: 340px;
+margin: 48px auto 0;
+text-align: center;
+}
+#app[data-step="entry"] .entry-screen .q-title {
+margin-bottom: 10px;
+font-size: 34px;
+}
+#app[data-step="entry"] .entry-screen .q-help {
+margin: 0 auto 32px;
+color: var(--ink-2);
+font-size: 16px;
+}
+#app[data-step="entry"] .entry-choices {
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 16px;
+width: 100%;
+max-width: 620px;
+margin: 0 auto;
+}
+#app[data-step="entry"] .entry-card {
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+justify-content: center;
+min-width: 0;
+min-height: 224px;
+padding: 24px;
+border: 1px solid var(--edge);
+border-radius: 8px;
+background: var(--bg);
+color: var(--ink);
+font: inherit;
+text-align: left;
+cursor: pointer;
+transition: border-color 160ms ease-out, background-color 160ms ease-out, transform 160ms ease-out;
+}
+#app[data-step="entry"] .entry-card:hover {
+border-color: var(--ink);
+background: var(--bg-2);
+transform: translateY(-2px);
+}
+#app[data-step="entry"] .entry-card:active { transform: translateY(0); }
+#app[data-step="entry"] .entry-card:focus-visible {
+outline: 2px solid var(--accent);
+outline-offset: 4px;
+}
+#app[data-step="entry"] .entry-icon {
+display: block;
+width: 48px;
+height: 48px;
+margin-bottom: 28px;
+color: var(--accent);
+}
+#app[data-step="entry"] .entry-icon svg {
+display: block;
+width: 48px;
+height: 48px;
+}
+#app[data-step="entry"] .entry-card-title {
+display: block;
+margin-bottom: 8px;
+font-size: 24px;
+font-weight: 700;
+line-height: 1.2;
+letter-spacing: -.02em;
+}
+#app[data-step="entry"] .entry-card-desc {
+display: block;
+color: var(--ink-2);
+font-size: 14px;
+line-height: 1.6;
+}
+.masthead:has(.entry-return) { padding-right: 112px; }
+.entry-return {
+position: absolute;
+top: 18px;
+right: 0;
+min-height: 44px;
+padding: 0;
+border: 0;
+background: transparent;
+color: var(--ink-2);
+font: inherit;
+font-size: 14px;
+cursor: pointer;
+}
+.entry-return:hover { color: var(--accent); }
+.entry-return:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.entry-flow.is-entering {
+animation: leg8EntryIn 300ms var(--ease-out) both;
+}
+.entry-flow.is-entering > .fade-in { animation: none; }
+@keyframes leg8EntryIn {
+from { opacity: 0; transform: translateY(14px); }
+to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 620px) {
+#app[data-step="entry"] .entry-screen {
+justify-content: flex-start;
+min-height: 0;
+margin-top: 32px;
+}
+#app[data-step="entry"] .entry-screen .q-title { font-size: 26px; }
+#app[data-step="entry"] .entry-screen .q-help { margin-bottom: 24px; }
+#app[data-step="entry"] .entry-choices { gap: 10px; }
+#app[data-step="entry"] .entry-card {
+justify-content: flex-start;
+min-height: 206px;
+padding: 18px 14px;
+}
+#app[data-step="entry"] .entry-icon { width: 40px; height: 40px; margin-bottom: 24px; }
+#app[data-step="entry"] .entry-icon svg { width: 40px; height: 40px; }
+#app[data-step="entry"] .entry-card-title { font-size: 19px; }
+#app[data-step="entry"] .entry-card-desc { font-size: 12px; }
+.masthead:has(.entry-return) { padding-right: 0; }
+.entry-return { position: static; margin-top: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+.entry-flow.is-entering { animation: none; }
+#app[data-step="entry"] .entry-card { transition: none; }
+}
 .qw-share-row {
 display: flex;
 flex-wrap: wrap;
