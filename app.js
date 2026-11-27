@@ -3927,6 +3927,43 @@ function renderProgress() {
   return box;
 }
 
+/* ---------- 腿8-B：标本条 ----------
+   进度条下一条 32px 的印记带，每答一题累积一枚。点印记回到对应题修改；
+   结果页展开成理由锚点（data-reason 承载那一句原文，不碰结果详情区）。 */
+function renderSpecimenBar() {
+  const bar = el('div', { class: 'specimen-bar', role: 'group', 'aria-label': '作答印记' });
+  const list = curSteps();
+  const a = state.answers;
+  const marks = [
+    { id: 'family', glyph: '●', label: '香型', done: !!(a.family || a.emotion) },
+    { id: 'unwanted', glyph: '✕', label: '避雷', done: (a.unwanted || []).length > 0 || (a.noSmell || []).length > 0 },
+    { id: 'occasion', glyph: '◷', label: '时刻', done: !!a.occasion },
+    { id: 'season', glyph: '✿', label: '季节', done: !!a.season },
+    { id: 'concentration', glyph: '◉', label: '扩散', done: !!a.concentration },
+    { id: 'budget', glyph: '¥', label: '价签', done: a.budget !== 'any' },
+  ];
+  const reasons = (state.result && state.result.results && state.result.results[0]
+    && state.result.results[0].reasons) || [];
+  marks.forEach((m) => {
+    const idx = list.findIndex((s) => s.id === m.id);
+    if (!m.done) return;
+    const btn = el('button', {
+      class: 'specimen-mark', type: 'button',
+      'data-step-id': m.id, 'data-done': '1',
+      title: '回到「' + m.label + '」修改',
+    }, el('span', { class: 'specimen-glyph', 'aria-hidden': 'true' }, m.glyph),
+       el('span', { class: 'specimen-name' }, m.label));
+    if (state.step >= list.length && reasons.length) {
+      btn.setAttribute('data-reason', reasons[idx % reasons.length] || '');
+    }
+    btn.addEventListener('click', () => {
+      if (idx >= 0) { state.step = idx; render(); }
+    });
+    bar.appendChild(btn);
+  });
+  return bar;
+}
+
 function renderMasthead() {
   const isResult = state.step >= curSteps().length;
   /* 清单页是独立视图，不是"结果页的延续"。
@@ -3935,6 +3972,14 @@ function renderMasthead() {
      标题在说另一页的事（实测截图里一眼就是错的）。
      所以判据排在 isResult 之前：进了清单页，页头就先认这一页。 */
   const isWish = state.wishPage === true;
+  /* 腿8-B：完整封面（hero+副标+香印）只第 1 屏；第 2–6 屏用短题头。
+     页头本身由 CSS sticky 固定（返回/进度/题号/问题 ≤160px）。 */
+  if (!isWish && !isResult && state.step > 0) {
+    const cur = curSteps()[state.step];
+    return el('header', { class: 'masthead is-short' },
+      el('button', { class: 'masthead-back', type: 'button', onclick: prev }, '← 返回'),
+      el('h1', {}, '第 ' + (state.step + 1) + ' 步 · ' + (cur ? (cur.short || '') : '')));
+  }
   /* 边距仪器区（规格 5 的"留白深度"）。
      叶标题不变，页眉右侧那枚 .amb-tick 是**这一程走到哪儿的刻度**
      （方向 + 档位，如「亮·起」）。它不算装饰：没有它，"底噪随进程增强"
@@ -6408,6 +6453,7 @@ function render() {
     return;
   }
   app.appendChild(renderProgress());
+  app.appendChild(renderSpecimenBar());
   if (isResult) {
     app.appendChild(renderResult());
   } else {
@@ -6440,7 +6486,11 @@ function render() {
      ② 焦点本来在页面内（键盘用户在按钮上按 Enter 切屏）：
         必须把它接到新屏的标题上，否则焦点掉回 body，用户得重新 Tab。
         标题加 tabindex="-1" 才能被程序聚焦，且不进 Tab 序列。 */
-  if (!hadFocusInside) return;
+  /* 腿8-B：新屏题干为视觉落点；先即时回顶，旧屏滚动量不泄漏。
+     DOM 桩里 scrollTo 是空函数，浏览器里 instant 在 reduced-motion 下同样成立。 */
+  if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
   const title = app.querySelector('.q-title') || app.querySelector('.result-head h2');
   if (!title) return;
   title.setAttribute('tabindex', '-1');

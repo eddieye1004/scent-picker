@@ -2033,6 +2033,23 @@ if (finishBtn) {
 
 const resultText = getStepText();
 ok('结果页标题', resultText.includes('你的三瓶候选'), resultText.slice(0, 100));
+/* 腿8-B：标本条累积 —— 走过完整答题路径后至少累积 4 枚印记（香型/避雷/季节/价签等）。
+   点印记回到对应题修改。 */
+{
+  const marks = appRoot.querySelectorAll('.specimen-mark')
+    .filter((m) => m.getAttribute('data-done') === '1');
+  ok('腿8-B 标本条随作答累积印记（≥4 枚）', marks.length >= 4, `实际 ${marks.length} 枚`);
+  const reasons = marks.filter((m) => m.getAttribute('data-reason'));
+  ok('腿8-B 结果页标本印记展开成理由锚点', reasons.length >= 1,
+    `带理由 ${reasons.length} 枚`);
+  /* 点开回到对应题：每枚印记都带 data-step-id，且源码里点击处理会把 step 设回对应题。
+     用属性 + 源码守卫而不在结果页中途 dispatch（那会把状态挪走，打断后面的结果页断言）。 */
+  ok('腿8-B 标本印记可点回对应题（属性 + 源码守卫）',
+    marks.length > 0 && marks.every((m) => !!m.getAttribute('data-step-id'))
+      && /btn.addEventListener\('click', \(\) => \{[\s\S]*?state.step = idx; render\(\);/.test(
+        fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8')),
+    `带 step-id ${marks.filter((m) => m.getAttribute('data-step-id')).length}/${marks.length}`);
+}
 const picks = appRoot.querySelectorAll('.pick');
 ok('吐出 3 瓶', picks.length === 3, `实际 ${picks.length}`);
 /* ---------- D2：第 1 名的视觉身份，且不许在并列时撒谎 ----------
