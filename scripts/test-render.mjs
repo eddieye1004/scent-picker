@@ -1369,14 +1369,10 @@ ok('避雷屏标题是「这些味道里，哪个你一闻就皱眉？」',
   const txt = getStepText();
   ok('避雷屏不出现任何香调族名', !/柑橘调|花香调|木质调|东方琥珀调|清新调|美食调/.test(txt), txt.slice(0, 80));
   ok('避雷屏不出现香材英文原名', !/\b(bergamot|lemon|jasmine|sandalwood|vanilla|vetiver|oud)\b/i.test(txt), txt.slice(0, 80));
-  ok('顶部说明写「不点就是接受」', /不点就是接受/.test(txt), txt.slice(0, 120));
-  /* 文案二轮裁决第 103 条 = **保留**（不是改写、不是删除）——
-     这一句是本品唯一一处同时讲清"点＝不要 / 不点＝接受"的交互提示，
-     评审也确认它成立。所以这里钉住的是"别在后续文案腿里被顺手改掉"：
-     逐字等于「点一下＝这个不要」。原文案的类名是 .q-help（help 落在
-     一行的硬约束见 app.js 该屏注释），取屏内文本即可，不另立选择器。 */
-  ok('第 103 条「点一下＝这个不要」按裁决保留原文',
-    txt.includes('点一下＝这个不要'), txt.slice(0, 120));
+  /* 第 103 条（C4b 裁决：改写为统一句式「点一下＝不要；不点＝接受」）：
+     步骤表 help 与底栏提示都沿用这句，后续文案腿不得再换回旧措辞。 */
+  ok('第 103 条按裁决写「点一下＝不要；不点＝接受」',
+    txt.includes('点一下＝不要；不点＝接受'), txt.slice(0, 120));
   /* 交互只有点卡＝「这个不要」：点第一张，aria-pressed 翻 true、挂 is-on、出现标记。 */
   const first = cards[0];
   ok('未点时 aria-pressed=false', first.attrs['aria-pressed'] === 'false', String(first.attrs['aria-pressed']));
@@ -1397,8 +1393,10 @@ ok('避雷屏标题是「这些味道里，哪个你一闻就皱眉？」',
   const tip = appRoot.querySelectorAll('.avoid-tip')[0];
   ok('避雷屏顶部有操作提示（.avoid-tip）', !!tip,
     `实际 ${appRoot.querySelectorAll('.avoid-tip').length} 条`);
-  ok('操作提示写清不确定可留空、可再次点击取消',
-    !!tip && tip.textContent === '不确定就别点，点了也能再点一次取消',
+  /* 第 32 条（裁决：改写为「没闻过就点「没闻过」；点卡＝不要」）：
+     屏上只讲怎么操作，不再解释内部扣分机制。 */
+  ok('代价提示写清「点卡＝不要」与「没闻过」两个口径',
+    !!tip && /点卡＝不要/.test(tip.textContent) && /没闻过/.test(tip.textContent),
     tip && tip.textContent);
   ok('操作提示不含内部权重数字（−40 / +14 这类不许上屏）',
     !!tip && !/[-−+]\s?\d+|40|14/.test(tip.textContent), tip && tip.textContent);
@@ -1457,7 +1455,9 @@ ok('避雷屏标题是「这些味道里，哪个你一闻就皱眉？」',
 
   /* ② 已排除清单：上一步点的第 1 张卡已经在 unwanted 里，必须出现在清单上。 */
   const excl = appRoot.querySelectorAll('.avoid-excluded')[0];
-  ok('屏内有「你已排除」汇总行', !!excl && /你已排除/.test(excl.textContent),
+  /* 第 34 条（裁决：改写「已排除：无」）：前缀从「你已排除：」压成「已排除：」。
+     旧正则 /你已排除/ 对新句恒假，留着就是一条永远红的死断言。 */
+  ok('屏内有「已排除」汇总行', !!excl && /已排除/.test(excl.textContent),
     excl && excl.textContent);
   const undo = excl.querySelectorAll('.avoid-undo');
   ok('已排除清单里的名字可点（撤销入口）',
@@ -1705,8 +1705,11 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
     && x.querySelectorAll('.season-symbol svg').length === 1
     && x.querySelectorAll('.season-name').length === 1));
   ok('未选态不显示白雾', !!mist && !mist.classList.contains('is-visible'));
-  ok('标题与副标只出现一次', getStepText().split('主要在哪个季节用？').length === 2
-    && getStepText().split('不确定就跳过').length === 2);
+  const seasonText = getStepText();
+  ok('标题与副标只出现一次',
+    seasonText.split('主要在哪个季节用？').length === 2
+    && seasonText.split('选主要使用季节；不确定可跳过').length === 2,
+    `标题 ${seasonText.split('主要在哪个季节用？').length - 1} 次 / 副标 ${seasonText.split('选主要使用季节；不确定可跳过').length - 1} 次`);
   ok('季节统计已删除', !/春 1331|夏 840|秋 1357|冬 548/.test(getStepText()));
 
   cells[3].dispatch('click');
@@ -3505,7 +3508,10 @@ ok('三颗主按钮里不含「重新来一次」（它代价最大，不该并�
      不再断言「以广告开头」：那条已经与拍板后的实现相反，留着等于逼下一个人
      在"测试绿"和"按决定执行"之间二选一。 */
   const disc = appMod.__aff.config().disclosure;
-  ok('披露文案说明这是推广/联盟关系', /联盟推广链接|推广链接/.test(disc), disc.slice(0, 30));
+  /* 第 66 条（裁决：改写「购买链接含联盟推广；成交可能产生佣金，不影响你的支付价格」）：
+     旧句的「联盟推广链接」被压成「联盟推广」，旧正则不再命中。断言守的是合规底线
+     （用户能识别商业性质），不是某个具体词形 —— 所以两种写法都认。 */
+  ok('披露文案说明这是推广/联盟关系', /联盟推广|推广链接/.test(disc), disc.slice(0, 30));
   ok('披露文案写明可能获得佣金', disc.includes('佣金'), disc.slice(0, 40));
   ok('披露说明不影响支付价格', disc.includes('不影响'), disc.slice(0, 40));
   /* ?pid= 只能覆盖 pid，不能覆盖 target —— 否则任何访客都能把链接指向别处 */
@@ -3866,10 +3872,23 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
          这不是放宽门槛 —— 它确实写明了可跳过，只是换了说法，所以把这句
          加进关键词表，让这一屏仍被同一道门守着（而不是排除掉）。
      只查关键词，不查整句（措辞会改）。 */
+  /* 文案二轮裁决改写 #7/#9/#12 时，这三屏 help 的兜底句一起被压掉了
+     （「不选也能继续」「它是最宽的那一档」这类解释），所以关键词表要认新说法：
+       #7 → 「不点＝接受」、#9 → 「拿不准选日常」。
+     #12（浓度屏）改写后 help 只讲怎么选；跳过口径改由**导航条那行**承担
+     （navBar 对 concentration/season/occasion 画「不选也能继续」）——
+     它不是步骤表里的字段，所以这一屏按屏号排除，并单独钉住那行文案还在：
+     否则「排除」会退化成静默放过。 */
   const noSkipWord = S.all.filter((x) => x.id !== 'family' && x.id !== 'budget'
-    && !/跳过|不选也能|不答|不点就是接受/.test(x.help || ''));
+    && x.id !== 'concentration'
+    && !/跳过|不选也能|不答|不点就是接受|不点＝接受|拿不准选日常/.test(x.help || ''));
   ok('除圆盘外每屏都写明了可跳过（不逼答）', noSkipWord.length === 0,
     noSkipWord.map((x) => x.id).join(','));
+  /* 浓度屏被排除的唯一依据就是这行导航提示还在。它一旦被删，那一屏就真的
+     变成"必须答完才能走"，而上面那条会因为排除而全绿。 */
+  ok('浓度屏的跳过口径仍由导航条那行承担（源码里有「不选也能继续」）',
+    fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8').includes("'不选也能继续'"),
+    'app.js 里找不到 navBar 的「不选也能继续」');
   ok('圆盘的 help 不写「跳过」而写怎么选（它是必答题）',
     !/跳过/.test((S.all.find((x) => x.id === 'family') || {}).help || ''),
     (S.all.find((x) => x.id === 'family') || {}).help);

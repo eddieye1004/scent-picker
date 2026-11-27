@@ -277,7 +277,8 @@ const STEPS = [
     id: 'family',
     short: '香型',
     title: '你闻着舒服的，是哪一类味道？',
-    help: '不用记名字。外圈挑大方向，中圈再收窄一层；不确定就只选外圈',
+    /* 文案二轮裁决第 6 条（改写）：删掉"收窄一层"这类逻辑解释，只留点哪里。 */
+    help: '先点外圈选大方向；想更准再点中圈',
     render: renderFamily,
   },
   {
@@ -291,7 +292,7 @@ const STEPS = [
     id: 'unwanted',
     short: '避雷',
     title: '这些味道里，哪个你一闻就皱眉？',
-    help: '都是你选的方向里最容易混进来的味道。点一下＝这个不要；不点就是接受',
+    help: '点一下＝不要；不点＝接受',
     render: renderAvoid,
   },
   {
@@ -302,14 +303,14 @@ const STEPS = [
        这一屏只留标题与底栏那句「不选也能继续」（navBar 里），屏内不再重复提示。
        字符串保留在步骤表里：test-render 的「除圆盘外每屏都写明了可跳过」
        按步骤表的 help 字段核对，删字段会让那条门红。 */
-    help: '你最常在什么场合用，决定了推荐的浓淡。选一个最像的，拿不准就选日常；不选也能继续',
+    help: '选最像的场合；拿不准选日常',
     render: renderOccasion,
   },
   {
     id: 'season',
     short: '季节',
     title: '主要在哪个季节用？',
-    help: '不确定就跳过',
+    help: '选主要使用季节；不确定可跳过',
     render: renderSeason,
   },
   {
@@ -323,7 +324,7 @@ const STEPS = [
     title: '想要多浓？',
     /* 任务8 B2（Eddie 2026-11-12 批准）：原文「香精占比」是两处黑话之二。
        改为「浓度类型」——与 short「浓淡」呼应，也与下面单选卡的文案对得上。 */
-    help: '先说体感（想让人闻到多重的分量），再说浓度类型（决定留香多久）。两项都不选也能出结果',
+    help: '先选体感，再选浓度类型',
     render: renderConcentration,
   },
   {
@@ -337,7 +338,7 @@ const STEPS = [
     id: 'budget',
     short: '预算',
     title: '你打算花多少钱？',
-    help: '最后圈一下范围，只看这一档里的瓶子。不限也行，只是候选会多很多',
+    help: '选预算档；选「不限」候选更多',
     render: renderBudget,
   },
 ];
@@ -2327,14 +2328,12 @@ function renderFamily() {
      说清两件事：① 你选的大类已经天然排除了别的族；② 真想排除就去点香调。 */
   if (state.answers.family) {
     wrap.appendChild(el('div', { class: 'term-note' },
-      el('strong', {}, '选了香型就等于排除了别的族：'),
-      ' 候选只从你选的这一族里出，所以没有"排除整族"那一题。',
-      ' 想再收窄，下一屏可以点名具体受不了的香调（比如"不要香草"）。'
+      '下一屏可点名不要的香调，如“不要香草”。'
     ));
   }
 
   wrap.appendChild(el('div', { class: 'chips-label', style: 'margin-top:24px' },
-    '不想按大类选？也可以按感觉挑一个（二选一，和上面互斥）'));
+    '也可按感觉选；与按大类二选一'));
   const EMO_OPTS = (TAX.emotionMap || []).map((e) => ({ id: e.id, zh: e.zh, desc: e.desc }));
   wrap.appendChild(segControl(
     EMO_OPTS,
@@ -2720,10 +2719,10 @@ function deriveFromPreset(id) {
    这一屏的核心不是选项，是那张说明 —— 让用户看懂再选。
    数据覆盖 348/400，其余 52 瓶不参与这一维打分（不扣分）。 */
 const CONCENTRATIONS = [
-  { id: 'eau-de-cologne', zh: '古龙水 EDC', desc: '香精约 2–4%。1–3 小时，随时补喷，夏天最舒服' },
-  { id: 'eau-de-toilette', zh: '淡香水 EDT', desc: '香精约 5–15%。3–5 小时，日常通勤的主力' },
-  { id: 'eau-de-parfum', zh: '淡香精 EDP', desc: '香精约 15–20%。5–8 小时，一瓶顶一天' },
-  { id: 'parfum', zh: '香精 Parfum', desc: '香精约 20–30%。8 小时以上，一两喷就够' },
+  { id: 'eau-de-cologne', zh: '古龙水 EDC', desc: '香精浓度约 2–4%；留香 1–3 小时，随时补喷，夏天最舒服' },
+  { id: 'eau-de-toilette', zh: '淡香水 EDT', desc: '香精浓度约 5–15%；留香 3–5 小时，日常通勤主力' },
+  { id: 'eau-de-parfum', zh: '淡香精 EDP', desc: '香精浓度约 15–20%；留香 5–8 小时，一瓶顶一天' },
+  { id: 'parfum', zh: '香精 Parfum', desc: '香精浓度约 20–30%；留香 8 小时以上，一两喷就够' },
 ];
 
 /* ---------- 第 9 步：留香时长 ----------
@@ -2907,7 +2906,7 @@ function renderAvoid() {
     el('p', { class: 'q-help' }, head.help)
   ));
   wrap.appendChild(el('p', { class: 'avoid-tip' },
-    '不确定就别点，点了也能再点一次取消'));
+    '没闻过就点「没闻过」；点卡＝不要'));
 
   const plan = avoidPlanNow();
   /* 数据没到齐（或方向还没定）：先占位。
@@ -3013,10 +3012,10 @@ function renderAvoid() {
       .filter(Boolean);
     if (!names.length) {
       excluded.classList.add('is-idle');
-      excluded.textContent = '你已排除：（还没有）';
+      excluded.textContent = '已排除：无';
     } else {
       excluded.classList.remove('is-idle');
-      excluded.appendChild(document.createTextNode('你已排除：'));
+      excluded.appendChild(document.createTextNode('已排除：'));
       names.forEach((d, i) => {
         if (i) excluded.appendChild(document.createTextNode('、'));
         excluded.appendChild(el('button', {
@@ -3048,7 +3047,7 @@ function renderAvoid() {
       ? (lastOff
         ? `${last.zh} —— 没闻过，这条不算数`
         : `${last.zh} —— ${last.hint}`)
-      : '点卡＝这个不要；没闻过就点卡片右下角「没闻过」。两个都不点＝接受';
+      : '点卡＝不要；没闻过点「没闻过」；都不点＝接受';
   };
 
   /* 同一条纪律（原「想要」屏的 togglePhrase 也是这一条，那屏已删）：
@@ -3842,8 +3841,8 @@ function navBar(stepId) {
     const byEmotion = !!state.answers.emotion;
     const done = byFamily || byEmotion;
     bar.appendChild(el('span', { class: 'hint' }, done
-      ? (byFamily ? '中圈可选，不选就按大类推荐' : '按感觉选也可以，中圈可不选')
-      : '先在外圈挑一个大类，或者用下面的「按感觉选」'));
+      ? (byFamily ? '中圈可选，不选就按大类推荐' : '也可按感觉选；中圈可不选')
+      : '先点外圈选大类，或用「按感觉选」'));
     bar.appendChild(el('button', {
       class: 'btn', type: 'button', disabled: done ? null : 'disabled',
       onclick: next,
@@ -3855,7 +3854,7 @@ function navBar(stepId) {
      hint 必须说清"不点是接受"而不是"跳过" —— 这一屏的语义不是弃权，是默认接受。
      原「想要的味道」屏的同类分支已随该屏删除（v7 第 3 步②），此处只剩避雷一条。 */
   if (stepId === 'unwanted') {
-    bar.appendChild(el('span', { class: 'hint' }, '不点就是接受；点一下＝这个不要'));
+    bar.appendChild(el('span', { class: 'hint' }, '点一下＝不要；不点＝接受'));
     bar.appendChild(el('button', { class: 'btn', type: 'button', onclick: next }, '下一步 →'));
     return bar;
   }
@@ -3876,7 +3875,7 @@ function navBar(stepId) {
      浓淡（concentration）已改回普通前进分支，不在这里留 finish 出口，
      否则那个 id 一旦被重排就会静默变成第二个末屏。 */
   if (stepId === 'budget') {
-    bar.appendChild(el('span', { class: 'hint' }, '不限也行，选完就能看推荐'));
+    bar.appendChild(el('span', { class: 'hint' }, '选「不限」也可直接看推荐'));
     bar.appendChild(el('button', {
       class: 'btn js-budget-cta', type: 'button', onclick: (ev) => finish(ev.currentTarget),
     }, budgetCtaText(state.answers.budget || 'any')));
@@ -4148,7 +4147,7 @@ function renderMasthead() {
           /* 首屏那句 lede 原来写「转盘选香型，再定场合和浓度」（a39e498），
              v6 撤盘时改成「先说预算和想要的感觉」，v7 圆盘回来了 ——
              现在这句必须同时说准两件事：**第一件事是转盘**，而且不问术语。 */
-          : '不用懂前中后调。先在转盘上挑一个大方向，再定场合和浓度'
+          : '不用懂前中后调：先选大方向，再定场合和浓度'
     ),
     /* 印��：纯装饰（aria-hidden），字取「香」—— 这个应用唯一的主题字。 */
     el('span', { class: 'seal', 'aria-hidden': 'true' }, '香')
@@ -4257,7 +4256,7 @@ const AFFILIATE = {
      · 美国 FTC 16 CFR 255：要求 clear and conspicuous，且必须在消费者
        看到链接之前或同时出现 —— 页脚是否满足这一条，属合规判断，
        不是本仓库能自行认定的，如实标注为**未核实**。 */
-  disclosure: '购买链接为联盟推广链接，通过它们成交本站可能获得佣金，不影响你的支付价格。',
+  disclosure: '购买链接含联盟推广；成交可能产生佣金，不影响你的支付价格。',
 };
 
 /* 读配置。运行时覆盖（window.SCENT_AFFILIATE）支持按平台给，
@@ -5717,7 +5716,7 @@ function paintHistoryPanel(panel, toggle) {
 
   if (!list.length) {
     panel.appendChild(el('p', { class: 'qw-history-empty' },
-      '还没有记录。完成一次测试后，三瓶结果会出现在这里。'));
+      '还没有记录。完成一次测试后，这里会显示三瓶结果。'));
     return;
   }
 
@@ -5843,8 +5842,8 @@ function wishEntryRow() {
     el('span', { class: 'qw-wl-entry-count' }, String(wishCount)),
     el('span', { class: 'qw-wl-entry-go' }, '打开 →')),
     el('span', { class: 'hint' }, wishCount
-      ? '存过的瓶子都在这里，换设备或清缓存就没了'
-      : '在结果页点 ♡ 就能把喜欢的瓶子存到这里')
+      ? '收藏只存本机；点开看理由、参考价和购买入口。'
+      : '在结果页点 ♡ 收藏到这里')
   );
 }
 
@@ -6691,8 +6690,8 @@ function renderResult() {
            ② 「官方旗舰店」是靠关键词把品牌自营店顶到前部，不是筛选结果；
            ③ 价格没有排序 —— 实测排序参数无效，所以不承诺"最低价"。 */
       art.appendChild(el('p', { class: 'link-note', role: 'note' },
-        '两个入口都会打开淘宝搜索结果：选「官方旗舰店」会把品牌自营店排到前面，'
-        + '选「全网」看所有店铺（含第三方与小样）；价格未排序，请自行核对。'));
+        '两个入口都打开淘宝搜索；「官方旗舰店」优先自营店。'
+        + '「全网」含第三方与小样；价格未排序，请自行核对。'));
     }
     if (!anyDirect && anySearch) {
       const plats = [...new Set(buyLinks.filter((l) => l.kind === 'search').map((l) => l.platformZh))];
@@ -6709,7 +6708,7 @@ function renderResult() {
        换源失败、只能保留天猫链接的瓶才需要它 —— 这是本轮 A1/A2 的兜底。 */
     if (p && TMALL_IDS.has(String(p.id)) && buyLinks.some((l) => l.platform === 'taobao')) {
       art.appendChild(el('p', { class: 'link-note is-tmall', role: 'note', 'data-note': 'tmall-shop' },
-        '此款在天猫店，点开后请在天猫内搜索'));
+        '此款在天猫；点开后请在天猫内搜索'));
     }
     wrap.appendChild(art);
   });
@@ -6784,7 +6783,7 @@ function renderResult() {
     });
     card.appendChild(ol);
     card.appendChild(el('p', { class: 'share-foot' },
-      '从 1388 瓶里按规则打分选出，选品不调用大模型'
+      '从 1388 瓶中按规则打分选出，不调用大模型'
     ));
     wrap.appendChild(card);
 
@@ -6855,7 +6854,7 @@ function resultDock() {
       el('button', { class: 'btn ghost', type: 'button', onclick: (ev) => openRetune(ev.currentTarget) },
         '改一题重推'),
       el('div', { class: 'spacer' }),
-      el('span', { class: 'hint' }, '换一批只换瓶子，答案全留着；改一题只动那一屏')
+      el('span', { class: 'hint' }, '换一批只换结果，答案保留；改一题只动那一屏')
     )
   );
 }
@@ -6951,22 +6950,28 @@ function renderFooter(onResult = false) {
         ' · ',
         el('a', { href: meta.licenseUrl, target: '_blank', rel: 'noopener noreferrer' }, 'CC BY 4.0'),
         ' · 快照 ', meta.sourceSnapshot,
-        ' · 原始数据经清洗、家族映射与字段裁剪，',
+        /* 第 76 条（删除）与第 77 条（改写）是页脚同一句的两半，住在这两个分支里：
+           76 是「· 原始数据经清洗、家族映射与字段裁剪，」这个以逗号断在半句的
+           重复说明，77 是完整的署名句。裁决要求去重并把口径统一成「香族」，
+           所以这里不再另外拼一份 76 的措辞，直接把 77 的统一句接在「已修改」前
+           —— 否则这个分支（meta 到货时的生产路径）会只剩一个光秃秃的「已修改」，
+           CC BY 4.0 的变更说明就没了。 */
+        ' · 数据经清洗、香族映射与字段裁剪，',
         el('em', {}, '已修改'),
         '。'
       )
     : el('div', { style: 'margin-top:8px' },
         el('strong', {}, '数据署名 '),
-        'Scento — perfume-database · CC BY 4.0 · 原始数据经清洗、家族映射与字段裁剪，',
+        'Scento — perfume-database · CC BY 4.0；数据经清洗、香族映射与字段裁剪，',
         el('em', {}, '已修改'),
         '。'
       );
 
   return el('footer', { class: 'foot' },
-    el('div', {},
-      el('strong', {}, '关于这些推荐 '),
-      '选品完全由规则打分产生，不调用大模型'
-    ),
+    /* 裁决第 78 条（删除）：「选品完全由规则打分产生，不调用大模型」与第 74 条
+       （分享卡上的出处说明）重复，评审要求只留一处。留给 74，因为分享卡会离开
+       本站被单独截图 —— 那句话在那里的作用更大；页脚这一段随之整块去掉，
+       否则会剩一个只有「关于这些推荐」的悬空标题。 */
     credit,
     /* 广告披露（Eddie 2026-11-10 19:19 决策：「还是去掉角标，只留页脚声明」）。
        一行、不带标题、不复述佣金机制之外的东西。类名用 .aff-note ——
@@ -6983,7 +6988,7 @@ function renderFooter(onResult = false) {
         class: 'aff-note',
         role: 'note',
         'data-disclosure': 'affiliate-footer',
-      }, '购买链接为联盟推广链接，通过它们成交本站可能获得佣金，不影响你的支付价格。')
+      }, '购买链接含联盟推广；成交可能产生佣金，不影响你的支付价格。')
       : null,
     el('div', { style: 'margin-top:8px' },
       el('strong', {}, '已知局限 '),
