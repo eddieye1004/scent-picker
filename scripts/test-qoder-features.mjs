@@ -186,7 +186,7 @@ const sample = (names = ['A', 'B', 'C']) => ({
   /* 断言总数与历史回执对齐（这一组仍是 10 条）：8 条预缓存 + 2 条改为
      「不在 CORE + 运行时链路在位」，一换一，不新增条数。 */
   const swConsumers = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
-  ok('香水库不进预缓存，首访走网络并写缓存', !CORE.includes('./data/perfumes.json')
+  ok('香水库进预缓存，离线可读', CORE.includes('./data/perfumes.json')
     && sw.includes('await putFresh(cache, req, res)')
     && swConsumers.includes("fetch(new URL('data/perfumes.json', base))"));
   ok('24 枚标本 SVG 不进预缓存，取图走 fetch 后写缓存',

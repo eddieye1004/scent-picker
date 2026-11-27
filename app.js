@@ -664,7 +664,7 @@ function applyDirectionToCharacter(emotionId) {
    页面里 `document.documentElement.dataset.build` 会带上它。
    用途是"这次看到的到底是哪份代码"—— 改完 app.js 如果这个值没变，
    说明浏览器还在跑缓存的旧文件，别去猜渲染逻辑。 */
-const BUILD_ID = '2026-11-26-budget-leg6';
+const BUILD_ID = '2026-11-27-wheel-layout-fix';
 
 /* ---------- 上色图标（结果页实物图的降级瓶形，与盘心标本共用同一批） ----------
    24 枚上色版在 ./icon-specimen/svg/ 合计 295.6KB / gzip 80.1KB，
@@ -1061,40 +1061,8 @@ function familyEmblem(fam) {
   return box;
 }
 
-/* ---------- 盘心空态纹样（缺陷 ③ 的另一半）----------   还没选大类时，盘心是一块空圆 + 两行小字。补一枚与盘同构的纹样：
-   一圈发丝环、六枚定位点、中心十字。六个点就是外圈六族的位置，
-   于是"空盘"仍在讲这张盘的结构，而不是一块白。
-   这里是内联 SVG（不是 fetch 的上色图），因为它属于界面骨架，
-   不能等网络。 */
-function hubOrnament(families) {
-  const svg = svgEl('svg', {
-    class: 'hub-orn',
-    viewBox: '0 0 100 100',
-    'aria-hidden': 'true',
-    focusable: 'false',
-  });
-  const ring = (r, cls) => svg.appendChild(svgEl('circle', {
-    class: cls, cx: 50, cy: 50, r,
-  }));
-  ring(46, 'orn-ring is-outer');
-  ring(30, 'orn-ring');
-  /* 六枚定位点：与外圈六族同一角度约定（-90 起，每 60°） */
-  const n = families.length || 6;
-  for (let k = 0; k < n; k++) {
-    const rad = ((-90 + (360 / n) * k) * Math.PI) / 180;
-    svg.appendChild(svgEl('circle', {
-      class: 'orn-dot',
-      cx: (50 + 46 * Math.cos(rad)).toFixed(2),
-      cy: (50 + 46 * Math.sin(rad)).toFixed(2),
-      r: 1.8,
-    }));
-  }
-  svg.appendChild(svgEl('path', { class: 'orn-cross', d: 'M46 50 H54 M50 46 V54' }));
-  return svg;
-}
-
-/* 腿8-A：textPath 弧文字轨道的全局唯一 id（重建不重复） */
-let leg8ArcSeq = 0;
+/* 腿8-A 起不再生成 SVG textPath：中圈文字改用水平 HTML 标签。
+   全局 id 序列随之移除，避免留下无效的轨道状态。 */
 
 function buildWheel(cfg) {
   /* backHost：返回胶囊的挂载点。2026-11-24 裁决 A 之后它不在 .wheel 里了
@@ -1118,32 +1086,15 @@ function buildWheel(cfg) {
   const SUB_R2I = 118;
   const SUB_R2O = 152;
   const SUB_GROOVE = 2.4;   // 凹槽比弧带每侧多出的宽度
-  /* 标签半径：桌面 193（r1i 158 与 r1o 228 的中线），窄屏 200 / 130。
-     窄屏两个数来自 `_probe/glyph.cjs` 的网格（六组半径 × 三个视口），
-     判据用 Range 量出来的**字形外框**而不是按钮盒 —— 按钮的 padding
-     会把盒子撑得比字宽得多，按盒子判会把真重叠读成"还差 3px"：
-       实测同样半径 193/135，按按钮盒量是「不相交」，
-       按字形量在 390 上仍叠 18 px²、360 上叠 69 px²。
-     200/130 在 390 与 360 上字形零交叠、最小间隙 +1.1px；
-     192/130 在 320 上才零交叠，但 320 不在四视口验收集内，
-     且把标签推到家族环外沿会越出盘外，所以不取。 */
-  const LABEL_R = 193;
-  const LABEL_R_NARROW = 200;
-  /* 中圈标签半径（弧带中线 135 之外另立一档）。
-     .sub-ring 在展开态整体放大 1.43，所以这里的数是**放大前**的单位。
-     判据用 Range 量出来的胶囊外框四角到盘心的最近距离，不是按钮盒：
-     盘心在 95-quiz-v7-design 里涨到 66% 直径（半径 158.4 单位）之后，
-     135 单位的落点让胶囊内沿压进盘心圆 —— 文字被盘心盖掉半截。
-     138 × 1.05 × 1.43 = 207.2px，1440 档（盘 504px、盘心半径 166.3px）
-     实测 24 枚两行胶囊最小净空 +7.1px、墨迹最小 +12.9px。
-     再往外就顶到盘口线（232 单位 × 1.05 = 243.6px，实测最外一枚 241.1px）。 */
-  const SUB_LABEL_R = 138;
-  /* 窄屏同值但另一本账：390 档（盘 342px、盘心半径 112.9px、盘沿 171px）
-     环带只有 58.1px，138 × 0.7125 × 1.43 = 140.6px 是环带中线。
-     胶囊靠 95-quiz-v7-design Block 14 的 `scale(.72)` 反放大才塞得下，
-     实测最小净空 +4.8px、墨迹最小 +9.1px、最外一枚距盘沿 7.4px。
-     半径与桌面同值，但两档各自成立，改动其中一档不影响另一档。 */
-  const SUB_LABEL_R_NARROW = 138;
+  /* 标签只按扇区真实可见跨度取质心；所有断点共用同一坐标。 */
+  const FAM_LABEL_GAP = 2.0;
+
+  function sectorCentroidRadius(rIn, rOut, angleDeg) {
+    const h = Math.max(0.0001, angleDeg * Math.PI / 360);
+    return (2 / 3)
+      * ((rOut ** 3 - rIn ** 3) / (rOut ** 2 - rIn ** 2))
+      * (Math.sin(h) / h);
+  }
 
   const root = el('div', { class: 'disc wheel', role: 'group', 'aria-label': '香型轮盘' });
 
@@ -1325,25 +1276,13 @@ function buildWheel(cfg) {
   }, '← 重选大类');
   backBtn.hidden = true;
   (backHost || root).appendChild(backBtn);
-  /* 空态纹样（缺陷 ③）：六枚定位点就是外圈六族的位置，空盘也在讲盘的结构。
-     单独一棵节点而不是塞进 hubGlyph：hubGlyph 归标本管，两者互斥，
-     混用会让 paint() 里"清空标本"那一步顺手把纹样也删掉。 */
-  const hubOrn = hubOrnament(families);
-  /* 未选大类时盘心唯一的一行弱提示（设计第 1 项 · delta 1）。
-     为什么另开一个节点，而不是改写 .hub-zh / .hub-desc 的文案：
-     那两处文字是既有断言与无障碍名的落点（test-render 两处读
-     `.hub-zh` === '还没选'），改文案等于借本腿的名义改契约。
-     所以未选态**视觉上只留这一行**：kicker / zh / desc 由 CSS 在该态
-     display:none 让位（文字仍在 DOM 里，读屏与断言都不受影响），
-     这一行只在 `.is-idle` 时出现，选中大类后自动退场。 */
+  /* 未选大类时盘心唯一的一行弱提示。其余既有节点保留在 DOM 中供无障碍
+     与既有自检读取，但由 CSS 在该态隐藏，视觉上只出现这一句。 */
   const hubIdleHint = el('div', { class: 'hub-idle-hint' }, '先选香调大类');
-  /* 大类徽记（方向 B）：绝对定位的背衬层，不占 flex 空间。
-     为什么必须是独立的一层：见 familyEmblem 上方那段 —— 390 以下盘心已经
-     贴满，任何进 flow 的一行都会顶出圆外。它同时与 hubOrn / hubGlyph 各自
-     独立，paint() 里三条清理路径互不牵连。 */
+  /* 大类徽记：进入正常 flex 流，固定 64×64；不再叠在文字背后。 */
   const hubEmblem = el('div', { class: 'hub-emblem', 'aria-hidden': 'true' });
   const hub = el('div', { class: 'disc-hub is-idle' },
-    hubEmblem, hubOrn, hubIdleHint, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
+    hubEmblem, hubIdleHint, hubKicker, hubZh, hubDesc, hubGlyph, hubSkip, hubGo);
   root.appendChild(hub);
 
   /* ---- 液态玻璃交互层（B 段）----
@@ -1568,24 +1507,23 @@ function buildWheel(cfg) {
 
   families.forEach((f, i) => {
     const midDeg = famStart + (i + 0.5) * famStep;
-    const rMid = LABEL_R;
+    const spanDeg = famStep - FAM_LABEL_GAP;
+    const rMid = sectorCentroidRadius(WHEEL.r1i, WHEEL.r1o, spanDeg);
     const p = polar(rMid, midDeg);
-    /* 同一个极角写两套坐标：桌面一套（left/top），窄屏一套（--nl / --nt）。
-       窄屏盘心与大圈之间只剩约 330px（390 视口）或 310px（360），
-       两行标签的中心距小于两个方框的半高之和就必然相交 —— 只收盒子不够，
-       半径也得往里挪一档。半径是 JS 按视框算的（CSS 里拿不到
-       "圆心到某一点的百分比"这种量），所以两套都在这里算好，
-       窄屏那套交给 media query 用 var() 取。 */
-    const pn = polar(LABEL_R_NARROW, midDeg);
     const px = (q, k) => ((q[k] / WHEEL.vb) * 100).toFixed(2);
+    const arcUnits = WHEEL.r1o * (spanDeg * Math.PI / 180);
     const btn = el('button', {
-      class: 'disc-sector lvl1',
+      class: 'disc-sector lvl1' + (f.zh.length > 4 ? ' is-long' : ''),
       type: 'button',
       role: 'radio',
       'aria-checked': 'false',
       'data-fam': f.id,
+      'data-centroid-r': rMid.toFixed(4),
+      'data-mid-deg': midDeg.toFixed(4),
+      'data-arc-units': arcUnits.toFixed(4),
       tabindex: i === 0 ? '0' : '-1',
-      style: '--l:' + px(p, 0) + '%;--t:' + px(p, 1) + '%;--nl:' + px(pn, 0) + '%;--nt:' + px(pn, 1) + '%;--i:' + i,
+      style: '--l:' + px(p, 0) + '%;--t:' + px(p, 1) + '%;--nl:' + px(p, 0) + '%;--nt:' + px(p, 1)
+        + '%;--arc-max:' + (arcUnits / WHEEL.vb * 100).toFixed(2) + '%;--i:' + i,
     },
       el('span', { class: 'zh' }, f.zh),
       /* 注脚按「·」拆成三段（前 / 点 / 后）：窄屏斜向扇区把它排成两行，
@@ -1756,7 +1694,6 @@ function buildWheel(cfg) {
        两侧各留 1px 白描边之后槽底仍露出 6px —— 低于这个数，
        缝会退化成「描边没对齐」而不是「瓦片之间的槽」（见 _wheel8.css 第四节）。 */
     const gap = Math.min(3.4, step * 0.075);
-    const rMid = (SUB_R2O + SUB_R2I) / 2;
     const svg = svgEl('svg', {
       class: 'sub-svg',
       viewBox: '0 0 ' + WHEEL.vb + ' ' + WHEEL.vb,
@@ -1800,35 +1737,18 @@ function buildWheel(cfg) {
         class: 'sub-arc',
         d: annulusPath(SUB_R2O, SUB_R2I, a0, a1),
       }));
-      /* 腿8-A：子类名沿弧带中线排成弧形字（SVG textPath），12px，不出弧带。
-         全名常态显示；320 档由 CSS 切到短标签（.lg-full / .lg-short）。 */
-      const rText = (SUB_R2O + SUB_R2I) / 2;
-      const [tx0, ty0] = polar(rText, a0 + gap);
-      const [tx1, ty1] = polar(rText, a1 - gap);
-      const arcTextId = 'leg8-arc-' + (++leg8ArcSeq);
-      g.appendChild(svgEl('path', {
-        id: arcTextId, class: 'sub-arc-guide',
-        d: 'M ' + tx0.toFixed(2) + ' ' + ty0.toFixed(2)
-          + ' A ' + rText + ' ' + rText + ' 0 0 1 ' + tx1.toFixed(2) + ' ' + ty1.toFixed(2),
-        fill: 'none', stroke: 'none',
-      }));
-      const labelText = svgEl('text', { class: 'sub-arc-text', 'text-anchor': 'middle' });
-      const tpFull = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%', class: 'lg-full' });
-      tpFull.textContent = subFullName(item);
-      const tpShort = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%', class: 'lg-short' });
-      tpShort.textContent = subShortLabel(item);
-      labelText.appendChild(tpFull);
-      labelText.appendChild(tpShort);
-      g.appendChild(labelText);
+      /* 弧段只负责色块与命中；文字放在独立的水平 HTML 标签层。 */
       svg.appendChild(g);
       subGs.push(g);
 
-      const px = polar(SUB_LABEL_R, mid);
-      /* 窄屏半径见 SUB_LABEL_R / SUB_LABEL_R_NARROW 两处注释：胶囊要整枚
-         落在盘心圆之外，所以两档都比弧带中线（135）更往外。 */
-      const pxm = polar(SUB_LABEL_R_NARROW, mid);
+      const spanDeg = step - gap;
+      const labelR = sectorCentroidRadius(SUB_R2I, SUB_R2O, spanDeg);
+      const px = polar(labelR, mid);
+      const arcUnits = SUB_R2O * (spanDeg * Math.PI / 180);
+      const fullName = subFullName(item);
+      const visibleName = subShortLabel(item);
       const btn = el('button', {
-        class: 'disc-sector lvl2 sub-arc-btn',
+        class: 'disc-sector lvl2 sub-arc-btn' + (visibleName.length > 2 ? ' is-long' : ''),
         type: 'button',
         role: 'radio',
         'aria-checked': 'false',
@@ -1840,8 +1760,12 @@ function buildWheel(cfg) {
            无障碍名回到与全站一致的全名口径（`label || zh || id`，与盘心同源同函数）。
            纯属性、零渲染影响：图标 span 本来就是 aria-hidden，改前改后按钮的
            盒尺寸、字号、行数逐字段实测一致（见腿目录 a11y-base/after.json 比对）。 */
-        'aria-label': subFullName(item),
+        'aria-label': fullName,
         'data-sub': item.id,
+        'data-fam': fam.id,
+        'data-centroid-r': labelR.toFixed(4),
+        'data-mid-deg': mid.toFixed(4),
+        'data-arc-units': arcUnits.toFixed(4),
         /* 该族的子类数（4–7）落到属性上，给 CSS 按"拥挤族"分档用：
            n≥6 时桌面也守 12px 字号（Eddie 2026-11-25 口径）。
            --n 是 CSS 变量，属性选择器选不到它，所以必须有一个属性镜像。
@@ -1853,9 +1777,9 @@ function buildWheel(cfg) {
            内联 left/top 会盖掉窄屏那套（--nl/--nt）的 media query，
            内联 transform 会盖掉 .disc-sector 基类的居中位移。 */
         style: '--l: ' + (px[0] / WHEEL.vb * 100).toFixed(2) + '%; --t: ' + (px[1] / WHEEL.vb * 100).toFixed(2)
-          + '%; --nl: ' + (pxm[0] / WHEEL.vb * 100).toFixed(2) + '%; --nt: ' + (pxm[1] / WHEEL.vb * 100).toFixed(2)
-          + '%; --i: ' + i + '; --n: ' + n,
-      }, el('span', { class: 'zh', 'aria-hidden': 'true' }, subFullName(item)));
+          + '%; --nl: ' + (px[0] / WHEEL.vb * 100).toFixed(2) + '%; --nt: ' + (px[1] / WHEEL.vb * 100).toFixed(2)
+          + '%; --arc-max: ' + (arcUnits / WHEEL.vb * 100).toFixed(2) + '%; --i: ' + i + '; --n: ' + n,
+      }, el('span', { class: 'zh', 'aria-hidden': 'true' }, visibleName));
       /* 中圈标签用**短标签**（src/sub-labels.js）而不是 label/zh：
          ① 柑橘调的四个 zh 都是"××柑橘"，并排看分不出差别（用户 m05889 原话
             「我分不清它们的差异」），所以这一层从来不用 zh，用 label；
@@ -2061,36 +1985,21 @@ function buildWheel(cfg) {
        高频调用，一旦 hover 改状态，盘心文字就会跟着指针抖。 */
     const focusSub = sub;
 
+    /* 盘心只讲已经选中的大类；悬停与子类不再替换这个视觉焦点。
+       子类仍照常参与 is-picked / 弧段状态，问卷状态与打分入口不变。 */
+    const hubFamily = selFamily ? famById.get(selFamily) : null;
     let kick;
     let zh;
     let desc;
     let idle = false;
-    /* 压深只留给「具体小项」。第一层选中时盘心保持浅色，
-       与第二层的浅色方格是同一档 —— 压深代表"定下来了"，不是"点到了"。 */
     let picked = false;
-    if (!showFam) {
+    if (!hubFamily) {
       kick = '香型轮盘'; zh = '还没选'; desc = '从外圈挑一个大类'; idle = true;
-    } else if (hoverOther) {
-      /* ③ 盘缩小后六个扇区都能点，盘心先报出"点一下会换到哪" */
-      kick = '点一下换到'; zh = showFam.zh; desc = showFam.style || showFam.oneLine;
-    } else if (focusSub) {
-      picked = !!(sub && sub.id === focusSub.id);
-      kick = picked ? '已选定' : '正在看';
-      /* 盘心小类名读**全名**：`label || zh`（柑橘调是「纯柑橘」，不是 zh 的「古龙水型」）。
-         盘心原来只读 `zh`，于是出现"中圈点纯柑橘、盘心说古龙水型"，所以把 label
-         优先这条回退链搬了过来。
-         注意 2026-11-25 短标签腿之后，盘心与中圈**故意不再同名**：中圈胶囊改成
-         单行、放不下四字词，读的是短标签（`subShortLabel`，见 renderArcs 与
-         src/sub-labels.js）；盘心这里、以及盘心小类列表（familyText 里的
-         `.fam-text-item`）仍读全名。
-         盘心空间充裕，写全名才说得清；胶囊空间紧，写短名才排得下。
-         scripts/test-render.mjs 有一条断言同时钉住这两边。 */
-      zh = focusSub.label || focusSub.zh;
-      desc = focusSub.descWheel || focusSub.short || focusSub.desc;
     } else {
-      kick = hoverFam && !selFamily ? '正在看' : '已选定大类';
-      zh = showFam.zh;
-      desc = showFam.style || showFam.oneLine;
+      picked = !!sub;
+      kick = '已选定大类';
+      zh = hubFamily.zh;
+      desc = hubFamily.style || hubFamily.oneLine;
     }
     /* CSS 里的 `.sub-g:hover` 是纯样式钩子，JS 管不到 —— 选中之后
        指针划过去照样会让描边从 1px 变 1.4px、填充变白（实测）。
@@ -2101,8 +2010,8 @@ function buildWheel(cfg) {
     root.classList.toggle('is-sub-locked', !!selSub);
     hub.classList.toggle('is-idle', idle);
     hub.classList.toggle('is-picked', picked);
-    /* 腿8-A：选中子类时把族 id 写进盘心，供族色实色图标钩子读取 */
-    if (picked && selFamily) hub.setAttribute('data-fam', selFamily);
+    /* 族 id 始终跟随已选大类，供盘心底色与 64px 族图标读取。 */
+    if (hubFamily) hub.setAttribute('data-fam', hubFamily.id);
     else hub.removeAttribute('data-fam');
     // 整盘翻深由 root 上的 is-picked 驱动：加深的是盘，不是盘心方块
     root.classList.toggle('is-picked', picked);
@@ -2164,8 +2073,7 @@ function buildWheel(cfg) {
            保持原样"。空态下把指针划过扇区就让徽记浮出来，等于改了空态。
          · 已选中之后悬停另一族，盘心主词已经在说「点一下换到 X」——
            图标跟着换到 X，字与图才讲同一件事（否则读起来像没跟上）。 */
-    const emblemFam = (!focusSub && selFamily)
-      ? (famById.get(hoverFam || selFamily) || null) : null;
+    const emblemFam = hubFamily;
     const emblemKey = emblemFam ? emblemFam.id : 'none';
     if (emblemKey !== builtEmblemKey) {
       builtEmblemKey = emblemKey;
@@ -2278,6 +2186,9 @@ function renderFamily() {
       /* 两条入口互斥：选了家族就清掉情绪，否则 buildProfile 会以家族为准，
          而界面上「用感觉选」还亮着，用户以为自己两条都算数。 */
       if (fam) state.answers.emotion = null;
+      /* 用户已经给出方向，下一屏避雷立刻要算候选：在这里把香水库先拉起来，
+         避免进了避雷屏还停在零卡占位态。仍是按需加载，不在 boot 预热。 */
+      if (fam) ensurePerfumes().catch(() => {});
       /* ==== v7 第 1 步唯一的增量：把"大方向"喂给底噪 ====
          ① 方向：家族 → 六轴（AXIS_OF_FAMILY）。只写 direction，**不写
             temperature / sweetness / characterTags** —— 那三个是打分的因子，
@@ -2346,6 +2257,8 @@ function renderFamily() {
       state.answers.family = null;
       state.answers.subfamily = null;
       state.answers.direction = null;
+      /* 情绪入口同样会在下一屏算避雷候选；给出方向后就开始取库。 */
+      ensurePerfumes().catch(() => {});
       render();
     },
     '说不清香型时按感觉选'
@@ -7228,7 +7141,7 @@ function render() {
    （审计实测 price-bands 本该 275ms，被预取挤到 958ms）。
 
    消费点各自负责"等它到"：
-     · ensurePerfumes() → renderAvoid（占位句 + 到货重画，见那里的分支）、finish()、reshuffle()
+     · ensurePerfumes() → 选定方向后提前取（renderFamily）、renderAvoid、finish()、reshuffle()
      · ensureAffLinks() → finish()（出结果前 await，沿用既有的「正在比对…」忙碌态）
    两个加载器本身一字未改：都是幂等的单例 promise，重复调用不会重复发请求。 */
 let perfumesPromise = null;

@@ -38,13 +38,12 @@ const CACHE_PREFIX = 'scent-picker-v7-1-';
 const CACHE = CACHE_PREFIX + VERSION;
 
 /* 入口页、脚本、样式、字体、图标、小体量核心数据 —— 「打开就能用」的最小集合。
-   下面这些重量资产走运行时缓存，安装期不拉：
+   2026-11-27：perfumes.json 加入 CORE。避雷屏要按它现算候选，离线首次进入
+   第 2 屏也必须能出卡；用户选定方向后 app.js 会提前请求它，不在 boot 预热。
+   下面这些重量资产仍走运行时缓存，安装期不拉：
      · 香水实物图（images/*.webp）—— 访问到哪一瓶才缓存哪一张；
-     · 香水库与 24 枚标本 SVG —— 首屏都用不上：盘心在未选小类时是纯文字，
-       取图只发生在悬停/避雷卡（见 app.js 的 artInner 注释），香水库的首个
-       消费点是第 2 屏。fetch 处理器对未命中走网络并写入缓存，所以首次用到
-       就进缓存，之后离线照样能出结果。
-   代价：装完 SW 一次没联网走到第 2 屏就断网，那两样拿不到，退降级态。 */
+     · 24 枚标本 SVG —— 首屏用不上，选中后才取一次。
+   fetch 处理器对未命中走网络并写入缓存，所以首次用到就进缓存。 */
 const CORE = [
   './',
   './index.html',
@@ -74,6 +73,7 @@ const CORE = [
   './icons/icon-maskable-512.png',
   './icons/apple-touch-icon.png',
   './data/taxonomy.json',
+  './data/perfumes.json',
   './data/price-bands.json',
   './data/photos.json',
   './data/affiliate-links.json',

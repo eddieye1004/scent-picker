@@ -3,24 +3,9 @@
    最后加载：覆盖 95 层里被腿8 废弃的胶囊/钴蓝规则。
    ============================================================ */
 
-/* ---------- 中圈：胶囊外框去掉，文字交给 textPath ---------- */
+/* ---------- 中圈：水平标签，不再使用 SVG textPath ---------- */
 #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
-  display: none;
-}
-/* 弧形文字：12px，沿弧带中线，不出弧带 */
-.wheel .sub-arc-text {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: .02em;
-  fill: var(--ink);
-  pointer-events: none;
-}
-/* 全名常态；短标签只在 320 档兜底 */
-.wheel .sub-arc-text .lg-short { display: none; }
-.wheel .sub-arc-text .lg-full  { display: inline; }
-@media (max-width: 386px) {
-  .wheel .sub-arc-text .lg-full  { display: none; }
-  .wheel .sub-arc-text .lg-short { display: inline; }
+  display: flex;
 }
 
 /* ---------- 弧段：族色浅底 17%，选中加深到 60%（不用钴蓝灌满） ----------
@@ -54,9 +39,12 @@
 .wheel .disc-sector.lvl2.sub-arc-btn {
   background: transparent;
   border: 0;
-  color: transparent;
-  min-width: 44px;
+  color: var(--ink);
+  width: 44px;
+  min-width: 0;
+  max-width: min(var(--arc-max), 44px);
   min-height: 44px;
+  padding: 0;
 }
 .wheel .disc-sector.lvl2.sub-arc-btn::before {
   content: '';
@@ -67,34 +55,230 @@
   outline-offset: -2px;
 }
 
-/* ---------- 盘心：选中子类后 64px 族色实色图标 + 全名 ---------- */
-.wheel .disc-hub.is-picked .plate-svg {
+/* ---------- 圆盘排版三修：质心水平标签 + 单焦点盘心 ---------- */
+#app[data-step="family"] .wheel [data-fam="citrus"]   { --wheel-fam: #E8A33D; }
+#app[data-step="family"] .wheel [data-fam="floral"]   { --wheel-fam: #D98CA0; }
+#app[data-step="family"] .wheel [data-fam="woody"]    { --wheel-fam: #A8946E; }
+#app[data-step="family"] .wheel [data-fam="amber"]    { --wheel-fam: #C98A4B; }
+#app[data-step="family"] .wheel [data-fam="fresh"]    { --wheel-fam: #86A874; }
+#app[data-step="family"] .wheel [data-fam="gourmand"] { --wheel-fam: #C0846B; }
+
+/* 外圈：以真实扇区质心为唯一定位点；宽度同时受质心弧长约束。 */
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  max-width: min(var(--arc-max), 84px);
+  padding: 4px 6px;
+  border: 1px solid color-mix(in srgb, var(--wheel-fam) 46%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--wheel-fam) 18%, var(--bg));
+  color: var(--ink);
+  transform: translate(-50%, -50%) rotate(0deg);
+}
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .zh,
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-hot .zh,
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-on .zh {
+  display: block;
+  max-width: 100%;
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-long .zh {
+  font-size: 15px;
+}
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes {
+  display: block;
+  max-width: 100%;
+  margin-top: 4px;
+  overflow: hidden;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+}
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes::before,
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-long .notes {
+  display: none;
+}
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-hot,
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-on {
+  background: color-mix(in srgb, var(--wheel-fam) 30%, var(--bg));
+  border-color: color-mix(in srgb, var(--wheel-fam) 72%, var(--ink));
+}
+#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-pressing {
+  transform: translate(-50%, -50%) rotate(0deg) scale(.97);
+}
+
+/* 中圈：水平正排，最多两行；段色只做标签底，不做整块按钮底。 */
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+  display: -webkit-box;
+  box-sizing: border-box;
+  max-width: 38px;
+  margin: auto;
+  padding: 2px 3px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--wheel-fam) 56%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--wheel-fam) 22%, var(--bg));
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: 0;
+  text-align: center;
+  white-space: normal;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  transform: none;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="6"] .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="7"] .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-long .zh {
+  max-width: 38px;
+  font-size: 12px;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-hot .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-on .zh {
+  background: color-mix(in srgb, var(--wheel-fam) 32%, var(--bg));
+  border-color: color-mix(in srgb, var(--wheel-fam) 78%, var(--ink));
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn:focus-visible .zh {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+@media (max-width: 620px) {
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
+    max-width: min(var(--arc-max), 12.5vw);
+    padding: 3px;
+    border-radius: 10px;
+  }
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .zh {
+    font-size: 14px;
+  }
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-long .zh {
+    font-size: 13px;
+  }
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes {
+    display: none;
+  }
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+    transform: scale(.72);
+  }
+}
+@media (max-width: 360px) {
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
+    padding: 2px;
+  }
+  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-long .zh {
+    font-size: 12px;
+  }
+}
+
+/* 盘心：64px 族图标 + 大类名 + 一行小字；空态只有引导句。 */
+#app[data-step="family"] .wheel .disc-hub,
+#app[data-step="family"] .wheel:not(.is-open) .disc-hub,
+#app[data-step="family"] .wheel.is-open .disc-hub,
+#app[data-step="family"] .wheel.is-open.is-picked .disc-hub {
+  width: 60%;
+  height: 60%;
+  padding: 12px 16px;
+  gap: 4px;
+  justify-content: center;
+  border: 1px solid var(--spec-rim);
+  background: radial-gradient(circle at 34% 28%,
+    color-mix(in srgb, var(--spec-plate) 96%, white) 0%,
+    var(--spec-plate) 58%,
+    color-mix(in srgb, var(--spec-plate) 82%, var(--bg)) 100%);
+  color: var(--spec-ink);
+  box-shadow:
+    inset 0 1px 0 var(--spec-glow),
+    inset 0 -14px 26px -22px var(--spec-sh),
+    0 16px 36px -24px var(--spec-sh);
+}
+#app[data-step="family"] .wheel .hub-emblem {
+  position: relative;
+  inset: auto;
+  display: none;
+  width: 64px;
+  height: 64px;
+  margin: 0;
+  flex: none;
+  opacity: 1;
+  filter: none;
+  pointer-events: none;
+}
+#app[data-step="family"] .wheel .disc-hub.has-emblem .hub-emblem {
+  display: grid;
+}
+#app[data-step="family"] .wheel .hub-emblem .emblem-svg {
   width: 64px;
   height: 64px;
 }
-.wheel .disc-hub.is-picked .plate-cap {
+#app[data-step="family"] .wheel .disc-hub .hub-kicker,
+#app[data-step="family"] .wheel .disc-hub .hub-glyph,
+#app[data-step="family"] .wheel .disc-hub .hub-go,
+#app[data-step="family"] .wheel .disc-hub .hub-skip {
+  display: none !important;
+}
+#app[data-step="family"] .wheel .disc-hub .hub-zh {
   display: block;
-  font-size: 12px;
+  max-width: 100%;
+  margin-top: 2px;
+  font-family: var(--font-body);
+  font-size: 20px;
   font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -.01em;
+  text-align: center;
+  color: var(--spec-ink);
 }
-
-/* 族色实色：盘心图标按所属族取实色描边，24 枚原图本身不变 */
-.wheel .disc-hub[data-fam="citrus"]   { --hub-fam: #E8A33D; }
-.wheel .disc-hub[data-fam="floral"]   { --hub-fam: #D98CA0; }
-.wheel .disc-hub[data-fam="woody"]    { --hub-fam: #A8946E; }
-.wheel .disc-hub[data-fam="amber"]    { --hub-fam: #C98A4B; }
-.wheel .disc-hub[data-fam="fresh"]    { --hub-fam: #86A874; }
-.wheel .disc-hub[data-fam="gourmand"] { --hub-fam: #C0846B; }
-.wheel .disc-hub.is-picked .plate-svg { filter: drop-shadow(0 0 0 var(--hub-fam, #b3261e)); }
-
-/* 从弧段缩放飞入盘心，220ms，可被打断 */
-.wheel .disc-hub.is-picked .hub-glyph { animation: leg8FlyIn 220ms var(--ease-out) both; }
-@keyframes leg8FlyIn {
-  from { opacity: 0; transform: scale(.35); }
-  to   { opacity: 1; transform: scale(1); }
+#app[data-step="family"] .wheel .disc-hub .hub-desc {
+  display: block;
+  max-width: 92%;
+  overflow: hidden;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--spec-ink) 78%, var(--spec-plate));
 }
-@media (prefers-reduced-motion: reduce) {
-  .wheel .disc-hub.is-picked .hub-glyph { animation: none; }
+#app[data-step="family"] .wheel .disc-hub .hub-idle-hint {
+  display: none;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--spec-ink);
+}
+#app[data-step="family"] .wheel .disc-hub.is-idle .hub-idle-hint {
+  display: flex;
 }
 
 /* ---------- B：页头全站固定（返回/进度/题号/问题 ≤160px） ---------- */
