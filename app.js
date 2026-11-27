@@ -1094,8 +1094,8 @@ function hubOrnament(families) {
   return svg;
 }
 
-/* 腿8-A：textPath 弧文字轨道的全局唯一 id（重建不重复） */
-let leg8ArcSeq = 0;
+/* 圆盘弧文字轨道的全局唯一 id（重建不重复） */
+let wheelArcSeq = 0;
 
 function buildWheel(cfg) {
   /* backHost：返回胶囊的挂载点。2026-11-24 裁决 A 之后它不在 .wheel 里了
@@ -1495,7 +1495,28 @@ function buildWheel(cfg) {
        写在 style 上而不是 nth-child 上 —— 家族数由数据决定（6），
        但同一套错峰逻辑要能照搬到中圈（4–7 段），CSS 里只认这一个变量。 */
     const g = svgEl('g', { class: 'sector-g lvl1', 'data-fam': f.id, style: '--i: ' + i });
-    g.appendChild(svgEl('path', { class: 'sector-shape', d: annulusPath(WHEEL.r1o, WHEEL.r1i, a0, a1) }));
+    g.appendChild(svgEl('path', {
+      class: 'sector-shape', d: annulusPath(WHEEL.r1o, WHEEL.r1i, a0, a1),
+    }));
+    /* 外圈只保留一层弧字。HTML 按钮仍是命中与键盘焦点层，但不再画胶囊框；
+       文字沿扇区中线排布，方向随所在半盘翻转，避免下半盘倒字。 */
+    const rText = (WHEEL.r1i + WHEEL.r1o) / 2;
+    const upright = famStart + (i + 0.5) * famStep <= 0;
+    const [tx0, ty0] = polar(rText, upright ? a0 : a1);
+    const [tx1, ty1] = polar(rText, upright ? a1 : a0);
+    const arcTextId = 'wheel-arc-' + (++wheelArcSeq);
+    g.appendChild(svgEl('path', {
+      id: arcTextId, class: 'fam-arc-guide',
+      d: 'M ' + tx0.toFixed(2) + ' ' + ty0.toFixed(2)
+        + ' A ' + rText + ' ' + rText + ' 0 0 ' + (upright ? '1' : '0')
+        + ' ' + tx1.toFixed(2) + ' ' + ty1.toFixed(2),
+      fill: 'none', stroke: 'none',
+    }));
+    const labelText = svgEl('text', { class: 'fam-arc-text', 'text-anchor': 'middle' });
+    const tp = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%' });
+    tp.textContent = f.zh;
+    labelText.appendChild(tp);
+    g.appendChild(labelText);
     svg.appendChild(g);
     outerG.push(g);
   });
@@ -1555,6 +1576,7 @@ function buildWheel(cfg) {
       type: 'button',
       role: 'radio',
       'aria-checked': 'false',
+      'aria-label': f.zh,
       'data-fam': f.id,
       'data-centroid-r': rMid.toFixed(4),
       'data-mid-deg': midDeg.toFixed(4),
@@ -1775,27 +1797,7 @@ function buildWheel(cfg) {
         class: 'sub-arc',
         d: annulusPath(SUB_R2O, SUB_R2I, a0, a1),
       }));
-      /* 腿8-A：子类名沿弧带中线排成弧形字（SVG textPath），12px，不出弧带。
-         全名常态显示；320 档由 CSS 切到短标签（.lg-full / .lg-short）。 */
-      const rText = (SUB_R2O + SUB_R2I) / 2;
-      const [tx0, ty0] = polar(rText, a0 + gap);
-      const [tx1, ty1] = polar(rText, a1 - gap);
-      const arcTextId = 'leg8-arc-' + (++leg8ArcSeq);
-      g.appendChild(svgEl('path', {
-        id: arcTextId, class: 'sub-arc-guide',
-        d: 'M ' + tx0.toFixed(2) + ' ' + ty0.toFixed(2)
-          + ' A ' + rText + ' ' + rText + ' 0 0 1 ' + tx1.toFixed(2) + ' ' + ty1.toFixed(2),
-        fill: 'none', stroke: 'none',
-      }));
-      const labelText = svgEl('text', { class: 'sub-arc-text', 'text-anchor': 'middle' });
-      const tpFull = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%', class: 'lg-full' });
-      tpFull.textContent = subFullName(item);
-      const tpShort = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%', class: 'lg-short' });
-      tpShort.textContent = subShortLabel(item);
-      labelText.appendChild(tpFull);
-      labelText.appendChild(tpShort);
-      g.appendChild(labelText);
-      /* 水平 HTML 按钮保留为命中与键盘焦点层；可见文字由弧文字承担。 */
+      /* 中圈只保留纯文字胶囊；弧字层已删除，避免胶囊上下露出重复残字。 */
       svg.appendChild(g);
       subGs.push(g);
 

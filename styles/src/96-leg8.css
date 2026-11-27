@@ -3,25 +3,17 @@
    最后加载：覆盖 95 层里被腿8 废弃的胶囊/钴蓝规则。
    ============================================================ */
 
-/* ---------- 中圈：胶囊外框去掉，文字交给 textPath ---------- */
-#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
-  display: none;
-}
-/* 弧形文字：12px，沿弧带中线，不出弧带 */
-.wheel .sub-arc-text {
-  font-size: 12px;
+/* ---------- 圆盘文字：中圈只留胶囊，外圈只留主题弧字 ---------- */
+.wheel { --wheel-text: var(--ink); }
+.wheel .fam-arc-text {
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: .02em;
-  fill: var(--ink);
+  letter-spacing: 1px;
+  fill: var(--wheel-text);
   pointer-events: none;
+  transition: opacity 160ms var(--ease-out);
 }
-/* 全名常态；短标签只在 320 档兜底 */
-.wheel .sub-arc-text .lg-short { display: none; }
-.wheel .sub-arc-text .lg-full  { display: inline; }
-@media (max-width: 386px) {
-  .wheel .sub-arc-text .lg-full  { display: none; }
-  .wheel .sub-arc-text .lg-short { display: inline; }
-}
+.wheel.is-open .fam-arc-text { opacity: 0; }
 
 /* ---------- 弧段：族色浅底 17%，选中加深到 60%（不用钴蓝灌满） ----------
    选择器必须带 #app[data-step="family"]：95 层的钴蓝 gArcOn 就是这个特异性，
@@ -78,92 +70,28 @@
 #app[data-step="family"] .wheel [data-fam="fresh"]    { --wheel-fam: #86A874; }
 #app[data-step="family"] .wheel [data-fam="gourmand"] { --wheel-fam: #C0846B; }
 
-/* 外圈：以真实扇区质心为唯一定位点；宽度同时受质心弧长约束。 */
+/* 外圈：弧字由 SVG 绘制；HTML 按钮只保留透明命中与键盘焦点层。 */
 #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0;
-  max-width: min(var(--arc-max), 84px);
-  padding: 4px 6px;
-  border: 1px solid color-mix(in srgb, var(--wheel-fam) 46%, var(--line));
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--wheel-fam) 18%, var(--bg));
-  color: var(--ink);
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: transparent;
   transform: translate(-50%, -50%) rotate(0deg);
 }
 #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .zh,
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-hot .zh,
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-on .zh {
-  display: block;
-  max-width: 100%;
-  font-family: var(--font-body);
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1.15;
-  letter-spacing: 0;
-  text-align: center;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  color: var(--ink);
-}
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-long .zh {
-  font-size: 15px;
-}
 #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes {
-  display: block;
-  max-width: 100%;
-  margin-top: 4px;
-  overflow: hidden;
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.2;
-  letter-spacing: 0;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: inherit;
-}
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes::before,
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-long .notes {
   display: none;
 }
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-hot,
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-on {
-  background: color-mix(in srgb, var(--wheel-fam) 30%, var(--bg));
-  border-color: color-mix(in srgb, var(--wheel-fam) 72%, var(--ink));
-}
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-pressing {
-  transform: translate(-50%, -50%) rotate(0deg) scale(.97);
-}
 
-/* 子类标签统一由 SVG textPath 渲染；保留 HTML 按钮作为命中与键盘焦点层。 */
-@media (max-width: 620px) {
-  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
-    max-width: min(var(--arc-max), 12.5vw);
-    padding: 3px;
-    border-radius: 10px;
-  }
-  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .zh {
-    font-size: 14px;
-  }
-  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-long .zh {
-    font-size: 13px;
-  }
-  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes {
-    display: none;
-  }
-}
-@media (max-width: 360px) {
-  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
-    padding: 2px;
-  }
-  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-long .zh {
-    font-size: 12px;
-  }
-}
+/* 子类标签由纯文字胶囊渲染；SVG 只负责弧段形状与交互热区。 */
 
 /* 盘心：64px 族图标 + 大类名 + 一行小字；空态只有引导句。 */
 #app[data-step="family"] .wheel .disc-hub,

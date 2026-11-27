@@ -782,8 +782,7 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
   const subById = new Map(TAXA_FAM.families.flatMap((f) => f.subfamilies).map((s) => [s.id, s]));
   const midSecs = appRoot.querySelectorAll('.disc-sector.lvl2').filter((b) => b.getAttribute('data-sub'));
   const midIds = midSecs.map((b) => b.getAttribute('data-sub'));
-  const arcFull = appRoot.querySelectorAll('.lg-full').map((n) => n.textContent.trim());
-  const arcShort = appRoot.querySelectorAll('.lg-short').map((n) => n.textContent.trim());
+  const pillNames = midSecs.map((b) => (b.querySelector('.zh')?.textContent || '').trim());
   const famNames = famItems.map((n) => n.textContent.trim());
   const expectFull = midIds.map((id) => subFullName(subById.get(id)));
   const expectShort = midIds.map((id) => subShortLabel(subById.get(id)));
@@ -827,15 +826,12 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
     const got = subFullName(s);
     if (got !== want) ariaBad.push(`${s.id}:全名函数「${got}」≠taxonomy「${want}」`);
   });
-  ok('中圈弧文字用全名、320 兜底短标签（短标签表全覆盖、无障碍名回全名）',
-    arcFull.length === midIds.length
-      && arcFull.every((n, i) => n === expectFull[i])
-      && arcShort.length === midIds.length
-      && arcShort.every((n, i) => n === expectShort[i])
+  ok('中圈胶囊用短标签、无障碍名回全名（短标签表全覆盖）',
+    pillNames.length === midIds.length
+      && pillNames.every((n, i) => n === expectShort[i])
       && uncovered.length === 0 && dupFams.length === 0 && notDerived.length === 0
       && ariaBad.length === 0,
-    `弧全名 ${arcFull.join('/')} ｜ 弧短名 ${arcShort.join('/')}`
-      + ` ｜ 期望全名 ${expectFull.join('/')} ｜ 期望短名 ${expectShort.join('/')}`
+    `胶囊 ${pillNames.join('/')} ｜ 期望短名 ${expectShort.join('/')}`
       + ` ｜ 未覆盖 ${uncovered.join(',') || '无'} ｜ 同族重名 ${dupFams.join(',') || '无'}`
       + ` ｜ 非全名删字 ${notDerived.join(',') || '无'}`
       + ` ｜ 无障碍名不符 ${ariaBad.join(',') || '无'}`);
@@ -847,8 +843,8 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
      必须等于中圈展开的段数 —— 两边说的是同一族、同一批小类，不会各说各的。
      不再引用 .fam-text-count。上一块那条名字口径断言不动，
      两条合起来仍守住「盘心与中圈同源同数」。 */
-  /* 腿8-A：盘心两行小类列表删除，大类名 + 一句描述接管；子类名交给弧 textPath */
-  ok('盘心两行小类列表已删除（子类名交给弧文字）',
+  /* 腿8-A：盘心两行小类列表删除，大类名 + 一句描述接管；子类名交给纯文字胶囊 */
+  ok('盘心两行小类列表已删除（子类名交给胶囊）',
     famItems.length === 0 && !famText,
     `fam-text 项数 ${famItems.length}`);
 }
@@ -890,8 +886,14 @@ ok('腿8-A 盘心显示子类图标与全名', !!appRoot.querySelector('.hub-gly
     === appRoot.querySelectorAll('.disc-sector.lvl2')[0].getAttribute('aria-label'),
   appRoot.querySelector('.hub-glyph .plate-cap')
     ? appRoot.querySelector('.hub-glyph .plate-cap').textContent : 'no cap');
-ok('腿8-A 中圈弧文字 textPath 存在（子类名沿弧带排）',
-  appRoot.querySelectorAll('.sub-arc-text .lg-full').length > 0);
+ok('批 3-1a 中圈弧字层已删除（不再露出胶囊残字）',
+  appRoot.querySelectorAll('.sub-arc-text').length === 0);
+ok('批 3-1a 中圈只保留胶囊文字',
+  appRoot.querySelectorAll('.sub-arc-btn .zh').length > 0);
+ok('批 3-1a 外圈六名由主题弧字渲染',
+  appRoot.querySelectorAll('.fam-arc-text textPath').length
+    === appRoot.querySelectorAll('.sector-g.lvl1').length
+  && appRoot.querySelectorAll('.fam-arc-text textPath').length > 0);
 const plates = appRoot.querySelectorAll('.plate-svg');
 /* 一枚，不是三枚：实测每个小类的代表香材全部同属一个家族，
    逐味画会出来一排一模一样的图标。这条断言就是钉住那个结论的。 */
