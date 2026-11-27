@@ -3,25 +3,17 @@
    最后加载：覆盖 95 层里被腿8 废弃的胶囊/钴蓝规则。
    ============================================================ */
 
-/* ---------- 中圈：胶囊外框去掉，文字交给 textPath ---------- */
-#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
-  display: none;
-}
-/* 弧形文字：12px，沿弧带中线，不出弧带 */
-.wheel .sub-arc-text {
-  font-size: 12px;
+/* ---------- 圆盘文字：中圈只留胶囊，外圈只留主题弧字 ---------- */
+.wheel { --wheel-text: var(--ink); }
+.wheel .fam-arc-text {
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: .02em;
-  fill: var(--ink);
+  letter-spacing: 1px;
+  fill: var(--wheel-text);
   pointer-events: none;
+  transition: opacity 160ms var(--ease-out);
 }
-/* 全名常态；短标签只在 320 档兜底 */
-.wheel .sub-arc-text .lg-short { display: none; }
-.wheel .sub-arc-text .lg-full  { display: inline; }
-@media (max-width: 386px) {
-  .wheel .sub-arc-text .lg-full  { display: none; }
-  .wheel .sub-arc-text .lg-short { display: inline; }
-}
+.wheel.is-open .fam-arc-text { opacity: 0; }
 
 /* ---------- 弧段：族色浅底 17%，选中加深到 60%（不用钴蓝灌满） ----------
    选择器必须带 #app[data-step="family"]：95 层的钴蓝 gArcOn 就是这个特异性，
@@ -78,92 +70,28 @@
 #app[data-step="family"] .wheel [data-fam="fresh"]    { --wheel-fam: #86A874; }
 #app[data-step="family"] .wheel [data-fam="gourmand"] { --wheel-fam: #C0846B; }
 
-/* 外圈：以真实扇区质心为唯一定位点；宽度同时受质心弧长约束。 */
+/* 外圈：弧字由 SVG 绘制；HTML 按钮只保留透明命中与键盘焦点层。 */
 #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0;
-  max-width: min(var(--arc-max), 84px);
-  padding: 4px 6px;
-  border: 1px solid color-mix(in srgb, var(--wheel-fam) 46%, var(--line));
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--wheel-fam) 18%, var(--bg));
-  color: var(--ink);
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: transparent;
   transform: translate(-50%, -50%) rotate(0deg);
 }
 #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .zh,
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-hot .zh,
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-on .zh {
-  display: block;
-  max-width: 100%;
-  font-family: var(--font-body);
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1.15;
-  letter-spacing: 0;
-  text-align: center;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  color: var(--ink);
-}
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-long .zh {
-  font-size: 15px;
-}
 #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes {
-  display: block;
-  max-width: 100%;
-  margin-top: 4px;
-  overflow: hidden;
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.2;
-  letter-spacing: 0;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: inherit;
-}
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes::before,
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-long .notes {
   display: none;
 }
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-hot,
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-on {
-  background: color-mix(in srgb, var(--wheel-fam) 30%, var(--bg));
-  border-color: color-mix(in srgb, var(--wheel-fam) 72%, var(--ink));
-}
-#app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-pressing {
-  transform: translate(-50%, -50%) rotate(0deg) scale(.97);
-}
 
-/* 子类标签统一由 SVG textPath 渲染；保留 HTML 按钮作为命中与键盘焦点层。 */
-@media (max-width: 620px) {
-  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
-    max-width: min(var(--arc-max), 12.5vw);
-    padding: 3px;
-    border-radius: 10px;
-  }
-  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .zh {
-    font-size: 14px;
-  }
-  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-long .zh {
-    font-size: 13px;
-  }
-  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 .notes {
-    display: none;
-  }
-}
-@media (max-width: 360px) {
-  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1 {
-    padding: 2px;
-  }
-  #app[data-step="family"] .wheel .label-layer .disc-sector.lvl1.is-long .zh {
-    font-size: 12px;
-  }
-}
+/* 子类标签由纯文字胶囊渲染；SVG 只负责弧段形状与交互热区。 */
 
 /* 盘心：64px 族图标 + 大类名 + 一行小字；空态只有引导句。 */
 #app[data-step="family"] .wheel .disc-hub,
@@ -210,21 +138,47 @@
 #app[data-step="family"] .wheel .disc-hub .hub-skip {
   display: none !important;
 }
-/* 子类态让标本接管盘心；标本不能被上面的旧隐藏规则压掉。 */
+/* 子类态让 24 格标本接管盘心；标本不能被上面的旧隐藏规则压掉。 */
 #app[data-step="family"] .wheel .disc-hub.has-glyph .hub-glyph {
   display: block !important;
 }
-#app[data-step="family"] .wheel .disc-hub.is-picked .plate-svg {
-  width: 64px;
-  height: 64px;
-}
-#app[data-step="family"] .wheel .disc-hub.is-picked .plate-cap {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-}
 #app[data-step="family"] .wheel .disc-hub.is-picked .hub-glyph {
+  width: max-content;
+  margin: 0 auto;
   animation: leg8FlyIn 220ms var(--ease-out) both;
+}
+/* 320 档实测：盘心 163.19px，内切可用半径 65.59px。
+   4×6、16px 图标、2px 间距的外接半对角线为 63.51px，可完整收进盘心。
+   选定态只留网格，家族标题与描述退场，避免把图标挤出圆盘。 */
+#app[data-step="family"] .wheel .disc-hub.is-picked .hub-zh,
+#app[data-step="family"] .wheel .disc-hub.is-picked .hub-desc {
+  display: none;
+}
+#app[data-step="family"] .wheel .hub-specimen-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 16px);
+  grid-auto-rows: 16px;
+  gap: 2px;
+  justify-content: center;
+  pointer-events: none;
+}
+#app[data-step="family"] .wheel .hub-specimen-item {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  opacity: .78;
+}
+#app[data-step="family"] .wheel .hub-specimen-item .specimen-svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+#app[data-step="family"] .wheel .hub-specimen-item.is-selected {
+  opacity: 1;
+  background: color-mix(in srgb, var(--wheel-fam) 18%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--wheel-fam) 80%, var(--ink));
 }
 @keyframes leg8FlyIn {
   from { opacity: 0; transform: scale(.35); }
@@ -342,3 +296,183 @@
 
 /* 选大类时不再显示两行小类列表（.fam-text 已从渲染移除） */
 .wheel .disc-hub .fam-text { display: none !important; }
+
+/* ---------- 批 3-1b：纯文字胶囊单行、切向排布、收在弧带内 ---------- */
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: none;
+  min-height: 0;
+  padding: 0 4px;
+  gap: 0;
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 1.05;
+  white-space: nowrap;
+  word-break: normal;
+  transform: rotate(var(--pill-rot, 0deg)) scale(var(--pill-scale, 1));
+  transform-origin: center;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="6"] .zh,
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="7"] .zh {
+  max-width: none;
+  font-size: 12px;
+}
+#app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .sub-arc-icon {
+  display: none !important;
+}
+@media (max-width: 620px) {
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn { --pill-scale: .72; }
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="6"] .zh,
+  #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn[data-n="7"] .zh {
+    max-width: none;
+    padding: 0 4px;
+    font-size: 12px;
+  }
+}
+
+/* ---------- 批 3-2a：盘心空态 / 家族预览 / 一次确认动效 ---------- */
+#app[data-step="family"] .wheel .hub-emblem.is-confirming {
+  animation: leg8HubConfirm 180ms ease-out;
+  transform-origin: center;
+}
+@keyframes leg8HubConfirm {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #app[data-step="family"] .wheel .hub-emblem.is-confirming { animation: none; }
+}
+
+/* ---------- 批 3-3：首屏入口二选一 ---------- */
+#app[data-step="entry"] .entry-screen {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 340px;
+  margin: 48px auto 0;
+  text-align: center;
+}
+#app[data-step="entry"] .entry-screen .q-title {
+  margin-bottom: 10px;
+  font-size: 34px;
+}
+#app[data-step="entry"] .entry-screen .q-help {
+  margin: 0 auto 32px;
+  color: var(--ink-2);
+  font-size: 16px;
+}
+#app[data-step="entry"] .entry-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+}
+#app[data-step="entry"] .entry-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
+  min-height: 224px;
+  padding: 24px;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease-out, background-color 160ms ease-out, transform 160ms ease-out;
+}
+#app[data-step="entry"] .entry-card:hover {
+  border-color: var(--ink);
+  background: var(--bg-2);
+  transform: translateY(-2px);
+}
+#app[data-step="entry"] .entry-card:active { transform: translateY(0); }
+#app[data-step="entry"] .entry-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+#app[data-step="entry"] .entry-icon {
+  display: block;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 28px;
+  color: var(--accent);
+}
+#app[data-step="entry"] .entry-icon svg {
+  display: block;
+  width: 48px;
+  height: 48px;
+}
+#app[data-step="entry"] .entry-card-title {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+#app[data-step="entry"] .entry-card-desc {
+  display: block;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.masthead:has(.entry-return) { padding-right: 112px; }
+.entry-return {
+  position: absolute;
+  top: 18px;
+  right: 0;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.entry-return:hover { color: var(--accent); }
+.entry-return:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.entry-flow.is-entering {
+  animation: leg8EntryIn 300ms var(--ease-out) both;
+}
+.entry-flow.is-entering > .fade-in { animation: none; }
+@keyframes leg8EntryIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 620px) {
+  #app[data-step="entry"] .entry-screen {
+    justify-content: flex-start;
+    min-height: 0;
+    margin-top: 32px;
+  }
+  #app[data-step="entry"] .entry-screen .q-title { font-size: 26px; }
+  #app[data-step="entry"] .entry-screen .q-help { margin-bottom: 24px; }
+  #app[data-step="entry"] .entry-choices { gap: 10px; }
+  #app[data-step="entry"] .entry-card {
+    justify-content: flex-start;
+    min-height: 206px;
+    padding: 18px 14px;
+  }
+  #app[data-step="entry"] .entry-icon { width: 40px; height: 40px; margin-bottom: 24px; }
+  #app[data-step="entry"] .entry-icon svg { width: 40px; height: 40px; }
+  #app[data-step="entry"] .entry-card-title { font-size: 19px; }
+  #app[data-step="entry"] .entry-card-desc { font-size: 12px; }
+  .masthead:has(.entry-return) { padding-right: 0; }
+  .entry-return { position: static; margin-top: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .entry-flow.is-entering { animation: none; }
+  #app[data-step="entry"] .entry-card { transition: none; }
+}

@@ -387,6 +387,108 @@ const stepNoOf = (id) => {
   return i < 0 ? 0 : i + 1;
 };
 const screenOf = (id) => `第 ${stepNoOf(id)} 屏`;
+
+/* ==== 批 3-3：首屏入口只切界面，不写答案 ==== */
+{
+  const entryCards = appRoot.querySelectorAll('.entry-card');
+  ok('首屏是入口二选一（data-step=entry）', stepId() === 'entry', stepId());
+  ok('首屏中央恰好两张同级入口卡', entryCards.length === 2, String(entryCards.length));
+  ok('左卡按感觉选、右卡按香型圆盘',
+    entryCards[0]?.getAttribute('data-entry') === 'emotion'
+    && entryCards[1]?.getAttribute('data-entry') === 'family',
+    entryCards.map((c) => c.getAttribute('data-entry')).join(','));
+  ok('两卡都有图标与一行说明',
+    appRoot.querySelectorAll('.entry-icon').length === 2
+    && appRoot.querySelectorAll('.entry-card-desc').length === 2,
+    `图标 ${appRoot.querySelectorAll('.entry-icon').length} / 说明 ${appRoot.querySelectorAll('.entry-card-desc').length}`);
+  ok('入口屏没有藏底部情绪控件或圆盘',
+    appRoot.querySelectorAll('.seg').length === 0 && appRoot.querySelectorAll('.wheel').length === 0,
+    `seg ${appRoot.querySelectorAll('.seg').length} / wheel ${appRoot.querySelectorAll('.wheel').length}`);
+  ok('入口屏不显示进度尺', appRoot.querySelectorAll('.progress').length === 0,
+    String(appRoot.querySelectorAll('.progress').length));
+
+  const pristine = JSON.stringify(appMod.__state.answers);
+  const pristineRefs = {
+    unwanted: appMod.__state.answers.unwanted,
+    noSmell: appMod.__state.answers.noSmell,
+    dislikedNotes: appMod.__state.answers.dislikedNotes,
+    dislikedZh: appMod.__state.answers.dislikedZh,
+  };
+  entryCards[1].dispatch('click');
+  ok('点圆盘卡只进入圆盘屏', stepId() === 'family' && appRoot.querySelectorAll('.wheel').length === 1, stepId());
+  ok('点圆盘卡不写任何答案', JSON.stringify(appMod.__state.answers) === pristine
+    && appMod.__state.answers.unwanted === pristineRefs.unwanted
+    && appMod.__state.answers.noSmell === pristineRefs.noSmell
+    && appMod.__state.answers.dislikedNotes === pristineRefs.dislikedNotes
+    && appMod.__state.answers.dislikedZh === pristineRefs.dislikedZh,
+    JSON.stringify(appMod.__state.answers));
+  ok('入口切换只播放一次 300ms 上浮淡入',
+    appRoot.querySelectorAll('.entry-flow.is-entering').length === 1
+    && appMod.__state.entryMotion === false
+    && /leg8EntryIn 300ms[^}]*both/.test(fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8')),
+    '缺 .entry-flow.is-entering / 300ms / 一次性消费');
+
+  appRoot.querySelector('.entry-return').dispatch('click');
+  ok('重选入口返回中央二选一', stepId() === 'entry' && appRoot.querySelectorAll('.entry-card').length === 2, stepId());
+
+  const a = appMod.__state.answers;
+  const commonBefore = {
+    budget: a.budget, occasion: a.occasion, season: a.season,
+    concentration: a.concentration, intensity: a.intensity,
+  };
+  a.family = 'floral'; a.subfamily = 'white-floral'; a.direction = 'warm'; a.emotion = 'warm';
+  a.unwanted = ['after-rain']; a.noSmell = ['rose-garden'];
+  a.dislikedNotes = ['iris']; a.dislikedZh = { iris: '鸢尾' };
+  a.budget = 'b300-600'; a.occasion = 'commute'; a.season = 'spring';
+  a.concentration = 'eau-de-toilette'; a.intensity = 4;
+  appMod.__state.avoidKey = 'family:floral';
+  appRoot.querySelectorAll('.entry-card')[0].dispatch('click');
+  ok('换到感觉路径进入独立情绪屏', stepId() === 'emotion' && appRoot.querySelectorAll('.emotion-screen').length === 1,
+    stepId());
+  ok('情绪屏进度标签使用感觉而非香型',
+    appRoot.querySelector('.progress-meta')?.textContent.includes('感觉')
+    && !appRoot.querySelector('.progress-meta')?.textContent.includes('香型'),
+    appRoot.querySelector('.progress-meta')?.textContent || '');
+  ok('换入口清空上一路径的家族、小类、方向与情绪',
+    !a.family && !a.subfamily && !a.direction && !a.emotion,
+    JSON.stringify({ family: a.family, subfamily: a.subfamily, direction: a.direction, emotion: a.emotion }));
+  ok('换入口清空旧路径避雷答案与方向缓存',
+    a.unwanted.length === 0 && a.noSmell.length === 0 && a.dislikedNotes.length === 0
+    && Object.keys(a.dislikedZh).length === 0 && appMod.__state.avoidKey === null,
+    JSON.stringify({ unwanted: a.unwanted, noSmell: a.noSmell, disliked: a.dislikedNotes, avoidKey: appMod.__state.avoidKey }));
+  ok('换入口保留场合、季节、浓淡与预算等通用答案',
+    a.occasion === 'commute' && a.season === 'spring' && a.concentration === 'eau-de-toilette'
+    && a.budget === 'b300-600' && a.intensity === 4,
+    JSON.stringify({ occasion: a.occasion, season: a.season, concentration: a.concentration, budget: a.budget, intensity: a.intensity }));
+  const emoButtons = appRoot.querySelectorAll('.seg-item');
+  ok('情绪屏沿用六个既有情绪选项', emoButtons.length === 6, String(emoButtons.length));
+  const warm = emoButtons.find((b) => b.textContent === '温暖');
+  warm.dispatch('click');
+  ok('情绪选项才写 emotion，圆盘字段保持为空',
+    a.emotion === 'warm' && !a.family && !a.subfamily && !a.direction,
+    JSON.stringify({ emotion: a.emotion, family: a.family, direction: a.direction }));
+
+  const beforeReturn = JSON.stringify(a);
+  appRoot.querySelector('.entry-return').dispatch('click');
+  const afterReturn = JSON.stringify(a);
+  ok('返回重选保留答案，直到真正选择另一路径',
+    beforeReturn === afterReturn && afterReturn.includes('"emotion":"warm"'),
+    '返回入口时不应偷偷改答案');
+  appRoot.querySelectorAll('.entry-card')[0].dispatch('click');
+  ok('同路径重选保留已有情绪与通用答案',
+    stepId() === 'emotion' && a.emotion === 'warm' && JSON.stringify(a) === afterReturn,
+    JSON.stringify({ emotion: a.emotion, occasion: a.occasion, budget: a.budget }));
+  appRoot.querySelector('.entry-return').dispatch('click');
+  appRoot.querySelectorAll('.entry-card')[1].dispatch('click');
+  ok('反向换入口清情绪并回到空圆盘',
+    !a.emotion && !a.family && !a.subfamily && !a.direction
+    && appRoot.querySelectorAll('.wheel').length === 1,
+    JSON.stringify({ emotion: a.emotion, family: a.family }));
+  ok('圆盘卡本身仍不写答案',
+    !a.family && !a.emotion && a.unwanted.length === 0,
+    JSON.stringify({ family: a.family, emotion: a.emotion }));
+  Object.assign(a, commonBefore);
+}
 /* ============================================================
    第 1 屏：香型圆盘（2026-11-17 v7 第 1 步恢复）
    ------------------------------------------------------------
@@ -704,6 +806,15 @@ ok('盘心不在可旋转层内', !inRot(appRoot.querySelector('.disc-hub')));
 ok('进度条存在', appRoot.querySelectorAll('.progress').length === 1);
 ok('页脚有许可声明', getStepText().includes('CC BY 4.0'));
 
+/* 空态盘心只留引导文案：准星纹样节点不挂载，而不是用透明度隐藏。 */
+ok('批 3-2a 空态盘心不渲染准星纹样',
+  appRoot.querySelectorAll('.hub-orn').length === 0,
+  `${appRoot.querySelectorAll('.hub-orn').length} 枚`);
+ok('批 3-2a 空态盘心保持 is-idle 引导态',
+  !!appRoot.querySelector('.disc-hub')
+    && appRoot.querySelector('.disc-hub').classList.contains('is-idle'),
+  appRoot.querySelector('.disc-hub')?.className);
+
 /* 扇形本体必须自己挂着点击 —— 只把事件绑在标签上的话，
    用户戳扇区那一大块面积会毫无反应，等于"看起来能点"。 */
 const sectorGroups = appRoot.querySelectorAll('.sector-g');
@@ -742,22 +853,19 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
    v7 一圈弧段全部可见，没有「停着的那一项」可推断 —— 凭猜画图会让用户
    以为已经选好。这条与下一条合起来才守得住"预览 vs 已选定"的区别。 */
 {
-  const prevPlates = appRoot.querySelectorAll('.plate-svg');
+  const prevPlates = appRoot.querySelectorAll('.specimen-svg');
   const hubPrev = appRoot.querySelector('.disc-hub');
   ok('只选大类时盘心还没有标本', prevPlates.length === 0, `${prevPlates.length} 枚`);
   ok('只选大类时盘心是「正在看」而非「已选定」',
     !!hubPrev && !hubPrev.classList.contains('is-picked'), hubPrev && hubPrev.className);
 
-  /* ---- 只选大类时中心盘 = 纯文字（本步临时裁定）----
-     24 枚上色标本画的是"小类"那一层，大类这一层没有自己的图标。
-     只选大类就摆一排小类图标，等于用下一层的词汇回答当前这一层的问题。
-     所以这里守两条，缺一条裁定就落空：
-       ① 盘心不许有任何图标（小类图标也不行）
-       ② 盘心必须有文字（小类名 + 个数），否则"承载信息"这条又退回空圆 */
+  /* ---- 只选大类时中心盘 = 家族大图标 + 文字（批 3-2a）----
+     24 枚上色标本画的是"小类"那一层，大家族这一层使用 6 枚家族级图形。
+     所以 .hub-glyph 里仍不许出现小类标本，家族图形由 .hub-emblem 承载。 */
   const hubGlyphBox = appRoot.querySelector('.hub-glyph');
   const hubSvgs = hubGlyphBox ? hubGlyphBox.querySelectorAll('svg') : [];
-  ok('只选大类时盘心没有任何图标', hubSvgs.length === 0,
-    `盘心 SVG ${hubSvgs.length} 枚`);
+  ok('只选大类时盘心还没有小类标本', hubSvgs.length === 0,
+    `盘心小类 SVG ${hubSvgs.length} 枚`);
   const famText = appRoot.querySelector('.fam-text');
   const famItems = appRoot.querySelectorAll('.fam-text-item');
   /* 名字口径（2026-11-24 裁定 A；2026-11-25 短标签腿修订）：盘心小类列表与
@@ -782,8 +890,11 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
   const subById = new Map(TAXA_FAM.families.flatMap((f) => f.subfamilies).map((s) => [s.id, s]));
   const midSecs = appRoot.querySelectorAll('.disc-sector.lvl2').filter((b) => b.getAttribute('data-sub'));
   const midIds = midSecs.map((b) => b.getAttribute('data-sub'));
-  const arcFull = appRoot.querySelectorAll('.lg-full').map((n) => n.textContent.trim());
-  const arcShort = appRoot.querySelectorAll('.lg-short').map((n) => n.textContent.trim());
+  const pillNames = midSecs.map((b) => (b.querySelector('.zh')?.textContent || '').trim());
+  const pillIconCount = appRoot.querySelectorAll('.sub-arc-btn .sub-arc-icon').length;
+  const pillRotMissing = midSecs.filter((b) => !b.style.getPropertyValue('--pill-rot')).length;
+  ok('批 3-1b 胶囊只留文字、不带小类图标', pillIconCount === 0, `${pillIconCount} 枚`);
+  ok('批 3-1b 每枚胶囊都带切向旋转角度', pillRotMissing === 0, `缺 ${pillRotMissing} 枚`);
   const famNames = famItems.map((n) => n.textContent.trim());
   const expectFull = midIds.map((id) => subFullName(subById.get(id)));
   const expectShort = midIds.map((id) => subShortLabel(subById.get(id)));
@@ -827,15 +938,12 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
     const got = subFullName(s);
     if (got !== want) ariaBad.push(`${s.id}:全名函数「${got}」≠taxonomy「${want}」`);
   });
-  ok('中圈弧文字用全名、320 兜底短标签（短标签表全覆盖、无障碍名回全名）',
-    arcFull.length === midIds.length
-      && arcFull.every((n, i) => n === expectFull[i])
-      && arcShort.length === midIds.length
-      && arcShort.every((n, i) => n === expectShort[i])
+  ok('中圈胶囊用短标签、无障碍名回全名（短标签表全覆盖）',
+    pillNames.length === midIds.length
+      && pillNames.every((n, i) => n === expectShort[i])
       && uncovered.length === 0 && dupFams.length === 0 && notDerived.length === 0
       && ariaBad.length === 0,
-    `弧全名 ${arcFull.join('/')} ｜ 弧短名 ${arcShort.join('/')}`
-      + ` ｜ 期望全名 ${expectFull.join('/')} ｜ 期望短名 ${expectShort.join('/')}`
+    `胶囊 ${pillNames.join('/')} ｜ 期望短名 ${expectShort.join('/')}`
       + ` ｜ 未覆盖 ${uncovered.join(',') || '无'} ｜ 同族重名 ${dupFams.join(',') || '无'}`
       + ` ｜ 非全名删字 ${notDerived.join(',') || '无'}`
       + ` ｜ 无障碍名不符 ${ariaBad.join(',') || '无'}`);
@@ -847,8 +955,8 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
      必须等于中圈展开的段数 —— 两边说的是同一族、同一批小类，不会各说各的。
      不再引用 .fam-text-count。上一块那条名字口径断言不动，
      两条合起来仍守住「盘心与中圈同源同数」。 */
-  /* 腿8-A：盘心两行小类列表删除，大类名 + 一句描述接管；子类名交给弧 textPath */
-  ok('盘心两行小类列表已删除（子类名交给弧文字）',
+  /* 腿8-A：盘心两行小类列表删除，大类名 + 一句描述接管；子类名交给纯文字胶囊 */
+  ok('盘心两行小类列表已删除（子类名交给胶囊）',
     famItems.length === 0 && !famText,
     `fam-text 项数 ${famItems.length}`);
 }
@@ -868,8 +976,14 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
       && hubHover.querySelector('.hub-kicker').textContent === kickBefore,
     `${zhBefore} → ${hubHover.querySelector('.hub-zh').textContent}`);
   ok('悬停不画标本（未确认就没有标本）',
-    appRoot.querySelectorAll('.plate-svg').length === 0,
-    `${appRoot.querySelectorAll('.plate-svg').length} 枚`);
+    appRoot.querySelectorAll('.specimen-svg').length === 0,
+    `${appRoot.querySelectorAll('.specimen-svg').length} 枚`);
+  const hoverFamId = appRoot.querySelectorAll('.sector-g')[0].getAttribute('data-fam');
+  const hoverEmblem = appRoot.querySelector('.hub-emblem');
+  ok('批 3-2a 悬停中圈保持家族大图标',
+    !!hoverEmblem && hoverEmblem.getAttribute('data-fam') === hoverFamId
+      && hoverEmblem.querySelectorAll('svg').length === 1,
+    `期望 ${hoverFamId}，实际 ${hoverEmblem && hoverEmblem.getAttribute('data-fam')}`);
   ok('悬停态还没到「已选定」', !!hubHover && !hubHover.classList.contains('is-picked'),
     hubHover && hubHover.className);
   ok('悬停只给那一段挂 is-hot', g0.classList.contains('is-hot'), g0.className);
@@ -882,59 +996,74 @@ ok('选中家族后中圈展开子家族', midAfter.length > 0, `中圈扇区 ${
 midAfter[0].dispatch('click');
 await new Promise((r) => setTimeout(r, 500));
 
-const plate = appRoot.querySelector('.hub-plate');
-ok('落到小项后盘心长出标本', !!plate);
-/* 腿8-A：选中子类后盘心中央出现该子类图标 + 全名（64px 由 CSS 控制） */
-ok('腿8-A 盘心显示子类图标与全名', !!appRoot.querySelector('.hub-glyph .plate-svg')
-  && appRoot.querySelector('.hub-glyph .plate-cap').textContent
-    === appRoot.querySelectorAll('.disc-sector.lvl2')[0].getAttribute('aria-label'),
-  appRoot.querySelector('.hub-glyph .plate-cap')
-    ? appRoot.querySelector('.hub-glyph .plate-cap').textContent : 'no cap');
-ok('腿8-A 中圈弧文字 textPath 存在（子类名沿弧带排）',
-  appRoot.querySelectorAll('.sub-arc-text .lg-full').length > 0);
-const plates = appRoot.querySelectorAll('.plate-svg');
-/* 一枚，不是三枚：实测每个小类的代表香材全部同属一个家族，
-   逐味画会出来一排一模一样的图标。这条断言就是钉住那个结论的。 */
-ok('标本只画一枚（不是每味香材一枚）', plates.length === 1, `${plates.length} 枚`);
-/* 统一视框 —— 这就是"风格统一"的可断言部分。
-   上色稿自带自己的 fill / stroke，所以外框不再要求 fill="none"，
-   而是要求它挂 is-art 且真的把上色内容写了进去（见下面 shapeCount）。 */
-ok('标本是 24×24 同一视框', plates[0].getAttribute('viewBox') === '0 0 24 24',
-  plates[0].getAttribute('viewBox'));
-ok('标本走的是上色通路（is-art）', plates[0].classList.contains('is-art'), plates[0].className);
-
-/* 里必须真有几何。桩里塞 markup 字符串的话会被剥成纯文本，
-   容器在、图形空 —— 这是"看起来做了其实没做"的典型形态，必须抓住。 */
-const shapeCount = plates[0].querySelectorAll('circle').length
-  + plates[0].querySelectorAll('path').length + plates[0].querySelectorAll('ellipse').length;
-ok('标本里真画了几何', shapeCount >= 2, `图元数 ${shapeCount}`);
-
-/* 香材名必须落到中文 —— 和香材标签同一套取词逻辑 */
-const cap = appRoot.querySelector('.plate-cap');
-ok('标本下带香材名', !!cap && cap.textContent.length > 0, cap && cap.textContent);
-ok('香材名是中文', !!cap && !/[a-z]/i.test(cap.textContent), cap && cap.textContent);
-
-/* 图形本身是装饰，语义交给这一句。缺了它屏幕阅读器只会读出"图"。 */
-ok('标本有可读的 aria-label',
-  !!plate && /代表香材/.test(plate.getAttribute('aria-label') || ''),
-  plate && plate.getAttribute('aria-label'));
+const grid = appRoot.querySelector('.hub-specimen-grid');
+const gridItems = [...appRoot.querySelectorAll('.hub-specimen-item')];
+const selectedItem = appRoot.querySelector('.hub-specimen-item.is-selected');
+const selectedSubId = appRoot.querySelector('.disc-sector.lvl2.is-on')?.getAttribute('data-sub');
+const firstSelectedId = selectedItem?.getAttribute('data-sub');
+ok('批 3-2b 选定小类后盘心显示 24 格标本', !!grid && gridItems.length === 24,
+  `网格 ${gridItems.length} 格`);
+ok('批 3-2b 24 格小类 id 齐全且不重复',
+  new Set(gridItems.map((x) => x.getAttribute('data-sub'))).size === 24,
+  `唯一 id ${new Set(gridItems.map((x) => x.getAttribute('data-sub'))).size} 个`);
+ok('批 3-2b 选中格与中圈选定小类同源',
+  !!selectedItem && selectedItem.getAttribute('data-sub') === selectedSubId,
+  `盘心 ${firstSelectedId}，中圈 ${selectedSubId}`);
+ok('批 3-2b 只有一格高亮', appRoot.querySelectorAll('.hub-specimen-item.is-selected').length === 1,
+  `${appRoot.querySelectorAll('.hub-specimen-item.is-selected').length} 格`);
+ok('批 3-2b 选中格有无障碍当前态',
+  !!selectedItem && selectedItem.getAttribute('aria-current') === 'true',
+  selectedItem && selectedItem.getAttribute('aria-current'));
+ok('批 3-2b 网格播报当前小类全名',
+  !!grid && selectedItem && grid.getAttribute('aria-label').includes(selectedItem.getAttribute('aria-label')),
+  grid && grid.getAttribute('aria-label'));
+ok('批 3-1a 中圈弧字层已删除（不再露出胶囊残字）',
+  appRoot.querySelectorAll('.sub-arc-text').length === 0);
+ok('批 3-1a 中圈只保留胶囊文字',
+  appRoot.querySelectorAll('.sub-arc-btn .zh').length > 0);
+ok('批 3-1a 外圈六名由主题弧字渲染',
+  appRoot.querySelectorAll('.fam-arc-text textPath').length
+    === appRoot.querySelectorAll('.sector-g.lvl1').length
+  && appRoot.querySelectorAll('.fam-arc-text textPath').length > 0);
+const specimens = [...appRoot.querySelectorAll('.hub-specimen-item .specimen-svg')];
+ok('批 3-2b 每格都是 24×24 同一视框',
+  specimens.length === 24 && specimens.every((s) => s.getAttribute('viewBox') === '0 0 24 24'),
+  `${specimens.length} 枚`);
+ok('批 3-2b 每格都走上色通路（is-art）',
+  specimens.length === 24 && specimens.every((s) => s.classList.contains('is-art')),
+  `${specimens.filter((s) => s.classList.contains('is-art')).length} 枚`);
+ok('批 3-2b 24 格都真有几何',
+  specimens.length === 24 && specimens.every((s) => s.querySelectorAll('circle').length
+    + s.querySelectorAll('path').length + s.querySelectorAll('ellipse').length >= 2),
+  `最少图元 ${Math.min(...specimens.map((s) => s.querySelectorAll('circle').length
+    + s.querySelectorAll('path').length + s.querySelectorAll('ellipse').length))}`);
+ok('批 3-2b 每格都有可读的小类名',
+  gridItems.length === 24 && gridItems.every((x) => (x.getAttribute('aria-label') || '').length > 0),
+  `${gridItems.filter((x) => (x.getAttribute('aria-label') || '').length > 0).length} 格`);
+ok('批 3-2b 网格是状态展示而非第二作答入口',
+  !!grid && grid.getAttribute('role') === 'list'
+    && grid.querySelectorAll('button').length + grid.querySelectorAll('a').length
+      + grid.querySelectorAll('input').length + grid.querySelectorAll('[tabindex]').length === 0,
+  grid && grid.getAttribute('role'));
+{
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  ok('批 3-2b 网格默认 4 列 × 6 行、16px 图标、2px 间距',
+    /\.hub-specimen-grid\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*16px\)[^}]*grid-auto-rows:\s*16px[^}]*gap:\s*2px/.test(css));
+  ok('批 3-2b 选中格有内描边高亮',
+    /\.hub-specimen-item\.is-selected\s*\{[^}]*box-shadow:\s*inset 0 0 0 2px/.test(css));
+}
 /* 盘心必须挂上 has-glyph，否则 CSS 里 .hub-glyph 保持 display:none —— 图形等于没画 */
 const hubAfter = appRoot.querySelector('.disc-hub');
 ok('盘心挂上了 has-glyph', !!hubAfter && hubAfter.classList.contains('has-glyph'),
   hubAfter && hubAfter.className);
 
-/* 同一家族下换个小类，图案必须**不同** —— 这枚图编码的是小类，不是家族。
-   这一条推翻了上一轮的做法（那时同族共用家族母题）。推翻的理由是用户提出的：
-   古龙水型要有古龙独有的标识，青绿柑橘与芳香柑橘各自不同。
-   那个要求是对的 —— 旧做法下选完古龙水型和青绿柑橘，盘心画的是同一枚图，
-   用户看不出自己选的是哪一格。
-   注意这里仍然不是「给同一形状做哈希微差」：每枚画的是该小类的代表香材本体。 */
+/* 同一家族下换个小类，24 格保留，但选中格与代表图形必须更新。 */
 const sigOf = () => {
-  const s = appRoot.querySelectorAll('.plate-svg')[0];
+  const s = appRoot.querySelector('.hub-specimen-item.is-selected .specimen-svg');
   if (!s) return '';
   return s.querySelectorAll('path').map((q) => q.getAttribute('d') || '').join('|')
     + s.querySelectorAll('circle').map((q) => q.getAttribute('r') || '').join('|')
-    + s.querySelectorAll('ellipse').map((q) => (q.getAttribute('rx') || '') + (q.getAttribute('ry') || '')).join('|');
+    + s.querySelectorAll('ellipse').map((q) => (q.getAttribute('rx') || '') + ',' + (q.getAttribute('ry') || '')).join('|');
 };
 const sigCitrus = sigOf();
 ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice(0, 40));
@@ -956,11 +1085,15 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
   }
   ok('同族不同小类各有各的图形', compared > 0 && same === 0,
     `比较 ${compared} 组，其中 ${same} 组与首个相同`);
-  /* 停在另一项上，后面那条「换小类后香材名跟着变」才有对照。 */
 }
-/* 不断言具体是哪一味：中圈格子的顺序由 taxonomy 决定，写死「葡萄柚」
-   会把测试绑死在当前数据顺序上，数据一改就假失败。要守的是
-   「名字跟着小类变」，这才是这条断言的意义。 */
+ok('换小类后高亮跟随中圈选择',
+  appRoot.querySelector('.hub-specimen-item.is-selected')?.getAttribute('data-sub')
+    === appRoot.querySelector('.disc-sector.lvl2.is-on')?.getAttribute('data-sub')
+    && appRoot.querySelector('.hub-specimen-item.is-selected')?.getAttribute('data-sub') !== firstSelectedId,
+  `${firstSelectedId} → ${appRoot.querySelector('.hub-specimen-item.is-selected')?.getAttribute('data-sub')}`);
+ok('换小类后 24 格不重建、不减少',
+  appRoot.querySelectorAll('.hub-specimen-item .specimen-svg').length === 24,
+  `${appRoot.querySelectorAll('.hub-specimen-item .specimen-svg').length} 枚`);
 /* ---- 每类一枚图标：数据完整性 + 两两不重复 ----
    线稿（SUB_MARKS / SUB_FIT）已于 2026-11-08 整块删除，盘心直接用
    icon-specimen/svg/ 里的上色稿。所以这里改成校验 ART_FILE 这张映射表，
@@ -1016,9 +1149,6 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
   });
   ok('全部上色 SVG 两两不同', dupF.length === 0, dupF.join(' ; '));
 }
-
-ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textContent !== cap.textContent,
-  `${cap.textContent} → ${appRoot.querySelector('.plate-cap').textContent}`);
 
 /* ---- 两层切换的返回路径（v14）----
    三条：① 返回按钮把大类一起清掉、回到闭合盘；
@@ -1085,7 +1215,7 @@ ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textCon
    验收线三条状态，缺一条这件事就落空：
      ① 选中 → 盘心出现该大类的图标（且是**那一族**的，不是随便一枚）
      ② 切换 → 图标跟着换（不是渲染一次就冻住）
-     ③ 取消 → 盘心恢复原样（徽记退场、空态纹样回来、文字回到「还没选」）
+     ③ 取消 → 盘心恢复原样（徽记退场、准星纹样不挂载、文字回到「还没选」）
 
    为什么走真实点击而不注入 state：图标挂在 paint() 里，而 paint() 由
    onChange / 扇区点击驱动。注入 state 就把要验的那一段绕掉了 ——
@@ -1147,7 +1277,7 @@ ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textCon
       `data-fam=${em && em.fam} svg=${em && em.svgCount}`);
     ok('取消选择后盘心不挂 has-emblem', !!hub && !hub.classList.contains('has-emblem'),
       hub && hub.className);
-    ok('取消选择后空态纹样回来（原样，不是新的东西）', !!orn,
+    ok('批 3-2a 取消选择后空态不挂准星纹样', !orn,
       orn ? orn.className : 'no .hub-orn');
     ok('取消选择后盘心回到「还没选」', appRoot.querySelector('.hub-zh').textContent === '还没选',
       appRoot.querySelector('.hub-zh').textContent);
@@ -1157,12 +1287,33 @@ ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textCon
       `glyph=${appRoot.querySelectorAll('.hub-glyph svg').length} emblem=${appRoot.querySelectorAll('.hub-emblem svg').length}`);
   }
 
-  /* ① 选中第一个大类 → 盘心出现那一族的图标。 */
+  /* 空态 hover 大圈：临时出现该家族大图标；移开后回空态。 */
   const famIdOfSector = (g) => g.getAttribute('data-fam');
   const firstSector = appRoot.querySelectorAll('.sector-g')[0];
   const firstFam = famIdOfSector(firstSector);
+  firstSector.dispatch('mouseenter');
+  await new Promise((r) => setTimeout(r, 300));
+  const hoverPreview = emblemOf();
+  ok('批 3-2a 空态 hover 大圈预览该家族大图标',
+    !!hoverPreview && hoverPreview.fam === firstFam && hoverPreview.svgCount === 1,
+    `期望 ${firstFam}，实际 ${hoverPreview && hoverPreview.fam}／svg ${hoverPreview && hoverPreview.svgCount}`);
+  firstSector.dispatch('mouseleave');
+  await new Promise((r) => setTimeout(r, 120));
+  ok('批 3-2a 指针离开后回到空态徽记',
+    !!emblemOf() && emblemOf().fam === null && emblemOf().svgCount === 0,
+    `data-fam=${emblemOf().fam} svg=${emblemOf().svgCount}`);
+
+  /* ① 选中第一个大类 → 盘心出现那一族的图标，并只播放一次确认动效。 */
   firstSector.dispatch('click');
+  ok('批 3-2a 选定家族时触发一次确认动效',
+    !!appRoot.querySelector('.hub-emblem')
+      && appRoot.querySelector('.hub-emblem').classList.contains('is-confirming'),
+    appRoot.querySelector('.hub-emblem')?.className);
   await new Promise((r) => setTimeout(r, 500));
+  ok('批 3-2a 确认动效 180ms 后收尾',
+    !!appRoot.querySelector('.hub-emblem')
+      && !appRoot.querySelector('.hub-emblem').classList.contains('is-confirming'),
+    appRoot.querySelector('.hub-emblem')?.className);
   const sel1 = emblemOf();
   const hubSel1 = appRoot.querySelector('.disc-hub');
   ok('选中大类后盘心出现该类图标', !!sel1 && sel1.fam === firstFam && sel1.svgCount === 1,
@@ -1181,9 +1332,17 @@ ok('换小类后香材名跟着变', appRoot.querySelector('.plate-cap').textCon
     !!sel1 && sel1.gradientIds.length > 0 && sel1.gradientIds.every((s) => /-a\d+$/.test(s)),
     sel1 && sel1.gradientIds.slice(0, 3).join(' '));
 
-  /* ② 切换 → 图标跟着换。点第四个大类（与第一个不同族）。 */
+  /* 已选家族优先于 hover 预览：划过别族不抢走盘心，点击才切换。 */
   const fourthSector = appRoot.querySelectorAll('.sector-g')[3];
   const fourthFam = famIdOfSector(fourthSector);
+  fourthSector.dispatch('mouseenter');
+  await new Promise((r) => setTimeout(r, 160));
+  ok('批 3-2a 已选家族优先于 hover 预览',
+    !!emblemOf() && emblemOf().fam === firstFam,
+    `期望保持 ${firstFam}，实际 ${emblemOf().fam}`);
+  fourthSector.dispatch('mouseleave');
+
+  /* ② 切换 → 图标跟着换。点第四个大类（与第一个不同族）。 */
   fourthSector.dispatch('click');
   await new Promise((r) => setTimeout(r, 500));
   const sel2 = emblemOf();
@@ -3943,7 +4102,7 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
      不剥离会把"解释为什么改名"的文字当成悬空选择器。 */
   const cssNoComment = css.replace(/\/\*[\s\S]*?\*\//g, '');
   const used = new Set([...cssNoComment.matchAll(/data-step="([a-zA-Z]+)"/g)].map((m) => m[1]));
-  const known = new Set([...appMod.__steps.all.map((x) => x.id), 'result']);
+  const known = new Set([...appMod.__steps.all.map((x) => x.id), 'entry', 'emotion', 'result']);
   const dangling = [...used].filter((v) => !known.has(v));
   ok('认屏 id：CSS 里出现的 data-step 值都是真实步骤 id（防改名后样式静默失效）',
     dangling.length === 0,
