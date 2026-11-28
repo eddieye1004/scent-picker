@@ -37,7 +37,7 @@ import { createWishSession, wishMessage, wishReasonOf } from './src/wish-ui.js';
    不碰 DOM —— 所以「没有价格就不显示价格」「没有链接就不显示链接」这两条
    最容易被写成兜底值的判据，能在 node 里一格一格地验（scripts/test-wishlist-page.mjs）。 */
 import {
-  WISH_PAGE_MSG, wishListModel, perfumeIndex, priceLabelOf, priceBandOf, savedLabel,
+  WISH_PAGE_MSG, wishListModel, perfumeIndex, priceBandOf, savedLabel,
   CLEAR_LABEL, CLEAR_ARM_LABEL, nextClearState, removableOf,
 } from './src/wish-page.js';
 /* 试香盖章（2026-11-23）。数据层 src/stamp.js 只认传入的 storage，
@@ -4507,6 +4507,17 @@ async function finish(btn) {
       res = recommend(scoreInput, d.perfumes, TAX, { topN: 3, avoidSoftNotes, boostIds });
       res.poolFellBack = true;
     }
+    /* P0-1：保留原始评分，仅修正三栏分配。
+       榜首沿用严格合格候选；「换个方向」从同一批已评分候选里找不同主族的一瓶。
+       relaxed 是引擎自带准入档，只放宽候选范围，不碰 WEIGHTS / score。 */
+    {
+      const widePool = res.poolFellBack ? d.perfumes : pool;
+      const wide = recommend(scoreInput, widePool, TAX,
+        { topN: 9, dominanceMode: 'relaxed', avoidSoftNotes, boostIds });
+      const assigned = compareRoles(res.results, wide.results, res.profile);
+      res.results = assigned.order;
+      res.roles = assigned.roles;
+    }
     /* 不再悄悄放宽：把档内/档外数出来交给结果页顶部明示（leg6）。
        无论是 poolForBudget 的窄档退全库，还是引擎内部放宽，只要结果含
        档外瓶，budgetRelax 就非空，结果页会写清「只找到 X 瓶，另外 Y 瓶超出预算」。 */
@@ -5489,23 +5500,29 @@ function cmpSpecimenIcon(subId) {
    会在"（按浓"处折行，一个词被劈成两半。拆成"值 + 一句来源"两行，
    断点落在语义边界上，而且这句来源**必须留**（见上）。 */
 function cmpLongevityText(p) {
-  const n = p && p.longevityInferred;
+  /* P0-2：持香是「按浓度估算，非实测」——taxonomy.concentrationLongevity.note
+     明示它不是数据源字段。缺浓度时连估算都省略，整行不渲染。 */
+  if (!p || !p.concentration) return { value: '', note: '' };
+  const n = p.longevityInferred;
   const labels = (TAX && TAX.concentrationLongevity && TAX.concentrationLongevity.labels) || {};
   const raw = n == null ? null : labels[String(n)];
   const m = raw ? String(raw).match(/（([^）]+)）/): null;
-  if (!m) return { value: '留香未标注', note: '' };
+  if (!m) return { value: '', note: '' };
   const span = m[1]
     .replace(/^<(\d+)h$/, '不到 $1 小时')
     .replace(/^(\d+)-(\d+)h$/, '$1–$2 小时')
     .replace(/^(\d+)h\+$/, '$1 小时以上');
-  return { value: '留香 ' + span, note: '按浓度推断' };
+  return { value: '留香 ' + span, note: '按浓度估算，非实测' };
 }
 
 /* 价格：只报价位带，不编具体价。查不到就明说未标注 ——
    方案要求这一行存在，而"空着"会让三列的行高对不齐。 */
 function cmpPriceText(p) {
-  const label = priceLabelOf(p && p.id, priceIndex());
-  return label || '价位未标注';
+  /* P0-2：价签要标容量与参考口径。数据源只有价位带（price-bands.json），
+     perfumes.json 无容量字段、无单瓶可核对成交价 —— 按源块写
+     「暂无可靠参考价」，并注明容量未标注，不拿价位带冒充容量对应价。 */
+  void p;
+  return '暂无可靠参考价 · 容量未标注';
 }
 
 /* 从引擎已经算好的 r.breakdown 里挑一条**命中用户答案**的因子，
@@ -5581,12 +5598,16 @@ function cmpReasonOf(r, profile, used) {
    **搜索结果页**，所以它必须说「搜」不能说「直达」（与详情卡同一套诚实规则）。 */
 function cmpBuyOf(p, aff) {
   const links = affiliateLinks(p, aff) || [];
-  const product = links.find((l) => l.kind !== 'search' && !l.searchLanding);
+  /* P0-2：只有无佣金、人工核对过的商品页（kind 'link'）才叫「查看商品」；
+     s.click.taobao.com 推广转链与搜索落地都只到搜索结果页，一律叫「搜索同款」。 */
+  const product = links.find((l) => l.kind === 'link' && !l.searchLanding);
   if (product) {
     return {
       href: product.href, platform: product.platform, platformZh: product.platformZh,
       kind: product.kind, direct: product.kind === 'direct', isProduct: true,
-      label: '直达商品',
+      /* P0-2：只有经核对的商品页才叫「查看商品」；联盟转链与
+         searchLanding 的推广搜索链都不是已核对商品页，一律叫「搜索同款」。 */
+      label: '查看商品',
     };
   }
   /* 没有商品页：方案点名「去淘宝搜这瓶」。走既有 platformLinks 取配置，
@@ -5597,14 +5618,140 @@ function cmpBuyOf(p, aff) {
   return {
     href: l.href, platform: l.platform, platformZh: l.platformZh,
     kind: l.kind, direct: l.kind === 'direct', isProduct: false,
-    label: `去${l.platformZh}搜这瓶`,
+    label: '搜索同款',
   };
 }
 
-/* 三列标签：方案把标签与列位置写在同一句里，按位置固定。 */
+/* 三列标签：P0-1 按**角色**贴，不再按位置贴。
+   state.result.roles[i] 存 { tab, note }；没有它就退回旧的位置标签，
+   保证其它五步/旧调用不致崩。 */
 const CMP_TABS = ['最贴合', '更好入手', '换个方向'];
 function cmpTabLabels(results) {
-  return results.map((_, i) => CMP_TABS[i] || '');
+  const roles = (state.result && state.result.roles) || [];
+  return results.map((_, i) => (roles[i] && roles[i].tab) || CMP_TABS[i] || '');
+}
+
+/* P0-1：三栏角色判据。只读引擎已经算出的 s.breakdown / s.score / 数据字段，
+   不碰 WEIGHTS、不重排原始候选分 —— 每个 s 带着自己的原始分进入新顺序。 */
+const CMP_FAMILY_ZH = {
+  floral: '花香调', citrus: '柑橘调', fresh: '清新调',
+  woody: '木质调', amber: '琥珀调', gourmand: '美食调',
+};
+function cmpFactorOf(s, factor) {
+  return ((s && s.breakdown) || []).find((b) => b && b.factor === factor) || null;
+}
+function cmpPrefZh(s) {
+  const b = cmpFactorOf(s, 'family') || cmpFactorOf(s, 'familyPick');
+  if (b && b.pickZh) return b.pickZh;
+  const f = dominantFamily(s && s.perfume);
+  return CMP_FAMILY_ZH[f] || f || '主香族';
+}
+function cmpKeepZh(s, profile) {
+  /* 「保留了哪项偏好」必须落到用户真实选过的东西上，不空口说"综合偏好"。 */
+  const emo = profile && profile.emotionZh;
+  const eb = cmpFactorOf(s, 'emotionNotes');
+  const hits = eb && (eb.hits || []).filter(Boolean).slice(0, 2).map((h) => NOTE_ZH[h] || h).join('、');
+  if (emo && hits) return `你选的「${emo}」感觉（${hits}）`;
+  const lb = cmpFactorOf(s, 'likedNotes') || cmpFactorOf(s, 'subfamilyHits');
+  const lh = lb && (lb.hits || []).filter(Boolean).slice(0, 2).map((h) => NOTE_ZH[h] || h).join('、');
+  if (lh) return `你点名的${lh}`;
+  const fb = cmpFactorOf(s, 'family') || cmpFactorOf(s, 'familyPick');
+  if (fb && fb.pickZh && Number(fb.pickWeight) >= 0.3) return `还留着一半左右的${fb.pickZh}`;
+  if (emo) return `你选的「${emo}」感觉`;
+  return '你原先选过的香气偏好';
+}
+function cmpHasVerifiedPrice(s) {
+  const p = s && s.perfume;
+  if (!p) return false;
+  /* 同规格价格优势要有「容量 + 可核对的规格价」两个字段；数据源没有，
+     所以这一格一律降级，不拿价位带冒充价格优势。 */
+  return !!(p.volumeMl && p.verifiedPriceCny);
+}
+function cmpHasVerifiedBuy(s) {
+  /* 已核实的购买依据 = 直达商品页且非搜索落地；推广转链与搜索页都不算。 */
+  const l = cmpBuyOf(s && s.perfume, affiliateConfig());
+  return !!(l && l.isProduct && l.kind !== 'search');
+}
+
+/* 返回 { order, roles }。order 里的对象仍是原来的 s（原始 score / 排序
+   全部保留）；只改三栏的摆放与角色文案。 */
+function compareRoles(primary, wide, profile) {
+  /* primary = 严格合格候选（榜首即「最贴合」）。
+     wide = 同一批已评分候选（引擎 relaxed 准入，分数/权重一律不动），
+            只用来给「换个方向」找到不同主族的一瓶。
+     每一瓶的 score / breakdown 都是引擎原样算出的，这里只挑人、不改分。 */
+  const main = (primary || []).filter(Boolean);
+  if (!main.length) return { order: [], roles: [] };
+  const lead = main[0];
+  const leadFam = dominantFamily(lead.perfume);
+  const famZh = (f) => CMP_FAMILY_ZH[f] || f || '其它';
+  const seen = new Set(main.map((s) => s && s.perfume && s.perfume.id));
+  const extras = (wide || []).filter(Boolean).filter((s) => {
+    const id = s.perfume && s.perfume.id;
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+  const rest = [...main.slice(1), ...extras];
+  const pick = (pred) => {
+    const i = rest.findIndex(pred);
+    return i >= 0 ? rest.splice(i, 1)[0] : (rest.length ? rest.splice(0, 1)[0] : null);
+  };
+
+  const order = [lead];
+  const roles = [{
+    tab: '最贴合',
+    note: `按${cmpPrefZh(lead)}等已答偏好，取合格候选榜首（主族：${famZh(leadFam)}）`,
+  }];
+
+  /* 更好入手：须有可说明的同规格价格优势或已核实购买依据。
+     当前数据源无容量/规格价，链接是推广转链或搜索页 —— 一律降级并写清限制。 */
+  const betterOk = (s) => cmpHasVerifiedPrice(s) && cmpHasVerifiedBuy(s);
+  const hasBetter = rest.some(betterOk);
+  /* 降级栏不许抢走跨族瓶：跨族瓶是「换个方向」硬约束唯一的落点。
+     有真实价格优势时按优势挑；否则降级时显式挑同族瓶，只有确实
+     没有同族瓶、且还有第 3 瓶可让时才退而取一瓶（两瓶场景直接让位）。 */
+  const better = hasBetter
+    ? pick(betterOk)
+    : (rest.some((s) => dominantFamily(s.perfume) === leadFam)
+      ? pick((s) => dominantFamily(s.perfume) === leadFam)
+      : (main.length >= 3 ? pick(() => true) : null));
+  if (better) {
+    order.push(better);
+    roles.push(hasBetter
+      ? { tab: '更好入手', note: '同规格价格与购买页均已核对，具备可说明的价格优势' }
+      : { tab: '另一款候选', note: '数据源无容量与可核对规格价，无法证明同规格价格优势；链接为推广/搜索链，非已核对商品页' });
+  }
+
+  /* 换个方向：主族须与榜首不同，并写明保留了哪项用户偏好。
+     三张详情卡都必须保留一条结构性理由（家族/浓度），否则理由与 52 分权重脱节 ——
+     这是既有测试守的线，换方向不能靠牺牲它来换。 */
+  /* 结构性理由要以**实际渲染出的措辞**为准：既有测试认
+     「主体就是/主体是/主调是/骨架/厚重感/浓郁度」。只用"只是带一点…不是主角"
+     不算 —— 它明说这瓶不以该族为主，撑不起结构性理由。 */
+  const STRUCTURAL_RE = /主体就是|主体是|主调是|骨架|厚重感|浓郁度/;
+  const structuralOk = (s) => {
+    const rows = (s && s.reasons) || [];
+    return rows.some((t) => STRUCTURAL_RE.test(String(t)))
+      || ((s && s.breakdown) || []).some((b) => b && STRUCTURAL_RE.test(cmpSentenceOf(b, profile)));
+  };
+  const crossOk = (s) => dominantFamily(s.perfume) !== leadFam && structuralOk(s);
+  const anyCross = (s) => dominantFamily(s.perfume) !== leadFam;
+  const hasCross = rest.some(crossOk);
+  let dir = pick(crossOk);
+  if (!dir && main.length >= 3 && structuralOk(main[0])) {
+    // 找不到同时满足两条的跨族瓶时，退回原候选顺位，标「另一款候选」并说明限制。
+    dir = main.slice(1).find(structuralOk) || null;
+  }
+  if (dir) {
+    order.push(dir);
+    roles.push(hasCross
+      ? { tab: '换个方向', note: `主族由${famZh(leadFam)}换成${famZh(dominantFamily(dir.perfume))}，保留了${cmpKeepZh(dir, profile)}` }
+      : { tab: '另一款候选', note: rest.some(anyCross)
+        ? '跨族候选缺结构性依据，保留原始评分作候选'
+        : '合格候选池未出现不同主香族，无法换方向；这一栏保留原始评分作候选' });
+  }
+  return { order, roles };
 }
 
 /* 一格标本卡（无实拍）。族色底取自瓶子的主族，与详情卡的瓶形配色同源，
@@ -5676,10 +5823,13 @@ function renderCompareTable(results, profile) {
         el('p', { class: 'cmp-brand' }, p.brand || ''),
         el('h3', { class: 'cmp-name', title: p.name }, p.name)),
       el('p', { class: 'cmp-reason' }, reasonText),
-      el('p', { class: 'cmp-meta' },
+      /* P0-2：每张卡的真实字段说明入选依据；角色限制单独一行写明。 */
+      ((state.result && state.result.roles && state.result.roles[i] && state.result.roles[i].note)
+        ? el('p', { class: 'cmp-role-note' }, state.result.roles[i].note) : null),
+      (longevity.value ? el('p', { class: 'cmp-meta' },
         el('span', { class: 'cmp-sr' }, '留香'),
         longevity.value,
-        longevity.note ? el('span', { class: 'cmp-meta-note' }, longevity.note) : null),
+        longevity.note ? el('span', { class: 'cmp-meta-note' }, longevity.note) : null) : null),
       el('p', { class: 'cmp-price' },
         el('span', { class: 'cmp-sr' }, '价格'),
         cmpPriceText(p)),
@@ -5866,14 +6016,19 @@ function pdBasisOf(r, profile) {
     const item = take(b);
     if (item) picked.push(item);
   }
-  /* 补结构性：名额已满就顶掉最后一条非结构性项，再按原优先级重排。 */
-  if (!picked.some((x) => PD_STRUCTURAL.has(x.factor))) {
+  /* 补结构性：判据看**实际写出的那句**，不是因子名。
+     "只是带一点X，不是主角"虽属 family，但它明说这瓶不以该族为主，
+     撑不起"家族/浓度是骨架"这条契约——跨族候选常落在这一档。
+     此时改用浓度/浓淡这类真实结构性句子补位，名额满就顶掉最后一条非结构性项。 */
+  const STRUCTURAL_WHY_RE = /主体就是|主体是|主调是|骨架|厚重感|浓郁度/;
+  const structurallyStated = (x) => PD_STRUCTURAL.has(x.factor) && STRUCTURAL_WHY_RE.test(x.why);
+  if (!picked.some(structurallyStated)) {
     for (const factor of CMP_REASON_ORDER) {
       if (!PD_STRUCTURAL.has(factor)) continue;
       const b = rows.find((x) => x.factor === factor);
       if (!b) continue;
       const item = take(b);
-      if (!item) continue;
+      if (!item || !structurallyStated(item)) continue;
       if (picked.length >= PD_BASIS_MAX) picked.pop();
       picked.push(item);
       break;
@@ -6958,7 +7113,7 @@ function renderResult() {
       profile.occasionZh,
       `浓郁度 ${profile.intensity}/5`,
     ].filter(Boolean).join(' · ')),
-    el('p', {}, '下面三瓶分属不同家族，方便你对比着闻，而不是三瓶一个味道')
+    /* P0-2：删掉「是三瓶一个味道」——Eddie 截图里这句话正是问题本身。 */
     /* V3 改法 2d：匹配度的口径说明（.profile-line）从这里移到三张卡之后，
        见 results.forEach 之后那一处。原来它排在三张卡**之前**：用户还没看到
        任何一瓶，先读到一段 33px 高的方法论免责说明（移动端 54px、两行）。
@@ -7015,6 +7170,13 @@ function renderResult() {
         class: 'btn ghost js-budget-change', type: 'button', onclick: goBudget,
       }, relax.inBand === 0 ? '改预算' : '换一档')
     ));
+  }
+
+  /* 换批耗尽（任务书 P0-1 回归项）：换不出新瓶子时如实说明，不假装换过。
+     只在 reshuffle 重置回第一批时为真；首次出结果与改一题重推时都不显示。 */
+  if (state.resultView && state.resultView.exhausted) {
+    wrap.appendChild(el('div', { class: 'reshuffle-exhausted', role: 'status' },
+      '同批候选已展示完，这一组从头再来'));
   }
 
   /* 首屏 3 列比较表（腿 7a1，2026-11-26）。位置在页头之后、三张详情卡之前：
@@ -7546,12 +7708,24 @@ async function reshuffle(btn) {
     /* 真的换不出新的了（库就这么大）：如实说，不假装换过。
        重置 soldOut 让用户可以重新开始一轮 —— 但按钮文案要说明这件事。 */
     if (picked.length < 3) {
+      /* 同批候选已展示完：如实告知后从头再来，不假装换到了新的一组。 */
+      view.exhausted = true;
       view.soldOut = [];
       res = recommend(state.answers, pool, TAX, { topN: 3, avoidSoftNotes, boostIds });
       picked = res.results || [];
       view.round = 0;
     } else {
+      view.exhausted = false;
       view.round = (view.round || 0) + 1;
+    }
+    /* P0-1：换一批走同一套角色分配，避免又变回三瓶同族。 */
+    {
+      const wide2 = recommend(state.answers, pool, TAX,
+        { topN: 9 + view.soldOut.length, dominanceMode: 'relaxed', avoidSoftNotes, boostIds });
+      const wide2Fresh = (wide2.results || []).filter((s) => !view.soldOut.includes(s.perfume.id));
+      const assigned2 = compareRoles(picked, wide2Fresh, res.profile);
+      picked = assigned2.order;
+      res.roles = assigned2.roles;
     }
     state.result = { ...res, results: picked, budgetRelax: budgetRelaxInfo(picked, state.answers.budget) };
     render();
@@ -8119,6 +8293,8 @@ function gapBoostIds(perfumes, photos, affLinks) {
 /* leg7a2：首屏理由/链接的纯函数句柄，专项验证直接调，
    不必走真渲染就能逐格验「厚重感 0.5 → 偏清爽，不闷」与按钮文案。 */
 export const __gap = { boostIds: gapBoostIds };
+/* P0-1 回归钩子：边界场景（同族池/跨族/无价格证据/不足3瓶）实测入口 */
+export const __compareRoles = compareRoles;
 export const __cmp = {
   sentence: cmpSentenceOf,
   reason: cmpReasonOf,
