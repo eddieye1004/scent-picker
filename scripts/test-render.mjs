@@ -4535,6 +4535,74 @@ console.log(picks[0] ? picks[0].textContent.slice(0, 420) : '(无)');
   }
 }
 
+
+/* ===== P0-1 三栏分配 + P0-2 卡片证据（final-a 固化回归）=====
+   把这些边界场景钉进测试，而不是只活在一次性浏览器探针里：
+   同族池 / 跨族 / 价格全缺 / 0–2 瓶 / 两瓶跨族不抢位 / 评分不变 /
+   按钮文案 / 换批耗尽如实提示。 */
+{
+  const cr = appMod.__compareRoles;
+  const mk = (id, fam) => ({
+    perfume: { id, brand: 'B', name: id, families: { [fam]: 1 } },
+    reasons: ['主体就是' + fam + '调'],
+    breakdown: [{ factor: 'family', pickZh: fam + '调', pickWeight: 1 }],
+    score: 100,
+  });
+  const tabs = (r) => r.roles.map((x) => x.tab).join(',');
+
+  const floral = [mk('f1', 'floral'), mk('f2', 'floral'), mk('f3', 'floral')];
+  const r1 = cr([floral[0]], floral, {});
+  ok('同族池：榜首仍是「最贴合」', r1.roles[0].tab === '最贴合', tabs(r1));
+  ok('同族池：无跨族时不硬写「换个方向」', !r1.roles.some((x) => x.tab === '换个方向'), tabs(r1));
+  ok('同族池：换方向降级写明限制', r1.roles.some((x) => x.note && x.note.includes('无法换方向')), tabs(r1));
+
+  /* 三瓶全同族且都在主候选里：降级栏挑走一瓶后，换方向 fallback 不能
+     再从原始 main 里挑同一瓶，否则第二、三栏会是同一瓶（卡片重复）。 */
+  const allSame = [mk('f1', 'floral'), mk('f2', 'floral'), mk('f3', 'floral')];
+  const rDup = cr(allSame, allSame, {});
+  const dupIds = rDup.order.map((s) => s.perfume.id);
+  ok('全同族三瓶：卡片不重复', new Set(dupIds).size === dupIds.length, dupIds.join(','));
+
+  const mixed = [mk('f1', 'floral'), mk('w1', 'woody')];
+  const r2 = cr([mixed[0]], mixed, {});
+  ok('跨族候选：出现「换个方向」栏', r2.roles.some((x) => x.tab === '换个方向'), tabs(r2));
+  ok('跨族候选：写明保留了哪项偏好',
+    r2.roles.some((x) => x.tab === '换个方向' && x.note.includes('保留了')), tabs(r2));
+  ok('三栏分配不改原始评分', r2.order.every((s) => s.score === 100));
+
+  ok('价格全缺：不硬写「更好入手」', !r1.roles.some((x) => x.tab === '更好入手'), tabs(r1));
+
+  const one = cr([floral[0]], [floral[0]], {});
+  ok('只有 1 瓶：只出一栏且是「最贴合」',
+    one.order.length === 1 && one.roles[0].tab === '最贴合', tabs(one));
+  const none = cr([], [], {});
+  ok('0 瓶：空结果不崩', none.order.length === 0 && none.roles.length === 0);
+
+  /* 自查发现的真 bug：两瓶且唯一跨族瓶会被降级栏抢走，导致无方向可换。 */
+  const twoCross = [mk('f1', 'floral'), mk('c1', 'citrus')];
+  const r4 = cr([twoCross[0]], twoCross, {});
+  ok('2 瓶跨族：降级栏不抢占唯一跨族瓶',
+    r4.roles.some((x) => x.tab === '换个方向'), tabs(r4));
+
+  /* rest 顺序为「跨族在前、同族在后」时：降级栏必须拿同族瓶，把跨族瓶
+     留给「换个方向」。pick(betterOk) 的 fallback 会取第一个（跨族瓶），
+     曾导致第三栏号称换方向却仍是同族、文案自相矛盾。 */
+  const mixedOrder = [mk('f1', 'floral'), mk('w1', 'woody'), mk('f2', 'floral')];
+  const r5 = cr([mixedOrder[0]], mixedOrder, {});
+  const dirRole = r5.roles.find((x) => x.tab === '换个方向');
+  ok('3 瓶混合（跨族在前）：换方向真的换了主族',
+    !!dirRole && dirRole.note.includes('木质调'), JSON.stringify(r5.roles));
+
+  const sb = appMod.__cmp.buy({ id: 'gucci-bloom', brand: 'Gucci', name: 'Bloom' }, appMod.__aff.config());
+  ok('推广/搜索链：按钮为「搜索同款」',
+    !!sb && !sb.isProduct && sb.label === '搜索同款', sb && sb.label);
+
+  const appSrcForFinal = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  ok('换批耗尽：如实提示文案在场', appSrcForFinal.includes('同批候选已展示完，这一组从头再来'));
+  ok('换批耗尽：设置 exhausted 标记', /view\.exhausted\s*=\s*true/.test(appSrcForFinal));
+  ok('换批耗尽：结果页渲染提示节点', appSrcForFinal.includes("class: 'reshuffle-exhausted'"));
+}
+
 fs.unlinkSync(tmpApp);
 
 console.log(`\n===== 渲染测试 =====`);

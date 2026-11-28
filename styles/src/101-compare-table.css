@@ -37,11 +37,13 @@
   border-top: 1px solid var(--line);
 }
 
-/* ---- 三列容器：7 行共享行高（标签 / 图 / 名字 / 理由 / 留香 / 价格 / 按钮）---- */
+/* ---- 三列容器：9 行共享行高（标签 / 图 / 名字 / 理由 / 角色依据 / 留香 / 来源 / 价格 / 按钮）----
+     P0-2 每列多了一行角色依据；行数必须 ≥ 单列最多子元素数（本例 8），
+     否则第 8 个元素会挤进上一格，价格与留香来源叠在一起。留 1 行冗余。 */
 .cmp-cols {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: repeat(7, auto);
+  grid-template-rows: repeat(9, auto);
   column-gap: 4px;
 }
 
@@ -53,16 +55,18 @@
 
 .cmp-col {
   display: grid;
-  grid-row: span 7;
+  grid-row: span 9;
   grid-template-rows: subgrid;
   row-gap: 6px;
   min-width: 0;
 }
 
-/* 列间竖线：贴在 2、3 列左缘，不占列宽（inset 阴影而非 border） */
+/* 列间竖线：贴在 2、3 列左缘，不占列宽（inset 阴影而非 border）。
+   不用 padding 造缝：padding 会压窄后两列的内容宽，aspect-ratio:3/4
+   让图区比第一列矮 5px（390 档实测 157 vs 152）。column-gap 已经留缝，
+   这里只画 1px 线，保证三列图区严格等高。 */
 .cmp-col + .cmp-col {
   box-shadow: inset 1px 0 0 var(--line);
-  padding-left: 4px;
 }
 
 /* ---- 列标签 ---- */
@@ -236,6 +240,26 @@
   opacity: .9;
 }
 
+/* P0-2：角色判据行（这瓶为什么在这一栏）。跨族/降级依据写在这里，
+   与 .cmp-reason（为什么是这瓶）分开 —— 两句话回答两个不同的问题。
+   12px/--ink-3 沿用既有配对（对比度 6.19:1，test-contrast 已守）。 */
+.cmp-role-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+/* 换批耗尽提示：同批候选已展示完时如实告知，不假装换过。 */
+.reshuffle-exhausted {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  border-left: 2px solid var(--blue);
+}
+
 /* ---- 购买按钮 ----
    两种形态必须一眼分得开（方案原文：直达与搜索两种样式）：
      直达商品 → 实底 --fill-blue + 白字（5.80:1，test-contrast 算过的那条配对）
@@ -311,7 +335,7 @@
   .cmp { padding-top: 12px; margin-bottom: 14px; }
   .cmp-cols { column-gap: 3px; }
   .cmp-col { row-gap: 5px; }
-  .cmp-col + .cmp-col { padding-left: 3px; }
+  .cmp-col + .cmp-col { box-shadow: inset 1px 0 0 var(--line); }
   .cmp-fig { max-height: 86px; }
   .cmp-name { font-size: 13px; }
   .cmp-reason { -webkit-line-clamp: 3; }
