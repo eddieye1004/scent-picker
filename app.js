@@ -918,26 +918,65 @@ const WHEEL = {
   hubPct: 30.6,
 };
 
-/* ---------- 盘心 24 小类标本网格（批 3-2b）----------
-   中圈选定小类后，六族 24 格同时出现；选择只由中圈点击决定，
-   网格本身是状态展示，不新增一条作答入口。每格复用 ART_FILE 的
-   按需 SVG 通路，首次选定时并行取齐，之后换族不再重复请求。 */
-function hubSpecimenGrid(families) {
+/* ---------- 盘心 24 小类标本网格（批 3-2b；Batch 5 B2 门控）----------
+   只有当前大类下已提交的有效小类才挂载六族 24 格。网格与中圈共用 chooseSub，
+   是同一步的快捷入口，不新增问卷步骤；每格复用 ART_FILE 的按需 SVG 通路。 */
+function hubSpecimenGrid(families, selectedSubId, onSelect) {
   const grid = el('div', {
     class: 'hub-specimen-grid',
-    role: 'list',
-    'aria-label': '24 个小类标本',
+    id: 'wheel-specimen-grid',
+    role: 'listbox',
+    tabindex: '0',
+    'aria-label': '24 个小类标本，当前选择：' + subFullName(
+      families.flatMap((fam) => fam.subfamilies || []).find((sub) => sub.id === selectedSubId) || {}
+    ) + '。方向键移动，Enter 选择',
+  });
+  const items = [];
+  const setActive = (id) => {
+    if (!id) return;
+    grid.setAttribute('aria-activedescendant', id);
+    items.forEach((item) => item.classList.toggle('is-keyboard-active', item.id === id));
+  };
+  grid.addEventListener('focus', () => {
+    setActive(grid.getAttribute('aria-activedescendant') || selectedSubId || items[0]?.id);
+  });
+  grid.addEventListener('blur', () => {
+    items.forEach((item) => item.classList.remove('is-keyboard-active'));
+  });
+  grid.addEventListener('keydown', (ev) => {
+    const keys = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'Home', 'End', 'Enter', ' '];
+    if (!keys.includes(ev.key)) return;
+    ev.preventDefault();
+    const current = Math.max(0, items.findIndex((item) => item.id === grid.getAttribute('aria-activedescendant')));
+    let next = current;
+    if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') next = (current + 1) % items.length;
+    else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') next = (current - 1 + items.length) % items.length;
+    else if (ev.key === 'Home') next = 0;
+    else if (ev.key === 'End') next = items.length - 1;
+    setActive(items[next]?.id);
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const item = items[next];
+    const fam = families.find((entry) => entry.id === item?.getAttribute('data-fam'));
+    const sub = fam?.subfamilies?.find((entry) => entry.id === item?.getAttribute('data-sub'));
+    if (fam && sub) onSelect(fam, sub, ev);
   });
   families.forEach((fam) => {
     (fam.subfamilies || []).forEach((sub) => {
       const item = el('div', {
         class: 'hub-specimen-item',
-        role: 'listitem',
+        id: 'hub-specimen-' + sub.id,
+        role: 'option',
         'data-sub': sub.id,
         'data-fam': fam.id,
         'aria-label': subFullName(sub),
-        'aria-current': 'false',
-        title: subFullName(sub),
+        'aria-selected': String(sub.id === selectedSubId),
+        title: '选择' + subFullName(sub),
+      });
+      /* 24 格与中圈共用 chooseSub：它们是同一步的快捷入口，不新增问卷步骤，
+         也不直接写 state 或打分。隐藏态整棵网格不挂载，因此没有透明点击区。 */
+      item.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        onSelect(fam, sub, ev);
       });
       const box = svgEl('svg', {
         class: 'specimen-svg is-art',
@@ -953,8 +992,10 @@ function hubSpecimenGrid(families) {
       });
       item.appendChild(box);
       grid.appendChild(item);
+      items.push(item);
     });
   });
+  setActive(selectedSubId || items[0]?.id);
   return grid;
 }
 
@@ -1066,8 +1107,12 @@ function buildWheel(cfg) {
      （那枚胶囊压住了 −120° 的中圈标签），由调用方给一个页顶流的容器把它接走。
      不给时退回老位置（root），只为兼容/自检脚本单点调用时不会抛。 */
   const { families, onChange, backHost } = cfg;
-  let selFamily = cfg.selFamily || null;
-  let selSub = cfg.selSub || null;
+  const initialFamily = cfg.selFamily ? families.find((fam) => fam.id === cfg.selFamily) || null : null;
+  let selFamily = initialFamily ? initialFamily.id : null;
+  /* 恢复态也服从同一门控：旧存档里跨大类的 subfamily 是无效值，不能拿来锁住
+     中圈或显示 24 格。这里只纠正轮盘的恢复输入，不清空任何有效答案。 */
+  let selSub = initialFamily && (initialFamily.subfamilies || []).some((sub) => sub.id === cfg.selSub)
+    ? cfg.selSub : null;
   let hoverFam = null;      // 指针停在外圈哪个家族（只改盘心预览，不改变层数）
   let hoverSub = null;
 
@@ -1486,26 +1531,32 @@ function buildWheel(cfg) {
     const familyMid = midFamilyDeg(famStart, famStep, i);
     const familyMidNormalized = ((familyMid + 180) % 360 + 360) % 360 - 180;
     const isSideFamily = Math.abs(familyMidNormalized) < 75 || Math.abs(familyMidNormalized) > 105;
+    const arcSide = Math.cos(familyMid * Math.PI / 180) >= 0 ? 1 : -1;
     const labelText = svgEl('text', { class: 'fam-arc-text' + (isSideFamily ? ' is-side' : ''), 'text-anchor': 'middle' });
     const tp = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%' });
     tp.textContent = f.zh;
     labelText.appendChild(tp);
     g.appendChild(labelText);
-    /* 四个侧边大类保持正字竖读；三字沿浅弧微弯，单字切线旋转不超过 8°。
-       顶/底仍使用原有 textPath 横排，文字节点与测试锚点均保留。 */
-    if (isSideFamily && [...f.zh].length === 3) {
+    /* 四个侧边大类继续逐字 SVG，但字心必须真的落在弧上。
+       读取顺序固定为上→下：右侧角坐标随 t 增大，左侧相反；每字自身不倒转。
+       字心半径 193、角间距 7.2°（弧距约 24.2 单位），旋转 ±15° 只作辅助。
+       13px 字面的内沿离盘心半径 144 约 42.5 单位、外沿离盘沿 228 约 28.5 单位；
+       390px 盘径下分别约 30px / 20px。相邻字心净距约 11.2 单位（约 8px）。
+       未来标签变长时先缩总角跨（不缩字号、不压圈、不裁切），顶/底 textPath 不动。 */
+    if (isSideFamily && [...f.zh].length > 1) {
       const uprightGroup = svgEl('g', { class: 'fam-arc-upright', 'aria-hidden': 'true' });
-      const [centerX, centerY] = polar(rText, familyMid);
-      const side = Math.sign(familyMidNormalized);
-      [...f.zh].forEach((char, charIndex) => {
-        const t = charIndex - 1;
-        const x = centerX - side * 1.2 * (1 - t * t);
-        const y = centerY + t * 19;
+      const chars = [...f.zh];
+      const gapDeg = Math.min(7.2, 14.4 / (chars.length - 1));
+      chars.forEach((char, charIndex) => {
+        const t = charIndex - (chars.length - 1) / 2;
+        const angle = familyMid + arcSide * t * gapDeg;
+        const [x, y] = polar(rText, angle);
+        const rotation = arcSide * t * 15;
         const charText = svgEl('text', {
           class: 'fam-arc-upright-char',
           x: x.toFixed(2), y: y.toFixed(2),
           'text-anchor': 'middle',
-          transform: 'rotate(' + (side * t * 7.5).toFixed(2) + ' ' + x.toFixed(2) + ' ' + y.toFixed(2) + ')',
+          transform: 'rotate(' + rotation.toFixed(2) + ' ' + x.toFixed(2) + ' ' + y.toFixed(2) + ')',
         });
         charText.textContent = char;
         uprightGroup.appendChild(charText);
@@ -2088,16 +2139,20 @@ function buildWheel(cfg) {
     if (glyphKey !== builtGlyphKey) {
       builtGlyphKey = glyphKey;
       hubGlyph.innerHTML = '';
-      if (focusSub) hubGlyph.appendChild(hubSpecimenGrid(families));
+      if (focusSub) hubGlyph.appendChild(hubSpecimenGrid(families, focusSub.id, (fam, sub, ev) => {
+        splash(ev);
+        chooseSub(fam, sub);
+      }));
     }
     if (focusSub) {
       const grid = hubGlyph.querySelector('.hub-specimen-grid');
       const selectedName = subFullName(focusSub);
-      grid.setAttribute('aria-label', '24 个小类标本，当前选择：' + selectedName);
+      grid.setAttribute('aria-label', '24 个小类标本，当前选择：' + selectedName + '。方向键移动，Enter 选择');
       grid.querySelectorAll('.hub-specimen-item').forEach((item) => {
         const on = item.getAttribute('data-sub') === focusSub.id;
         item.classList.toggle('is-selected', on);
-        item.setAttribute('aria-current', String(on));
+        item.setAttribute('aria-selected', String(on));
+        if (on) grid.setAttribute('aria-activedescendant', item.id);
       });
     }
     hub.classList.toggle('has-glyph', glyphKey !== 'none');
@@ -2385,6 +2440,15 @@ function renderFamily() {
     el('h2', { class: 'q-title' }, stepHead('family').title),
     el('p', { class: 'q-help' }, stepHead('family').help)
   ));
+
+  /* 恢复旧会话时，跨大类的 subfamily 是无效状态。先纠正这一旧值，再交给
+     buildWheel 的同一门控；不改变正常恢复、问卷顺序或打分输入。 */
+  const restoredFamily = state.answers.family
+    ? Object.values(TAX.families).find((fam) => fam.id === state.answers.family) || null : null;
+  if (state.answers.subfamily && (!restoredFamily
+    || !(restoredFamily.subfamilies || []).some((sub) => sub.id === state.answers.subfamily))) {
+    state.answers.subfamily = null;
+  }
 
   wrap.appendChild(buildWheel({
     families: Object.values(TAX.families),
@@ -2814,12 +2878,12 @@ const CONCENTRATIONS = [
 
 /* 类型只改变散发展示，不参与打分：以“适中”档现有外圈为基准，
    EDC / EDT / EDP / Parfum = 0.6 / 0.8 / 1.0 / 1.25。
-   粒子池固定 24 个，按档位显示前 N 个；反复切类型不会增长节点。 */
+   浓度页的旧粒子场已在 Batch 5 B5 删除；这里只保留范围、透明度与 Parfum 脉冲。 */
 const CONCENTRATION_FX = {
-  'eau-de-cologne': { factor: .6, particles: 6, opacity: .35 },
-  'eau-de-toilette': { factor: .8, particles: 10, opacity: .5 },
-  'eau-de-parfum': { factor: 1, particles: 16, opacity: .65 },
-  'parfum': { factor: 1.25, particles: 24, opacity: .8, pulse: true },
+  'eau-de-cologne': { factor: .6, opacity: .35 },
+  'eau-de-toilette': { factor: .8, opacity: .5 },
+  'eau-de-parfum': { factor: 1, opacity: .65 },
+  'parfum': { factor: 1.25, opacity: .8, pulse: true },
 };
 
 /* ---------- 第 9 步：留香时长 ----------
@@ -3955,32 +4019,15 @@ function renderConcentration() {
   const rippleMid = el('div', { class: 'conc-ripple', 'data-r': '2' });
   const rippleOut = el('div', { class: 'conc-ripple', 'data-r': '3' });
   const pulse = el('div', { class: 'conc-pulse' });
-  const particleField = el('div', { class: 'conc-particles' });
-  /* 固定 24 个粒子，按类型只显示前 6/10/16/24 个；位置按黄金角均匀铺开，
-     粒子场与外圈同直径，因此滑块与类型共同决定实际扩散范围。 */
-  const particles = Array.from({ length: 24 }, (_, index) => {
-    const particle = el('span', { class: 'conc-particle', hidden: '' });
-    particle.style.setProperty('--size', [2, 2.5, 3, 3.5, 4][index % 5] + 'px');
-    particleField.appendChild(particle);
-    return particle;
-  });
-  /* 人形剪影：头 + 颈 + 肩的整块形，颜色跟 token（深色档自动翻）。
-     颈宽 5、从圆点底部延伸到圆顶顶部，消除头身之间的空段；原有头/肩
-     几何保持不变，圆环仍以同一舞台中轴为圆心。 */
+  /* 背影剪影基准：viewBox 0 0 120 180，实际占位盒 120×180。
+     头 34×40、颈 22×25、肩宽 104；头底/颈顶重叠 5，颈底/肩上沿重叠 7，
+     三段同色无空段。锁骨中点 (60,62)，B5 雾锚点固定在它上方 6px。
+     不使用旧圆头+圆顶 blob；肩坡与上躯干轮廓让剪影一眼读作人。 */
   const figure = el('div', { class: 'conc-figure', html:
-    '<svg viewBox="0 0 56 84" focusable="false">'
-    + '<defs>'
-    + '<linearGradient id="conc-figure-fill" x1="0" y1="0" x2="1" y2="0">'
-    + '<stop offset="0" stop-color="currentColor" stop-opacity=".68"/>'
-    + '<stop offset=".48" stop-color="currentColor" stop-opacity=".96"/>'
-    + '<stop offset="1" stop-color="currentColor" stop-opacity=".72"/>'
-    + '</linearGradient>'
-    + '</defs>'
-    + '<circle cx="28" cy="11" r="8.5"/>'
-    + '<rect x="25.5" y="18" width="5" height="26" rx="2"/>'
-    + '<path d="M13 84 L13 68 C13 55 19.5 43 28 43 C36.5 43 43 55 43 68 L43 84 Z" fill="url(#conc-figure-fill)"/>'
-    + '<path class="conc-figure-detail" d="M18 50 C22 48.5 25 48.5 28 50 C31 48.5 34 48.5 38 50"/>'
-    + '<path class="conc-figure-detail" d="M21 55 C24 54 26 54 28 55 C30 54 32 54 35 55"/>'
+    '<svg viewBox="0 0 120 180" focusable="false">'
+    + '<ellipse cx="60" cy="24" rx="17" ry="20"/>'
+    + '<path d="M50 39 L70 39 L72 62 L48 62 Z"/>'
+    + '<path d="M48 55 C40 57 30 61 23 69 C16 77 13 91 12 108 L8 180 L112 180 L108 108 C107 91 104 77 97 69 C90 61 80 57 72 55 C68 64 52 64 48 55 Z"/>'
     + '</svg>' });
   /* 偏心蓝雾是独立表现层：画布 116×80，锚点在锁骨中点上方 6px。
      五档只切换 CSS 变量，拖动与提交都仅动画 transform / opacity。 */
@@ -3991,7 +4038,7 @@ function renderConcentration() {
     + '<div class="conc-mist-inner"></div>'
     + '<div class="conc-mist-arc conc-mist-arc-a"></div>'
     + '<div class="conc-mist-arc conc-mist-arc-b"></div>' });
-  scene.append(glow, rippleIn, rippleMid, rippleOut, pulse, particleField, figure, mist);
+  scene.append(glow, rippleIn, rippleMid, rippleOut, pulse, figure, mist);
 
   /* 波纹直径 = 滑块档位 × 类型系数。16%（贴肤）→ 128%（铺过舞台），
      拖动时收连续值（1.00–5.00 都有），不按档跳；松手后再缓动吸附到整数档。
@@ -4006,30 +4053,16 @@ function renderConcentration() {
     rippleMid.style.width = (d * 0.72) + '%';
     rippleOut.style.width = d + '%';
     pulse.style.width = d + '%';
-    particleField.style.width = d + '%';
   };
 
-  /* 类型切换只改散发层：半径由 paintScene 同步，粒子数量/透明度与 Parfum
-     的第四圈在这里更新；人物、滑杆、读数与其他答案都保持原地不动。 */
+  /* 类型切换只改散发层：半径由 paintScene 同步，Parfum 的第四圈在这里更新；
+     人物、滑杆、读数与其他答案都保持原地不动。 */
   const paintTypeEffect = () => {
     const fx = CONCENTRATION_FX[state.answers.concentration];
-    const count = fx ? fx.particles : 0;
     const opacity = fx ? fx.opacity : 0;
     scene.style.setProperty('--conc-opacity', fx ? String(opacity) : '1');
-    scene.style.setProperty('--conc-particle-opacity', String(opacity));
     scene.dataset.concentrationFx = fx ? state.answers.concentration : 'none';
     pulse.classList.toggle('is-parfum', !!fx && !!fx.pulse);
-    particles.forEach((particle, index) => {
-      if (index >= count) {
-        particle.setAttribute('hidden', '');
-        return;
-      }
-      particle.removeAttribute('hidden');
-      const angle = index * 2.399963229728653 + .3;
-      const radius = 44 * Math.sqrt((index + .5) / count);
-      particle.style.setProperty('--x', (50 + Math.cos(angle) * radius).toFixed(3) + '%');
-      particle.style.setProperty('--y', (50 + Math.sin(angle) * radius).toFixed(3) + '%');
-    });
   };
 
   /* ---- 原生滑杆：这一屏唯一的命中来源 ---- */
@@ -4068,11 +4101,16 @@ function renderConcentration() {
     paintTicks();
   };
 
+  /* 拖动或刻度点击接管 transform：先摘掉上一轮提交动画，避免 560ms 的
+     is-committing 继续控制雾的 scale，导致拖动中不跟手。 */
+  const stopPulse = () => {
+    pulse.classList.remove('is-live');
+    mist.classList.remove('is-committing');
+  };
   /* 松手吸附时的一次轻微波纹与蓝雾扩散：摘掉 is-live 强制重排再挂回去，
      动画才能重播（0.6s / 0.56s 各一次，减少动态偏好下直接呈现静态雾晕）。 */
   const firePulse = () => {
-    pulse.classList.remove('is-live');
-    mist.classList.remove('is-committing');
+    stopPulse();
     void pulse.offsetWidth;
     pulse.classList.add('is-live');
     mist.classList.add('is-committing');
@@ -4098,6 +4136,7 @@ function renderConcentration() {
     dragMoved = false;
   };
   slider.addEventListener('pointerdown', () => {
+    stopPulse();
     dragging = true;
     dragMoved = false;
     scene.classList.add('is-dragging');
@@ -4115,7 +4154,10 @@ function renderConcentration() {
     const v = Number(ev.target && ev.target.value);
     if (!Number.isFinite(v)) return;
     state.answers.intensity = v;
-    if (!dragging) paintScene(v);
+    if (!dragging) {
+      stopPulse();
+      paintScene(v);
+    }
     paintRead();
     applyAmbient();
   });
@@ -4129,7 +4171,9 @@ function renderConcentration() {
       'aria-hidden': 'true',
       onclick: () => {
         /* 点刻度直接跳档：滑杆值、state、读数一次到位（不带脉冲——
-           轻微扩散只属于拖动松手那一下）。 */
+           轻微扩散只属于拖动松手那一下）。先取消上一轮提交动画，避免
+           transform 被 is-committing 占着，档位变化只走 160ms 过渡。 */
+        stopPulse();
         state.answers.intensity = L.v;
         slider.value = String(L.v);
         if (!dragging) paintScene(L.v);
@@ -4158,7 +4202,7 @@ function renderConcentration() {
      选中态刷到整组；滑杆、读数与人物保持不动，其他屏的答案一个都不碰。 */
     paintScene(Number(slider.value));
     paintTypeEffect();
-    if (id === 'parfum') firePulse();
+    firePulse();
   });
   wrap.appendChild(grid);
 

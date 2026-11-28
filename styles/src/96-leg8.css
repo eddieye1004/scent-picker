@@ -147,26 +147,35 @@
   margin: 0 auto;
   animation: leg8FlyIn 220ms var(--ease-out) both;
 }
-/* 320 档实测：盘心 163.19px，内切可用半径 65.59px。
-   4×6、16px 图标、2px 间距的外接半对角线为 63.51px，可完整收进盘心。
-   选定态只留网格，家族标题与描述退场，避免把图标挤出圆盘。 */
+/* 320 档实测：盘心 163.19px。图标保持 16px，命中格按盘心安全半径
+   从 20px 增至 26px；4×6 网格外接圆仍完整收进盘心，格子间保留 2px 间隙。 */
 #app[data-step="family"] .wheel .disc-hub.is-picked .hub-zh,
 #app[data-step="family"] .wheel .disc-hub.is-picked .hub-desc {
   display: none;
 }
 #app[data-step="family"] .wheel .hub-specimen-grid {
+  /* 图标仍保持 16px，但命中格随盘心安全半径增大：320 用 20px，
+     360 用 24px，390 及以上用 26px。4×6 网格的外接圆始终收在盘心内，
+     格子之间保留 2px 间隙，不会出现透明热区重叠误触。 */
+  --hub-cell: 20px;
   display: grid;
-  grid-template-columns: repeat(4, 16px);
-  grid-auto-rows: 16px;
+  grid-template-columns: repeat(4, var(--hub-cell));
+  grid-auto-rows: var(--hub-cell);
   gap: 2px;
   justify-content: center;
   pointer-events: none;
 }
+@media (min-width: 360px) {
+  #app[data-step="family"] .wheel .hub-specimen-grid { --hub-cell: 24px; }
+}
+@media (min-width: 390px) {
+  #app[data-step="family"] .wheel .hub-specimen-grid { --hub-cell: 26px; }
+}
 #app[data-step="family"] .wheel .hub-specimen-item {
   display: grid;
   place-items: center;
-  width: 16px;
-  height: 16px;
+  width: var(--hub-cell);
+  height: var(--hub-cell);
   border-radius: 3px;
   opacity: .78;
 }
