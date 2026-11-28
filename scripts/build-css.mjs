@@ -100,6 +100,9 @@ const PARTS = [
   /* 3-8 全站小提示纸条化：放最后，覆盖前面各层 plain 小字。
      选择器都是既有小提示类 + 结果页三行，不改 DOM/文案/位置。 */
   '103-micro-hints.css',
+  /* Batch 4 腿 E/F：预算存折与账本脚注、结果页双入口与页眉裁切修复。
+     放最后，只覆盖这两屏的明确类名；既有测试锚点与底栏组件保持不变。 */
+  '104-batch4-budget-result.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');
