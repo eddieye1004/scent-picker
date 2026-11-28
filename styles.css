@@ -9106,14 +9106,14 @@ pointer-events: none;
 transition: opacity 160ms cubic-bezier(.2, .7, .25, 1);
 }
 .conc-mist-air {
-inset: -28px -34px -22px -34px;
+inset: -18px -30px -22px -30px;
 z-index: 0;
 background:
-radial-gradient(ellipse 52px 30px at 34% 62%,
+radial-gradient(ellipse 52px 28px at 34% 68%,
 color-mix(in srgb, var(--mist-blue) 28%, transparent), transparent 74%),
-radial-gradient(ellipse 46px 34px at 64% 50%,
+radial-gradient(ellipse 46px 30px at 64% 58%,
 color-mix(in srgb, var(--mist-deep) 20%, transparent), transparent 76%),
-radial-gradient(ellipse 34px 24px at 52% 78%,
+radial-gradient(ellipse 34px 24px at 52% 82%,
 color-mix(in srgb, var(--mist-light) 32%, transparent), transparent 78%);
 filter: blur(7px);
 mix-blend-mode: screen;
@@ -9123,17 +9123,17 @@ transition: transform 160ms cubic-bezier(.2, .7, .25, 1),
 opacity 160ms cubic-bezier(.2, .7, .25, 1);
 }
 .conc-mist-body {
-inset: -10px -22px -8px -22px;
+inset: -6px -22px -8px -22px;
 z-index: 1;
 background:
-radial-gradient(ellipse 48px 24px at 36% 58%,
-color-mix(in srgb, var(--mist-deep) 28%, transparent), transparent 76%),
-radial-gradient(ellipse 42px 28px at 64% 48%,
-color-mix(in srgb, var(--mist-blue) 34%, transparent), transparent 78%),
-radial-gradient(ellipse 32px 18px at 55% 76%,
-color-mix(in srgb, var(--mist-light) 38%, transparent), transparent 80%),
-radial-gradient(ellipse 24px 20px at 24% 42%,
-color-mix(in srgb, var(--mist-blue) 18%, transparent), transparent 82%);
+radial-gradient(ellipse 42px 20px at 34% 64%,
+color-mix(in srgb, var(--mist-deep) 32%, transparent), transparent 76%),
+radial-gradient(ellipse 46px 24px at 66% 58%,
+color-mix(in srgb, var(--mist-blue) 36%, transparent), transparent 78%),
+radial-gradient(ellipse 26px 14px at 55% 80%,
+color-mix(in srgb, var(--mist-light) 44%, transparent), transparent 80%),
+radial-gradient(ellipse 22px 16px at 24% 52%,
+color-mix(in srgb, var(--mist-blue) 20%, transparent), transparent 82%);
 filter: blur(5px);
 opacity: var(--mist-body-opacity);
 }
@@ -9240,9 +9240,21 @@ opacity: var(--mist-air-opacity);
 }
 @media (prefers-color-scheme: dark) {
 .conc-mist {
---mist-blue: #A9C1E2;
---mist-deep: #88A8D2;
---mist-light: #EEF5FF;
+--mist-blue: #9FB9DC;
+--mist-deep: #7697C4;
+--mist-light: #D2E2F4;
+}
+.conc-mist-air { mix-blend-mode: normal; }
+.conc-scene[data-intensity="4"] .conc-mist {
+--mist-air-opacity: .42;
+--mist-wisp-opacity: .38;
+--mist-bloom-opacity: .28;
+}
+.conc-scene[data-intensity="5"] .conc-mist {
+--mist-air-opacity: .52;
+--mist-body-opacity: .90;
+--mist-wisp-opacity: .46;
+--mist-bloom-opacity: .34;
 }
 }
 @media (prefers-reduced-motion: reduce) {
