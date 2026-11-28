@@ -22,9 +22,18 @@
      和 --blue-deep 逐位相同的重复项 —— 两者都不是收益。
      章戳取**方形**（方章 = 账房用的那一类），不是圆章：
      圆形章的内圈要塞下「600–1200」六个字符，直径至少 44px，
-     而折页高只有 46px —— 圆章只能靠压字换面积，这正是"章抢正文"
-     的那一类失败。方章的内接矩形利用率比圆高约 27%，
-     横向三个数字 + 短横放得下，章也不会撑破折页。 */
+     方章的内接矩形利用率比圆高约 27%，横向三个数字 + 短横放得下。
+     ---- B6：章从折页搬到价签，宽度改成可算的固定值 ----
+     章宽原先随档位字数在 46–76px 之间浮动（min-width 托底），
+     那时"章压在折页右端、折页高度把章夹住"是约束，宽度只能由内容定。
+     搬到价签右下角之后，约束换成"章左沿必须离正文足够远"：
+     宽度浮动就没法算净距，所以钉成 68px。这个数由内往外算出来的：
+     12px/700 等宽数字下「600–1200」约 48px + 内框左右内边距 4 + 内框边框 2
+     + 章内边距 6 + 章边框 3 = 63px，留 5px 余量 → 68px。
+     净距因此可以写成一条减法，见 .budget-stamp 那段注释。
+     （为什么不用 11px 省 10px 宽：test-contrast 的字号地板是 12px，
+      11px 会让那条测试直接判红 —— 不能为了尺寸去破无障碍门槛。） */
+  --stamp-w: 68px;
 }
 
 /* ---------- 腿 E：预算存折（Batch 5 腿 B5-3 重做）---------- */
@@ -59,18 +68,17 @@
   gap: 8px;
   width: min(100%, 300px);
   height: 46px;
-  /* 左 30 = 折脊区；右 8 = 章与纸边的净距。正文与章都是 flex 项，
-     靠 gap 隔开 —— 结构上不存在"章压在字上"这种可能，
-     不靠算右内边距去躲（躲漏一次就是一次遮字）。 */
+  /* 左 30 = 折脊区。右 8 原本是"章与纸边的净距"——B6 把章搬到价签上之后，
+     这个 8px 就只是正文与纸边的净距了；值本身没动，折页外观逐像素不变。 */
   padding: 0 8px 0 30px;
   overflow: hidden;
   background-color: var(--passbook-paper);
   /* 账本横线：20px 一个周期，只在第 12–13px 画一条 1px 线。
-     background-size 把书写区限死在折脊右侧、章左侧：
-     左侧 30px 是折脊区、右侧 100px 留空给章 —— 线与折脊、线与章
-     都不相交，所以"账本线不抢正文"是版面结构上的结论，不是目测调出来的。
-     （用「约 100px」而不是精确值：章宽随档位字数在 46–76 之间变，
-     给它留足上限即可；线短一点比穿到章上好看，也不会压到正文。） */
+     background-size 把书写区限死在折脊右侧：左侧 30px 是折脊区、
+     右侧约 100px 留白 —— 线与折脊不相交。
+     （原先右侧那 100px 是给折页右端那枚独立章让位的；B6 把章搬到价签上以后，
+     这块留白已经没有占用者。**但本轮不改它**：验收第 4 条要求"存折其余外观不变"，
+     改线长就是改外观。留白保留，逐像素与 B5-3 一致。 */
   background-image: repeating-linear-gradient(
     to bottom,
     transparent 0 12px,
@@ -148,38 +156,49 @@
   white-space: nowrap;
 }
 
-/* 小蓝章：方形章戳，压在折页右端。
-   **是折页的 flex 项，不是绝对定位的浮层** —— 这是"不遮文字"的结构保证：
-   折页宽固定 300，正文 .budget-passbook-value 的 min-width:0 + 省略号
-   让它先收窄，章永远排在它右边，两者之间隔着 gap。绝对定位的写法
-   只能靠算右内边距去躲，躲漏一次就是一次遮字（Batch 4 就是这么遮的）。
-   "不挤控件"同样成立：章是折页的 flex 项，折页总高仍是 46px ——
-   但**这 46px 比 Batch 4 的 38px 高 8px**，加上槽本身的调整，槽以下
-   全部内容整体下移 22px（docH 1296 → 1318）。
-   被下移的元素逐个实测过（_probe/b5/selfcheck/dock-shift-*.json）：
-   五颗价签 top 385.91 → 407.91、说明段 809.91 → 831.91、价签之间的
-   实际间隙 10/8/12/10 **一个没变**（没有被压缩）；
-   吸底的 .actions（position:sticky）top 760.83 不变、cta top 776.41 不变。
-   五颗价签在滚动范围内仍有一段窗口能同时看全（基线 40–360、现版 80–400），
-   底栏之上的可读性没有变差。**所以准确说法是"不挤控件、但下推了 22px"，
-   不是"下方价签不动"** —— 上一版注释写的后一句是错的。
-   尺寸 46×26：宽够放「600–1200」，高不越过折页内沿。
+/* ---------- 章：价签的子节点（B6 修，2026-11-28）----------
+   B5-3 把章做在折页右端（折页的 flex 项），位置与"点的是哪一档"无关 ——
+   Eddie 真机判定「像贴上去的装饰」，要求「就现在四个，点了哪个就哪个，
+   不是另外再做一个总出来」。这一步把章交给价签：DOM 上是
+   `.price-tab > .budget-stamp`，点哪档就挂在哪档（见 app.js 的 stampOn）。
+   折页上不再有章，所以旧的 .budget-passbook .budget-stamp 那段一并退场。
+
+   ==== 为什么不遮字 ====
+   章是卡内右下角的绝对定位元素，宽固定 --stamp-w：68px（最长的
+   「600–1200」在 12px/700 等宽数字下约 48px，内框可用 53px）。
+   它不参与价签的 column flex 排版，所以既不改卡高、也不把正文挤走。
+   净距是两个数一减，不靠目测躲（实测值）：
+     390 宽（卡片 342×74）正文最长一行右沿 168.3px，章左沿 290px → 121.7px；
+     360 宽（卡片 312）右沿仍 168.3px，章左沿 260px → 91.7px；
+     768 宽四列（卡 160.5）正文最右 167.5px、章左沿 132.5px —— 横向是负的，
+       但章在纵向落在瓶数行下方，两框不相交（overlap 仍为 0）。
+   **这一格是第一版实测出的缺陷**：章高 24px + bottom 8px 时，
+   768 四列下章压到「已知价 N 瓶」下沿 151.2px²。改法是压章高到 22px、
+   bottom 收到 4px，让章的上沿穿到瓶数行基线以下；宽度同时从 62 加到 68、
+   字号回到 12px（test-contrast 的字号地板，11px 会被它判红）。
+   实测见 _probe/b6/evidence/*.json 的 overlapZh / overlapN。
+
+   ==== 也不改价签高度 ====
+   章若做成 column flex 的第二件，插进去会把卡撑高、四档高度不齐。
+   绝对定位则卡高完全不动（min-height 74/88 原样，实测点前点后同高）。
    transform-origin 放在 34% 76%：落章以左下为支点砸下去，
-   读作"手腕按下去"而不是"元素原地放大"。 */
+   读作"手腕按下去"而不是"元素原地放大"。
+   卡本来就 overflow:hidden（90-quiz-v6 层，为裁钞纹 ::before 设的），
+   落章起点 scale(2.6) 越出卡沿时会被它裁掉 —— 读作"章从卡片外砸进来"，
+   不会是一团蓝影糊到邻卡上。本轮不重复声明这条。 */
 #app[data-step="budget"] .budget-stamp {
-  position: relative;
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
   z-index: 2;
-  flex: none;
-  align-self: center;
-  margin-left: auto;
   display: grid;
   place-items: center;
-  min-width: 46px;
-  height: 26px;
+  width: var(--stamp-w);
+  height: 22px;
   padding: 0 3px;
   border-radius: 2px;
   border: 1.5px solid var(--blue-deep);
-  /* 章内底留白：章压住账本线，但不让线透进来把字搅浑 */
+  /* 章内底留白：章压在钞纹上，但不让纹路透进来把字搅浑 */
   background: rgba(252, 247, 236, .93);
   color: var(--blue-deep);
   opacity: 1;
@@ -189,12 +208,12 @@
 }
 
 /* 章的内框：双线才读作"戳"而不是"一个蓝框"。
-   内框吃满章体减去 3px，里面的数字才有一致的边距。 */
+   内框吃满章体，里面的数字才有一致的边距。 */
 #app[data-step="budget"] .budget-stamp-ring {
   display: grid;
   place-items: center;
   width: 100%;
-  height: 20px;
+  height: 16px;
   padding: 0 2px;
   border-radius: 1px;
   border: 1px solid var(--blue-deep);
@@ -206,38 +225,32 @@
   white-space: nowrap;
 }
 
-/* 未选态：折页在位、写默认值，但没有章 —— 没选择就没有确认。
-   章用 visibility 而不是 display:none：留着占位，选中的瞬间不重排。 */
-#app[data-step="budget"] .budget-passbook.is-unset .budget-stamp {
-  visibility: hidden;
-  opacity: 0;
-  transform: rotate(-4.5deg) scale(.82);
+/* 落章：从大到正 + 轻微回转。起点 scale(2.6) 让"砸下来"有距离感；
+   cubic-bezier 的过冲负责 0.92 那一小下回弹（不回弹的落章像淡入）。
+   动画只改 transform/opacity，终态由上面的静态规则兜底 ——
+   中途被打断也不会停在半空。 */
+#app[data-step="budget"] .budget-stamp.is-stamping {
+  animation: budgetStampDrop 220ms cubic-bezier(.2, 1.35, .35, 1) both;
 }
 
-/* ---- 串行时序：折页滑出 300ms，章在其尾段 190ms 起落 220ms ----
-   .is-playing 只挂折页动画；.is-stamping 挂章的落章动画，
-   两段靠 animation-delay 串起来（章 delay 190ms，折页无 delay）。
-   折页动画 300ms both → t=300 到位并停住；章 t=410 收完。
-   合计 410ms，比 Batch 4 的单段 300ms 长 110ms，但换来可读的两拍。 */
+@keyframes budgetStampDrop {
+  0%   { opacity: 0; transform: rotate(-13deg) scale(2.6); }
+  55%  { opacity: 1; transform: rotate(-2.6deg) scale(.92); }
+  100% { opacity: 1; transform: rotate(-4.5deg) scale(1); }
+}
+
+/* 折页的"记一笔"：换值时纸面从下方滑出一次。
+   章已经不在折页上，所以只剩这一拍 —— 原先"折页 300ms + 章 190ms 延时"的
+   两拍串行随章一起退场，改为"章在被点的那一档上独立落下"（220ms，无延时）。
+   这样章与"点下去"是同时发生的，因果读作"我按了这一档、章盖在这一档上"；
+   把章延到折页滑完再落，反而会读成"别处盖了个章"。 */
 #app[data-step="budget"] .budget-passbook.is-playing {
   animation: budgetPassbookSlide 300ms cubic-bezier(.2, .7, .25, 1) both;
-}
-
-#app[data-step="budget"] .budget-passbook.is-stamping .budget-stamp {
-  animation: budgetStampDrop 220ms cubic-bezier(.2, 1.35, .35, 1) 190ms both;
 }
 
 @keyframes budgetPassbookSlide {
   from { opacity: .55; transform: translateY(14px); }
   to   { opacity: 1;   transform: translateY(0); }
-}
-
-/* 落章：从大到正 + 轻微回转。起点 scale(2.35) 让"砸下来"有距离感；
-   1.35 的过冲系数负责 0.92 那一小下回弹（不回弹的落章像淡入）。 */
-@keyframes budgetStampDrop {
-  0%   { opacity: 0;   transform: rotate(-13deg) scale(2.35); }
-  55%  { opacity: 1;   transform: rotate(-2.6deg) scale(.92); }
-  100% { opacity: 1;   transform: rotate(-4.5deg) scale(1); }
 }
 
 /* 账本脚注：一条发丝线 + 14px 短金竖线；两行都是 13px，数字等宽。 */
@@ -576,11 +589,12 @@
 }
 
 /* prefers-reduced-motion：终态直接成立。
-   三件事都要保证：①折页不滑（没有 translateY 过渡）；②章不缩放、不延时
-   （220ms 的落章 + 190ms 的 delay 全部取消）；③值仍然正确可见 ——
-   动画只改 transform/opacity，值在 JS 里已经写好，所以这里只要
-   把三个动画关掉、把终态 transform/opacity 钉死，就不存在
-   "要等一下才看得见"的窗口。 */
+   两件事都要保证：①折页不滑（没有 translateY 过渡）；②章不缩放、不延时
+   （220ms 的落章整个取消）—— 值仍然正确可见：动画只改 transform/opacity，
+   值在 JS 里已经写好，所以这里只要把动画关掉、把终态 transform/opacity
+   钉死，就不存在"要等一下才看得见"的窗口。
+   "未选态不盖章"是 JS 侧的判断（章根本没被挂到任何价签上），
+   不是 CSS 的显隐开关，所以这里不再需要 is-unset 那条兜底。 */
 @media (prefers-reduced-motion: reduce) {
   #app[data-step="budget"] .budget-passbook,
   #app[data-step="budget"] .budget-passbook.is-playing {
@@ -589,19 +603,11 @@
     transform: none;
   }
 
-  #app[data-step="budget"] .budget-passbook.is-stamping .budget-stamp,
-  #app[data-step="budget"] .budget-stamp {
+  #app[data-step="budget"] .budget-stamp,
+  #app[data-step="budget"] .budget-stamp.is-stamping {
     animation: none;
     opacity: 1;
     transform: rotate(-4.5deg) scale(1);
-  }
-
-  /* 未选态在减弱动态下同样不盖章 —— 但它是 hidden 而不是动画中间态，
-     所以这条只兜底 opacity/transform，不把 visibility 改回 visible。 */
-  #app[data-step="budget"] .budget-passbook.is-unset .budget-stamp {
-    visibility: hidden;
-    opacity: 0;
-    transform: rotate(-4.5deg) scale(.82);
   }
 }
 

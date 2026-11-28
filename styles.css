@@ -9254,6 +9254,7 @@ opacity: var(--mist-air-opacity);
 --passbook-paper-edge: #F2E9D8;
 --passbook-rule: #D9CDB6;
 --passbook-rule-soft: #E7DCC7;
+--stamp-w: 68px;
 }
 #app[data-step="budget"] .money-ruler {
 margin-bottom: 0;
@@ -9346,15 +9347,14 @@ text-overflow: ellipsis;
 white-space: nowrap;
 }
 #app[data-step="budget"] .budget-stamp {
-position: relative;
+position: absolute;
+right: 8px;
+bottom: 4px;
 z-index: 2;
-flex: none;
-align-self: center;
-margin-left: auto;
 display: grid;
 place-items: center;
-min-width: 46px;
-height: 26px;
+width: var(--stamp-w);
+height: 22px;
 padding: 0 3px;
 border-radius: 2px;
 border: 1.5px solid var(--blue-deep);
@@ -9369,7 +9369,7 @@ pointer-events: none;
 display: grid;
 place-items: center;
 width: 100%;
-height: 20px;
+height: 16px;
 padding: 0 2px;
 border-radius: 1px;
 border: 1px solid var(--blue-deep);
@@ -9380,25 +9380,20 @@ letter-spacing: -.01em;
 text-align: center;
 white-space: nowrap;
 }
-#app[data-step="budget"] .budget-passbook.is-unset .budget-stamp {
-visibility: hidden;
-opacity: 0;
-transform: rotate(-4.5deg) scale(.82);
+#app[data-step="budget"] .budget-stamp.is-stamping {
+animation: budgetStampDrop 220ms cubic-bezier(.2, 1.35, .35, 1) both;
+}
+@keyframes budgetStampDrop {
+0%   { opacity: 0; transform: rotate(-13deg) scale(2.6); }
+55%  { opacity: 1; transform: rotate(-2.6deg) scale(.92); }
+100% { opacity: 1; transform: rotate(-4.5deg) scale(1); }
 }
 #app[data-step="budget"] .budget-passbook.is-playing {
 animation: budgetPassbookSlide 300ms cubic-bezier(.2, .7, .25, 1) both;
 }
-#app[data-step="budget"] .budget-passbook.is-stamping .budget-stamp {
-animation: budgetStampDrop 220ms cubic-bezier(.2, 1.35, .35, 1) 190ms both;
-}
 @keyframes budgetPassbookSlide {
 from { opacity: .55; transform: translateY(14px); }
 to   { opacity: 1;   transform: translateY(0); }
-}
-@keyframes budgetStampDrop {
-0%   { opacity: 0;   transform: rotate(-13deg) scale(2.35); }
-55%  { opacity: 1;   transform: rotate(-2.6deg) scale(.92); }
-100% { opacity: 1;   transform: rotate(-4.5deg) scale(1); }
 }
 #app[data-step="budget"] .budget-ledger-notes {
 position: relative;
@@ -9629,15 +9624,10 @@ animation: none;
 opacity: 1;
 transform: none;
 }
-#app[data-step="budget"] .budget-passbook.is-stamping .budget-stamp,
-#app[data-step="budget"] .budget-stamp {
+#app[data-step="budget"] .budget-stamp,
+#app[data-step="budget"] .budget-stamp.is-stamping {
 animation: none;
 opacity: 1;
 transform: rotate(-4.5deg) scale(1);
-}
-#app[data-step="budget"] .budget-passbook.is-unset .budget-stamp {
-visibility: hidden;
-opacity: 0;
-transform: rotate(-4.5deg) scale(.82);
 }
 }
