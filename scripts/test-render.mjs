@@ -1061,9 +1061,11 @@ ok('Batch 5 B2 单项 listbox 而非第二套 Tab 控件',
     /\.hub-specimen-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*112px\)[^}]*grid-auto-rows:\s*minmax\(0,\s*112px\)[^}]*justify-content:\s*center/.test(css)
     && /\.hub-specimen-item\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/.test(css)
     && /\.hub-specimen-item\s+\.specimen-svg\s*\{[^}]*width:\s*88px[^}]*height:\s*88px/.test(css));
-  ok('Batch 5 B2 只选大类时 hubEmblem 为 96px 大图标',
-    /\.wheel\s+\.hub-emblem\s*\{[^}]*width:\s*96px[^}]*height:\s*96px/.test(css)
-    && /\.wheel\s+\.hub-emblem\s+\.emblem-svg\s*\{[^}]*width:\s*96px[^}]*height:\s*96px/.test(css));
+  ok('Batch 5 B2 只选大类时 hubEmblem 随盘心收缩、最大 96px',
+    /\.wheel\s+\.hub-emblem\s*\{[^}]*width:\s*min\(96px,\s*60%\)[^}]*height:\s*auto[^}]*aspect-ratio:\s*1/.test(css)
+    && /\.wheel\s+\.hub-emblem\s+\.emblem-svg\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/.test(css));
+  ok('窄屏香型屏操作条不覆盖轮盘',
+    /#app\[data-step="family"\]\s+\.actions\s*\{[^}]*position:\s*static/.test(css));
   ok('批 3-2b 选中格有内描边高亮',
     /\.hub-specimen-item\.is-selected\s*\{[^}]*box-shadow:\s*inset 0 0 0 2px/.test(css));
 }

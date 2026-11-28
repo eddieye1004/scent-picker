@@ -773,7 +773,7 @@ function artInner(subId) {
    原先这里有一个 artWarmAll()，在模块求值时就把 24 个 SVG 全拉一遍，
    boot() 里还有第二处调用。首屏尚未选小类时，这 24 个请求全是前置成本。
    现在首屏仍不取小类图；用户第一次选定中圈小类时，hubSpecimenGrid()
-   只取当前选中的那一枚，并写入共享缓存。之后换选直接读取已缓存的新图标。
+   只取当前选中的那一枚，并写入共享缓存。之后换选优先读缓存，未缓存再按需取。
    取图通路仍是按需的：先 ART_READY 同步读取，未就绪才 artInner()。 */
 /* 同一枚图标可能被同时插进 DOM 的多个位置，渐变 id 必须唯一，
    否则第二次插入会引用到第一个实例的 defs。 */
@@ -1121,7 +1121,7 @@ function buildWheel(cfg) {
   const initialFamily = cfg.selFamily ? families.find((fam) => fam.id === cfg.selFamily) || null : null;
   let selFamily = initialFamily ? initialFamily.id : null;
   /* 恢复态也服从同一门控：旧存档里跨大类的 subfamily 是无效值，不能拿来锁住
-     中圈或显示 24 格。这里只纠正轮盘的恢复输入，不清空任何有效答案。 */
+     中圈或显示盘心标本。这里只纠正轮盘的恢复输入，不清空任何有效答案。 */
   let selSub = initialFamily && (initialFamily.subfamilies || []).some((sub) => sub.id === cfg.selSub)
     ? cfg.selSub : null;
   let hoverFam = null;      // 指针停在外圈哪个家族（只改盘心预览，不改变层数）
@@ -1333,7 +1333,7 @@ function buildWheel(cfg) {
   /* 未选大类时盘心唯一的一行弱提示。其余既有节点保留在 DOM 中供无障碍
      与既有自检读取，但由 CSS 在该态隐藏，视觉上只出现这一句。 */
   const hubIdleHint = el('div', { class: 'hub-idle-hint' }, '先选香调大类');
-  /* 大类徽记：进入正常 flex 流，固定 96×96；不再叠在文字背后。 */
+  /* 大类徽记：进入正常 flex 流，随盘心收缩、最大 96×96；不再叠在文字背后。 */
   const hubEmblem = el('div', { class: 'hub-emblem', 'aria-hidden': 'true' });
   let confirmTimer = 0;
   function confirmFamilyEmblem() {
@@ -1973,8 +1973,8 @@ function buildWheel(cfg) {
 
   /* --- 统一重绘 --- */
   let builtFor;
-  /* 盘心标本网格状态：`grid` / `none`。首次选定小类时构建 24 格，
-     之后切换小类只更新 is-selected，不重建 DOM。 */
+  /* 盘心标本状态：`specimen:<id>` / `none`。换选按小类 id 重建单项，
+     确保旧 SVG 退出 DOM，盘心只保留当前选中的那一枚。 */
   let builtGlyphKey = null;
   /* 盘心大类徽记当前画的是哪一族（方向 B）。与 builtGlyphKey 分开记：
      两者在同一帧里会走不同的门（落到小类时徽记退场、标本上场），
@@ -2100,7 +2100,7 @@ function buildWheel(cfg) {
     root.classList.toggle('is-sub-locked', !!selSub);
     hub.classList.toggle('is-idle', idle);
     hub.classList.toggle('is-picked', picked);
-    /* 族 id 始终跟随已选大类，供盘心底色与 96px 族图标读取。 */
+    /* 族 id 始终跟随已选大类，供盘心底色与响应式族图标读取。 */
     if (hubFamily) hub.setAttribute('data-fam', hubFamily.id);
     else hub.removeAttribute('data-fam');
     // 整盘翻深由 root 上的 is-picked 驱动：加深的是盘，不是盘心方块

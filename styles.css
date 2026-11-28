@@ -6118,6 +6118,7 @@ color: var(--ink-3);
 }
 @media (max-width: 620px) {
 #app[data-step="family"] .actions {
+position: static;
 column-gap: 10px;
 }
 #app[data-step="family"] .actions .btn:not(.ghost) {
@@ -6937,8 +6938,9 @@ inset 0 -14px 26px -22px var(--spec-sh),
 position: relative;
 inset: auto;
 display: none;
-width: 96px;
-height: 96px;
+width: min(96px, 60%);
+height: auto;
+aspect-ratio: 1;
 margin: 0;
 flex: none;
 opacity: 1;
@@ -6949,8 +6951,8 @@ pointer-events: none;
 display: grid;
 }
 #app[data-step="family"] .wheel .hub-emblem .emblem-svg {
-width: 96px;
-height: 96px;
+width: 100%;
+height: 100%;
 }
 #app[data-step="family"] .wheel .disc-hub .hub-kicker,
 #app[data-step="family"] .wheel .disc-hub .hub-go,
