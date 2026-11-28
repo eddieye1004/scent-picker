@@ -83,7 +83,7 @@
   content: ''; position: absolute; opacity: 0;
 }
 /* 清冷：三根冰纹自上而下长出 240ms */
-.emotion-screen .feeling-card[data-feeling="cold"].is-on .selection-fx::before {
+.emotion-screen .feeling-card[data-feeling="cold"].is-on.fx-play .selection-fx::before {
   left: 14px; top: 6px; width: 24px; height: calc(100% - 12px);
   background: repeating-linear-gradient(90deg, var(--blue-amb) 0 1px, transparent 1px 8px);
   clip-path: inset(0 0 100% 0);
@@ -94,7 +94,7 @@
   to { clip-path: inset(0 0 0 0); opacity: 0; }
 }
 /* 温暖：蜜色暖光自图样后铺开 340ms */
-.emotion-screen .feeling-card[data-feeling="warm"].is-on .selection-fx::before {
+.emotion-screen .feeling-card[data-feeling="warm"].is-on.fx-play .selection-fx::before {
   left: 8px; top: 50%; width: 32px; height: 32px; margin-top: -16px;
   border-radius: 50%;
   background: radial-gradient(circle, color-mix(in srgb, var(--hint-rule) 55%, transparent), transparent 70%);
@@ -106,7 +106,7 @@
   to { transform: scale(2.4); opacity: 0; }
 }
 /* 干净：皂泡细边自图样外弹开 280ms */
-.emotion-screen .feeling-card[data-feeling="clean"].is-on .selection-fx::before {
+.emotion-screen .feeling-card[data-feeling="clean"].is-on.fx-play .selection-fx::before {
   left: 11px; top: 50%; width: 26px; height: 26px; margin-top: -13px;
   border: 1px solid var(--blue-amb); border-radius: 50%;
   transform: scale(.6);
@@ -118,7 +118,7 @@
   100% { transform: scale(1.6); opacity: 0; }
 }
 /* 神秘：墨蓝月影自左缘浮出 360ms */
-.emotion-screen .feeling-card[data-feeling="mysterious"].is-on .selection-fx::before {
+.emotion-screen .feeling-card[data-feeling="mysterious"].is-on.fx-play .selection-fx::before {
   top: 0; bottom: 0; left: 0; width: 46px;
   background: linear-gradient(90deg, color-mix(in srgb, var(--blue) 24%, transparent), transparent);
   transform: translateX(-100%);
@@ -129,7 +129,7 @@
   to { transform: translateX(0); opacity: 0; }
 }
 /* 明亮：象牙白斜光带扫过卡面 200ms */
-.emotion-screen .feeling-card[data-feeling="bright"].is-on .selection-fx::before {
+.emotion-screen .feeling-card[data-feeling="bright"].is-on.fx-play .selection-fx::before {
   inset: 0;
   background: linear-gradient(112deg, transparent 42%, rgba(255, 255, 255, .9) 50%, transparent 58%);
   transform: translateX(-100%);
@@ -140,7 +140,7 @@
   to { transform: translateX(100%); opacity: 0; }
 }
 /* 慵懒：灰紫底边舒展 480ms */
-.emotion-screen .feeling-card[data-feeling="lazy"].is-on .selection-fx::before {
+.emotion-screen .feeling-card[data-feeling="lazy"].is-on.fx-play .selection-fx::before {
   left: 0; bottom: 0; height: 2px; width: 0;
   background: linear-gradient(90deg,
     color-mix(in srgb, var(--blue-amb) 60%, var(--ink-3)), transparent);
@@ -189,7 +189,8 @@
   gap: 2px;
 }
 .season-screen .phenology-tick {
-  width: 30px; height: 24px;
+  position: relative;
+  width: 30px; height: 26px;
   display: grid; place-items: center;
   padding: 0;
   border: 1px solid transparent;
@@ -198,6 +199,15 @@
   color: var(--ink-3);
   cursor: pointer;
   transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+/* 视觉行高保持 26px：四枚纵向若各占 44px 会把注记撑到 204px、压住底栏。
+   命中区用伪元素向外扩到 44px，满足 44px 触控门槛而不改布局。 */
+.season-screen .phenology-tick::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 44px; height: 44px;
+  transform: translate(-50%, -50%);
 }
 .season-screen .phenology-tick:focus-visible {
   outline: 2px solid var(--blue); outline-offset: 1px;

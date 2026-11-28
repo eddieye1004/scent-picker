@@ -2251,6 +2251,7 @@ function feelingCards(opts, current, onPick, slot) {
     btns.forEach((b) => {
       const mine = String(b.getAttribute('data-id')) === String(id);
       b.classList.toggle('is-on', mine);
+      b.classList.remove('fx-play');
       b.setAttribute('aria-checked', String(mine));
       b.setAttribute('tabindex', mine ? '0' : '-1');
     });
@@ -2266,9 +2267,9 @@ function feelingCards(opts, current, onPick, slot) {
       onclick: () => {
         onPick(o.id);
         paint(o.id);
-        b.classList.remove('is-tapped');
+        b.classList.remove('is-tapped', 'fx-play');
         void b.offsetWidth;
-        b.classList.add('is-tapped');
+        b.classList.add('is-tapped', 'fx-play');
       },
       onkeydown: (ev) => {
         let d = 0;
@@ -2279,6 +2280,9 @@ function feelingCards(opts, current, onPick, slot) {
         const to = (i + d + opts.length) % opts.length;
         onPick(opts[to].id);
         paint(opts[to].id);
+        btns[to].classList.remove('fx-play');
+        void btns[to].offsetWidth;
+        btns[to].classList.add('fx-play');
         btns[to].focus();
       },
     },
@@ -3579,7 +3583,7 @@ function renderSeason() {
         : '不限定季节，全部 ' + total + ' 瓶都在候选里';
     } else if (it) {
       const n = seasonCountOf(it.id);
-      noteBody.textContent = n == null ? it.desc : NOTE_ZH[it.id] + ' ' + n + ' 瓶 · ' + it.desc;
+      noteBody.textContent = n == null ? it.desc : '全库' + NOTE_ZH[it.id] + ' ' + n + ' 瓶';
     } else {
       noteBody.textContent = '';
     }

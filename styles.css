@@ -8896,7 +8896,7 @@ pointer-events: none;
 .emotion-screen .selection-fx::before {
 content: ''; position: absolute; opacity: 0;
 }
-.emotion-screen .feeling-card[data-feeling="cold"].is-on .selection-fx::before {
+.emotion-screen .feeling-card[data-feeling="cold"].is-on.fx-play .selection-fx::before {
 left: 14px; top: 6px; width: 24px; height: calc(100% - 12px);
 background: repeating-linear-gradient(90deg, var(--blue-amb) 0 1px, transparent 1px 8px);
 clip-path: inset(0 0 100% 0);
@@ -8906,7 +8906,7 @@ animation: fx-cold 240ms ease-out forwards;
 from { clip-path: inset(0 0 100% 0); opacity: .75; }
 to { clip-path: inset(0 0 0 0); opacity: 0; }
 }
-.emotion-screen .feeling-card[data-feeling="warm"].is-on .selection-fx::before {
+.emotion-screen .feeling-card[data-feeling="warm"].is-on.fx-play .selection-fx::before {
 left: 8px; top: 50%; width: 32px; height: 32px; margin-top: -16px;
 border-radius: 50%;
 background: radial-gradient(circle, color-mix(in srgb, var(--hint-rule) 55%, transparent), transparent 70%);
@@ -8917,7 +8917,7 @@ animation: fx-warm 340ms ease-out forwards;
 from { transform: scale(.2); opacity: .85; }
 to { transform: scale(2.4); opacity: 0; }
 }
-.emotion-screen .feeling-card[data-feeling="clean"].is-on .selection-fx::before {
+.emotion-screen .feeling-card[data-feeling="clean"].is-on.fx-play .selection-fx::before {
 left: 11px; top: 50%; width: 26px; height: 26px; margin-top: -13px;
 border: 1px solid var(--blue-amb); border-radius: 50%;
 transform: scale(.6);
@@ -8928,7 +8928,7 @@ animation: fx-clean 280ms ease-out forwards;
 70% { transform: scale(1.3); opacity: .5; }
 100% { transform: scale(1.6); opacity: 0; }
 }
-.emotion-screen .feeling-card[data-feeling="mysterious"].is-on .selection-fx::before {
+.emotion-screen .feeling-card[data-feeling="mysterious"].is-on.fx-play .selection-fx::before {
 top: 0; bottom: 0; left: 0; width: 46px;
 background: linear-gradient(90deg, color-mix(in srgb, var(--blue) 24%, transparent), transparent);
 transform: translateX(-100%);
@@ -8938,7 +8938,7 @@ animation: fx-mysterious 360ms ease-out forwards;
 from { transform: translateX(-100%); opacity: .9; }
 to { transform: translateX(0); opacity: 0; }
 }
-.emotion-screen .feeling-card[data-feeling="bright"].is-on .selection-fx::before {
+.emotion-screen .feeling-card[data-feeling="bright"].is-on.fx-play .selection-fx::before {
 inset: 0;
 background: linear-gradient(112deg, transparent 42%, rgba(255, 255, 255, .9) 50%, transparent 58%);
 transform: translateX(-100%);
@@ -8948,7 +8948,7 @@ animation: fx-bright 200ms linear forwards;
 from { transform: translateX(-100%); opacity: 1; }
 to { transform: translateX(100%); opacity: 0; }
 }
-.emotion-screen .feeling-card[data-feeling="lazy"].is-on .selection-fx::before {
+.emotion-screen .feeling-card[data-feeling="lazy"].is-on.fx-play .selection-fx::before {
 left: 0; bottom: 0; height: 2px; width: 0;
 background: linear-gradient(90deg,
 color-mix(in srgb, var(--blue-amb) 60%, var(--ink-3)), transparent);
@@ -8993,7 +8993,8 @@ align-items: center;
 gap: 2px;
 }
 .season-screen .phenology-tick {
-width: 30px; height: 24px;
+position: relative;
+width: 30px; height: 26px;
 display: grid; place-items: center;
 padding: 0;
 border: 1px solid transparent;
@@ -9002,6 +9003,13 @@ background: transparent;
 color: var(--ink-3);
 cursor: pointer;
 transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+.season-screen .phenology-tick::after {
+content: '';
+position: absolute;
+left: 50%; top: 50%;
+width: 44px; height: 44px;
+transform: translate(-50%, -50%);
 }
 .season-screen .phenology-tick:focus-visible {
 outline: 2px solid var(--blue); outline-offset: 1px;
