@@ -203,10 +203,9 @@
      · 条内层沿用 `.actions`（flex + 10px gap），不新造布局体系。
    ============================================================ */
 #app[data-step="result"] {
-  /* 条高实测 92px（12 + 16 提示行 + 6 + 44 + 12）/ 390 档 64px。
-     112 留出 20px 呼吸，且大于安全区 —— 任何内容（含页脚那条链接）
-     都能滚到条上方（验收判据：`_overlay.stuck` 为空）。 */
-  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  /* 桌面条高实测 109px、390 档 65px。128px 给桌面留 19px 呼吸，
+     安全区单独叠加；任何内容（含页脚那条链接）都能滚到条上方。 */
+  padding-bottom: calc(128px + env(safe-area-inset-bottom, 0px));
 }
 
 .result-dock {

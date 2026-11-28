@@ -105,6 +105,9 @@ const PARTS = [
   /* Batch 4 腿 B/D：圆盘四侧竖排正字与四粒竖排胶囊；浓度页偏心蓝雾。
      最后加载，选择器只命中本轮两腿，不触碰问卷逻辑与测试锚点。 */
   '104-batch4-wheel-concentration.css',
+  /* Batch 4 腿 E/F：预算存折与账本脚注、结果页双入口与页眉裁切修复。
+     放最后，只覆盖这两屏的明确类名；既有测试锚点与底栏组件保持不变。 */
+  '104-batch4-budget-result.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');

@@ -2870,6 +2870,12 @@ function renderBudget() {
   const idx = priceIndex();
   const bands = idx && Array.isArray(idx.bands) ? idx.bands : [];
   const anyId = (idx && idx.anyId) || 'any';
+  /* 「不限 / 还不知道」永远在最后：它是退路，不该出现在第一个位置
+     —— 第一个位置会被读成"推荐选项"。
+     每枚具体档只标一个数：「已知价 N 瓶」（口径见 bandKnownCount）。
+     N<3 的档标「只有 N 瓶」并加 is-low 变浅，但仍可选。 */
+  const opts = [...bands.map((b) => ({ id: b.id, zh: b.zh, n: bandKnownCount(b.id) })),
+    { id: anyId, zh: '不限 / 还不知道', n: null }];
 
   /* 3-6 钱袋标尺：横向纸币带 + ¥ 水印 + 面额刻度（与 bands 一一对应）。
      纯装饰（aria-hidden）：刻度取 bands 的 lo/hi，不引入 622/1388 等全库总数。 */
@@ -2879,13 +2885,32 @@ function renderBudget() {
       ...bands.map((b) => el('span', { class: 'money-tick' },
         b.hi != null ? `${b.lo}–${b.hi}` : `${b.lo}+`)))));
 
+  /* Batch 4 腿 E：刻度与价签之间留固定 52px 的存折出口。首次进入直接
+     呈现当前档（含「不限 / 还不知道」），只有主动点选/切换才重播一次。
+     改选时先写最后一档文字，再移除/回流/挂回动画类，快速连点也会从最新
+     一档重新播出，不会排队播放中间档。 */
+  const selected = opts.find((o) => o.id === (state.answers.budget || 'any')) || opts[opts.length - 1];
+  const passbookLabel = el('span', { class: 'budget-passbook-label' }, selected.zh);
+  const passbook = el('div', { class: 'budget-passbook', 'aria-hidden': 'true' }, passbookLabel);
+  passbook.addEventListener('animationend', (ev) => {
+    if (ev.animationName === 'budgetPassbookSlide') passbook.classList.remove('is-playing');
+  });
+  wrap.appendChild(el('div', { class: 'budget-passbook-slot', 'aria-hidden': 'true' }, passbook));
+  const reduceMotion = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : { matches: false };
+  const replayPassbook = (zh) => {
+    passbookLabel.textContent = zh;
+    if (reduceMotion.matches) {
+      passbook.classList.remove('is-playing');
+      return;
+    }
+    passbook.classList.remove('is-playing');
+    void passbook.offsetWidth;
+    passbook.classList.add('is-playing');
+  };
+
   const row = el('div', { class: 'price-row', role: 'radiogroup', 'aria-label': '价位区间' });
-  /* 「不限 / 还不知道」永远在最后：它是退路，不该出现在第一个位置
-     —— 第一个位置会被读成"推荐选项"。
-     每枚具体档只标一个数：「已知价 N 瓶」（口径见 bandKnownCount）。
-     N<3 的档标「只有 N 瓶」并加 is-low 变浅，但仍可选。 */
-  const opts = [...bands.map((b) => ({ id: b.id, zh: b.zh, n: bandKnownCount(b.id) })),
-    { id: anyId, zh: '不限 / 还不知道', n: null }];
 
   /* 主按钮文案随选择走（任务第 2 条）。按钮由 navBar('budget') 画出，
      带 .js-budget-cta 钩子；这里选中后原地改文案，不整屏重画。 */
@@ -2907,6 +2932,7 @@ function renderBudget() {
       'data-budget': o.id,
       onclick: () => {
         state.answers.budget = o.id;
+        replayPassbook(o.zh);
         [...row.children].forEach((c) => {
           const mine = c.getAttribute('data-budget') === o.id;
           c.classList.toggle('is-on', mine);
@@ -2926,15 +2952,18 @@ function renderBudget() {
   wrap.appendChild(row);
 
   /* 只留一行说明（任务第 3 条）：价位未知的瓶只在「不限」里出现。
-     文案二轮裁决全局问题 4：有数据才报数，没有数据就不写死兜底值。 */
-  wrap.appendChild(el('p', { class: 'price-note' }, unknown != null
+     文案二轮裁决全局问题 4：有数据才报数，没有数据就不写死兜底值。
+     Batch 4 腿 E：两行共用一条发丝线与短金竖线，作为卡组下方的账本脚注。 */
+  const ledgerNotes = el('div', { class: 'budget-ledger-notes' });
+  ledgerNotes.appendChild(el('p', { class: 'price-note' }, unknown != null
     ? `价位未知的 ${unknown} 瓶只在「不限」里出现`
     : '价位未知的瓶子只在「不限」里出现'));
 
   /* 3-6 纸条小字：已核实 budget 只在 poolForBudget 圈池、不进 scoringAnswers
      （src/scoring.js 无 budget），『不参与打分』属实。用独立类 .price-disclaimer，
      不占 .price-note，守住『预算屏只留一行 .price-note』的既有断言。 */
-  wrap.appendChild(el('p', { class: 'price-disclaimer' }, '价格只筛范围，不参与打分'));
+  ledgerNotes.appendChild(el('p', { class: 'price-disclaimer' }, '价格只筛范围，不参与打分'));
+  wrap.appendChild(ledgerNotes);
 
   wrap.appendChild(navBar('budget'));
   paintCta();
@@ -6158,8 +6187,15 @@ function renderHistoryBlock() {
     class: 'btn ghost qw-history-toggle',
     type: 'button',
     'aria-expanded': 'false',
+    'aria-controls': 'qw-history-panel',
   }, savedCount ? `查看（${savedCount}）` : '查看');
-  const panel = el('div', { class: 'qw-history-panel', hidden: '' });
+  const panel = el('div', {
+    id: 'qw-history-panel',
+    class: 'qw-history-panel',
+    role: 'region',
+    'aria-label': '香水档案记录',
+    hidden: '',
+  });
 
   toggle.addEventListener('click', () => {
     const open = toggle.getAttribute('aria-expanded') === 'true';
@@ -6175,20 +6211,19 @@ function renderHistoryBlock() {
   });
 
   box.appendChild(el('div', { class: 'qw-history-head' },
-    el('div', {},
-      el('p', { class: 'qw-history-label' }, '我的香水档案'),
-      el('p', { class: 'qw-history-sub' }, '最近 5 次结果只保存在这台设备，不上传')
-    ),
+    el('p', { class: 'qw-history-label' }, '我的香水档案'),
     toggle
   ));
+  /* Batch 4 腿 F：档案说明放在左侧入口整行下方，不再与「查看」挤在同一行。 */
+  box.appendChild(el('p', { class: 'qw-history-sub' }, '最近 5 次只存本机，不上传'));
   /* ---- 心仪清单入口曾经挂在这里（见下方 wishEntryRow 的说明）----
      L3（2026-11-23）把它挂在档案区块内：设计稿 §7.4 要求「首页与结果页都够得着」，
      而档案区块是回访用户唯一会先看到的东西。
      2026-11-24 复查反馈第 6 条改判：入口要和「换一批 / 改一题」一起
      在首屏可达，所以它搬到结果页的吸底操作条（.result-dock）里。
      渲染逻辑一字未改，只换了挂载点 —— 见下面的 wishEntryRow()。 */
-  box.appendChild(panel);
-  return box;
+  /* 面板由结果页双入口容器单独挂载：展开时横跨整行，收起时不影响左右入口。 */
+  return { box, panel };
 }
 
 /**
@@ -6719,6 +6754,24 @@ function renderResult() {
        任何一瓶，先读到一段 33px 高的方法论免责说明（移动端 54px、两行）。
        它是"这个百分比怎么来的"，只有看完结果才可能关心。 */
   );
+  /* Batch 4 腿 F：双入口紧跟主标题，条件摘要退到入口之后。保留
+     .qw-history / .qw-history-toggle 与原面板逻辑，测试锚点不变；
+     档案面板作为第三项挂在双入口网格里，展开时占满整行。 */
+  const quickEntries = el('div', { class: 'result-quick-entries' });
+  const historyEntry = renderHistoryBlock();
+  quickEntries.append(
+    historyEntry.box,
+    el('p', { class: 'result-restart result-quick-restart' },
+      el('button', {
+        class: 'link-btn result-restart-btn',
+        type: 'button',
+        onclick: restart,
+      }, '从头重新答一遍'),
+      el('span', { class: 'result-restart-warning' }, '会清空全部答案')
+    ),
+    historyEntry.panel
+  );
+  wrap.appendChild(quickEntries);
   wrap.appendChild(head);
 
   /* 预算放宽声明（leg6，任务第 3 条）：结果若含档外瓶，顶部明示，不再悄悄放宽。
@@ -7187,32 +7240,8 @@ function renderResult() {
     ));
   }
 
-  wrap.appendChild(renderHistoryBlock());
-
-  /* ==== 结果页的三个出路（规格底线：保留「换一批 / 改一题重推」）====
-     为什么要三个而不是一个「重新来一次」：
-       ① 换一批   —— 我方向对，但这三瓶不太对味。代价只是重算，答案全留着。
-       ② 改一题   —— 我有一题答错了（通常就是刚才那一屏）。代价是回到那一屏，
-                     **其余答案不动** —— 这是三者的关键区别：改一题不是重开。
-       ③ 重新来一次 —— 我想从头换个思路。三者里只有它会清空一切。
-     按钮顺序按代价从小到大：先给最轻的两个，把"全部重来"放最后。
-     这不是转化优化，是**不必让用户为了改一件事付整程的代价**。
-
-     2026-11-24 复查反馈第 6 条：① ② 与「心仪清单」入口搬进吸底操作条
-     （resultDock()，由 render() 挂在 .fade-in 之外），因为实测它们落在
-     第 3 屏以外（1440×900：心仪清单 top 2567 / 换一批 top 2647）。
-     **为什么不能在 .fade-in 里面 fixed**：.fade-in 带进场动画的 transform，
-     哪怕动画结束是 identity，它仍然是 fixed 的包含块 —— 条会缩成正文列宽、
-     钉在正文列底部（实测 x=392 / w=656 / y=2446），而不是视口底部。
-     所以它由 render() 直接挂到 #app 上，位置在页脚之后。 */
-
-  /* 「重新来一次」退到一行小结里：它代价最大，不该和三颗主按钮并列抢注意力。
-     但仍然必须存在 —— 想彻底换个思路的人需要它。 */
-  wrap.appendChild(el('p', { class: 'result-restart' },
-    '都不是你要的？',
-    el('button', { class: 'link-btn', type: 'button', onclick: restart }, '从头重新答一遍'),
-    '（会清空全部答案）'
-  ));
+  /* 档案与「从头重新答一遍」已移到标题下的 result-quick-entries；
+     结果页底部只保留规则说明与分享区，避免入口埋在三瓶之后。 */
 
   return wrap;
 }
