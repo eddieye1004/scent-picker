@@ -1001,11 +1001,12 @@ const gridItems = [...appRoot.querySelectorAll('.hub-specimen-item')];
 const selectedItem = appRoot.querySelector('.hub-specimen-item.is-selected');
 const selectedSubId = appRoot.querySelector('.disc-sector.lvl2.is-on')?.getAttribute('data-sub');
 const firstSelectedId = selectedItem?.getAttribute('data-sub');
-ok('批 3-2b 选定小类后盘心显示 24 格标本', !!grid && gridItems.length === 24,
+ok('Batch 5 B2 选定小类后盘心只显示当前 1 格', !!grid && gridItems.length === 1,
   `网格 ${gridItems.length} 格`);
-ok('批 3-2b 24 格小类 id 齐全且不重复',
-  new Set(gridItems.map((x) => x.getAttribute('data-sub'))).size === 24,
-  `唯一 id ${new Set(gridItems.map((x) => x.getAttribute('data-sub'))).size} 个`);
+ok('Batch 5 B2 唯一小类 id 与中圈选择同源',
+  new Set(gridItems.map((x) => x.getAttribute('data-sub'))).size === 1
+    && firstSelectedId === selectedSubId,
+  `唯一 id ${new Set(gridItems.map((x) => x.getAttribute('data-sub'))).size} 个：${firstSelectedId}`);
 ok('批 3-2b 选中格与中圈选定小类同源',
   !!selectedItem && selectedItem.getAttribute('data-sub') === selectedSubId,
   `盘心 ${firstSelectedId}，中圈 ${selectedSubId}`);
@@ -1021,39 +1022,50 @@ ok('批 3-1a 中圈弧字层已删除（不再露出胶囊残字）',
   appRoot.querySelectorAll('.sub-arc-text').length === 0);
 ok('批 3-1a 中圈只保留胶囊文字',
   appRoot.querySelectorAll('.sub-arc-btn .zh').length > 0);
-ok('批 3-1a 外圈六名由主题弧字渲染',
-  appRoot.querySelectorAll('.fam-arc-text textPath').length
-    === appRoot.querySelectorAll('.sector-g.lvl1').length
-  && appRoot.querySelectorAll('.fam-arc-text textPath').length > 0);
+ok('Batch 5 B1 外圈六名统一走主题弧字，无侧边竖排替代层',
+  appRoot.querySelectorAll('.fam-arc-text textPath').length === 6
+    && appRoot.querySelectorAll('.sector-g.lvl1').length === 6
+    && appRoot.querySelectorAll('.fam-arc-guide').length === 6
+    && appRoot.querySelectorAll('.fam-arc-upright-char').length === 0
+    && appRoot.querySelectorAll('.fam-arc-text.is-side').length === 0,
+  `textPath ${appRoot.querySelectorAll('.fam-arc-text textPath').length} 条 / 弧轨 ${appRoot.querySelectorAll('.fam-arc-guide').length} 条`);
+const famGuides = [...appRoot.querySelectorAll('.fam-arc-guide')];
+ok('Batch 5 B1 上下半盘各三条同向弧轨，左上美食调不倒字',
+  famGuides.filter((g) => /A 193 193 0 0 1/.test(g.getAttribute('d'))).length === 3
+    && famGuides.filter((g) => /A 193 193 0 0 0/.test(g.getAttribute('d'))).length === 3,
+  `顺/逆弧轨 ${famGuides.filter((g) => /A 193 193 0 0 1/.test(g.getAttribute('d'))).length}/${famGuides.filter((g) => /A 193 193 0 0 0/.test(g.getAttribute('d'))).length}`);
 const specimens = [...appRoot.querySelectorAll('.hub-specimen-item .specimen-svg')];
-ok('批 3-2b 每格都是 24×24 同一视框',
-  specimens.length === 24 && specimens.every((s) => s.getAttribute('viewBox') === '0 0 24 24'),
+ok('Batch 5 B2 当前图标是 24×24 同一视框',
+  specimens.length === 1 && specimens.every((s) => s.getAttribute('viewBox') === '0 0 24 24'),
   `${specimens.length} 枚`);
-ok('批 3-2b 每格都走上色通路（is-art）',
-  specimens.length === 24 && specimens.every((s) => s.classList.contains('is-art')),
+ok('Batch 5 B2 当前图标走上色通路（is-art）',
+  specimens.length === 1 && specimens.every((s) => s.classList.contains('is-art')),
   `${specimens.filter((s) => s.classList.contains('is-art')).length} 枚`);
-ok('批 3-2b 24 格都真有几何',
-  specimens.length === 24 && specimens.every((s) => s.querySelectorAll('circle').length
+ok('Batch 5 B2 当前图标真有几何',
+  specimens.length === 1 && specimens.every((s) => s.querySelectorAll('circle').length
     + s.querySelectorAll('path').length + s.querySelectorAll('ellipse').length >= 2),
   `最少图元 ${Math.min(...specimens.map((s) => s.querySelectorAll('circle').length
     + s.querySelectorAll('path').length + s.querySelectorAll('ellipse').length))}`);
-ok('批 3-2b 每格都有可读的小类名',
-  gridItems.length === 24 && gridItems.every((x) => (x.getAttribute('aria-label') || '').length > 0),
+ok('Batch 5 B2 唯一图标有可读的小类名',
+  gridItems.length === 1 && gridItems.every((x) => (x.getAttribute('aria-label') || '').length > 0),
   `${gridItems.filter((x) => (x.getAttribute('aria-label') || '').length > 0).length} 格`);
-ok('批 3-2b 网格是 listbox 快捷入口而非第二套 Tab 控件',
+ok('Batch 5 B2 单项 listbox 而非第二套 Tab 控件',
   !!grid && grid.getAttribute('role') === 'listbox'
-    && grid.querySelectorAll('[role="option"]').length === 24
+    && grid.querySelectorAll('[role="option"]').length === 1
     && grid.querySelectorAll('button').length + grid.querySelectorAll('a').length
       + grid.querySelectorAll('input').length + grid.querySelectorAll('[tabindex]').length === 0,
   grid && grid.getAttribute('role'));
 {
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
-  ok('批 3-2b 网格默认 4 列 × 6 行，命中格 20/24/26px 响应式，图标仍为 16px',
-    /\.hub-specimen-grid\s*\{[^}]*--hub-cell:\s*20px[^}]*grid-template-columns:\s*repeat\(4,\s*var\(--hub-cell\)\)[^}]*grid-auto-rows:\s*var\(--hub-cell\)[^}]*gap:\s*2px/.test(css)
-    && /@media\s*\(min-width:\s*360px\)[\s\S]*?--hub-cell:\s*24px/.test(css)
-    && /@media\s*\(min-width:\s*390px\)[\s\S]*?--hub-cell:\s*26px/.test(css)
-    && /\.hub-specimen-item\s*\{[^}]*width:\s*var\(--hub-cell\)[^}]*height:\s*var\(--hub-cell\)/.test(css)
-    && /\.hub-specimen-item\s+\.specimen-svg\s*\{[^}]*width:\s*16px[^}]*height:\s*16px/.test(css));
+  ok('Batch 5 B2 网格单列单项、图标 88px 大号居中',
+    /\.hub-specimen-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*112px\)[^}]*grid-auto-rows:\s*minmax\(0,\s*112px\)[^}]*justify-content:\s*center/.test(css)
+    && /\.hub-specimen-item\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/.test(css)
+    && /\.hub-specimen-item\s+\.specimen-svg\s*\{[^}]*width:\s*88px[^}]*height:\s*88px/.test(css));
+  ok('Batch 5 B2 只选大类时 hubEmblem 随盘心收缩、最大 96px',
+    /\.wheel\s+\.hub-emblem\s*\{[^}]*width:\s*min\(96px,\s*60%\)[^}]*height:\s*auto[^}]*aspect-ratio:\s*1/.test(css)
+    && /\.wheel\s+\.hub-emblem\s+\.emblem-svg\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/.test(css));
+  ok('窄屏香型屏操作条不覆盖轮盘',
+    /#app\[data-step="family"\]\s+\.actions\s*\{[^}]*position:\s*static/.test(css));
   ok('批 3-2b 选中格有内描边高亮',
     /\.hub-specimen-item\.is-selected\s*\{[^}]*box-shadow:\s*inset 0 0 0 2px/.test(css));
 }
@@ -1062,7 +1074,7 @@ const hubAfter = appRoot.querySelector('.disc-hub');
 ok('盘心挂上了 has-glyph', !!hubAfter && hubAfter.classList.contains('has-glyph'),
   hubAfter && hubAfter.className);
 
-/* 同一家族下换个小类，24 格保留，但选中格与代表图形必须更新。 */
+/* 同一家族下换个小类，盘心只保留新选中的 1 格，代表图形必须更新。 */
 const sigOf = () => {
   const s = appRoot.querySelector('.hub-specimen-item.is-selected .specimen-svg');
   if (!s) return '';
@@ -1086,6 +1098,12 @@ ok('首个小类的标本不是空签名', sigCitrus.length > 0, sigCitrus.slice
     btnsNow[i].dispatch('click');
     await new Promise((r) => setTimeout(r, 300));
     const sig = sigOf();
+    const currentId = appRoot.querySelector('.hub-specimen-item')?.getAttribute('data-sub');
+    const middleId = appRoot.querySelector('.disc-sector.lvl2.is-on')?.getAttribute('data-sub');
+    ok(`换选第 ${i} 项后盘心仅保留新图标`,
+      appRoot.querySelectorAll('.hub-specimen-item').length === 1
+        && currentId === middleId && currentId !== firstSelectedId,
+      `${firstSelectedId} → ${currentId} / 中圈 ${middleId}`);
     if (sig.length) { compared += 1; if (sig === sigCitrus) same += 1; }
   }
   ok('同族不同小类各有各的图形', compared > 0 && same === 0,
@@ -1096,8 +1114,9 @@ ok('换小类后高亮跟随中圈选择',
     === appRoot.querySelector('.disc-sector.lvl2.is-on')?.getAttribute('data-sub')
     && appRoot.querySelector('.hub-specimen-item.is-selected')?.getAttribute('data-sub') !== firstSelectedId,
   `${firstSelectedId} → ${appRoot.querySelector('.hub-specimen-item.is-selected')?.getAttribute('data-sub')}`);
-ok('换小类后 24 格不重建、不减少',
-  appRoot.querySelectorAll('.hub-specimen-item .specimen-svg').length === 24,
+ok('换小类后旧图标退出 DOM，盘心仍只有 1 枚',
+  appRoot.querySelectorAll('.hub-specimen-item .specimen-svg').length === 1
+    && !appRoot.querySelector('.hub-specimen-item[data-sub="' + firstSelectedId + '"]'),
   `${appRoot.querySelectorAll('.hub-specimen-item .specimen-svg').length} 枚`);
 /* ---- 每类一枚图标：数据完整性 + 两两不重复 ----
    线稿（SUB_MARKS / SUB_FIT）已于 2026-11-08 整块删除，盘心直接用
