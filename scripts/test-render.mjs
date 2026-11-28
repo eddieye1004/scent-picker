@@ -1899,7 +1899,15 @@ ok(`${screenOf('season')}是季节（data-step=season）`, stepId() === 'season'
     seasonText.split(seasonHead.title).length === 2
     && seasonText.split(seasonHead.help).length === 2,
     `标题 ${seasonText.split(seasonHead.title).length - 1} 次 / 副标 ${seasonText.split(seasonHead.help).length - 1} 次`);
-  ok('季节统计已删除', !/春 1331|夏 840|秋 1357|冬 548/.test(getStepText()));
+  /* Batch 4 腿 C：旧的"季节统计已删除"是纯字符串禁令，与新物候注记冲突。
+     改为按结构断言：注记存在、四枚物候刻度、dataset.season 有值；
+     候选数由 paintPhenology 从运行时 DATA 现算，不在此抄死数字。 */
+  const noteEl = appRoot.querySelector('.phenology-note');
+  const noteBody = appRoot.querySelector('.phenology-body');
+  ok('季节屏有物候注记（四刻度 + 随季正文，取代旧统计禁令）',
+    !!noteEl && !!noteBody && appRoot.querySelectorAll('.phenology-tick').length === 4
+      && !!noteEl.dataset.season,
+    noteEl ? 'season=' + noteEl.dataset.season : '缺物候注记');
 
   /* ---- 3-4a：季节氛围粒子（v2 按基线翻倍）---- */
   const expectedEffectCounts = { spring: 32, summer: 12, autumn: 28, winter: 44 };

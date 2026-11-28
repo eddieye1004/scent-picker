@@ -300,7 +300,7 @@ else fails.push(`存在 <12px 的文字: ${[...SMALL, ...approvedBad].join(' / '
 /* ---------- 键盘焦点：每个可交互元素都要有 :focus-visible ----------
    只写 .opt 不写 .chip，键盘用户 Tab 到香调时就完全看不到自己在哪。
    圆盘的 .disc-sector 是新加的可点目标，必须一起守。 */
-const INTERACTIVE = ['.opt', '.chip', '.btn', 'input[type="range"]', '.disc-sector', '.season-cell'];
+const INTERACTIVE = ['.opt', '.chip', '.btn', 'input[type="range"]', '.disc-sector', '.season-cell', '.phenology-tick'];
 const missingFocus = INTERACTIVE.filter((sel) => !CSS.includes(`${sel}:focus-visible`));
 if (missingFocus.length === 0) pass++;
 else fails.push(`可交互元素缺 :focus-visible: ${missingFocus.join(', ')}`);
@@ -402,6 +402,21 @@ for (const [sel, need, name] of TOUCH_TARGETS) {
 }
 if (touchBad.length === 0) pass++;
 else fails.push(`触控目标偏小: ${touchBad.join(' / ')}`);
+
+/* 物候刻度视觉行高 26px（四枚纵向不撑破首屏），命中区由 ::after 外扩到 44px。
+   上面的通用循环刻意跳过 :: 伪元素块，读不到它，所以单列一条读伪元素的宽高。 */
+{
+  const m = CSS.match(/\.phenology-tick::after\s*\{([^}]*)\}/);
+  if (!m) {
+    fails.push('物候刻度缺 ::after 命中区（44px 触控门槛）');
+  } else {
+    const w = m[1].match(/width\s*:\s*([\d.]+)px/);
+    const h = m[1].match(/height\s*:\s*([\d.]+)px/);
+    if (!(w && h && parseFloat(w[1]) >= 44 && parseFloat(h[1]) >= 44)) {
+      fails.push(`物候刻度命中区 ${w ? w[1] : '?'}×${h ? h[1] : '?'}px < 44px`);
+    }
+  }
+}
 
 /* ---------- 打印必须走白纸（D6，2026-11-12）----------
    背景：`@media print { :root { --bg:#fff … } }` 原先被误嵌在

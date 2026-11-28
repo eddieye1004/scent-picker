@@ -8822,3 +8822,216 @@ opacity: .5;
 --hint-rule: #D8B45A;
 }
 }
+.emotion-screen .feeling-cards {
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+grid-auto-rows: 54px;
+gap: 8px;
+width: 100%;
+border: 0;
+overflow: visible;
+background: transparent;
+}
+.emotion-screen .feeling-card {
+position: relative;
+display: flex;
+align-items: center;
+gap: 10px;
+height: 54px;
+min-height: 0;
+padding: 0 14px;
+border: 1px solid var(--stroke-ui);
+border-radius: var(--radius-sm, 6px);
+background: var(--bg);
+color: var(--ink);
+font-size: 14px;
+font-weight: 500;
+text-align: left;
+white-space: nowrap;
+overflow: visible;
+cursor: pointer;
+transform-origin: center center;
+transition: border-color 140ms ease, background-color 140ms ease;
+animation: feeling-enter 300ms ease-out both;
+}
+.emotion-screen .feeling-card:nth-child(1) { animation-delay: 0ms; }
+.emotion-screen .feeling-card:nth-child(2) { animation-delay: 60ms; }
+.emotion-screen .feeling-card:nth-child(3) { animation-delay: 120ms; }
+.emotion-screen .feeling-card:nth-child(4) { animation-delay: 180ms; }
+.emotion-screen .feeling-card:nth-child(5) { animation-delay: 240ms; }
+.emotion-screen .feeling-card:nth-child(6) { animation-delay: 300ms; }
+@keyframes feeling-enter {
+from { opacity: 0; transform: translateY(8px); }
+to { opacity: 1; transform: translateY(0); }
+}
+.emotion-screen .feeling-mark {
+width: 24px; height: 24px; flex: 0 0 24px; display: block;
+color: var(--ink-2);
+}
+.emotion-screen .feeling-mark svg { width: 100%; height: 100%; display: block; }
+.emotion-screen .feeling-label { letter-spacing: .04em; }
+.emotion-screen .feeling-card.is-on {
+border-color: var(--blue);
+background: color-mix(in srgb, var(--blue) 8%, var(--bg));
+}
+.emotion-screen .feeling-card.is-on .feeling-mark { color: var(--blue); }
+.emotion-screen .feeling-card.is-on::after {
+content: '';
+position: absolute; top: 6px; right: 8px;
+width: 5px; height: 9px;
+border-right: 1.6px solid var(--blue);
+border-bottom: 1.6px solid var(--blue);
+transform: rotate(45deg);
+}
+.emotion-screen .feeling-card.is-tapped { animation: feeling-tap 160ms ease-out; }
+@keyframes feeling-tap {
+from { transform: scale(.92); }
+to { transform: scale(1); }
+}
+.emotion-screen .selection-fx {
+position: absolute; inset: 0;
+border-radius: inherit; overflow: hidden;
+pointer-events: none;
+}
+.emotion-screen .selection-fx::before {
+content: ''; position: absolute; opacity: 0;
+}
+.emotion-screen .feeling-card[data-feeling="cold"].is-on.fx-play .selection-fx::before {
+left: 14px; top: 6px; width: 24px; height: calc(100% - 12px);
+background: repeating-linear-gradient(90deg, var(--blue-amb) 0 1px, transparent 1px 8px);
+clip-path: inset(0 0 100% 0);
+animation: fx-cold 240ms ease-out forwards;
+}
+@keyframes fx-cold {
+from { clip-path: inset(0 0 100% 0); opacity: .75; }
+to { clip-path: inset(0 0 0 0); opacity: 0; }
+}
+.emotion-screen .feeling-card[data-feeling="warm"].is-on.fx-play .selection-fx::before {
+left: 8px; top: 50%; width: 32px; height: 32px; margin-top: -16px;
+border-radius: 50%;
+background: radial-gradient(circle, color-mix(in srgb, var(--hint-rule) 55%, transparent), transparent 70%);
+transform: scale(.2);
+animation: fx-warm 340ms ease-out forwards;
+}
+@keyframes fx-warm {
+from { transform: scale(.2); opacity: .85; }
+to { transform: scale(2.4); opacity: 0; }
+}
+.emotion-screen .feeling-card[data-feeling="clean"].is-on.fx-play .selection-fx::before {
+left: 11px; top: 50%; width: 26px; height: 26px; margin-top: -13px;
+border: 1px solid var(--blue-amb); border-radius: 50%;
+transform: scale(.6);
+animation: fx-clean 280ms ease-out forwards;
+}
+@keyframes fx-clean {
+0% { transform: scale(.6); opacity: .85; }
+70% { transform: scale(1.3); opacity: .5; }
+100% { transform: scale(1.6); opacity: 0; }
+}
+.emotion-screen .feeling-card[data-feeling="mysterious"].is-on.fx-play .selection-fx::before {
+top: 0; bottom: 0; left: 0; width: 46px;
+background: linear-gradient(90deg, color-mix(in srgb, var(--blue) 24%, transparent), transparent);
+transform: translateX(-100%);
+animation: fx-mysterious 360ms ease-out forwards;
+}
+@keyframes fx-mysterious {
+from { transform: translateX(-100%); opacity: .9; }
+to { transform: translateX(0); opacity: 0; }
+}
+.emotion-screen .feeling-card[data-feeling="bright"].is-on.fx-play .selection-fx::before {
+inset: 0;
+background: linear-gradient(112deg, transparent 42%, rgba(255, 255, 255, .9) 50%, transparent 58%);
+transform: translateX(-100%);
+animation: fx-bright 200ms linear forwards;
+}
+@keyframes fx-bright {
+from { transform: translateX(-100%); opacity: 1; }
+to { transform: translateX(100%); opacity: 0; }
+}
+.emotion-screen .feeling-card[data-feeling="lazy"].is-on.fx-play .selection-fx::before {
+left: 0; bottom: 0; height: 2px; width: 0;
+background: linear-gradient(90deg,
+color-mix(in srgb, var(--blue-amb) 60%, var(--ink-3)), transparent);
+animation: fx-lazy 480ms ease-out forwards;
+}
+@keyframes fx-lazy {
+from { width: 0; opacity: .85; }
+to { width: 100%; opacity: 0; }
+}
+.emotion-screen .feeling-label-slot {
+margin: 14px 0 0;
+min-height: 42px;
+padding: 6px 10px;
+background: var(--note-paper);
+border: 1px solid var(--stroke-ui);
+border-left: 3px solid var(--hint-rule);
+border-radius: 2px;
+box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+transform: none;
+font-size: 12px;
+line-height: 1.55;
+opacity: 1;
+}
+.emotion-screen .feeling-label-slot.is-idle { opacity: .72; }
+.season-screen .phenology-note {
+display: flex;
+align-items: center;
+gap: 12px;
+margin: 14px 0 0;
+padding: 10px 12px;
+background: var(--note-paper);
+border: 1px solid var(--stroke-ui);
+border-radius: var(--radius-sm, 6px);
+transform: none;
+}
+.season-screen .phenology-scale {
+flex: 0 0 40px;
+width: 40px;
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 2px;
+}
+.season-screen .phenology-tick {
+position: relative;
+width: 30px; height: 26px;
+display: grid; place-items: center;
+padding: 0;
+border: 1px solid transparent;
+border-radius: 4px;
+background: transparent;
+color: var(--ink-3);
+cursor: pointer;
+transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+.season-screen .phenology-tick::after {
+content: '';
+position: absolute;
+left: 50%; top: 50%;
+width: 44px; height: 44px;
+transform: translate(-50%, -50%);
+}
+.season-screen .phenology-tick:focus-visible {
+outline: 2px solid var(--blue); outline-offset: 1px;
+}
+.season-screen .phenology-tick.is-on {
+color: var(--blue);
+background: color-mix(in srgb, var(--blue) 8%, var(--bg));
+border-color: color-mix(in srgb, var(--blue) 28%, transparent);
+}
+.season-screen .phenology-icon { width: 18px; height: 18px; display: block; }
+.season-screen .phenology-icon svg { width: 100%; height: 100%; display: block; }
+.season-screen .phenology-body {
+flex: 1 1 auto;
+min-width: 0;
+margin: 0;
+font-size: 13px;
+line-height: 1.55;
+color: var(--ink-2);
+}
+@media (prefers-reduced-motion: reduce) {
+.emotion-screen .feeling-card,
+.emotion-screen .feeling-card.is-tapped,
+.emotion-screen .selection-fx::before { animation: none !important; }
+.emotion-screen .selection-fx { display: none; }
+}
