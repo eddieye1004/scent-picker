@@ -2796,6 +2796,9 @@ function renderBudget() {
   const selected = opts.find((o) => o.id === (state.answers.budget || 'any')) || opts[opts.length - 1];
   const passbookLabel = el('span', { class: 'budget-passbook-label' }, selected.zh);
   const passbook = el('div', { class: 'budget-passbook', 'aria-hidden': 'true' }, passbookLabel);
+  passbook.addEventListener('animationend', (ev) => {
+    if (ev.animationName === 'budgetPassbookSlide') passbook.classList.remove('is-playing');
+  });
   wrap.appendChild(el('div', { class: 'budget-passbook-slot', 'aria-hidden': 'true' }, passbook));
   const reduceMotion = typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -6019,8 +6022,15 @@ function renderHistoryBlock() {
     class: 'btn ghost qw-history-toggle',
     type: 'button',
     'aria-expanded': 'false',
+    'aria-controls': 'qw-history-panel',
   }, savedCount ? `查看（${savedCount}）` : '查看');
-  const panel = el('div', { class: 'qw-history-panel', hidden: '' });
+  const panel = el('div', {
+    id: 'qw-history-panel',
+    class: 'qw-history-panel',
+    role: 'region',
+    'aria-label': '香水档案记录',
+    hidden: '',
+  });
 
   toggle.addEventListener('click', () => {
     const open = toggle.getAttribute('aria-expanded') === 'true';
@@ -6047,8 +6057,8 @@ function renderHistoryBlock() {
      2026-11-24 复查反馈第 6 条改判：入口要和「换一批 / 改一题」一起
      在首屏可达，所以它搬到结果页的吸底操作条（.result-dock）里。
      渲染逻辑一字未改，只换了挂载点 —— 见下面的 wishEntryRow()。 */
-  box.appendChild(panel);
-  return box;
+  /* 面板由结果页双入口容器单独挂载：展开时横跨整行，收起时不影响左右入口。 */
+  return { box, panel };
 }
 
 /**
@@ -6579,22 +6589,25 @@ function renderResult() {
        任何一瓶，先读到一段 33px 高的方法论免责说明（移动端 54px、两行）。
        它是"这个百分比怎么来的"，只有看完结果才可能关心。 */
   );
-  wrap.appendChild(head);
-
-  /* Batch 4 腿 F：档案与从头重答移到标题下。保留 .qw-history /
-     .qw-history-toggle 与原面板逻辑，测试锚点不变；右入口保持次级文字样式，
-     清空代价在点击前可见。 */
+  /* Batch 4 腿 F：双入口紧跟主标题，条件摘要退到入口之后。保留
+     .qw-history / .qw-history-toggle 与原面板逻辑，测试锚点不变；
+     档案面板作为第三项挂在双入口网格里，展开时占满整行。 */
   const quickEntries = el('div', { class: 'result-quick-entries' });
-  quickEntries.appendChild(renderHistoryBlock());
-  quickEntries.appendChild(el('p', { class: 'result-restart result-quick-restart' },
-    el('button', {
-      class: 'link-btn result-restart-btn',
-      type: 'button',
-      onclick: restart,
-    }, '从头重新答一遍'),
-    el('span', { class: 'result-restart-warning' }, '会清空全部答案')
-  ));
+  const historyEntry = renderHistoryBlock();
+  quickEntries.append(
+    historyEntry.box,
+    el('p', { class: 'result-restart result-quick-restart' },
+      el('button', {
+        class: 'link-btn result-restart-btn',
+        type: 'button',
+        onclick: restart,
+      }, '从头重新答一遍'),
+      el('span', { class: 'result-restart-warning' }, '会清空全部答案')
+    ),
+    historyEntry.panel
+  );
   wrap.appendChild(quickEntries);
+  wrap.appendChild(head);
 
   /* 预算放宽声明（leg6，任务第 3 条）：结果若含档外瓶，顶部明示，不再悄悄放宽。
      档内 0 瓶 → 「这个价位暂无匹配」+「改预算」；档内 >=1 瓶 →

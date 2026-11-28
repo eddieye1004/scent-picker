@@ -8876,6 +8876,18 @@ width: 1px;
 background: var(--passbook-rule);
 box-shadow: 3px 0 0 var(--passbook-rule);
 }
+#app[data-step="budget"] .budget-passbook::after {
+content: "";
+position: absolute;
+top: 0;
+right: 0;
+width: 8px;
+height: 8px;
+background: var(--bg);
+box-shadow: -1px 1px 0 var(--passbook-rule);
+clip-path: polygon(0 0, 100% 100%, 0 100%);
+pointer-events: none;
+}
 #app[data-step="budget"] .budget-passbook-label {
 position: relative;
 z-index: 1;
@@ -8941,6 +8953,8 @@ max-width: 656px;
 margin: -4px 0 24px;
 }
 #app[data-step="result"] .result-quick-entries .qw-history {
+grid-column: 1;
+grid-row: 1;
 min-width: 0;
 max-width: none;
 margin: 0;
@@ -8948,6 +8962,7 @@ padding: 0;
 border: 0;
 }
 #app[data-step="result"] .result-quick-entries .qw-history-head {
+flex-direction: row;
 flex-wrap: wrap;
 align-items: center;
 gap: 6px 10px;
@@ -8969,11 +8984,18 @@ font-size: 12px;
 line-height: 1.55;
 }
 #app[data-step="result"] .result-quick-entries .qw-history-panel {
-margin-top: 10px;
-padding: 2px 12px 14px;
+grid-column: 1 / -1;
+grid-row: 2;
+align-self: start;
+box-sizing: border-box;
+width: 100%;
+margin-top: 0;
+padding: 2px 18px 14px;
 }
 #app[data-step="result"] .result-quick-restart {
-align-self: stretch;
+grid-column: 2;
+grid-row: 1;
+align-self: start;
 display: flex;
 flex-direction: column;
 justify-content: center;
@@ -9035,6 +9057,21 @@ grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
 gap: 14px;
 margin-bottom: 20px;
 }
+#app[data-step="result"] .result-quick-entries .qw-history-head {
+gap: 4px;
+}
+#app[data-step="result"] .result-quick-entries .qw-history-label {
+gap: 4px;
+font-size: 12px;
+letter-spacing: 0;
+}
+#app[data-step="result"] .result-quick-entries .qw-history-label::before {
+width: 6px;
+}
+#app[data-step="result"] .result-quick-entries .qw-history-toggle {
+padding: 0 5px;
+font-size: 12px;
+}
 #app[data-step="result"] .result-quick-restart {
 padding-left: 14px;
 }
@@ -9048,9 +9085,14 @@ grid-template-columns: minmax(0, 1fr);
 gap: 12px;
 }
 #app[data-step="result"] .result-quick-restart {
+grid-column: 1;
+grid-row: 2;
 padding: 10px 0 0;
 border-top: 1px solid var(--line);
 border-left: 0;
+}
+#app[data-step="result"] .result-quick-entries .qw-history-panel {
+grid-row: 3;
 }
 }
 @media (prefers-reduced-motion: reduce) {
