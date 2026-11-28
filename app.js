@@ -4123,15 +4123,14 @@ function renderConcentration() {
     + '<path d="M83 66 C84 78 84 90 80 101" fill="none" stroke="rgba(0,0,0,.20)" stroke-width="1.4" stroke-linecap="round"/>'
     + '<ellipse cx="60" cy="52" rx="23" ry="7" fill="url(#conc-clav)" opacity="0.5"/>'
     + '</svg>' });
-  /* 偏心蓝雾是独立表现层：画布 116×80，锚点在锁骨中点上方 6px。
-     五档只切换 CSS 变量，拖动与提交都仅动画 transform / opacity。 */
+  /* 锁骨香雾是独立表现层：画布 116×80，锚点在锁骨中点上方 6px。
+     四层错位柔雾（空气 / 雾体 / 缕丝 / 柔光）共同随五档递增；
+     不再叠硬圆弧或 multiply 暗核，避免靶心感与颈部暗斑。 */
   const mist = el('div', { class: 'conc-mist', html:
-    '<div class="conc-mist-halo"></div>'
+    '<div class="conc-mist-air"></div>'
+    + '<div class="conc-mist-body"></div>'
     + '<div class="conc-mist-wisp"></div>'
-    + '<div class="conc-mist-outer"></div>'
-    + '<div class="conc-mist-inner"></div>'
-    + '<div class="conc-mist-arc conc-mist-arc-a"></div>'
-    + '<div class="conc-mist-arc conc-mist-arc-b"></div>' });
+    + '<div class="conc-mist-bloom"></div>' });
   scene.append(glow, rippleIn, rippleMid, rippleOut, pulse, figure, mist);
 
   /* 波纹直径 = 滑块档位 × 类型系数。16%（贴肤）→ 128%（铺过舞台），

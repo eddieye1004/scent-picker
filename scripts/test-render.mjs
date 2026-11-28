@@ -2126,7 +2126,7 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
   ok('场景图存在且整块 aria-hidden（波纹只做展示）',
     !!scene && scene.attrs['aria-hidden'] === 'true',
     scene ? String(scene.attrs['aria-hidden']) : '(无场景图)');
-  ok('场景图里是人形剪影 + 三圈同心波纹，且没有一个 button',
+  ok('场景图里是人形剪影 + 三个不绘制的扩散状态节点，且没有一个 button',
     !!scene
     && scene.querySelectorAll('svg').length === 1
     && scene.querySelectorAll('.conc-ripple').length === 3
@@ -2363,31 +2363,32 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
     `粒子 ${scene.querySelectorAll('.conc-particle').length} / SVG ${scene.querySelectorAll('svg').length}`);
 
   const parfumPulseRule = (concCss.match(/\.conc-pulse\.is-parfum\s*\{([^}]*)\}/s) || [])[1] || '';
-  ok('类型切换 300ms、场景直径封顶；雾画布/锚点/五档/断弧遮罩符合 Batch 5 规格',
+  ok('类型切换 300ms、场景直径封顶；旧圆环撤下，四层柔雾/锁骨锚点/五档递增符合 B5 修复规格',
     /transition:\s*width\s+\.3s\s+var\(--ease,\s*ease\),\s*opacity\s+\.3s/.test(concCss)
     && /max-width:\s*calc\(100vw\s*-\s*32px\)/.test(centerRule)
-    && /opacity:\s*var\(--conc-opacity,\s*\.8\)/.test(parfumPulseRule)
-    && !/\.conc-ripple,\s*\.diffuse-ring\s*\{\s*transition-duration:\s*\.12s/.test(concCss)
+    && /opacity:\s*calc\(var\(--conc-opacity,\s*\.8\)\s*\*\s*\.24\)/.test(parfumPulseRule)
+    && /\.conc-ripple\s*\{\s*display:\s*none;\s*\}/.test(concCss)
+    && !/border:\s*1(?:\.5)?px/.test((concCss.match(/\.conc-pulse\s*\{([^}]*)\}/s) || [])[1] || '')
     && /\.conc-glow\s*\{\s*opacity:\s*calc\(var\(--conc-opacity,\s*1\)\s*\*\s*\.6\)/.test(concCss)
     && /width:\s*116px/.test(mistCss) && /height:\s*80px/.test(mistCss)
     && /top:\s*calc\(50%\s*-\s*82px\)/.test(mistCss)
     && /transform-origin:\s*58px\s+48px/.test(mistCss) && /isolation:\s*isolate/.test(mistCss)
-    && /ellipse\s+58px\s+31px/.test(mistCss) && /ellipse\s+35px\s+15px/.test(mistCss)
-    && /mix-blend-mode:\s*multiply/.test(mistCss)
-    && /width:\s*98px/.test(mistCss) && /height:\s*43px/.test(mistCss)
-    && /width:\s*110px/.test(mistCss) && /height:\s*55px/.test(mistCss)
-    && /#344F73/.test(mistCss) && /#000 306deg, #000 354deg/.test(mistCss)
-    && /#000 12deg, #000 65deg/.test(mistCss)
-    && /--mist-scale:\s*\.3103448276/.test(mistCss) && /--mist-scale:\s*\.4482758621/.test(mistCss)
-    && /--mist-scale:\s*\.6206896552/.test(mistCss) && /--mist-scale:\s*\.7931034483/.test(mistCss)
+    && /\.conc-mist-air\s*\{/.test(mistCss) && /\.conc-mist-body\s*\{/.test(mistCss)
+    && /\.conc-mist-wisp\s*\{/.test(mistCss) && /\.conc-mist-bloom\s*\{/.test(mistCss)
+    && !/conc-mist-arc/.test(mistCss) && !/mix-blend-mode:\s*multiply/.test(mistCss)
+    && (mistCss.match(/radial-gradient\(/g) || []).length >= 12
+    && /--mist-scale:\s*\.36;/.test(mistCss) && /--mist-scale:\s*\.52;/.test(mistCss)
+    && /--mist-scale:\s*\.68;/.test(mistCss) && /--mist-scale:\s*\.84;/.test(mistCss)
     && /--mist-scale:\s*1;/.test(mistCss)
-    && /--mist-outer-opacity:\s*\.42/.test(mistCss) && /--mist-outer-opacity:\s*\.55/.test(mistCss)
-    && /--mist-outer-opacity:\s*\.70/.test(mistCss) && /--mist-outer-opacity:\s*\.85/.test(mistCss)
-    && /--mist-inner-opacity:\s*\.60/.test(mistCss) && /--mist-inner-opacity:\s*\.70/.test(mistCss)
-    && /--mist-inner-opacity:\s*\.80/.test(mistCss) && /--mist-inner-opacity:\s*\.90/.test(mistCss)
-    && /scale\(\.68\)/.test(mistCss) && /scale\(1\.16\)/.test(mistCss)
-    && /560ms\s+cubic-bezier\(\.16,\s*1,\s*\.3,\s*1\)/.test(mistCss),
-    `${centerRule.trim()} ｜ mist 116×80 / origin 58,48 / five levels / two masked arcs`);
+    && /--mist-body-opacity:\s*\.28;/.test(mistCss) && /--mist-body-opacity:\s*\.44;/.test(mistCss)
+    && /--mist-body-opacity:\s*\.62;/.test(mistCss) && /--mist-body-opacity:\s*\.80;/.test(mistCss)
+    && /--mist-body-opacity:\s*\.98;/.test(mistCss)
+    && /--mist-air-opacity:\s*\.96;/.test(mistCss) && /--mist-wisp-opacity:\s*\.68;/.test(mistCss)
+    && /--mist-bloom-opacity:\s*\.82;/.test(mistCss)
+    && /scale\(calc\(var\(--mist-scale\)\s*\*\s*\.72\)\)/.test(mistCss)
+    && /scale\(calc\(var\(--mist-scale\)\s*\*\s*1\.12\)\)/.test(mistCss)
+    && /560ms\s+cubic-bezier\(\.16,\s+1,\s*\.3,\s*1\)/.test(mistCss),
+    `${centerRule.trim()} ｜ mist 116×80 / origin 58,48 / four soft layers / five density levels / no arcs`);
 
   /* 类型与滑块是两条独立输入：切类型不重写档位/读数，切档位仍能连续改半径。 */
   slider.value = '3';
@@ -2411,10 +2412,11 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
     slider.value === '3' && read.textContent === '适中：办公室里刚好'
     && scene.querySelectorAll('.conc-particle').length === 0
     && scene.querySelectorAll('.conc-particles').length === 0
-    && scene.querySelectorAll('.conc-mist-arc').length === 2
+    && scene.querySelectorAll('.conc-mist-arc').length === 0
+    && mist.querySelectorAll('div').length === 4
     && scene.querySelectorAll('.conc-ripple').length === 3
     && typeAnimating && dragCancelsCommit && tickCancelsCommit,
-    `滑杆 ${slider.value} / ${read.textContent} / 粒子 ${scene.querySelectorAll('.conc-particle').length} / 断弧 ${scene.querySelectorAll('.conc-mist-arc').length} / cancel=${dragCancelsCommit},${tickCancelsCommit}`);
+    `滑杆 ${slider.value} / ${read.textContent} / 粒子 ${scene.querySelectorAll('.conc-particle').length} / 雾层 ${mist.querySelectorAll('div').length} / 硬弧 ${scene.querySelectorAll('.conc-mist-arc').length} / cancel=${dragCancelsCommit},${tickCancelsCommit}`);
 
   /* 恢复本段原有下游状态：2 档 + EDP。 */
   slider.value = '2';

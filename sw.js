@@ -26,7 +26,9 @@
    （tasting）相关模块已在 CORE。VERSION 进位到 v2-20261127a，让旧缓存整套失效。 */
 /* 2026-11-28（Batch 4 腿 B/D）：圆盘竖排文字与浓度页蓝雾更新，app.js /
    styles.css 均变；VERSION 进位，避免 cache-first + ignoreSearch 吐旧表现层。 */
-const VERSION = 'v2-20261128b4';
+/* 2026-11-28（Batch 5 B5 修复）：浓度页改为四层柔雾并撤下硬圆环，app.js /
+   styles.css 均变；VERSION 再进位，避免旧缓存保留靶心感与颈部暗斑。 */
+const VERSION = 'v2-20261128b5';
 /* 2026-11-23（冻结线）：CORE 加入 src/season-copy.js（季节屏 24 句）。它是 app.js
    的静态导入，缺了会让整个 module 图加载失败 —— 离线时不是"少一行文案"，
    是白屏。VERSION 跟一位。
