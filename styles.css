@@ -6970,18 +6970,25 @@ animation: leg8FlyIn 220ms var(--ease-out) both;
 display: none;
 }
 #app[data-step="family"] .wheel .hub-specimen-grid {
+--hub-cell: 20px;
 display: grid;
-grid-template-columns: repeat(4, 16px);
-grid-auto-rows: 16px;
+grid-template-columns: repeat(4, var(--hub-cell));
+grid-auto-rows: var(--hub-cell);
 gap: 2px;
 justify-content: center;
 pointer-events: none;
 }
+@media (min-width: 360px) {
+#app[data-step="family"] .wheel .hub-specimen-grid { --hub-cell: 24px; }
+}
+@media (min-width: 390px) {
+#app[data-step="family"] .wheel .hub-specimen-grid { --hub-cell: 26px; }
+}
 #app[data-step="family"] .wheel .hub-specimen-item {
 display: grid;
 place-items: center;
-width: 16px;
-height: 16px;
+width: var(--hub-cell);
+height: var(--hub-cell);
 border-radius: 3px;
 opacity: .78;
 }

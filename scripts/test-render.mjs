@@ -1011,9 +1011,9 @@ ok('批 3-2b 选中格与中圈选定小类同源',
   `盘心 ${firstSelectedId}，中圈 ${selectedSubId}`);
 ok('批 3-2b 只有一格高亮', appRoot.querySelectorAll('.hub-specimen-item.is-selected').length === 1,
   `${appRoot.querySelectorAll('.hub-specimen-item.is-selected').length} 格`);
-ok('批 3-2b 选中格有无障碍当前态',
-  !!selectedItem && selectedItem.getAttribute('aria-current') === 'true',
-  selectedItem && selectedItem.getAttribute('aria-current'));
+ok('批 3-2b 选中格有无障碍选中态',
+  !!selectedItem && selectedItem.getAttribute('aria-selected') === 'true',
+  selectedItem && selectedItem.getAttribute('aria-selected'));
 ok('批 3-2b 网格播报当前小类全名',
   !!grid && selectedItem && grid.getAttribute('aria-label').includes(selectedItem.getAttribute('aria-label')),
   grid && grid.getAttribute('aria-label'));
@@ -1040,15 +1040,20 @@ ok('批 3-2b 24 格都真有几何',
 ok('批 3-2b 每格都有可读的小类名',
   gridItems.length === 24 && gridItems.every((x) => (x.getAttribute('aria-label') || '').length > 0),
   `${gridItems.filter((x) => (x.getAttribute('aria-label') || '').length > 0).length} 格`);
-ok('批 3-2b 网格是状态展示而非第二作答入口',
-  !!grid && grid.getAttribute('role') === 'list'
+ok('批 3-2b 网格是 listbox 快捷入口而非第二套 Tab 控件',
+  !!grid && grid.getAttribute('role') === 'listbox'
+    && grid.querySelectorAll('[role="option"]').length === 24
     && grid.querySelectorAll('button').length + grid.querySelectorAll('a').length
       + grid.querySelectorAll('input').length + grid.querySelectorAll('[tabindex]').length === 0,
   grid && grid.getAttribute('role'));
 {
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
-  ok('批 3-2b 网格默认 4 列 × 6 行、16px 图标、2px 间距',
-    /\.hub-specimen-grid\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*16px\)[^}]*grid-auto-rows:\s*16px[^}]*gap:\s*2px/.test(css));
+  ok('批 3-2b 网格默认 4 列 × 6 行，命中格 20/24/26px 响应式，图标仍为 16px',
+    /\.hub-specimen-grid\s*\{[^}]*--hub-cell:\s*20px[^}]*grid-template-columns:\s*repeat\(4,\s*var\(--hub-cell\)\)[^}]*grid-auto-rows:\s*var\(--hub-cell\)[^}]*gap:\s*2px/.test(css)
+    && /@media\s*\(min-width:\s*360px\)[\s\S]*?--hub-cell:\s*24px/.test(css)
+    && /@media\s*\(min-width:\s*390px\)[\s\S]*?--hub-cell:\s*26px/.test(css)
+    && /\.hub-specimen-item\s*\{[^}]*width:\s*var\(--hub-cell\)[^}]*height:\s*var\(--hub-cell\)/.test(css)
+    && /\.hub-specimen-item\s+\.specimen-svg\s*\{[^}]*width:\s*16px[^}]*height:\s*16px/.test(css));
   ok('批 3-2b 选中格有内描边高亮',
     /\.hub-specimen-item\.is-selected\s*\{[^}]*box-shadow:\s*inset 0 0 0 2px/.test(css));
 }
@@ -2349,13 +2354,25 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
     const button = grid.querySelector(`[data-id="${item.id}"]`);
     if (button) button.dispatch('click');
   }
-  ok('反复切类型后滑杆与读数保持独立，场景节点仍不增长',
+  const mist = scene.querySelector('.conc-mist');
+  const typeAnimating = mist.classList.contains('is-committing');
+  slider.dispatch('pointerdown', { pointerId: 1, clientX: 100 });
+  const dragCancelsCommit = !mist.classList.contains('is-committing')
+    && !pulse.classList.contains('is-live');
+  slider.dispatch('pointerup', { pointerId: 1, clientX: 100 });
+  if (edpBtn) edpBtn.dispatch('click');
+  const tick3 = [...ticks].find((node) => node.getAttribute('data-v') === '3');
+  tick3.dispatch('click');
+  const tickCancelsCommit = !mist.classList.contains('is-committing')
+    && !pulse.classList.contains('is-live');
+  ok('反复切类型后滑杆与读数保持独立，场景节点不增长；拖动/刻度会取消旧扩散动画',
     slider.value === '3' && read.textContent === '适中：办公室里刚好'
     && scene.querySelectorAll('.conc-particle').length === 0
     && scene.querySelectorAll('.conc-particles').length === 0
     && scene.querySelectorAll('.conc-mist-arc').length === 2
-    && scene.querySelectorAll('.conc-ripple').length === 3,
-    `滑杆 ${slider.value} / ${read.textContent} / 粒子 ${scene.querySelectorAll('.conc-particle').length} / 断弧 ${scene.querySelectorAll('.conc-mist-arc').length}`);
+    && scene.querySelectorAll('.conc-ripple').length === 3
+    && typeAnimating && dragCancelsCommit && tickCancelsCommit,
+    `滑杆 ${slider.value} / ${read.textContent} / 粒子 ${scene.querySelectorAll('.conc-particle').length} / 断弧 ${scene.querySelectorAll('.conc-mist-arc').length} / cancel=${dragCancelsCommit},${tickCancelsCommit}`);
 
   /* 恢复本段原有下游状态：2 档 + EDP。 */
   slider.value = '2';

@@ -925,7 +925,7 @@ function hubSpecimenGrid(families, selectedSubId, onSelect) {
   const grid = el('div', {
     class: 'hub-specimen-grid',
     id: 'wheel-specimen-grid',
-    role: 'list',
+    role: 'listbox',
     tabindex: '0',
     'aria-label': '24 个小类标本，当前选择：' + subFullName(
       families.flatMap((fam) => fam.subfamilies || []).find((sub) => sub.id === selectedSubId) || {}
@@ -965,11 +965,11 @@ function hubSpecimenGrid(families, selectedSubId, onSelect) {
       const item = el('div', {
         class: 'hub-specimen-item',
         id: 'hub-specimen-' + sub.id,
-        role: 'listitem',
+        role: 'option',
         'data-sub': sub.id,
         'data-fam': fam.id,
         'aria-label': subFullName(sub),
-        'aria-current': String(sub.id === selectedSubId),
+        'aria-selected': String(sub.id === selectedSubId),
         title: '选择' + subFullName(sub),
       });
       /* 24 格与中圈共用 chooseSub：它们是同一步的快捷入口，不新增问卷步骤，
@@ -2151,7 +2151,7 @@ function buildWheel(cfg) {
       grid.querySelectorAll('.hub-specimen-item').forEach((item) => {
         const on = item.getAttribute('data-sub') === focusSub.id;
         item.classList.toggle('is-selected', on);
-        item.setAttribute('aria-current', String(on));
+        item.setAttribute('aria-selected', String(on));
         if (on) grid.setAttribute('aria-activedescendant', item.id);
       });
     }
@@ -4101,11 +4101,16 @@ function renderConcentration() {
     paintTicks();
   };
 
+  /* 拖动或刻度点击接管 transform：先摘掉上一轮提交动画，避免 560ms 的
+     is-committing 继续控制雾的 scale，导致拖动中不跟手。 */
+  const stopPulse = () => {
+    pulse.classList.remove('is-live');
+    mist.classList.remove('is-committing');
+  };
   /* 松手吸附时的一次轻微波纹与蓝雾扩散：摘掉 is-live 强制重排再挂回去，
      动画才能重播（0.6s / 0.56s 各一次，减少动态偏好下直接呈现静态雾晕）。 */
   const firePulse = () => {
-    pulse.classList.remove('is-live');
-    mist.classList.remove('is-committing');
+    stopPulse();
     void pulse.offsetWidth;
     pulse.classList.add('is-live');
     mist.classList.add('is-committing');
@@ -4131,6 +4136,7 @@ function renderConcentration() {
     dragMoved = false;
   };
   slider.addEventListener('pointerdown', () => {
+    stopPulse();
     dragging = true;
     dragMoved = false;
     scene.classList.add('is-dragging');
@@ -4148,7 +4154,10 @@ function renderConcentration() {
     const v = Number(ev.target && ev.target.value);
     if (!Number.isFinite(v)) return;
     state.answers.intensity = v;
-    if (!dragging) paintScene(v);
+    if (!dragging) {
+      stopPulse();
+      paintScene(v);
+    }
     paintRead();
     applyAmbient();
   });
@@ -4162,7 +4171,9 @@ function renderConcentration() {
       'aria-hidden': 'true',
       onclick: () => {
         /* 点刻度直接跳档：滑杆值、state、读数一次到位（不带脉冲——
-           轻微扩散只属于拖动松手那一下）。 */
+           轻微扩散只属于拖动松手那一下）。先取消上一轮提交动画，避免
+           transform 被 is-committing 占着，档位变化只走 160ms 过渡。 */
+        stopPulse();
         state.answers.intensity = L.v;
         slider.value = String(L.v);
         if (!dragging) paintScene(L.v);
