@@ -62,8 +62,10 @@
   transform: rotate(0deg) scale(var(--pill-scale, 1));
 }
 
-/* 人物三段同色；只保留体积投影，不再用旧肩线细节掩盖轮廓。 */
-.conc-figure svg { filter: drop-shadow(0 7px 9px rgba(0, 0, 0, .20)); }
+/* 人物三段同色；只保留体积投影，不再用旧肩线细节掩盖轮廓。
+   投影压低、放宽、降低不透明度：早先 0 7px/9px/.20 把头部阴影硬投在后颈上，
+   读成一片"锁骨淤青"；改成近乎正下方的柔光，锁骨处只由剪影内的柔影交代。 */
+.conc-figure svg { filter: drop-shadow(0 3px 8px rgba(0, 0, 0, .14)); }
 
 /* ---------- 腿 D：偏心蓝雾 + 两段断弧 ---------- */
 .conc-mist {
