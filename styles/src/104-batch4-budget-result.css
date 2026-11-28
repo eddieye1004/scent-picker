@@ -7,15 +7,33 @@
    ============================================================ */
 
 :root {
-  --passbook-paper: #FBF7EF;
-  --passbook-rule: #D8CBB7;
+  /* 折页纸与账本线。暖白比纸底 --bg (#FAF7F1) 再暖一档，
+     才读得出"一张夹在册子里的纸"，而不是页面上一块色块。 */
+  --passbook-paper: #FCF7EC;
+  --passbook-paper-edge: #F2E9D8;
+  /* 账本线与折脊：1px 装饰线，不承载文字，不进 4.5:1 门槛
+     （test-contrast 的装饰线口径与 --spec-hair 一致）。
+     对 --passbook-paper 的对比约 1.55 —— 看得见，但读正文时不会跳出来。 */
+  --passbook-rule: #D9CDB6;
+  --passbook-rule-soft: #E7DCC7;
+  /* 小蓝章不新增色值：直接复用既有 --blue-deep #001A5E
+     （对折页纸 15.01:1；它已在 test-contrast 的审计表里）。
+     新增一个"章色"token 只会让那个色进不了审计、或让审计表里多一条
+     和 --blue-deep 逐位相同的重复项 —— 两者都不是收益。
+     章戳取**方形**（方章 = 账房用的那一类），不是圆章：
+     圆形章的内圈要塞下「600–1200」六个字符，直径至少 44px，
+     而折页高只有 46px —— 圆章只能靠压字换面积，这正是"章抢正文"
+     的那一类失败。方章的内接矩形利用率比圆高约 27%，
+     横向三个数字 + 短横放得下，章也不会撑破折页。 */
 }
 
-/* ---------- 腿 E：预算存折 ---------- */
+/* ---------- 腿 E：预算存折（Batch 5 腿 B5-3 重做）---------- */
 #app[data-step="budget"] .money-ruler {
   margin-bottom: 0;
 }
 
+/* 出口槽：折页滑出的舞台。overflow:hidden 让"从下方滑入"能被裁成
+   "从册子下沿抽出来"，而不是一个方块在空白里漂。 */
 #app[data-step="budget"] .budget-passbook-slot {
   box-sizing: border-box;
   position: relative;
@@ -23,86 +41,194 @@
   justify-content: center;
   align-items: flex-start;
   width: 100%;
-  height: 52px;
-  padding-top: 6px;
+  height: 64px;
+  margin-top: 10px;
+  padding-top: 8px;
   overflow: hidden;
   border-top: 1px solid var(--blue-deep);
 }
 
+/* 折页本体：暖白小折页。
+   padding 左 30px 给折脊留位（折脊在 left 12/15px），正文一律从 30px 起，
+   所以账本横线和折脊永远不会压在文字下面。 */
 #app[data-step="budget"] .budget-passbook {
   box-sizing: border-box;
   position: relative;
   display: flex;
   align-items: center;
-  width: min(100%, 248px);
-  height: 38px;
-  padding: 0 12px 0 24px;
+  gap: 8px;
+  width: min(100%, 300px);
+  height: 46px;
+  /* 左 30 = 折脊区；右 8 = 章与纸边的净距。正文与章都是 flex 项，
+     靠 gap 隔开 —— 结构上不存在"章压在字上"这种可能，
+     不靠算右内边距去躲（躲漏一次就是一次遮字）。 */
+  padding: 0 8px 0 30px;
   overflow: hidden;
   background-color: var(--passbook-paper);
-  /* 两条账本横线：20px 周期里只在第 9–10px 画线，折脊左侧留空。 */
+  /* 账本横线：20px 一个周期，只在第 12–13px 画一条 1px 线。
+     background-size 把书写区限死在折脊右侧、章左侧：
+     左侧 30px 是折脊区、右侧 100px 留空给章 —— 线与折脊、线与章
+     都不相交，所以"账本线不抢正文"是版面结构上的结论，不是目测调出来的。
+     （用「约 100px」而不是精确值：章宽随档位字数在 46–76 之间变，
+     给它留足上限即可；线短一点比穿到章上好看，也不会压到正文。） */
   background-image: repeating-linear-gradient(
     to bottom,
-    transparent 0 9px,
-    var(--passbook-rule) 9px 10px
+    transparent 0 12px,
+    var(--passbook-rule) 12px 13px
   );
   background-repeat: no-repeat;
-  background-size: calc(100% - 34px) 20px;
-  background-position: 24px center;
+  /* 高度必须写 100%：写 20px 等于只画一个周期，折页 46px 高却只有一条线，
+     读作"两小段破折号"而不是"一张有横线的账页"（实测截图上就是这个样子）。 */
+  background-size: calc(100% - 130px) 100%;
+  background-position: 30px 0;
   border: 1px solid var(--passbook-rule);
   border-radius: 1px;
-  box-shadow: 0 3px 8px -7px rgba(0, 26, 94, .5);
+  box-shadow:
+    0 1px 0 var(--passbook-paper-edge) inset,
+    0 4px 9px -8px rgba(0, 26, 94, .55);
   color: var(--spec-ink);
   opacity: 1;
   transform: translateY(0);
 }
 
-/* 折脊：两条紧邻的细线，像存折装订处，不抢账本文字。 */
+/* 折脊：两条紧邻的竖线（1px + 3px 偏移的第二条），装订处。
+   只到 top/bottom 6px，上下各留一点 —— 齐头齐尾会读成"边框"而不是"折"。 */
 #app[data-step="budget"] .budget-passbook::before {
   content: "";
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 9px;
+  top: 6px;
+  bottom: 6px;
+  left: 12px;
   width: 1px;
   background: var(--passbook-rule);
-  box-shadow: 3px 0 0 var(--passbook-rule);
+  box-shadow: 3px 0 0 var(--passbook-rule-soft);
 }
 
-/* 右上折角：只折掉 8px，让存折有纸页厚度，不变成装饰性卡角。 */
+/* 右上折角：8px，只有纸色差 + 一条边，不加阴影 —— 折角是纸的姿态，不是装饰。 */
 #app[data-step="budget"] .budget-passbook::after {
   content: "";
   position: absolute;
   top: 0;
   right: 0;
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   background: var(--bg);
   box-shadow: -1px 1px 0 var(--passbook-rule);
   clip-path: polygon(0 0, 100% 100%, 0 100%);
   pointer-events: none;
 }
 
-#app[data-step="budget"] .budget-passbook-label {
+/* 折页眉（「预算」两字）：比正文小一档、字距拉开，读作账本栏目名而不与
+   正文抢。字号 12px（test-contrast 的地板），色取 --ink-3（5.05:1 on 纸底）。 */
+#app[data-step="budget"] .budget-passbook-head {
   position: relative;
   z-index: 1;
+  flex: none;
+  padding: 1px 5px 1px 4px;
+  background: var(--passbook-paper);
+  color: var(--ink-3);
+  font: 500 12px/1.3 var(--font-ui, system-ui);
+  letter-spacing: .14em;
+}
+
+/* 折页正文：选中预算。这里是这一屏的第二处真相（第一处是价签本身），
+   所以它必须是全场最重的文字之一 —— 14px/700 + --spec-ink（13.8:1 on 纸）。 */
+#app[data-step="budget"] .budget-passbook-value {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
   max-width: 100%;
   padding: 2px 6px;
   overflow: hidden;
   background: var(--passbook-paper);
   color: var(--spec-ink);
-  font: 600 14px/1.4 var(--font-ui, system-ui);
+  font: 700 14px/1.35 var(--font-ui, system-ui);
   letter-spacing: .01em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* 小蓝章：方形章戳，压在折页右端。
+   **是折页的 flex 项，不是绝对定位的浮层** —— 这是"不遮文字"的结构保证：
+   折页宽固定 300，正文 .budget-passbook-value 的 min-width:0 + 省略号
+   让它先收窄，章永远排在它右边，两者之间隔着 gap。绝对定位的写法
+   只能靠算右内边距去躲，躲漏一次就是一次遮字（Batch 4 就是这么遮的）。
+   "不挤控件"同样成立：章在折页内部，折页总高仍是 46px，下方价签不动。
+   尺寸 46×26：宽够放「600–1200」，高不越过折页内沿。
+   transform-origin 放在 34% 76%：落章以左下为支点砸下去，
+   读作"手腕按下去"而不是"元素原地放大"。 */
+#app[data-step="budget"] .budget-stamp {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  align-self: center;
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  min-width: 46px;
+  height: 26px;
+  padding: 0 3px;
+  border-radius: 2px;
+  border: 1.5px solid var(--blue-deep);
+  /* 章内底留白：章压住账本线，但不让线透进来把字搅浑 */
+  background: rgba(252, 247, 236, .93);
+  color: var(--blue-deep);
+  opacity: 1;
+  transform: rotate(-4.5deg) scale(1);
+  transform-origin: 34% 76%;
+  pointer-events: none;
+}
+
+/* 章的内框：双线才读作"戳"而不是"一个蓝框"。
+   内框吃满章体减去 3px，里面的数字才有一致的边距。 */
+#app[data-step="budget"] .budget-stamp-ring {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 20px;
+  padding: 0 2px;
+  border-radius: 1px;
+  border: 1px solid var(--blue-deep);
+  background: rgba(0, 26, 94, .05);
+  font: 700 12px/1 var(--font-ui, system-ui);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* 未选态：折页在位、写默认值，但没有章 —— 没选择就没有确认。
+   章用 visibility 而不是 display:none：留着占位，选中的瞬间不重排。 */
+#app[data-step="budget"] .budget-passbook.is-unset .budget-stamp {
+  visibility: hidden;
+  opacity: 0;
+  transform: rotate(-4.5deg) scale(.82);
+}
+
+/* ---- 串行时序：折页滑出 300ms，章在其尾段 190ms 起落 220ms ----
+   .is-playing 只挂折页动画；.is-stamping 挂章的落章动画，
+   两段靠 animation-delay 串起来（章 delay 190ms，折页无 delay）。
+   折页动画 300ms both → t=300 到位并停住；章 t=410 收完。
+   合计 410ms，比 Batch 4 的单段 300ms 长 110ms，但换来可读的两拍。 */
 #app[data-step="budget"] .budget-passbook.is-playing {
   animation: budgetPassbookSlide 300ms cubic-bezier(.2, .7, .25, 1) both;
 }
 
+#app[data-step="budget"] .budget-passbook.is-stamping .budget-stamp {
+  animation: budgetStampDrop 220ms cubic-bezier(.2, 1.35, .35, 1) 190ms both;
+}
+
 @keyframes budgetPassbookSlide {
-  from { opacity: .65; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: .55; transform: translateY(14px); }
+  to   { opacity: 1;   transform: translateY(0); }
+}
+
+/* 落章：从大到正 + 轻微回转。起点 scale(2.35) 让"砸下来"有距离感；
+   1.35 的过冲系数负责 0.92 那一小下回弹（不回弹的落章像淡入）。 */
+@keyframes budgetStampDrop {
+  0%   { opacity: 0;   transform: rotate(-13deg) scale(2.35); }
+  55%  { opacity: 1;   transform: rotate(-2.6deg) scale(.92); }
+  100% { opacity: 1;   transform: rotate(-4.5deg) scale(1); }
 }
 
 /* 账本脚注：一条发丝线 + 14px 短金竖线；两行都是 13px，数字等宽。 */
@@ -325,6 +451,12 @@
   }
 }
 
+/* prefers-reduced-motion：终态直接成立。
+   三件事都要保证：①折页不滑（没有 translateY 过渡）；②章不缩放、不延时
+   （220ms 的落章 + 190ms 的 delay 全部取消）；③值仍然正确可见 ——
+   动画只改 transform/opacity，值在 JS 里已经写好，所以这里只要
+   把三个动画关掉、把终态 transform/opacity 钉死，就不存在
+   "要等一下才看得见"的窗口。 */
 @media (prefers-reduced-motion: reduce) {
   #app[data-step="budget"] .budget-passbook,
   #app[data-step="budget"] .budget-passbook.is-playing {
@@ -332,4 +464,20 @@
     opacity: 1;
     transform: none;
   }
+
+  #app[data-step="budget"] .budget-passbook.is-stamping .budget-stamp,
+  #app[data-step="budget"] .budget-stamp {
+    animation: none;
+    opacity: 1;
+    transform: rotate(-4.5deg) scale(1);
+  }
+
+  /* 未选态在减弱动态下同样不盖章 —— 但它是 hidden 而不是动画中间态，
+     所以这条只兜底 opacity/transform，不把 visibility 改回 visible。 */
+  #app[data-step="budget"] .budget-passbook.is-unset .budget-stamp {
+    visibility: hidden;
+    opacity: 0;
+    transform: rotate(-4.5deg) scale(.82);
+  }
 }
+

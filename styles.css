@@ -9267,8 +9267,10 @@ opacity: var(--mist-halo-opacity);
 .conc-mist.is-committing .conc-mist-halo { animation: none; }
 }
 :root {
---passbook-paper: #FBF7EF;
---passbook-rule: #D8CBB7;
+--passbook-paper: #FCF7EC;
+--passbook-paper-edge: #F2E9D8;
+--passbook-rule: #D9CDB6;
+--passbook-rule-soft: #E7DCC7;
 }
 #app[data-step="budget"] .money-ruler {
 margin-bottom: 0;
@@ -9280,8 +9282,9 @@ display: flex;
 justify-content: center;
 align-items: flex-start;
 width: 100%;
-height: 52px;
-padding-top: 6px;
+height: 64px;
+margin-top: 10px;
+padding-top: 8px;
 overflow: hidden;
 border-top: 1px solid var(--blue-deep);
 }
@@ -9290,22 +9293,25 @@ box-sizing: border-box;
 position: relative;
 display: flex;
 align-items: center;
-width: min(100%, 248px);
-height: 38px;
-padding: 0 12px 0 24px;
+gap: 8px;
+width: min(100%, 300px);
+height: 46px;
+padding: 0 8px 0 30px;
 overflow: hidden;
 background-color: var(--passbook-paper);
 background-image: repeating-linear-gradient(
 to bottom,
-transparent 0 9px,
-var(--passbook-rule) 9px 10px
+transparent 0 12px,
+var(--passbook-rule) 12px 13px
 );
 background-repeat: no-repeat;
-background-size: calc(100% - 34px) 20px;
-background-position: 24px center;
+background-size: calc(100% - 130px) 100%;
+background-position: 30px 0;
 border: 1px solid var(--passbook-rule);
 border-radius: 1px;
-box-shadow: 0 3px 8px -7px rgba(0, 26, 94, .5);
+box-shadow:
+0 1px 0 var(--passbook-paper-edge) inset,
+0 4px 9px -8px rgba(0, 26, 94, .55);
 color: var(--spec-ink);
 opacity: 1;
 transform: translateY(0);
@@ -9313,44 +9319,103 @@ transform: translateY(0);
 #app[data-step="budget"] .budget-passbook::before {
 content: "";
 position: absolute;
-top: 0;
-bottom: 0;
-left: 9px;
+top: 6px;
+bottom: 6px;
+left: 12px;
 width: 1px;
 background: var(--passbook-rule);
-box-shadow: 3px 0 0 var(--passbook-rule);
+box-shadow: 3px 0 0 var(--passbook-rule-soft);
 }
 #app[data-step="budget"] .budget-passbook::after {
 content: "";
 position: absolute;
 top: 0;
 right: 0;
-width: 8px;
-height: 8px;
+width: 10px;
+height: 10px;
 background: var(--bg);
 box-shadow: -1px 1px 0 var(--passbook-rule);
 clip-path: polygon(0 0, 100% 100%, 0 100%);
 pointer-events: none;
 }
-#app[data-step="budget"] .budget-passbook-label {
+#app[data-step="budget"] .budget-passbook-head {
 position: relative;
 z-index: 1;
+flex: none;
+padding: 1px 5px 1px 4px;
+background: var(--passbook-paper);
+color: var(--ink-3);
+font: 500 12px/1.3 var(--font-ui, system-ui);
+letter-spacing: .14em;
+}
+#app[data-step="budget"] .budget-passbook-value {
+position: relative;
+z-index: 1;
+min-width: 0;
 max-width: 100%;
 padding: 2px 6px;
 overflow: hidden;
 background: var(--passbook-paper);
 color: var(--spec-ink);
-font: 600 14px/1.4 var(--font-ui, system-ui);
+font: 700 14px/1.35 var(--font-ui, system-ui);
 letter-spacing: .01em;
 text-overflow: ellipsis;
 white-space: nowrap;
 }
+#app[data-step="budget"] .budget-stamp {
+position: relative;
+z-index: 2;
+flex: none;
+align-self: center;
+margin-left: auto;
+display: grid;
+place-items: center;
+min-width: 46px;
+height: 26px;
+padding: 0 3px;
+border-radius: 2px;
+border: 1.5px solid var(--blue-deep);
+background: rgba(252, 247, 236, .93);
+color: var(--blue-deep);
+opacity: 1;
+transform: rotate(-4.5deg) scale(1);
+transform-origin: 34% 76%;
+pointer-events: none;
+}
+#app[data-step="budget"] .budget-stamp-ring {
+display: grid;
+place-items: center;
+width: 100%;
+height: 20px;
+padding: 0 2px;
+border-radius: 1px;
+border: 1px solid var(--blue-deep);
+background: rgba(0, 26, 94, .05);
+font: 700 12px/1 var(--font-ui, system-ui);
+font-variant-numeric: tabular-nums;
+letter-spacing: -.01em;
+text-align: center;
+white-space: nowrap;
+}
+#app[data-step="budget"] .budget-passbook.is-unset .budget-stamp {
+visibility: hidden;
+opacity: 0;
+transform: rotate(-4.5deg) scale(.82);
+}
 #app[data-step="budget"] .budget-passbook.is-playing {
 animation: budgetPassbookSlide 300ms cubic-bezier(.2, .7, .25, 1) both;
 }
+#app[data-step="budget"] .budget-passbook.is-stamping .budget-stamp {
+animation: budgetStampDrop 220ms cubic-bezier(.2, 1.35, .35, 1) 190ms both;
+}
 @keyframes budgetPassbookSlide {
-from { opacity: .65; transform: translateY(20px); }
-to { opacity: 1; transform: translateY(0); }
+from { opacity: .55; transform: translateY(14px); }
+to   { opacity: 1;   transform: translateY(0); }
+}
+@keyframes budgetStampDrop {
+0%   { opacity: 0;   transform: rotate(-13deg) scale(2.35); }
+55%  { opacity: 1;   transform: rotate(-2.6deg) scale(.92); }
+100% { opacity: 1;   transform: rotate(-4.5deg) scale(1); }
 }
 #app[data-step="budget"] .budget-ledger-notes {
 position: relative;
@@ -9545,5 +9610,16 @@ grid-row: 3;
 animation: none;
 opacity: 1;
 transform: none;
+}
+#app[data-step="budget"] .budget-passbook.is-stamping .budget-stamp,
+#app[data-step="budget"] .budget-stamp {
+animation: none;
+opacity: 1;
+transform: rotate(-4.5deg) scale(1);
+}
+#app[data-step="budget"] .budget-passbook.is-unset .budget-stamp {
+visibility: hidden;
+opacity: 0;
+transform: rotate(-4.5deg) scale(.82);
 }
 }

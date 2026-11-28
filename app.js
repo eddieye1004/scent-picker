@@ -189,6 +189,15 @@ const state = {
        · 从结果页的 toast「在香水档案里看」跳过来，只需改一个字段 + 重画，
          不必把整页导航写成异步。 */
   wishPage: false,
+  /* ==== 预算屏「这一档是用户自己选的吗」（Batch 5 腿 B5-3）====
+     answers.budget 的缺省值是 'any'（见第 107 行），所以"值等于 any"既可能是
+     "用户点了「不限 / 还不知道」"，也可能是"用户根本没点过"。
+     存折未选态要不盖章、选了「不限」要盖章 —— 两者必须能分开，否则
+     要么给没答的人凭空盖章（假的确认），要么选了不限反而不盖章
+     （把它当成没答，与任务书"不限也原样写入并盖章"直接冲突）。
+     所以另存一个**视图标记**（不进 answers，不进打分）；
+     restart 里一并清掉。 */
+  budgetPicked: false,
 };
 
 let DATA = null;
@@ -2885,29 +2894,125 @@ function renderBudget() {
       ...bands.map((b) => el('span', { class: 'money-tick' },
         b.hi != null ? `${b.lo}–${b.hi}` : `${b.lo}+`)))));
 
-  /* Batch 4 腿 E：刻度与价签之间留固定 52px 的存折出口。首次进入直接
-     呈现当前档（含「不限 / 还不知道」），只有主动点选/切换才重播一次。
-     改选时先写最后一档文字，再移除/回流/挂回动画类，快速连点也会从最新
-     一档重新播出，不会排队播放中间档。 */
+  /* ==== 预算存折（Batch 5 腿 B5-3 重做，2026-11-28）====
+     Batch 4 的存折只有一行淡标签：没有折页形态、没有账本线、没有盖章，
+     选了 600–1200 元之后屏幕上没有任何"这一档被记下来了"的痕迹 ——
+     Eddie 的原话是「没感觉，选了也没有签订感」。
+
+     ==== 拆成两条，各自独立验收 ====
+     (a) 折页外观（静态，看全屏原图就够）：
+         暖白纸 + 折脊（两条紧邻竖线，双线即装订处）+ 账本横线
+         （repeating-linear-gradient，只在折脊右侧的书写区画）
+         + 右上折角。选中的档写进折页正文（.budget-passbook-value）。
+         账本线与章纹都压到 --passbook-rule（比正文浅一档），
+         任何一条都不许抢正文：正文用 --spec-ink 700 字重，
+         线与章只用它当描边/浅底。
+     (b) 选择确认反馈（动态，必须看连续录屏）：
+         一次"记账"= 折页自下滑出（300ms）→ 章落下（220ms）。
+         **串行**，不是并行：折页先到位，章再砸下来。理由是可读性 ——
+         并行时章在折页还在移动时就出现，用户看到的是"两处同时在动"，
+         读不出"先记一笔、再盖章确认"的因果。
+         时序（实测值见证据 timeline.json）：t=0 折页 translateY(14px)+opacity .55
+         → 300ms 到位；t=190ms 章从 scale(2.35) rotate(-13°) 落到
+         scale(1) rotate(-4.5°)，220ms 收完（t=410ms 整体静止）。
+         章在折页滑出的尾巴上起跳，是为了让两段看起来是同一笔动作，
+         而不是两个互不相干的动画。
+
+     ==== 状态表（六态，每态都要验）====
+         未选      折页写当前值（默认「不限 / 还不知道」，即 state 的既有缺省），
+                   不盖章：没有选择就没有确认，不能凭空盖一个"已记下"。
+         首次选择  折页滑出 + 换值 + 盖章，三段因果可读。
+         切换      值先换成新档，同一套动作重播一次（章重新砸下来）。
+                   旧章不单独做退场动画：重播本身就是"旧的那枚被新的盖过去"，
+                   再加一段淡出会让切换比首次选择慢一拍，而两者在语义上同级。
+         返回已选  只呈现终态：折页有值、章在位，不播动画。
+                   （回到这一屏不是一次新的选择，重播会把"刚才是你选的"
+                   演成"刚刚有人又选了"。）
+         重复点击  点已选中的那一档＝一次新的确认动作，照常盖章；
+                   文案不换（值没变），但章重新落下 —— 这是"我又确认了一次"。
+         快速连点  只认最后一档。
+
+     ==== 怎么避免旧动画覆盖新值 ====
+     ① 值先写、类后加：label/章文字在挂动画类之前就已经是最终值，
+        动画只改 transform/opacity，不参与写值，所以"动画播到一半值被改"
+        这件事在结构上不可能发生。
+     ② 每次重播前 remove → 强制回流（void offsetWidth）→ add，
+        浏览器会丢弃上一条未完成的 animation，不会有排队播放中间档。
+     ③ 章用 `animation-fill-mode: both`，且终态由 CSS 的静态规则兜底
+        （不是只靠 animationend），所以被打断时章不会停在半空。
+     ④ 用递增的 data-stamp-seq 标记"这是第几次"，纯用于 DOM 侧与测试核对；
+        animationend 只在序号仍是最新时才摘 is-playing，避免旧的
+        animationend 摘掉新动画的类。
+
+     ==== 「签订感」的定义 ====
+     本地选择确认：值被写进折页、章落在折页上，两者与当前选择一致。
+     **不新增任何承诺或提交语义**：没有服务端记录、没有"已下单"、
+     没有把预算写进 localStorage，离开本屏它就只是 state.answers.budget。
+     「不限 / 还不知道」同样原样写进折页并盖章 —— 它是合法答案，
+     不是"没答"，所以不享受"跳过确认"的待遇。 */
   const selected = opts.find((o) => o.id === (state.answers.budget || 'any')) || opts[opts.length - 1];
-  const passbookLabel = el('span', { class: 'budget-passbook-label' }, selected.zh);
-  const passbook = el('div', { class: 'budget-passbook', 'aria-hidden': 'true' }, passbookLabel);
-  passbook.addEventListener('animationend', (ev) => {
-    if (ev.animationName === 'budgetPassbookSlide') passbook.classList.remove('is-playing');
-  });
+  const passbookLabel = el('span', { class: 'budget-passbook-value' }, selected.zh);
+  /* 章内文字：由档位数据算出紧凑写法，不从 zh 字符串里瞎截 ——
+     截字符串会让「1200 元以上」变成「1200 元以」，读起来是另一个意思。
+     「不限 / 还不知道」缩成「不限」：它是合法答案，占章位，但两个字就够。
+     完整值始终在折页正文里，章只是它的印，不是第二处真相。 */
+  const stampWordOf = (opt) => {
+    if (!opt) return '';
+    if (opt.id === anyId) return '不限';
+    const b = bands.find((x) => x.id === opt.id);
+    if (!b) return opt.zh.replace(/\s*元\s*/g, '').replace(/\s+/g, '');
+    if (b.hi == null) return `≥${b.lo}`;
+    if (!b.lo) return `≤${b.hi}`;
+    return `${b.lo}–${b.hi}`;
+  };
+  const stampText = el('span', { class: 'budget-stamp-text' }, stampWordOf(selected));
+  /* data-stamp-value 承载**完整值**（不是章上那串缩写）：
+     「章与当前值一致」这条验收要能直接从 DOM 读，不靠看图比字。 */
+  const stamp = el('span', {
+    class: 'budget-stamp',
+    'aria-hidden': 'true',
+    'data-stamp-value': selected.zh,
+  }, el('span', { class: 'budget-stamp-ring' }, stampText));
+  const passbook = el('div', { class: 'budget-passbook', 'aria-hidden': 'true', 'data-stamp-seq': '0' },
+    el('span', { class: 'budget-passbook-head' }, '预算'),
+    passbookLabel,
+    stamp);
   wrap.appendChild(el('div', { class: 'budget-passbook-slot', 'aria-hidden': 'true' }, passbook));
   const reduceMotion = typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-reduced-motion: reduce)')
     : { matches: false };
-  const replayPassbook = (zh) => {
-    passbookLabel.textContent = zh;
+  /* 未选态：折页在位、写着缺省值（与价签的缺省选中态一致），但不盖章 ——
+     没选择就没有确认。判据用 state.budgetPicked 而不是"值是否等于 any"：
+     用户点了「不限 / 还不知道」时值是 any，但那是**选过**的，要盖章。 */
+  if (!state.budgetPicked) {
+    passbook.classList.add('is-unset');
+  }
+  let stampSeq = 0;
+  const replayPassbook = (opt) => {
+    stampSeq += 1;
+    const seq = String(stampSeq);
+    passbookLabel.textContent = opt.zh;
+    stampText.textContent = stampWordOf(opt);
+    stamp.setAttribute('data-stamp-value', opt.zh);
+    passbook.setAttribute('data-stamp-seq', seq);
+    passbook.classList.remove('is-unset');
     if (reduceMotion.matches) {
-      passbook.classList.remove('is-playing');
+      /* 减弱动态：终态直接成立。不滑、不缩放、也不延时后才可见 ——
+         值已经写进去了，章就在那儿。 */
+      passbook.classList.remove('is-playing', 'is-stamping');
       return;
     }
-    passbook.classList.remove('is-playing');
+    passbook.classList.remove('is-playing', 'is-stamping');
     void passbook.offsetWidth;
-    passbook.classList.add('is-playing');
+    passbook.classList.add('is-playing', 'is-stamping');
+    passbook.addEventListener('animationend', function done(ev) {
+      if (ev.animationName !== 'budgetPassbookSlide') return;
+      passbook.removeEventListener('animationend', done);
+      /* 只有序号仍是最新时才摘类：旧动画的 animationend 迟到时
+         不许把新动画的类摘掉（否则新章会停在半空）。 */
+      if (passbook.getAttribute('data-stamp-seq') !== seq) return;
+      passbook.classList.remove('is-playing');
+    });
   };
 
   const row = el('div', { class: 'price-row', role: 'radiogroup', 'aria-label': '价位区间' });
@@ -2932,7 +3037,8 @@ function renderBudget() {
       'data-budget': o.id,
       onclick: () => {
         state.answers.budget = o.id;
-        replayPassbook(o.zh);
+        state.budgetPicked = true;
+        replayPassbook(o);
         [...row.children].forEach((c) => {
           const mine = c.getAttribute('data-budget') === o.id;
           c.classList.toggle('is-on', mine);
@@ -4423,6 +4529,10 @@ function restart() {
   /* 避雷屏的方向键也要清：不清的话新一局第一次 pruneAvoid 会误以为
      方向没变，带着上一局的 unwanted 键往下走。 */
   state.avoidKey = null;
+  /* 预算屏的"用户自己选过"标记也要清（Batch 5 腿 B5-3）：
+     不清的话新一局第一次进预算屏就会给一个没选过的人盖上一枚章 ——
+     而那枚章的含义是"这是你选的"。 */
+  state.budgetPicked = false;
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
