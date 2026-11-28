@@ -2145,21 +2145,44 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
     && /padding:\s*0/.test(figureRule) && /pointer-events:\s*none/.test(figureRule),
     figureRule.trim());
   const svg = scene.querySelector('svg');
-  const head = scene.querySelector('ellipse');
+  const ellipses = scene.querySelectorAll('ellipse');
+  const head = ellipses[0];
+  const collar = ellipses[1];
   const paths = scene.querySelectorAll('path');
   const neck = paths[0];
   const body = paths[1];
+  const seams = paths.slice(2);
   const viewBox = String(svg?.attrs.viewBox || '').split(/\s+/).map(Number);
   const pulseFrames = (concCss.match(/@keyframes\s+conc-pulse\s*\{([\s\S]*?)\n\}/) || [])[1] || '';
-  ok('SVG 垂直中轴在 viewBox 宽度 50%，头颈肩三段同色相接，pulse 动画只写 scale',
+  const neckD = String(neck?.attrs.d || '');
+  const bodyD = String(body?.attrs.d || '');
+  /* Batch 5 腿 B4 重画：人形结构逐条钉死（这些正是 Eddie 真机判「不像人」的四处）。
+     头 ~1/7、颈窄于头、肩线远宽于颈、肩→腰收窄、两道路径作手臂缝、锁骨柔影。
+     断言读节点属性（头椭圆尺寸 + 路径坐标 + 缝线/柔影是否存在），不靠肉眼看图。 */
+  ok('人形剪影重画达标：头约占 1/7、头颈分明、宽肩线、肩→腰收窄、两侧手臂缝、锁骨为淡柔影',
     viewBox.length === 4 && viewBox[2] === 120 && viewBox[3] === 180
-    && Number(head?.attrs.cx) === 60 && Number(head?.attrs.cy) === 24
-    && Number(head?.attrs.rx) === 17 && Number(head?.attrs.ry) === 20
-    && /M50 39 L70 39 L72 62 L48 62 Z/.test(String(neck?.attrs.d || ''))
-    && /M48 55 C40 57 30 61 23 69 C16 77 13 91 12 108 L8 180 L112 180 L108 108/.test(String(body?.attrs.d || ''))
+    && scene.querySelectorAll('svg').length === 1
+    /* 头：椭圆 rx10×ry12（高 24 ≈ 180 的 1/7.5），水平居中 60 */
+    && Number(head?.attrs.cx) === 60
+    && Number(head?.attrs.rx) === 10 && Number(head?.attrs.ry) === 12
+    && (Number(head?.attrs.ry) * 2) / 180 > 1 / 8
+    && (Number(head?.attrs.ry) * 2) / 180 < 1 / 6
+    /* 颈：下宽 15（67.5−52.5），窄于头宽 20 —— 头颈分明有可见脖颈 */
+    && /^M54 30/.test(neckD) && /L67\.5 47/.test(neckD)
+    /* 肩：肩线左右到 x30/x90（肩宽 60），远宽于颈宽 15 */
+    && /Q30\.6 55 30 57/.test(bodyD) && /90 57/.test(bodyD)
+    /* 腰：收到 x37/x83（腰宽 46）< 肩宽 60，肩到腰明确收窄 */
+    && /37 104/.test(bodyD) && /83 104/.test(bodyD)
+    /* 手臂：两侧各一道路径（带 stroke、无填充），剪影两侧因此有手臂线 */
+    && seams.length === 2
+    && seams.every((p) => p.attrs.fill === 'none' && !!p.attrs.stroke)
+    /* 锁骨影：柔光椭圆、低不透明度（≤.6），不是一团深色淤青 */
+    && !!collar && /^url\(#/.test(String(collar.attrs.fill || ''))
+    && Number(collar.attrs.opacity) <= 0.6
+    /* pulse 动画只写 scale，不写 translate（回到本条的几何前提） */
     && /scale\(\.9\)/.test(pulseFrames) && /scale\(1\.22\)/.test(pulseFrames)
     && !/translate/.test(pulseFrames),
-    `viewBox ${svg?.attrs.viewBox} / head ${head?.attrs.cx},${head?.attrs.cy} / pulse ${pulseFrames.trim()}`);
+    `viewBox ${svg?.attrs.viewBox} / head ${head?.attrs.rx}×${head?.attrs.ry} / neckD ${neckD.slice(0, 14)} / seams ${seams.length} / 锁骨影 ${collar && collar.attrs.opacity}`);
 
   /* 滑杆：唯一命中来源，原生语义齐全。 */
   const slider = appRoot.querySelector('.conc-slider');

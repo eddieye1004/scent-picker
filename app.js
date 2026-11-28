@@ -4130,15 +4130,25 @@ function renderConcentration() {
   const rippleMid = el('div', { class: 'conc-ripple', 'data-r': '2' });
   const rippleOut = el('div', { class: 'conc-ripple', 'data-r': '3' });
   const pulse = el('div', { class: 'conc-pulse' });
-  /* 背影剪影基准：viewBox 0 0 120 180，实际占位盒 120×180。
-     头 34×40、颈 22×25、肩宽 104；头底/颈顶重叠 5，颈底/肩上沿重叠 7，
-     三段同色无空段。锁骨中点 (60,62)，B5 雾锚点固定在它上方 6px。
-     不使用旧圆头+圆顶 blob；肩坡与上躯干轮廓让剪影一眼读作人。 */
+  /* 背影剪影（Batch5 B4 重画）：viewBox 0 0 120 180，实际占位盒 120×180。
+     头椭圆 20×24（约占全身 1/7 高，不再是大头），下接一段可见脖颈（宽 14、长 13）；
+     肩线横向拉开到 60（远宽于颈），肩→腰收窄到 46、再微微外扩到胯；
+     两侧各一道手臂缝线，锁骨/后颈一片低透明度柔影（不是深色一团）。
+     三段同色相接无空段；不再使用保龄球瓶式的整块钟形。
+     雾层不动（B5 另腿负责），这里只重画人形本身。 */
   const figure = el('div', { class: 'conc-figure', html:
     '<svg viewBox="0 0 120 180" focusable="false">'
-    + '<ellipse cx="60" cy="24" rx="17" ry="20"/>'
-    + '<path d="M50 39 L70 39 L72 62 L48 62 Z"/>'
-    + '<path d="M48 55 C40 57 30 61 23 69 C16 77 13 91 12 108 L8 180 L112 180 L108 108 C107 91 104 77 97 69 C90 61 80 57 72 55 C68 64 52 64 48 55 Z"/>'
+    + '<defs><radialGradient id="conc-clav" cx="50%" cy="30%" r="68%">'
+    + '<stop offset="0%" stop-color="rgba(0,0,0,.26)"/>'
+    + '<stop offset="60%" stop-color="rgba(0,0,0,.12)"/>'
+    + '<stop offset="100%" stop-color="rgba(0,0,0,0)"/>'
+    + '</radialGradient></defs>'
+    + '<ellipse cx="60" cy="22" rx="10" ry="12"/>'
+    + '<path d="M54 30 C54 37 53.6 42 52.5 47 L67.5 47 C66.4 42 66 37 66 30 Z"/>'
+    + '<path d="M52 46 Q45 49 36 53 Q30.6 55 30 57 C30.4 60 34.6 63 35 67 C35.4 72 31.6 79 32 85 C32.4 92 36.2 98 37 104 C37.8 110 34 115 34 121 C34 131 38.4 140 39 148 C39.6 160 41.5 171 42 180 L78 180 C78.5 171 80.4 160 81 148 C81.6 140 86 131 86 121 C86 115 82.2 110 83 104 C83.8 98 87.6 92 88 85 C88.4 79 84.6 72 85 67 C85.4 63 89.6 60 90 57 Q89.4 55 84 53 Q75 49 68 46 Z"/>'
+    + '<path d="M37 66 C36 78 36 90 40 101" fill="none" stroke="rgba(0,0,0,.20)" stroke-width="1.4" stroke-linecap="round"/>'
+    + '<path d="M83 66 C84 78 84 90 80 101" fill="none" stroke="rgba(0,0,0,.20)" stroke-width="1.4" stroke-linecap="round"/>'
+    + '<ellipse cx="60" cy="52" rx="23" ry="7" fill="url(#conc-clav)" opacity="0.5"/>'
     + '</svg>' });
   /* 偏心蓝雾是独立表现层：画布 116×80，锚点在锁骨中点上方 6px。
      五档只切换 CSS 变量，拖动与提交都仅动画 transform / opacity。 */
