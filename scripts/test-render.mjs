@@ -2113,6 +2113,7 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
 
   /* ---- 3-5a：固定舞台与人物/涟漪同心（几何规则由真实浏览器另行验收）---- */
   const concCss = fs.readFileSync(path.join(ROOT, 'styles/src/90-quiz-v6.css'), 'utf8');
+  const mistCss = fs.readFileSync(path.join(ROOT, 'styles/src/104-batch4-wheel-concentration.css'), 'utf8');
   const sceneRule = (concCss.match(/\.conc-scene\s*\{([^}]*)\}/) || [])[1] || '';
   const mobileSceneRule = (concCss.match(/@media\s*\(max-width:\s*620px\)[\s\S]*?\.conc-scene\s*\{([^}]*)\}/) || [])[1] || '';
   ok('浓度舞台桌面 280×280、手机 240×240，且溢出可见',
@@ -2122,7 +2123,7 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
     && /width:\s*240px/.test(mobileSceneRule) && /height:\s*240px/.test(mobileSceneRule),
     `${sceneRule.trim()} ｜ mobile ${mobileSceneRule.trim()}`);
   const centerRule = (concCss.match(/\.conc-glow,\s*\.conc-ripple,\s*\.conc-pulse(?:,\s*\.conc-particles)?\s*\{([^}]*)\}/s) || [])[1] || '';
-  ok('glow/ripple/pulse/particles 用 inset + margin + 独立 translate 居中，定位不占 transform',
+  ok('glow/ripple/pulse 用 inset + margin + 独立 translate 居中，定位不占 transform',
     /position:\s*absolute/.test(centerRule) && /inset:\s*0/.test(centerRule)
     && /left:\s*50%/.test(centerRule) && /top:\s*50%/.test(centerRule)
     && /right:\s*auto/.test(centerRule) && /bottom:\s*auto/.test(centerRule)
@@ -2130,25 +2131,30 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
     && /aspect-ratio:\s*1\s*\/\s*1/.test(centerRule) && !/\btransform\s*:/.test(centerRule),
     centerRule.trim());
   const figureRule = (concCss.match(/\.conc-figure\s*\{([^}]*)\}/s) || [])[1] || '';
-  ok('人物 128×168、z-index 3，与涟漪共用舞台中心',
+  ok('人物 120×180、z-index 3，与涟漪共用舞台中心',
     /position:\s*absolute/.test(figureRule) && /inset:\s*0/.test(figureRule)
-    && /width:\s*128px/.test(figureRule) && /height:\s*168px/.test(figureRule)
+    && /width:\s*120px/.test(figureRule) && /height:\s*180px/.test(figureRule)
     && /z-index:\s*3/.test(figureRule) && /margin:\s*auto/.test(figureRule)
     && /right:\s*auto/.test(figureRule) && /bottom:\s*auto/.test(figureRule)
     && /translate:\s*-50%\s+-50%/.test(figureRule)
     && /padding:\s*0/.test(figureRule) && /pointer-events:\s*none/.test(figureRule),
     figureRule.trim());
   const svg = scene.querySelector('svg');
-  const head = scene.querySelector('circle');
-  const body = scene.querySelector('path');
+  const head = scene.querySelector('ellipse');
+  const paths = scene.querySelectorAll('path');
+  const neck = paths[0];
+  const body = paths[1];
   const viewBox = String(svg?.attrs.viewBox || '').split(/\s+/).map(Number);
   const pulseFrames = (concCss.match(/@keyframes\s+conc-pulse\s*\{([\s\S]*?)\n\}/) || [])[1] || '';
-  ok('SVG 垂直中轴在 viewBox 宽度 50%，pulse 动画只写 scale',
-    viewBox.length === 4 && Number(head?.attrs.cx) === viewBox[2] * .5
-    && /M13 84 L13 68 C13 55 19\.5 43 28 43 C36\.5 43 43 55 43 68 L43 84 Z/.test(String(body?.attrs.d || ''))
+  ok('SVG 垂直中轴在 viewBox 宽度 50%，头颈肩三段同色相接，pulse 动画只写 scale',
+    viewBox.length === 4 && viewBox[2] === 120 && viewBox[3] === 180
+    && Number(head?.attrs.cx) === 60 && Number(head?.attrs.cy) === 24
+    && Number(head?.attrs.rx) === 17 && Number(head?.attrs.ry) === 20
+    && /M50 39 L70 39 L72 62 L48 62 Z/.test(String(neck?.attrs.d || ''))
+    && /M48 55 C40 57 30 61 23 69 C16 77 13 91 12 108 L8 180 L112 180 L108 108/.test(String(body?.attrs.d || ''))
     && /scale\(\.9\)/.test(pulseFrames) && /scale\(1\.22\)/.test(pulseFrames)
     && !/translate/.test(pulseFrames),
-    `viewBox ${svg?.attrs.viewBox} / head cx ${head?.attrs.cx} / pulse ${pulseFrames.trim()}`);
+    `viewBox ${svg?.attrs.viewBox} / head ${head?.attrs.cx},${head?.attrs.cy} / pulse ${pulseFrames.trim()}`);
 
   /* 滑杆：唯一命中来源，原生语义齐全。 */
   const slider = appRoot.querySelector('.conc-slider');
@@ -2231,17 +2237,16 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
   ok('香水类型卡是 EDC…Parfum 这一组档位',
     concIds.includes('eau-de-parfum') && concIds.includes('eau-de-toilette'), concIds.join(','));
 
-  /* 3-5b：未选类型时保持滑块默认效果，不额外显示粒子或第四圈。 */
+  /* Batch 5 B5：旧粒子场已删除；未选类型时只保留滑块默认波纹。 */
   const particlePool = scene ? scene.querySelectorAll('.conc-particle') : [];
-  const visibleParticles = () => particlePool.filter((p) => p.getAttribute('hidden') == null).length;
   const fxSceneStyle = scene ? scene.style : null;
-  ok('未选浓度类型时无散发粒子、透明度倍率为 1，保留滑块默认半径',
-    particlePool.length === 24 && visibleParticles() === 0
+  ok('未选浓度类型时无粒子节点、透明度倍率为 1，保留滑块默认半径',
+    particlePool.length === 0 && !scene.querySelector('.conc-particles')
     && fxSceneStyle?.getPropertyValue('--conc-opacity') === '1'
-    && fxSceneStyle?.getPropertyValue('--conc-particle-opacity') === '0'
+    && fxSceneStyle?.getPropertyValue('--conc-particle-opacity') === ''
     && !pulse.classList.contains('is-parfum')
     && Math.abs(parseFloat(String(pulse.style.width)) - 44) < .001,
-    `粒子 ${visibleParticles()}/${particlePool.length} / opacity ${fxSceneStyle?.getPropertyValue('--conc-opacity')} / 外圈 ${pulse.style.width}`);
+    `粒子 ${particlePool.length} / opacity ${fxSceneStyle?.getPropertyValue('--conc-opacity')} / 外圈 ${pulse.style.width}`);
 
   /* 切换浓度类型：只写自己的答案，其他答案一律保留（不清空）。 */
   const before = { ...appMod.__state.answers };
@@ -2260,72 +2265,82 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
     slider.value === '2' && read.textContent === '很淡：自己和身边人闻得到',
     `滑杆 ${slider.value} / ${read.textContent}`);
 
-  /* 3-5b：四类型参数 = 五档滑块基准 × 类型系数；粒子 6/10/16/24，
+  /* Batch 5 B5：四类型参数 = 五档滑块基准 × 类型系数；不再有粒子池。
      Parfum 复用现有 pulse。逐档复算，避免只验“适中”而漏掉其他档位。 */
   const figureMark = JSON.stringify({
     viewBox: scene.querySelector('svg')?.attrs.viewBox,
-    head: scene.querySelector('circle')?.attrs.cx,
-    body: scene.querySelector('path')?.attrs.d,
+    head: scene.querySelector('ellipse')?.attrs.cx,
+    paths: scene.querySelectorAll('path').map((p) => p.attrs.d),
   });
-  const particleField = scene.querySelector('.conc-particles');
   const fxCases = [
-    { id: 'eau-de-cologne', factor: .6, count: 6, alpha: .35, pulse: false },
-    { id: 'eau-de-toilette', factor: .8, count: 10, alpha: .5, pulse: false },
-    { id: 'eau-de-parfum', factor: 1, count: 16, alpha: .65, pulse: false },
-    { id: 'parfum', factor: 1.25, count: 24, alpha: .8, pulse: true },
+    { id: 'eau-de-cologne', factor: .6, alpha: .35, pulse: false },
+    { id: 'eau-de-toilette', factor: .8, alpha: .5, pulse: false },
+    { id: 'eau-de-parfum', factor: 1, alpha: .65, pulse: false },
+    { id: 'parfum', factor: 1.25, alpha: .8, pulse: true },
   ];
   const baseWidths = [16, 44, 72, 100, 128];
   const fxRecords = fxCases.map((item) => {
     const button = grid.querySelector(`[data-id="${item.id}"]`);
     if (button) button.dispatch('click');
     const widths = [];
-    let fieldAligned = true;
+    const intensities = [];
     for (let level = 1; level <= 5; level += 1) {
       slider.value = String(level);
       slider.dispatch('input');
-      const width = parseFloat(String(pulse.style.width));
-      widths.push(width);
-      fieldAligned = fieldAligned
-        && Math.abs(parseFloat(String(particleField.style.width)) - width) < .001;
+      widths.push(parseFloat(String(pulse.style.width)));
+      intensities.push(Number(scene.dataset.intensity));
     }
     return {
-      ...item, widths, fieldAligned, pool: particlePool.length, visible: visibleParticles(),
+      ...item, widths, intensities,
       sceneOpacity: Number(fxSceneStyle.getPropertyValue('--conc-opacity')),
-      particleOpacity: Number(fxSceneStyle.getPropertyValue('--conc-particle-opacity')),
       hasPulse: pulse.classList.contains('is-parfum'),
+      particleCount: scene.querySelectorAll('.conc-particle').length,
     };
   });
-  ok('四类型逐档半径、粒子数、透明度与 Parfum pulse 全部符合定版',
+  ok('四类型逐档半径、透明度与 Parfum pulse 全部符合定版，且全程无粒子',
     fxRecords.every((record) => record.widths.every((width, index) =>
       Math.abs(width - Number((baseWidths[index] * record.factor).toFixed(3))) < .001)
-      && record.fieldAligned && record.pool === 24 && record.visible === record.count
+      && record.intensities.every((v, index) => v === index + 1)
       && Math.abs(record.sceneOpacity - record.alpha) < .001
-      && Math.abs(record.particleOpacity - record.alpha) < .001
-      && record.hasPulse === record.pulse),
-    fxRecords.map((r) => `${r.id}: ${r.widths.join('/')}% · ${r.visible} · ${r.alpha}`).join(' ｜ '));
-  ok('人物剪影不随类型改变，粒子池固定 24 个不随反复切换增长',
+      && record.hasPulse === record.pulse && record.particleCount === 0),
+    fxRecords.map((r) => `${r.id}: ${r.widths.join('/')}% · ${r.alpha} · particles=${r.particleCount}`).join(' ｜ '));
+  ok('人物剪影不随类型改变，旧粒子池不复活',
     JSON.stringify({
       viewBox: scene.querySelector('svg')?.attrs.viewBox,
-      head: scene.querySelector('circle')?.attrs.cx,
-      body: scene.querySelector('path')?.attrs.d,
+      head: scene.querySelector('ellipse')?.attrs.cx,
+      paths: scene.querySelectorAll('path').map((p) => p.attrs.d),
     }) === figureMark
-    && scene.querySelectorAll('.conc-particle').length === 24
+    && scene.querySelectorAll('.conc-particle').length === 0
+    && scene.querySelectorAll('.conc-particles').length === 0
     && scene.querySelectorAll('svg').length === 1,
     `粒子 ${scene.querySelectorAll('.conc-particle').length} / SVG ${scene.querySelectorAll('svg').length}`);
 
-  const particleRule = (concCss.match(/\.conc-particle\s*\{([^}]*)\}/s) || [])[1] || '';
-  const hiddenParticleRule = (concCss.match(/\.conc-particle\[hidden\]\s*\{([^}]*)\}/s) || [])[1] || '';
   const parfumPulseRule = (concCss.match(/\.conc-pulse\.is-parfum\s*\{([^}]*)\}/s) || [])[1] || '';
-  ok('类型切换 300ms、场景直径封顶视口减 32px，隐藏粒子不占布局',
+  ok('类型切换 300ms、场景直径封顶；雾画布/锚点/五档/断弧遮罩符合 Batch 5 规格',
     /transition:\s*width\s+\.3s\s+var\(--ease,\s*ease\),\s*opacity\s+\.3s/.test(concCss)
     && /max-width:\s*calc\(100vw\s*-\s*32px\)/.test(centerRule)
-    && /opacity:\s*var\(--conc-particle-opacity,\s*0\)/.test(particleRule)
-    && /pointer-events:\s*none/.test(particleRule)
-    && /display:\s*none/.test(hiddenParticleRule)
-    && /opacity:\s*var\(--conc-particle-opacity,\s*\.8\)/.test(parfumPulseRule)
+    && /opacity:\s*var\(--conc-opacity,\s*\.8\)/.test(parfumPulseRule)
     && !/\.conc-ripple,\s*\.diffuse-ring\s*\{\s*transition-duration:\s*\.12s/.test(concCss)
-    && /\.conc-glow\s*\{\s*opacity:\s*calc\(var\(--conc-opacity,\s*1\)\s*\*\s*\.6\)/.test(concCss),
-    `${centerRule.trim()} ｜ ${particleRule.trim()} ｜ ${hiddenParticleRule.trim()}`);
+    && /\.conc-glow\s*\{\s*opacity:\s*calc\(var\(--conc-opacity,\s*1\)\s*\*\s*\.6\)/.test(concCss)
+    && /width:\s*116px/.test(mistCss) && /height:\s*80px/.test(mistCss)
+    && /top:\s*calc\(50%\s*-\s*82px\)/.test(mistCss)
+    && /transform-origin:\s*58px\s+48px/.test(mistCss) && /isolation:\s*isolate/.test(mistCss)
+    && /ellipse\s+58px\s+31px/.test(mistCss) && /ellipse\s+35px\s+15px/.test(mistCss)
+    && /mix-blend-mode:\s*multiply/.test(mistCss)
+    && /width:\s*98px/.test(mistCss) && /height:\s*43px/.test(mistCss)
+    && /width:\s*110px/.test(mistCss) && /height:\s*55px/.test(mistCss)
+    && /#344F73/.test(mistCss) && /#000 306deg, #000 354deg/.test(mistCss)
+    && /#000 12deg, #000 65deg/.test(mistCss)
+    && /--mist-scale:\s*\.3103448276/.test(mistCss) && /--mist-scale:\s*\.4482758621/.test(mistCss)
+    && /--mist-scale:\s*\.6206896552/.test(mistCss) && /--mist-scale:\s*\.7931034483/.test(mistCss)
+    && /--mist-scale:\s*1;/.test(mistCss)
+    && /--mist-outer-opacity:\s*\.42/.test(mistCss) && /--mist-outer-opacity:\s*\.55/.test(mistCss)
+    && /--mist-outer-opacity:\s*\.70/.test(mistCss) && /--mist-outer-opacity:\s*\.85/.test(mistCss)
+    && /--mist-inner-opacity:\s*\.60/.test(mistCss) && /--mist-inner-opacity:\s*\.70/.test(mistCss)
+    && /--mist-inner-opacity:\s*\.80/.test(mistCss) && /--mist-inner-opacity:\s*\.90/.test(mistCss)
+    && /scale\(\.68\)/.test(mistCss) && /scale\(1\.16\)/.test(mistCss)
+    && /560ms\s+cubic-bezier\(\.16,\s*1,\s*\.3,\s*1\)/.test(mistCss),
+    `${centerRule.trim()} ｜ mist 116×80 / origin 58,48 / five levels / two masked arcs`);
 
   /* 类型与滑块是两条独立输入：切类型不重写档位/读数，切档位仍能连续改半径。 */
   slider.value = '3';
@@ -2336,9 +2351,11 @@ ok(`${screenOf('concentration')}是浓淡（data-step=concentration）`, stepId(
   }
   ok('反复切类型后滑杆与读数保持独立，场景节点仍不增长',
     slider.value === '3' && read.textContent === '适中：办公室里刚好'
-    && scene.querySelectorAll('.conc-particle').length === 24
+    && scene.querySelectorAll('.conc-particle').length === 0
+    && scene.querySelectorAll('.conc-particles').length === 0
+    && scene.querySelectorAll('.conc-mist-arc').length === 2
     && scene.querySelectorAll('.conc-ripple').length === 3,
-    `滑杆 ${slider.value} / ${read.textContent} / 粒子 ${scene.querySelectorAll('.conc-particle').length}`);
+    `滑杆 ${slider.value} / ${read.textContent} / 粒子 ${scene.querySelectorAll('.conc-particle').length} / 断弧 ${scene.querySelectorAll('.conc-mist-arc').length}`);
 
   /* 恢复本段原有下游状态：2 档 + EDP。 */
   slider.value = '2';

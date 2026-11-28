@@ -62,16 +62,8 @@
   transform: rotate(0deg) scale(var(--pill-scale, 1));
 }
 
-/* 人物增加一点体积：肩线用背景色浅描，颈部圆角，主体渐变由 SVG 提供。 */
+/* 人物三段同色；只保留体积投影，不再用旧肩线细节掩盖轮廓。 */
 .conc-figure svg { filter: drop-shadow(0 7px 9px rgba(0, 0, 0, .20)); }
-.conc-figure-detail {
-  fill: none;
-  stroke: var(--bg);
-  stroke-width: .7;
-  stroke-linecap: round;
-  opacity: .22;
-  pointer-events: none;
-}
 
 /* ---------- 腿 D：偏心蓝雾 + 两段断弧 ---------- */
 .conc-mist {
@@ -86,7 +78,9 @@
   --mist-spread: .92;
   position: absolute;
   left: calc(50% - 58px);
-  top: calc(50% - 54px);
+  /* 人物盒顶 = 舞台中心 - 90；锁骨 y=62，雾锚点再上移 6px。
+     transform-origin y=48，因此画布顶 = 舞台中心 - 90 + 62 - 6 - 48 = 中心 - 82。 */
+  top: calc(50% - 82px);
   z-index: 4;
   width: 116px;
   height: 80px;
@@ -149,6 +143,7 @@
       rgba(52, 79, 115, .50) 38%,
       rgba(82, 111, 151, .16) 66%,
       rgba(82, 111, 151, 0) 100%);
+  mix-blend-mode: screen;
   opacity: var(--mist-outer-opacity);
 }
 .conc-mist-inner {
@@ -171,6 +166,11 @@
   height: 43px;
   border: 1px solid #344F73;
   border-radius: 50% 50% 46% 54% / 62% 58% 42% 38%;
+}
+/* 遮罩不支持时隐藏整条断弧，避免退化成完整椭圆；雾本体仍正常显示。 */
+.conc-mist-arc { display: none; }
+@supports ((mask-image: conic-gradient(#000, #000)) or (-webkit-mask-image: conic-gradient(#000, #000))) {
+  .conc-mist-arc { display: block; }
 }
 .conc-mist-arc-a {
   opacity: var(--mist-arc-a-opacity);
@@ -270,8 +270,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .conc-glow,
+  .conc-ripple,
+  .conc-pulse,
   .conc-mist,
   .conc-mist > div { transition: none; }
+  .conc-pulse.is-live,
   .conc-mist.is-committing,
   .conc-mist.is-committing .conc-mist-inner,
   .conc-mist.is-committing .conc-mist-wisp,

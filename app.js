@@ -2878,12 +2878,12 @@ const CONCENTRATIONS = [
 
 /* 类型只改变散发展示，不参与打分：以“适中”档现有外圈为基准，
    EDC / EDT / EDP / Parfum = 0.6 / 0.8 / 1.0 / 1.25。
-   粒子池固定 24 个，按档位显示前 N 个；反复切类型不会增长节点。 */
+   浓度页的旧粒子场已在 Batch 5 B5 删除；这里只保留范围、透明度与 Parfum 脉冲。 */
 const CONCENTRATION_FX = {
-  'eau-de-cologne': { factor: .6, particles: 6, opacity: .35 },
-  'eau-de-toilette': { factor: .8, particles: 10, opacity: .5 },
-  'eau-de-parfum': { factor: 1, particles: 16, opacity: .65 },
-  'parfum': { factor: 1.25, particles: 24, opacity: .8, pulse: true },
+  'eau-de-cologne': { factor: .6, opacity: .35 },
+  'eau-de-toilette': { factor: .8, opacity: .5 },
+  'eau-de-parfum': { factor: 1, opacity: .65 },
+  'parfum': { factor: 1.25, opacity: .8, pulse: true },
 };
 
 /* ---------- 第 9 步：留香时长 ----------
@@ -4019,32 +4019,15 @@ function renderConcentration() {
   const rippleMid = el('div', { class: 'conc-ripple', 'data-r': '2' });
   const rippleOut = el('div', { class: 'conc-ripple', 'data-r': '3' });
   const pulse = el('div', { class: 'conc-pulse' });
-  const particleField = el('div', { class: 'conc-particles' });
-  /* 固定 24 个粒子，按类型只显示前 6/10/16/24 个；位置按黄金角均匀铺开，
-     粒子场与外圈同直径，因此滑块与类型共同决定实际扩散范围。 */
-  const particles = Array.from({ length: 24 }, (_, index) => {
-    const particle = el('span', { class: 'conc-particle', hidden: '' });
-    particle.style.setProperty('--size', [2, 2.5, 3, 3.5, 4][index % 5] + 'px');
-    particleField.appendChild(particle);
-    return particle;
-  });
-  /* 人形剪影：头 + 颈 + 肩的整块形，颜色跟 token（深色档自动翻）。
-     颈宽 5、从圆点底部延伸到圆顶顶部，消除头身之间的空段；原有头/肩
-     几何保持不变，圆环仍以同一舞台中轴为圆心。 */
+  /* 背影剪影基准：viewBox 0 0 120 180，实际占位盒 120×180。
+     头 34×40、颈 22×25、肩宽 104；头底/颈顶重叠 5，颈底/肩上沿重叠 7，
+     三段同色无空段。锁骨中点 (60,62)，B5 雾锚点固定在它上方 6px。
+     不使用旧圆头+圆顶 blob；肩坡与上躯干轮廓让剪影一眼读作人。 */
   const figure = el('div', { class: 'conc-figure', html:
-    '<svg viewBox="0 0 56 84" focusable="false">'
-    + '<defs>'
-    + '<linearGradient id="conc-figure-fill" x1="0" y1="0" x2="1" y2="0">'
-    + '<stop offset="0" stop-color="currentColor" stop-opacity=".68"/>'
-    + '<stop offset=".48" stop-color="currentColor" stop-opacity=".96"/>'
-    + '<stop offset="1" stop-color="currentColor" stop-opacity=".72"/>'
-    + '</linearGradient>'
-    + '</defs>'
-    + '<circle cx="28" cy="11" r="8.5"/>'
-    + '<rect x="25.5" y="18" width="5" height="26" rx="2"/>'
-    + '<path d="M13 84 L13 68 C13 55 19.5 43 28 43 C36.5 43 43 55 43 68 L43 84 Z" fill="url(#conc-figure-fill)"/>'
-    + '<path class="conc-figure-detail" d="M18 50 C22 48.5 25 48.5 28 50 C31 48.5 34 48.5 38 50"/>'
-    + '<path class="conc-figure-detail" d="M21 55 C24 54 26 54 28 55 C30 54 32 54 35 55"/>'
+    '<svg viewBox="0 0 120 180" focusable="false">'
+    + '<ellipse cx="60" cy="24" rx="17" ry="20"/>'
+    + '<path d="M50 39 L70 39 L72 62 L48 62 Z"/>'
+    + '<path d="M48 55 C40 57 30 61 23 69 C16 77 13 91 12 108 L8 180 L112 180 L108 108 C107 91 104 77 97 69 C90 61 80 57 72 55 C68 64 52 64 48 55 Z"/>'
     + '</svg>' });
   /* 偏心蓝雾是独立表现层：画布 116×80，锚点在锁骨中点上方 6px。
      五档只切换 CSS 变量，拖动与提交都仅动画 transform / opacity。 */
@@ -4055,7 +4038,7 @@ function renderConcentration() {
     + '<div class="conc-mist-inner"></div>'
     + '<div class="conc-mist-arc conc-mist-arc-a"></div>'
     + '<div class="conc-mist-arc conc-mist-arc-b"></div>' });
-  scene.append(glow, rippleIn, rippleMid, rippleOut, pulse, particleField, figure, mist);
+  scene.append(glow, rippleIn, rippleMid, rippleOut, pulse, figure, mist);
 
   /* 波纹直径 = 滑块档位 × 类型系数。16%（贴肤）→ 128%（铺过舞台），
      拖动时收连续值（1.00–5.00 都有），不按档跳；松手后再缓动吸附到整数档。
@@ -4070,30 +4053,16 @@ function renderConcentration() {
     rippleMid.style.width = (d * 0.72) + '%';
     rippleOut.style.width = d + '%';
     pulse.style.width = d + '%';
-    particleField.style.width = d + '%';
   };
 
-  /* 类型切换只改散发层：半径由 paintScene 同步，粒子数量/透明度与 Parfum
-     的第四圈在这里更新；人物、滑杆、读数与其他答案都保持原地不动。 */
+  /* 类型切换只改散发层：半径由 paintScene 同步，Parfum 的第四圈在这里更新；
+     人物、滑杆、读数与其他答案都保持原地不动。 */
   const paintTypeEffect = () => {
     const fx = CONCENTRATION_FX[state.answers.concentration];
-    const count = fx ? fx.particles : 0;
     const opacity = fx ? fx.opacity : 0;
     scene.style.setProperty('--conc-opacity', fx ? String(opacity) : '1');
-    scene.style.setProperty('--conc-particle-opacity', String(opacity));
     scene.dataset.concentrationFx = fx ? state.answers.concentration : 'none';
     pulse.classList.toggle('is-parfum', !!fx && !!fx.pulse);
-    particles.forEach((particle, index) => {
-      if (index >= count) {
-        particle.setAttribute('hidden', '');
-        return;
-      }
-      particle.removeAttribute('hidden');
-      const angle = index * 2.399963229728653 + .3;
-      const radius = 44 * Math.sqrt((index + .5) / count);
-      particle.style.setProperty('--x', (50 + Math.cos(angle) * radius).toFixed(3) + '%');
-      particle.style.setProperty('--y', (50 + Math.sin(angle) * radius).toFixed(3) + '%');
-    });
   };
 
   /* ---- 原生滑杆：这一屏唯一的命中来源 ---- */
@@ -4222,7 +4191,7 @@ function renderConcentration() {
      选中态刷到整组；滑杆、读数与人物保持不动，其他屏的答案一个都不碰。 */
     paintScene(Number(slider.value));
     paintTypeEffect();
-    if (id === 'parfum') firePulse();
+    firePulse();
   });
   wrap.appendChild(grid);
 
