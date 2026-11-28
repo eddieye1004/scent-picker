@@ -773,7 +773,7 @@ function artInner(subId) {
    原先这里有一个 artWarmAll()，在模块求值时就把 24 个 SVG 全拉一遍，
    boot() 里还有第二处调用。首屏尚未选小类时，这 24 个请求全是前置成本。
    现在首屏仍不取小类图；用户第一次选定中圈小类时，hubSpecimenGrid()
-   才并行取齐 24 枚，并写入共享缓存。之后在小类或家族间切换不再请求。
+   只取当前选中的那一枚，并写入共享缓存。之后换选直接读取已缓存的新图标。
    取图通路仍是按需的：先 ART_READY 同步读取，未就绪才 artInner()。 */
 /* 同一枚图标可能被同时插进 DOM 的多个位置，渐变 id 必须唯一，
    否则第二次插入会引用到第一个实例的 defs。 */
@@ -927,18 +927,22 @@ const WHEEL = {
   hubPct: 30.6,
 };
 
-/* ---------- 盘心 24 小类标本网格（批 3-2b；Batch 5 B2 门控）----------
-   只有当前大类下已提交的有效小类才挂载六族 24 格。网格与中圈共用 chooseSub，
-   是同一步的快捷入口，不新增问卷步骤；每格复用 ART_FILE 的按需 SVG 通路。 */
+/* ---------- 盘心当前小类标本（Batch 5 B2）----------
+   已选小类只在盘心渲染它对应的那一枚大图；其余小类不挂 DOM。
+   与中圈共用 chooseSub，复用 ART_FILE → artPath() → ART_CACHE / ART_READY
+   的同一条按需 SVG 通路，不另起取图通道。 */
 function hubSpecimenGrid(families, selectedSubId, onSelect) {
+  const selected = [];
+  families.forEach((fam) => {
+    const sub = (fam.subfamilies || []).find((entry) => entry.id === selectedSubId);
+    if (sub) selected.push({ fam, sub });
+  });
   const grid = el('div', {
     class: 'hub-specimen-grid',
     id: 'wheel-specimen-grid',
     role: 'listbox',
     tabindex: '0',
-    'aria-label': '24 个小类标本，当前选择：' + subFullName(
-      families.flatMap((fam) => fam.subfamilies || []).find((sub) => sub.id === selectedSubId) || {}
-    ) + '。方向键移动，Enter 选择',
+    'aria-label': '当前小类标本：' + subFullName(selected[0]?.sub || {}) + '。Enter 选择',
   });
   const items = [];
   const setActive = (id) => {
@@ -969,40 +973,38 @@ function hubSpecimenGrid(families, selectedSubId, onSelect) {
     const sub = fam?.subfamilies?.find((entry) => entry.id === item?.getAttribute('data-sub'));
     if (fam && sub) onSelect(fam, sub, ev);
   });
-  families.forEach((fam) => {
-    (fam.subfamilies || []).forEach((sub) => {
-      const item = el('div', {
-        class: 'hub-specimen-item',
-        id: 'hub-specimen-' + sub.id,
-        role: 'option',
-        'data-sub': sub.id,
-        'data-fam': fam.id,
-        'aria-label': subFullName(sub),
-        'aria-selected': String(sub.id === selectedSubId),
-        title: '选择' + subFullName(sub),
-      });
-      /* 24 格与中圈共用 chooseSub：它们是同一步的快捷入口，不新增问卷步骤，
-         也不直接写 state 或打分。隐藏态整棵网格不挂载，因此没有透明点击区。 */
-      item.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        onSelect(fam, sub, ev);
-      });
-      const box = svgEl('svg', {
-        class: 'specimen-svg is-art',
-        viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
-        'aria-hidden': 'true',
-        focusable: 'false',
-      });
-      const ready = artSvgReady(sub.id);
-      if (ready) box.innerHTML = ready;
-      else artInner(sub.id).then((inner) => {
-        if (!inner) return;
-        box.innerHTML = artNs(inner, 'a' + (++artSeq));
-      });
-      item.appendChild(box);
-      grid.appendChild(item);
-      items.push(item);
+  selected.forEach(({ fam, sub }) => {
+    const item = el('div', {
+      class: 'hub-specimen-item is-selected',
+      id: 'hub-specimen-' + sub.id,
+      role: 'option',
+      'data-sub': sub.id,
+      'data-fam': fam.id,
+      'aria-label': subFullName(sub),
+      'aria-selected': 'true',
+      title: '已选' + subFullName(sub),
     });
+    /* 盘心与中圈共用 chooseSub：它们是同一步的回显，不新增问卷步骤，
+       也不直接写 state 或打分。隐藏态整棵网格不挂载，因此没有透明点击区。 */
+    item.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      onSelect(fam, sub, ev);
+    });
+    const box = svgEl('svg', {
+      class: 'specimen-svg is-art',
+      viewBox: '0 0 ' + PLATE_SIZE + ' ' + PLATE_SIZE,
+      'aria-hidden': 'true',
+      focusable: 'false',
+    });
+    const ready = artSvgReady(sub.id);
+    if (ready) box.innerHTML = ready;
+    else artInner(sub.id).then((inner) => {
+      if (!inner) return;
+      box.innerHTML = artNs(inner, 'a' + (++artSeq));
+    });
+    item.appendChild(box);
+    grid.appendChild(item);
+    items.push(item);
   });
   setActive(selectedSubId || items[0]?.id);
   return grid;
@@ -1084,7 +1086,7 @@ function familyText(fam) {
    `> *:not(.hub-emblem)` 的 z-index），主词与说明的对比度不受影响。
 
    什么时候出现：选中/预览某个大类、且还没落到小类时。
-   落到小类时盘心已经显示 24 格小类标本，那时再叠一层徽记等于两个物体
+   落到小类时盘心已经显示当前小类的大图，那时再叠一层徽记等于两个物体
    抢同一个位置 —— 那一路保持互斥，本腿不碰。 */
 function familyEmblem(fam) {
   const box = svgEl('svg', {
@@ -1331,7 +1333,7 @@ function buildWheel(cfg) {
   /* 未选大类时盘心唯一的一行弱提示。其余既有节点保留在 DOM 中供无障碍
      与既有自检读取，但由 CSS 在该态隐藏，视觉上只出现这一句。 */
   const hubIdleHint = el('div', { class: 'hub-idle-hint' }, '先选香调大类');
-  /* 大类徽记：进入正常 flex 流，固定 64×64；不再叠在文字背后。 */
+  /* 大类徽记：进入正常 flex 流，固定 96×96；不再叠在文字背后。 */
   const hubEmblem = el('div', { class: 'hub-emblem', 'aria-hidden': 'true' });
   let confirmTimer = 0;
   function confirmFamilyEmblem() {
@@ -1526,7 +1528,9 @@ function buildWheel(cfg) {
     /* 外圈只保留一层弧字。HTML 按钮仍是命中与键盘焦点层，但不再画胶囊框；
        文字沿扇区中线排布，方向随所在半盘翻转，避免下半盘倒字。 */
     const rText = (WHEEL.r1i + WHEEL.r1o) / 2;
-    const upright = famStart + (i + 0.5) * famStep <= 0;
+    const familyMid = famStart + (i + 0.5) * famStep;
+    const familyMidNormalized = ((familyMid + 180) % 360 + 360) % 360 - 180;
+    const upright = familyMidNormalized <= 0;
     const [tx0, ty0] = polar(rText, upright ? a0 : a1);
     const [tx1, ty1] = polar(rText, upright ? a1 : a0);
     const arcTextId = 'wheel-arc-' + (++wheelArcSeq);
@@ -1537,48 +1541,17 @@ function buildWheel(cfg) {
         + ' ' + tx1.toFixed(2) + ' ' + ty1.toFixed(2),
       fill: 'none', stroke: 'none',
     }));
-    const familyMid = midFamilyDeg(famStart, famStep, i);
-    const familyMidNormalized = ((familyMid + 180) % 360 + 360) % 360 - 180;
-    const isSideFamily = Math.abs(familyMidNormalized) < 75 || Math.abs(familyMidNormalized) > 105;
-    const arcSide = Math.cos(familyMid * Math.PI / 180) >= 0 ? 1 : -1;
-    const labelText = svgEl('text', { class: 'fam-arc-text' + (isSideFamily ? ' is-side' : ''), 'text-anchor': 'middle' });
+    const labelText = svgEl('text', { class: 'fam-arc-text', 'text-anchor': 'middle' });
     const tp = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%' });
     tp.textContent = f.zh;
     labelText.appendChild(tp);
     g.appendChild(labelText);
-    /* 四个侧边大类继续逐字 SVG，但字心必须真的落在弧上。
-       读取顺序固定为上→下：右侧角坐标随 t 增大，左侧相反；每字自身不倒转。
-       字心半径 193、角间距 7.2°（弧距约 24.2 单位），旋转 ±15° 只作辅助。
-       13px 字面的内沿离盘心半径 144 约 42.5 单位、外沿离盘沿 228 约 28.5 单位；
-       390px 盘径下分别约 30px / 20px。相邻字心净距约 11.2 单位（约 8px）。
-       未来标签变长时先缩总角跨（不缩字号、不压圈、不裁切），顶/底 textPath 不动。 */
-    if (isSideFamily && [...f.zh].length > 1) {
-      const uprightGroup = svgEl('g', { class: 'fam-arc-upright', 'aria-hidden': 'true' });
-      const chars = [...f.zh];
-      const gapDeg = Math.min(7.2, 14.4 / (chars.length - 1));
-      chars.forEach((char, charIndex) => {
-        const t = charIndex - (chars.length - 1) / 2;
-        const angle = familyMid + arcSide * t * gapDeg;
-        const [x, y] = polar(rText, angle);
-        const rotation = arcSide * t * 15;
-        const charText = svgEl('text', {
-          class: 'fam-arc-upright-char',
-          x: x.toFixed(2), y: y.toFixed(2),
-          'text-anchor': 'middle',
-          transform: 'rotate(' + rotation.toFixed(2) + ' ' + x.toFixed(2) + ' ' + y.toFixed(2) + ')',
-        });
-        charText.textContent = char;
-        uprightGroup.appendChild(charText);
-      });
-      g.appendChild(uprightGroup);
-    }
+    /* 六族统一走同一条 rText=193 的圆弧 textPath：每个字的基线都沿圆切线，
+       不再给侧边另造“只转 ±15°”的逐字 upright 层。路径方向已按半盘翻转，
+       所以顶底横排保持不变，左右侧也是贴弧而非竖排堆字。 */
     svg.appendChild(g);
     outerG.push(g);
   });
-
-  function midFamilyDeg(start, step, index) {
-    return start + (index + .5) * step;
-  }
 
   /* 盘口：一圈发丝线 + 六枚定位点（v7 第 1.5 步替换掉 36 道分度刻线）。
      ------------------------------------------------------------
@@ -2127,7 +2100,7 @@ function buildWheel(cfg) {
     root.classList.toggle('is-sub-locked', !!selSub);
     hub.classList.toggle('is-idle', idle);
     hub.classList.toggle('is-picked', picked);
-    /* 族 id 始终跟随已选大类，供盘心底色与 64px 族图标读取。 */
+    /* 族 id 始终跟随已选大类，供盘心底色与 96px 族图标读取。 */
     if (hubFamily) hub.setAttribute('data-fam', hubFamily.id);
     else hub.removeAttribute('data-fam');
     // 整盘翻深由 root 上的 is-picked 驱动：加深的是盘，不是盘心方块
@@ -2142,9 +2115,9 @@ function buildWheel(cfg) {
     hubZh.textContent = zh;
     hubDesc.textContent = desc;
 
-    /* 小类确认后显示六族 24 格标本；空态/家族态不挂小类图形。
-       网格只在首次确认时构建，之后只更新选中类，避免 hover 重绘闪帧。 */
-    const glyphKey = focusSub ? 'grid' : 'none';
+    /* 小类确认后只显示当前小类的一枚大图；空态/家族态不挂小类图形。
+       小类 id 进缓存键：换选必须整块换成新图，不能保留上一枚 SVG。 */
+    const glyphKey = focusSub ? 'specimen:' + focusSub.id : 'none';
     if (glyphKey !== builtGlyphKey) {
       builtGlyphKey = glyphKey;
       hubGlyph.innerHTML = '';
@@ -2156,7 +2129,7 @@ function buildWheel(cfg) {
     if (focusSub) {
       const grid = hubGlyph.querySelector('.hub-specimen-grid');
       const selectedName = subFullName(focusSub);
-      grid.setAttribute('aria-label', '24 个小类标本，当前选择：' + selectedName + '。方向键移动，Enter 选择');
+      grid.setAttribute('aria-label', '当前小类标本：' + selectedName + '。Enter 选择');
       grid.querySelectorAll('.hub-specimen-item').forEach((item) => {
         const on = item.getAttribute('data-sub') === focusSub.id;
         item.classList.toggle('is-selected', on);
