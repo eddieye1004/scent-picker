@@ -724,12 +724,12 @@
 #app[data-step="occasion"] footer.foot { margin-top: 20px; }
 
 /* ============================================================
-   第 7 屏：浓淡（波纹场 + 原生滑杆）
+   第 7 屏：浓淡（柔雾场 + 原生滑杆）
    ------------------------------------------------------------
-   前景效果：中间人形剪影，周围从他身上向外扩散的同心波纹 ——
-   **波纹半径就是扩散距离**。整块 aria-hidden、不收指针事件，只做展示；
-   拖动时波纹跟手连续变，松手吸附最近档并轻扩散一次。
-   类型系数只改变扩散范围与透明度，人物剪影保持不动。
+   前景效果：中间人形剪影，锁骨喷点向外扩散多层柔雾。
+   旧同心圆已撤下，只保留软光与一次柔雾扩散，避免靶心 / 雷达感。
+   整块 aria-hidden、不收指针事件；拖动时雾量跟手连续变，
+   松手吸附最近档并轻扩散一次。人物剪影保持不动。
    ============================================================ */
 .conc-scene {
   position: relative;
@@ -777,26 +777,27 @@
     color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 70%);
 }
 
-/* 同心波纹：三圈，外圈是当前档位到达的距离；内两圈是回声。 */
-.conc-ripple {
-  border: 1.5px solid color-mix(in srgb, var(--accent) 42%, transparent);
-}
-.conc-ripple[data-r="2"] { border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
-.conc-ripple[data-r="1"] { border-color: color-mix(in srgb, var(--accent) 22%, transparent); }
+/* 旧三圈同心波纹保留节点以维持既有几何状态，但不再绘制。
+   静态画面只由柔光与锁骨多层雾负责扩散，避免细线切出靶心感。 */
+.conc-ripple { display: none; }
 
 /* 拖动中半径跟手：关掉缓动（松手再缓动吸附回档位）。 */
 .conc-scene.is-dragging .conc-ripple,
 .conc-scene.is-dragging .conc-glow { transition: none; }
 
-/* 松手吸附时的一次轻微波纹扩散（只播一次）；Parfum 复用同一节点作为第四圈。 */
+/* 松手吸附时的一次柔光扩散；没有硬边，Parfum 也只保留极淡空气感。 */
 .conc-pulse {
-  border: 1.5px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border: 0;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--accent) 16%, transparent) 0 56%,
+    color-mix(in srgb, var(--accent) 8%, transparent) 70%, transparent 82%);
+  filter: blur(6px);
   opacity: 0;
 }
-.conc-pulse.is-parfum { opacity: var(--conc-opacity, .8); }
+.conc-pulse.is-parfum { opacity: calc(var(--conc-opacity, .8) * .24); }
 .conc-pulse.is-live { animation: conc-pulse .6s var(--ease, ease) 1; }
 @keyframes conc-pulse {
-  0% { opacity: .5; transform: scale(.9); }
+  0% { opacity: .22; transform: scale(.9); }
   100% { opacity: 0; transform: scale(1.22); }
 }
 
