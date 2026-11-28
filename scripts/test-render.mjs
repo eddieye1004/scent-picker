@@ -143,6 +143,22 @@ class TNode {
   getAttribute(k) { return this.attrs[k] ?? null; }
   removeAttribute(k) { delete this.attrs[k]; }
   appendChild(n) {
+    /* 真实 DOM 的 appendChild 是**移动**语义：节点若已挂在另一处，会先被摘下来。
+       桩原先只 push，于是同一个节点被反复 appendChild 会留下多份 ——
+       B6 的预算章正是这么用的（点哪一档就把那一枚章 appendChild 到哪一档，
+       "旧的自动消失"靠的就是移动语义）。桩里不实现，测试就会看到
+       "两枚章同时在场"而浏览器里只有一枚 —— 这正是本文件开头那条规则说的
+       "桩缺能力就补桩，不能改业务代码绕开"。insertBefore 早就补过同一条，
+       这里补齐 appendChild 与之对齐。 */
+    if (typeof n !== 'string' && n.parentNode && n.parentNode !== this) {
+      const oi = n.parentNode.children.indexOf(n);
+      if (oi >= 0) n.parentNode.children.splice(oi, 1);
+    } else if (typeof n !== 'string') {
+      /* 已在本节点下（重复 append 同一父节点）：真实 DOM 会摘下来再放到末尾，
+         等价于"移到末尾"。 */
+      const si = this.children.indexOf(n);
+      if (si >= 0) this.children.splice(si, 1);
+    }
     if (typeof n !== 'string') { n.parentNode = this; }
     /* `textContent = ''` 之后再 appendChild 是**合法且常见**的写法
        （L3 的清单页提示条就这么做：先清空，再把文字与按钮拼回去）。
@@ -2439,6 +2455,66 @@ ok('预算屏说明了「价位未知的不参与」', /价位未知/.test(getSt
   /* 主按钮文案随选择走：当前选的是正常档（>=3 瓶），仍是「看推荐」。 */
   ok('选中正常档时主按钮仍是「看推荐」', !!btnBy(/看推荐/),
     appRoot.querySelectorAll('.btn').map((x) => x.textContent.trim()).join(' | ').slice(0, 120));
+}
+
+/* ---------- ②-b 章盖在被点的那一档上（B6，2026-11-28）----------
+   Eddie 真机判定 B5-3 那版「没有签订感」：章做成了存折上的独立元素，
+   点哪一档都盖在同一个地方，像贴上去的装饰。原话「就现在四个，
+   点了哪个就哪个，不是另外再做一个总出来」。
+   这一段的判据只认三件事，且都能直接从 DOM 读（不靠看图比色）：
+     ① 章是**价签的子节点**，挂在被点的那一枚下面（不是存折上的独立元素）；
+     ② 全页**恒等于一枚**章 —— 换点另一档时旧的那一枚必须消失，
+        靠的是 appendChild 的移动语义（见桩里那条注释）；
+     ③ 章上的字 = 被点那一档的完整值（data-stamp-value 读得到），
+        且折页里不再有章。
+   断言数固定，不随档位数增减 —— 换点用的是"点第 1 枚 → 点第 3 枚"
+   这种写死下标的路径，与上面那段（点第 2 枚）互不干扰。 */
+{
+  const tabsNow = appRoot.querySelectorAll('.price-tab');
+  const stampsNow = appRoot.querySelectorAll('.budget-stamp');
+  ok('操作前预算屏上只有一枚章（章属于选项，不是每档一枚）',
+    stampsNow.length === 1,
+    `实际 ${stampsNow.length} 枚`);
+  ok('章是价签的子节点（不是存折上的独立元素）',
+    stampsNow.length === 1 && stampsNow[0].parentNode === tabsNow[1],
+    stampsNow.length ? `父节点 data-budget=${stampsNow[0].parentNode.getAttribute('data-budget')}` : '(无章)');
+  const passbookNow = appRoot.querySelector('.budget-passbook');
+  ok('存折里没有章（章只在被选的价签上）',
+    !!passbookNow && passbookNow.querySelectorAll('.budget-stamp').length === 0,
+    passbookNow ? `折页内章数 ${passbookNow.querySelectorAll('.budget-stamp').length}` : '(取不到 .budget-passbook)');
+  ok('章上的字是当前选中档的完整值（600–1200 元）',
+    stampsNow.length === 1 && stampsNow[0].getAttribute('data-stamp-value') === tabsNow[1].querySelector('.price-zh').textContent,
+    stampsNow.length ? String(stampsNow[0].getAttribute('data-stamp-value')) : '(无章)');
+
+  /* 换点第 3 枚：章必须搬过去，第 2 枚上不能留章。 */
+  const target = tabsNow[3];
+  if (target) { target.dispatch('click'); await new Promise((r) => setTimeout(r, 60)); }
+  const after = appRoot.querySelectorAll('.budget-stamp');
+  ok('换点另一档后全页仍只有一枚章（旧的没有留在原档位上）',
+    after.length === 1,
+    `实际 ${after.length} 枚`);
+  ok('换点后章挂在新点的那一档上',
+    after.length === 1 && after[0].parentNode === target,
+    after.length ? `父节点 data-budget=${after[0].parentNode.getAttribute('data-budget')}` : '(无章)');
+  ok('旧档位上已经没有章',
+    !tabsNow[1] || tabsNow[1].querySelectorAll('.budget-stamp').length === 0,
+    tabsNow[1] ? `第 2 枚价签内章数 ${tabsNow[1].querySelectorAll('.budget-stamp').length}` : '(取不到价签)');
+  ok('换点后章上的字跟着换成新档的值（1200 元以上）',
+    after.length === 1 && after[0].getAttribute('data-stamp-value') === '1200 元以上',
+    after.length ? String(after[0].getAttribute('data-stamp-value')) : '(无章)');
+  /* 折页正文也跟着换 —— 章与值同源，不能一个变了另一个没变。 */
+  ok('折页正文与章同步换成新档的值',
+    !!passbookNow && passbookNow.querySelector('.budget-passbook-value')?.textContent === '1200 元以上',
+    passbookNow ? String(passbookNow.querySelector('.budget-passbook-value')?.textContent) : '(取不到正文)');
+
+  /* 复位到本段进来之前的选择（第 2 枚 = 300–600 元）。
+     不复位的话，预算会留在「1200 元以上」并被带进 finish()，
+     下面 ⑧/⑨ 段看到的推荐瓶会整体换人 —— 那会让"本段新增的断言"
+     悄悄改掉后面每一段的输入。断言可以增，输入状态不能动。 */
+  if (tabsNow[1]) { tabsNow[1].dispatch('click'); await new Promise((r) => setTimeout(r, 60)); }
+  ok('本段结束后选择复位到进来时的第 2 枚价签（不给下游换输入）',
+    tabsNow[1] && tabsNow[1].attrs['aria-checked'] === 'true',
+    tabsNow[1] ? String(tabsNow[1].attrs['aria-checked']) : '(取不到价签)');
 }
 
 /* ---------- ⑧ 末屏「看推荐」+ 已知款入口已撤（v7 第 1 步） ----------
