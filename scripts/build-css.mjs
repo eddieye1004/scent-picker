@@ -102,6 +102,9 @@ const PARTS = [
   '103-micro-hints.css',
   /* Batch 4 腿 A/C：感觉标本卡与季节物候注记。 */
   '104-batch4-a-c.css',
+  /* Batch 4 腿 B/D：圆盘四侧竖排正字与四粒竖排胶囊；浓度页偏心蓝雾。
+     最后加载，选择器只命中本轮两腿，不触碰问卷逻辑与测试锚点。 */
+  '104-batch4-wheel-concentration.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');
