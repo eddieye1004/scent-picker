@@ -189,6 +189,15 @@ const state = {
        · 从结果页的 toast「在香水档案里看」跳过来，只需改一个字段 + 重画，
          不必把整页导航写成异步。 */
   wishPage: false,
+  /* ==== 预算屏「这一档是用户自己选的吗」（Batch 5 腿 B5-3）====
+     answers.budget 的缺省值是 'any'（见第 107 行），所以"值等于 any"既可能是
+     "用户点了「不限 / 还不知道」"，也可能是"用户根本没点过"。
+     存折未选态要不盖章、选了「不限」要盖章 —— 两者必须能分开，否则
+     要么给没答的人凭空盖章（假的确认），要么选了不限反而不盖章
+     （把它当成没答，与任务书"不限也原样写入并盖章"直接冲突）。
+     所以另存一个**视图标记**（不进 answers，不进打分）；
+     restart 里一并清掉。 */
+  budgetPicked: false,
 };
 
 let DATA = null;
@@ -2949,29 +2958,130 @@ function renderBudget() {
       ...bands.map((b) => el('span', { class: 'money-tick' },
         b.hi != null ? `${b.lo}–${b.hi}` : `${b.lo}+`)))));
 
-  /* Batch 4 腿 E：刻度与价签之间留固定 52px 的存折出口。首次进入直接
-     呈现当前档（含「不限 / 还不知道」），只有主动点选/切换才重播一次。
-     改选时先写最后一档文字，再移除/回流/挂回动画类，快速连点也会从最新
-     一档重新播出，不会排队播放中间档。 */
+  /* ==== 预算存折（Batch 5 腿 B5-3 重做，2026-11-28）====
+     Batch 4 的存折只有一行淡标签：没有折页形态、没有账本线、没有盖章，
+     选了 600–1200 元之后屏幕上没有任何"这一档被记下来了"的痕迹 ——
+     Eddie 的原话是「没感觉，选了也没有签订感」。
+
+     ==== 拆成两条，各自独立验收 ====
+     (a) 折页外观（静态，看全屏原图就够）：
+         暖白纸 + 折脊（两条紧邻竖线，双线即装订处）+ 账本横线
+         （repeating-linear-gradient，只在折脊右侧的书写区画）
+         + 右上折角。选中的档写进折页正文（.budget-passbook-value）。
+         账本线与章纹都压到 --passbook-rule（比正文浅一档），
+         任何一条都不许抢正文：正文用 --spec-ink 700 字重，
+         线与章只用它当描边/浅底。
+     (b) 选择确认反馈（动态，必须看连续录屏）：
+         一次"记账"= 折页自下滑出（300ms）→ 章落下（220ms）。
+         **两段在时间上重叠 100ms，但视觉上是串行的两拍**，如实写清：
+           折页 t=0 起，translateY(14px)+opacity .55，300ms 线性时长，
+             但缓动是 (.2,.7,.25,1)——快起慢收，t=200ms 时已走完 97%
+             （实测残余位移 0.39px / 14px），肉眼已读作"到位"。
+           章 t=190ms 起（delay），220ms 落完，t=410ms 整体静止。
+         所以"折页先到位、章再砸下来"这个因果是真的，但**不是零重叠**：
+         章起跳时折页还在走最后 3%（约 100ms 尾段）。
+         为什么允许这 100ms：零重叠（章 delay 300ms）总时长会变成 520ms，
+         比现在慢 110ms，而用户在这一屏的平均停留只有几秒 ——
+         多出的等待换不来可读性，因为折页最后 3% 的位移本来就看不出。
+         为什么不干脆并行（章 delay 0）：那样章在折页还在移动 86% 时
+         就砸下来，两处同时在动，读不出"先记一笔、再盖章"的因果。
+         实测时序见 _probe/b5/evidence/seq/*.timeline.json。
+
+     ==== 状态表（六态，每态都要验）====
+         未选      折页写当前值（默认「不限 / 还不知道」，即 state 的既有缺省），
+                   不盖章：没有选择就没有确认，不能凭空盖一个"已记下"。
+         首次选择  折页滑出 + 换值 + 盖章，三段因果可读。
+         切换      值先换成新档，同一套动作重播一次（章重新砸下来）。
+                   旧章不单独做退场动画：重播本身就是"旧的那枚被新的盖过去"，
+                   再加一段淡出会让切换比首次选择慢一拍，而两者在语义上同级。
+         返回已选  只呈现终态：折页有值、章在位，不播动画。
+                   （回到这一屏不是一次新的选择，重播会把"刚才是你选的"
+                   演成"刚刚有人又选了"。）
+         重复点击  点已选中的那一档＝一次新的确认动作，照常盖章；
+                   文案不换（值没变），但章重新落下 —— 这是"我又确认了一次"。
+         快速连点  只认最后一档。
+
+     ==== 怎么避免旧动画覆盖新值 ====
+     ① 值先写、类后加：label/章文字在挂动画类之前就已经是最终值，
+        动画只改 transform/opacity，不参与写值，所以"动画播到一半值被改"
+        这件事在结构上不可能发生。
+     ② 每次重播前 remove → 强制回流（void offsetWidth）→ add，
+        浏览器会丢弃上一条未完成的 animation，不会有排队播放中间档。
+     ③ 章用 `animation-fill-mode: both`，且终态由 CSS 的静态规则兜底
+        （不是只靠 animationend），所以被打断时章不会停在半空。
+     ④ 用递增的 data-stamp-seq 标记"这是第几次"，纯用于 DOM 侧与测试核对；
+        animationend 只在序号仍是最新时才摘 is-playing，避免旧的
+        animationend 摘掉新动画的类。
+
+     ==== 「签订感」的定义 ====
+     本地选择确认：值被写进折页、章落在折页上，两者与当前选择一致。
+     **不新增任何承诺或提交语义**：没有服务端记录、没有"已下单"、
+     没有把预算写进 localStorage，离开本屏它就只是 state.answers.budget。
+     「不限 / 还不知道」同样原样写进折页并盖章 —— 它是合法答案，
+     不是"没答"，所以不享受"跳过确认"的待遇。 */
   const selected = opts.find((o) => o.id === (state.answers.budget || 'any')) || opts[opts.length - 1];
-  const passbookLabel = el('span', { class: 'budget-passbook-label' }, selected.zh);
-  const passbook = el('div', { class: 'budget-passbook', 'aria-hidden': 'true' }, passbookLabel);
-  passbook.addEventListener('animationend', (ev) => {
-    if (ev.animationName === 'budgetPassbookSlide') passbook.classList.remove('is-playing');
-  });
+  const passbookLabel = el('span', { class: 'budget-passbook-value' }, selected.zh);
+  /* 章内文字：由档位数据算出紧凑写法，不从 zh 字符串里瞎截 ——
+     截字符串会让「1200 元以上」变成「1200 元以」，读起来是另一个意思。
+     「不限 / 还不知道」缩成「不限」：它是合法答案，占章位，但两个字就够。
+     完整值始终在折页正文里，章只是它的印，不是第二处真相。 */
+  const stampWordOf = (opt) => {
+    if (!opt) return '';
+    if (opt.id === anyId) return '不限';
+    const b = bands.find((x) => x.id === opt.id);
+    if (!b) return opt.zh.replace(/\s*元\s*/g, '').replace(/\s+/g, '');
+    if (b.hi == null) return `≥${b.lo}`;
+    if (!b.lo) return `≤${b.hi}`;
+    return `${b.lo}–${b.hi}`;
+  };
+  const stampText = el('span', { class: 'budget-stamp-text' }, stampWordOf(selected));
+  /* data-stamp-value 承载**完整值**（不是章上那串缩写）：
+     「章与当前值一致」这条验收要能直接从 DOM 读，不靠看图比字。 */
+  const stamp = el('span', {
+    class: 'budget-stamp',
+    'aria-hidden': 'true',
+    'data-stamp-value': selected.zh,
+  }, el('span', { class: 'budget-stamp-ring' }, stampText));
+  const passbook = el('div', { class: 'budget-passbook', 'aria-hidden': 'true', 'data-stamp-seq': '0' },
+    el('span', { class: 'budget-passbook-head' }, '预算'),
+    passbookLabel,
+    stamp);
   wrap.appendChild(el('div', { class: 'budget-passbook-slot', 'aria-hidden': 'true' }, passbook));
   const reduceMotion = typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-reduced-motion: reduce)')
     : { matches: false };
-  const replayPassbook = (zh) => {
-    passbookLabel.textContent = zh;
+  /* 未选态：折页在位、写着缺省值（与价签的缺省选中态一致），但不盖章 ——
+     没选择就没有确认。判据用 state.budgetPicked 而不是"值是否等于 any"：
+     用户点了「不限 / 还不知道」时值是 any，但那是**选过**的，要盖章。 */
+  if (!state.budgetPicked) {
+    passbook.classList.add('is-unset');
+  }
+  let stampSeq = 0;
+  const replayPassbook = (opt) => {
+    stampSeq += 1;
+    const seq = String(stampSeq);
+    passbookLabel.textContent = opt.zh;
+    stampText.textContent = stampWordOf(opt);
+    stamp.setAttribute('data-stamp-value', opt.zh);
+    passbook.setAttribute('data-stamp-seq', seq);
+    passbook.classList.remove('is-unset');
     if (reduceMotion.matches) {
-      passbook.classList.remove('is-playing');
+      /* 减弱动态：终态直接成立。不滑、不缩放、也不延时后才可见 ——
+         值已经写进去了，章就在那儿。 */
+      passbook.classList.remove('is-playing', 'is-stamping');
       return;
     }
-    passbook.classList.remove('is-playing');
+    passbook.classList.remove('is-playing', 'is-stamping');
     void passbook.offsetWidth;
-    passbook.classList.add('is-playing');
+    passbook.classList.add('is-playing', 'is-stamping');
+    passbook.addEventListener('animationend', function done(ev) {
+      if (ev.animationName !== 'budgetPassbookSlide') return;
+      passbook.removeEventListener('animationend', done);
+      /* 只有序号仍是最新时才摘类：旧动画的 animationend 迟到时
+         不许把新动画的类摘掉（否则新章会停在半空）。 */
+      if (passbook.getAttribute('data-stamp-seq') !== seq) return;
+      passbook.classList.remove('is-playing');
+    });
   };
 
   const row = el('div', { class: 'price-row', role: 'radiogroup', 'aria-label': '价位区间' });
@@ -2996,7 +3106,8 @@ function renderBudget() {
       'data-budget': o.id,
       onclick: () => {
         state.answers.budget = o.id;
-        replayPassbook(o.zh);
+        state.budgetPicked = true;
+        replayPassbook(o);
         [...row.children].forEach((c) => {
           const mine = c.getAttribute('data-budget') === o.id;
           c.classList.toggle('is-on', mine);
@@ -4467,6 +4578,10 @@ function restart() {
   /* 避雷屏的方向键也要清：不清的话新一局第一次 pruneAvoid 会误以为
      方向没变，带着上一局的 unwanted 键往下走。 */
   state.avoidKey = null;
+  /* 预算屏的"用户自己选过"标记也要清（Batch 5 腿 B5-3）：
+     不清的话新一局第一次进预算屏就会给一个没选过的人盖上一枚章 ——
+     而那枚章的含义是"这是你选的"。 */
+  state.budgetPicked = false;
   render();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -4537,7 +4652,20 @@ function renderSpecimenBar() {
     }, el('span', { class: 'specimen-glyph', 'aria-hidden': 'true' }, m.glyph),
        el('span', { class: 'specimen-name' }, m.label));
     if (state.step >= list.length && reasons.length) {
-      btn.setAttribute('data-reason', reasons[idx % reasons.length] || '');
+      const reason = reasons[idx % reasons.length] || '';
+      btn.setAttribute('data-reason', reason);
+      /* ==== 结果页的印记：理由要能被完整读到（Batch 5 腿 B5-4）====
+         屏上那截理由是 CSS 伪元素（96-leg8.css 的 ::after + attr(data-reason)），
+         它在这条 34px 高的横条里必然被省略号截断 —— 截断本身是接受的
+         （条带只放得下一行），但被截掉的那部分不能就此消失：
+           · aria-label 给出「印记名 + 完整理由 + 去处」，读屏拿到的是全句；
+           · title 改成「完整理由」（原来只有「回到 X 修改」—— 那句在
+             aria-label 里已经有了，标题重复一遍反而挤掉了理由）。
+         于是"触屏/键盘能获得完整内容"是结构上成立的，不依赖用户去
+         长按或放大。 */
+      btn.setAttribute('aria-label',
+        `${m.label}：${reason}（点按回到「${m.label}」修改）`);
+      btn.setAttribute('title', reason);
     }
     btn.addEventListener('click', () => {
       if (idx >= 0) { state.step = idx; render(); }
@@ -5584,15 +5712,45 @@ const PD_STAGES = [
   { key: 'is-base', label: '后调', tip: '留在皮肤上的余味' },
 ];
 
+/* 一层的香材 → 上屏用的去重列表（Batch 5 腿 B5-4）。
+   键："有译名就用中文名，否则用英文名"；同一键只出一条，但把落到这个键上的
+   **全部英文原名**都收进 ens —— 中文只写一次，英文一个不漏。
+   为什么英文不许丢：data/note-zh.json 里有 9 组多对一译名
+   （Neroli / Orange Blossom 都译「橙花」）。丢掉一个英文名，读屏与
+   「英文原名保留」这条既有验收就同时失效，而且用户会以为数据里只有一味。
+   两个来源的重复（多对一译名 / 上游同层同名重复）都在这一步收掉，
+   见 renderResult 三调渲染那段的长注释。
+
+   **三段条与三调表必须共用这个函数**：条上的段长要与表里列出的条数逐段相等，
+   而那条相等是 test-render 的既有断言（「条和表同一份数据」）。
+   两处各写一套去重逻辑，迟早会出现一条 4 味、一张表 3 味的假绿。 */
+function pdNotesOf(list) {
+  const byKey = new Map();
+  (Array.isArray(list) ? list : []).forEach((en) => {
+    const zh = NOTE_ZH[en];
+    const key = zh || String(en);
+    const hit = byKey.get(key);
+    if (hit) {
+      if (!hit.ens.includes(String(en))) hit.ens.push(String(en));
+      return;
+    }
+    byKey.set(key, { en: String(en), zh, ens: [String(en)] });
+  });
+  return [...byKey.values()];
+}
+
 /* 三段条本体。aria-hidden：真实信息在下面的 .pyramid 里，
    条只是同一份数据的一张图。让它进无障碍树等于同一个事实念两遍。
 
    段长直接由**香材数量**决定（flex-grow: var(--g)），不在 JS 里算百分比：
    百分比要减掉 gap / 最小宽度这些固定像素才准，而一改 CSS 就得同步改 JS。
    把数量交给 flex 后，"前调 3 味 / 后调 1 味"天然就是 3:1。
-   空段给 --g:0，由 CSS 的 min-width 兜住一块虚线框。 */
+   空段给 --g:0，由 CSS 的 min-width 兜住一块虚线框。
+
+   数量取 pdNotesOf 去重后的长度（与下面那张表同一个数）—— 不去重的话，
+   Calèche 的前调会画出 6 段而表里只有 5 味，「条」和「表」当场对不上。 */
 function pdTrack(p) {
-  const lists = [p.top, p.heart, p.base].map((l) => (Array.isArray(l) ? l : []));
+  const lists = [p.top, p.heart, p.base].map((l) => pdNotesOf(l));
   return el('div', { class: 'pd-track', 'aria-hidden': 'true' },
     ...PD_STAGES.map((s, i) => el('span', {
       class: 'pd-seg ' + s.key + (lists[i].length ? '' : ' is-empty'),
@@ -6224,7 +6382,7 @@ function paintHistoryPanel(panel, toggle) {
   ));
 }
 
-function renderHistoryBlock() {
+function renderHistoryBlock(opts = {}) {
   const box = el('section', { class: 'qw-history', 'aria-label': '我的香水档案' });
   const savedCount = readHistory(localStorageSafe()).length;
   const toggle = el('button', {
@@ -6258,8 +6416,15 @@ function renderHistoryBlock() {
     el('p', { class: 'qw-history-label' }, '我的香水档案'),
     toggle
   ));
-  /* Batch 4 腿 F：档案说明放在左侧入口整行下方，不再与「查看」挤在同一行。 */
-  box.appendChild(el('p', { class: 'qw-history-sub' }, '最近 5 次只存本机，不上传'));
+  /* Batch 4 腿 F：档案说明放在左侧入口整行下方，不再与「查看」挤在同一行。
+     Batch 5 腿 B5-4：结果页已把这句说明搬进 .result-entry-note（与重选那一列
+     对称），所以这里只在**非结果页**的挂载点保留它。resultsPage=true 时不渲染，
+     否则同一句话会在结果页出现两遍（一遍在入口容器里、一遍在这里）。
+     档案区块当前只从结果页挂载，保留这个开关是为了让"搬走一句说明"
+     不会在别处悄悄留下一个孤儿节点。 */
+  if (!opts.resultsPage) {
+    box.appendChild(el('p', { class: 'qw-history-sub' }, '最近 5 次只存本机，不上传'));
+  }
   /* ---- 心仪清单入口曾经挂在这里（见下方 wishEntryRow 的说明）----
      L3（2026-11-23）把它挂在档案区块内：设计稿 §7.4 要求「首页与结果页都够得着」，
      而档案区块是回访用户唯一会先看到的东西。
@@ -6267,7 +6432,7 @@ function renderHistoryBlock() {
      在首屏可达，所以它搬到结果页的吸底操作条（.result-dock）里。
      渲染逻辑一字未改，只换了挂载点 —— 见下面的 wishEntryRow()。 */
   /* 面板由结果页双入口容器单独挂载：展开时横跨整行，收起时不影响左右入口。 */
-  return { box, panel };
+  return { box, panel, toggle };
 }
 
 /**
@@ -6801,20 +6966,33 @@ function renderResult() {
   /* Batch 4 腿 F：双入口紧跟主标题，条件摘要退到入口之后。保留
      .qw-history / .qw-history-toggle 与原面板逻辑，测试锚点不变；
      档案面板作为第三项挂在双入口网格里，展开时占满整行。 */
+  /* Batch 4 腿 F 把双入口提到标题下，但只给了「档案」一侧一句说明：
+     「最近 5 次只存本机，不上传」挂在 .qw-history 里，「会清空全部答案」挂在
+     重选那一列里 —— 两列高度不齐时，两句说明落在不同基线上，
+     读者要自己判断哪句属于哪个入口（390 档实测：左侧说明 top 283、
+     右侧 top 281，看着像两行串排的注释）。
+     Batch 5 腿 B5-4 把两侧结构改成对称的「入口 + 自己的说明」两个容器：
+       .result-entry（标题 + 动作，上）
+       .result-entry-note（这一入口的说明，下）
+     两句说明各自住进自己那一列的容器里，不再共用一个网格行。
+     档案面板挂在这个容器**之外**（展开时横跨整行），它不属于任何一侧。 */
   const quickEntries = el('div', { class: 'result-quick-entries' });
-  const historyEntry = renderHistoryBlock();
-  quickEntries.append(
-    historyEntry.box,
-    el('p', { class: 'result-restart result-quick-restart' },
+  const historyEntry = renderHistoryBlock({ resultsPage: true });
+  const histCol = el('div', { class: 'result-entry', 'data-entry': 'history' },
+    el('div', { class: 'result-entry-head' },
+      el('p', { class: 'qw-history-label' }, '我的香水档案'),
+      historyEntry.toggle),
+    el('p', { class: 'result-entry-note' }, '最近 5 次只存本机，不上传'));
+  const restartCol = el('div', { class: 'result-entry', 'data-entry': 'restart' },
+    el('div', { class: 'result-entry-head' },
+      el('p', { class: 'result-entry-title' }, '重开一局'),
       el('button', {
         class: 'link-btn result-restart-btn',
         type: 'button',
         onclick: restart,
-      }, '从头重新答一遍'),
-      el('span', { class: 'result-restart-warning' }, '会清空全部答案')
-    ),
-    historyEntry.panel
-  );
+      }, '从头重新答一遍')),
+    el('p', { class: 'result-entry-note' }, '会清空全部答案'));
+  quickEntries.append(histCol, restartCol, historyEntry.panel);
   wrap.appendChild(quickEntries);
   wrap.appendChild(head);
 
@@ -7003,15 +7181,33 @@ function renderResult() {
     /* 3-7b：按香调原始英文键查中文表；中文为主、英文作 11px 灰字附注。
        缺键（含 note-zh.pending.json 里的存疑条目）就只显示英文原名，不编译名。
        分隔仍用「、」，提示仍用全角空格开头的 span —— 下游 test-render
-       靠这两个字符切段数，改标点会让「条与表同一份数据」那条断言假红。 */
+       靠这两个字符切段数，改标点会让「条与表同一份数据」那条断言假红。
+
+       ==== Batch 5 腿 B5-4：同一层里的重复香材只显示一次 ====
+       Eddie 真机看到「橙花、橙花」。追查结果（_probe/b5/dupnote.json）：
+       两种来源，都是**数据层的重复**，不是打分或模板拼接的错：
+         ① 同一层里两个不同英文名映射到同一个中文名。
+            data/note-zh.json 里有 9 组这样的多对一（Neroli / Orange Blossom
+            都译「橙花」，Citrus / Mandarin 都译「柑橘」，Oud / Ebony Wood
+            都译「乌木」…）。两个都出中文，读起来就是「橙花、橙花」。
+         ② 同一层里同一个英文名出现两次（全库 60 瓶/层）。
+            上游数据集本身重复，如 ["Rose","Rose"]、["Musk","Musk"]。
+       处理放在**展示层**，打分一行未改：键取「有译名就用中文名，否则用英文名」，
+       同一键只写一次中文，但把落到这个键上的英文原名全部并列在附注里
+       （「橙花Neroli / Orange Blossom」）。这样中文不再重复，英文一个不漏 ——
+       既有验收「有译名显示中文、缺译名回退英文、英文原名保留」照旧成立。
+       见 pdNotesOf()。三段条也用同一个函数，所以"条与表同一份数据"
+       这条既有断言不需要改一个字 —— 两边同时收窄，仍然逐段相等。 */
     rows.forEach(([label, notes, tip]) => {
-      const list = Array.isArray(notes) ? notes : [];
+      const uniq = pdNotesOf(notes);
       const bits = [];
-      list.forEach((en, i) => {
-        const zh = NOTE_ZH[en];
-        if (zh) bits.push(zh);
-        bits.push(el('small', { class: 'note-en' }, en));
-        if (i < list.length - 1) bits.push('、');
+      uniq.forEach((u, i) => {
+        if (u.zh) bits.push(u.zh);
+        /* 同一中文键下的多个英文原名并列在**同一个** small 里，
+           用「 / 」分隔（不是「、」）—— 「、」是香材之间的分隔符，
+           拿它分同义词会让下游按「、」切段的断言把一味读成两味。 */
+        bits.push(el('small', { class: 'note-en' }, u.ens.join(' / ')));
+        if (i < uniq.length - 1) bits.push('、');
       });
       dl.append(
         el('dt', {}, label),
