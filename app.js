@@ -918,26 +918,65 @@ const WHEEL = {
   hubPct: 30.6,
 };
 
-/* ---------- 盘心 24 小类标本网格（批 3-2b）----------
-   中圈选定小类后，六族 24 格同时出现；选择只由中圈点击决定，
-   网格本身是状态展示，不新增一条作答入口。每格复用 ART_FILE 的
-   按需 SVG 通路，首次选定时并行取齐，之后换族不再重复请求。 */
-function hubSpecimenGrid(families) {
+/* ---------- 盘心 24 小类标本网格（批 3-2b；Batch 5 B2 门控）----------
+   只有当前大类下已提交的有效小类才挂载六族 24 格。网格与中圈共用 chooseSub，
+   是同一步的快捷入口，不新增问卷步骤；每格复用 ART_FILE 的按需 SVG 通路。 */
+function hubSpecimenGrid(families, selectedSubId, onSelect) {
   const grid = el('div', {
     class: 'hub-specimen-grid',
+    id: 'wheel-specimen-grid',
     role: 'list',
-    'aria-label': '24 个小类标本',
+    tabindex: '0',
+    'aria-label': '24 个小类标本，当前选择：' + subFullName(
+      families.flatMap((fam) => fam.subfamilies || []).find((sub) => sub.id === selectedSubId) || {}
+    ) + '。方向键移动，Enter 选择',
+  });
+  const items = [];
+  const setActive = (id) => {
+    if (!id) return;
+    grid.setAttribute('aria-activedescendant', id);
+    items.forEach((item) => item.classList.toggle('is-keyboard-active', item.id === id));
+  };
+  grid.addEventListener('focus', () => {
+    setActive(grid.getAttribute('aria-activedescendant') || selectedSubId || items[0]?.id);
+  });
+  grid.addEventListener('blur', () => {
+    items.forEach((item) => item.classList.remove('is-keyboard-active'));
+  });
+  grid.addEventListener('keydown', (ev) => {
+    const keys = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'Home', 'End', 'Enter', ' '];
+    if (!keys.includes(ev.key)) return;
+    ev.preventDefault();
+    const current = Math.max(0, items.findIndex((item) => item.id === grid.getAttribute('aria-activedescendant')));
+    let next = current;
+    if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') next = (current + 1) % items.length;
+    else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') next = (current - 1 + items.length) % items.length;
+    else if (ev.key === 'Home') next = 0;
+    else if (ev.key === 'End') next = items.length - 1;
+    setActive(items[next]?.id);
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const item = items[next];
+    const fam = families.find((entry) => entry.id === item?.getAttribute('data-fam'));
+    const sub = fam?.subfamilies?.find((entry) => entry.id === item?.getAttribute('data-sub'));
+    if (fam && sub) onSelect(fam, sub, ev);
   });
   families.forEach((fam) => {
     (fam.subfamilies || []).forEach((sub) => {
       const item = el('div', {
         class: 'hub-specimen-item',
+        id: 'hub-specimen-' + sub.id,
         role: 'listitem',
         'data-sub': sub.id,
         'data-fam': fam.id,
         'aria-label': subFullName(sub),
-        'aria-current': 'false',
-        title: subFullName(sub),
+        'aria-current': String(sub.id === selectedSubId),
+        title: '选择' + subFullName(sub),
+      });
+      /* 24 格与中圈共用 chooseSub：它们是同一步的快捷入口，不新增问卷步骤，
+         也不直接写 state 或打分。隐藏态整棵网格不挂载，因此没有透明点击区。 */
+      item.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        onSelect(fam, sub, ev);
       });
       const box = svgEl('svg', {
         class: 'specimen-svg is-art',
@@ -953,8 +992,10 @@ function hubSpecimenGrid(families) {
       });
       item.appendChild(box);
       grid.appendChild(item);
+      items.push(item);
     });
   });
+  setActive(selectedSubId || items[0]?.id);
   return grid;
 }
 
@@ -1066,8 +1107,12 @@ function buildWheel(cfg) {
      （那枚胶囊压住了 −120° 的中圈标签），由调用方给一个页顶流的容器把它接走。
      不给时退回老位置（root），只为兼容/自检脚本单点调用时不会抛。 */
   const { families, onChange, backHost } = cfg;
-  let selFamily = cfg.selFamily || null;
-  let selSub = cfg.selSub || null;
+  const initialFamily = cfg.selFamily ? families.find((fam) => fam.id === cfg.selFamily) || null : null;
+  let selFamily = initialFamily ? initialFamily.id : null;
+  /* 恢复态也服从同一门控：旧存档里跨大类的 subfamily 是无效值，不能拿来锁住
+     中圈或显示 24 格。这里只纠正轮盘的恢复输入，不清空任何有效答案。 */
+  let selSub = initialFamily && (initialFamily.subfamilies || []).some((sub) => sub.id === cfg.selSub)
+    ? cfg.selSub : null;
   let hoverFam = null;      // 指针停在外圈哪个家族（只改盘心预览，不改变层数）
   let hoverSub = null;
 
@@ -1486,26 +1531,32 @@ function buildWheel(cfg) {
     const familyMid = midFamilyDeg(famStart, famStep, i);
     const familyMidNormalized = ((familyMid + 180) % 360 + 360) % 360 - 180;
     const isSideFamily = Math.abs(familyMidNormalized) < 75 || Math.abs(familyMidNormalized) > 105;
+    const arcSide = Math.cos(familyMid * Math.PI / 180) >= 0 ? 1 : -1;
     const labelText = svgEl('text', { class: 'fam-arc-text' + (isSideFamily ? ' is-side' : ''), 'text-anchor': 'middle' });
     const tp = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%' });
     tp.textContent = f.zh;
     labelText.appendChild(tp);
     g.appendChild(labelText);
-    /* 四个侧边大类保持正字竖读；三字沿浅弧微弯，单字切线旋转不超过 8°。
-       顶/底仍使用原有 textPath 横排，文字节点与测试锚点均保留。 */
-    if (isSideFamily && [...f.zh].length === 3) {
+    /* 四个侧边大类继续逐字 SVG，但字心必须真的落在弧上。
+       读取顺序固定为上→下：右侧角坐标随 t 增大，左侧相反；每字自身不倒转。
+       字心半径 193、角间距 7.2°（弧距约 24.2 单位），旋转 ±15° 只作辅助。
+       13px 字面的内沿离盘心半径 144 约 42.5 单位、外沿离盘沿 228 约 28.5 单位；
+       390px 盘径下分别约 30px / 20px。相邻字心净距约 11.2 单位（约 8px）。
+       未来标签变长时先缩总角跨（不缩字号、不压圈、不裁切），顶/底 textPath 不动。 */
+    if (isSideFamily && [...f.zh].length > 1) {
       const uprightGroup = svgEl('g', { class: 'fam-arc-upright', 'aria-hidden': 'true' });
-      const [centerX, centerY] = polar(rText, familyMid);
-      const side = Math.sign(familyMidNormalized);
-      [...f.zh].forEach((char, charIndex) => {
-        const t = charIndex - 1;
-        const x = centerX - side * 1.2 * (1 - t * t);
-        const y = centerY + t * 19;
+      const chars = [...f.zh];
+      const gapDeg = Math.min(7.2, 14.4 / (chars.length - 1));
+      chars.forEach((char, charIndex) => {
+        const t = charIndex - (chars.length - 1) / 2;
+        const angle = familyMid + arcSide * t * gapDeg;
+        const [x, y] = polar(rText, angle);
+        const rotation = arcSide * t * 15;
         const charText = svgEl('text', {
           class: 'fam-arc-upright-char',
           x: x.toFixed(2), y: y.toFixed(2),
           'text-anchor': 'middle',
-          transform: 'rotate(' + (side * t * 7.5).toFixed(2) + ' ' + x.toFixed(2) + ' ' + y.toFixed(2) + ')',
+          transform: 'rotate(' + rotation.toFixed(2) + ' ' + x.toFixed(2) + ' ' + y.toFixed(2) + ')',
         });
         charText.textContent = char;
         uprightGroup.appendChild(charText);
@@ -2088,16 +2139,20 @@ function buildWheel(cfg) {
     if (glyphKey !== builtGlyphKey) {
       builtGlyphKey = glyphKey;
       hubGlyph.innerHTML = '';
-      if (focusSub) hubGlyph.appendChild(hubSpecimenGrid(families));
+      if (focusSub) hubGlyph.appendChild(hubSpecimenGrid(families, focusSub.id, (fam, sub, ev) => {
+        splash(ev);
+        chooseSub(fam, sub);
+      }));
     }
     if (focusSub) {
       const grid = hubGlyph.querySelector('.hub-specimen-grid');
       const selectedName = subFullName(focusSub);
-      grid.setAttribute('aria-label', '24 个小类标本，当前选择：' + selectedName);
+      grid.setAttribute('aria-label', '24 个小类标本，当前选择：' + selectedName + '。方向键移动，Enter 选择');
       grid.querySelectorAll('.hub-specimen-item').forEach((item) => {
         const on = item.getAttribute('data-sub') === focusSub.id;
         item.classList.toggle('is-selected', on);
         item.setAttribute('aria-current', String(on));
+        if (on) grid.setAttribute('aria-activedescendant', item.id);
       });
     }
     hub.classList.toggle('has-glyph', glyphKey !== 'none');
@@ -2385,6 +2440,15 @@ function renderFamily() {
     el('h2', { class: 'q-title' }, stepHead('family').title),
     el('p', { class: 'q-help' }, stepHead('family').help)
   ));
+
+  /* 恢复旧会话时，跨大类的 subfamily 是无效状态。先纠正这一旧值，再交给
+     buildWheel 的同一门控；不改变正常恢复、问卷顺序或打分输入。 */
+  const restoredFamily = state.answers.family
+    ? Object.values(TAX.families).find((fam) => fam.id === state.answers.family) || null : null;
+  if (state.answers.subfamily && (!restoredFamily
+    || !(restoredFamily.subfamilies || []).some((sub) => sub.id === state.answers.subfamily))) {
+    state.answers.subfamily = null;
+  }
 
   wrap.appendChild(buildWheel({
     families: Object.values(TAX.families),

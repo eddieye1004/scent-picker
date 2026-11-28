@@ -14,11 +14,42 @@
   transition: opacity 160ms var(--ease-out);
 }
 .wheel .fam-arc-upright-char {
-  writing-mode: vertical-rl;
-  text-orientation: upright;
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
   dominant-baseline: central;
 }
 .wheel.is-open .fam-arc-upright { opacity: 0; }
+
+/* 24 格只在有效小类态挂载；与中圈共用 chooseSub，不新增问卷步骤。
+   网格本身是一个键盘焦点，方向键移动 activedescendant，Enter/空格确认。 */
+#app[data-step="family"] .wheel .hub-specimen-grid {
+  pointer-events: auto;
+  outline: none;
+}
+#app[data-step="family"] .wheel .hub-specimen-grid:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+#app[data-step="family"] .wheel .hub-specimen-item {
+  cursor: pointer;
+  pointer-events: auto;
+}
+#app[data-step="family"] .wheel .hub-specimen-item:hover,
+#app[data-step="family"] .wheel .hub-specimen-item.is-keyboard-active {
+  background: color-mix(in srgb, var(--wheel-fam) 24%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wheel-fam) 70%, var(--ink));
+}
+#app[data-step="family"] .wheel .hub-specimen-item.is-selected {
+  background: color-mix(in srgb, var(--wheel-fam) 18%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--wheel-fam) 80%, var(--ink));
+}
+@media (prefers-reduced-motion: reduce) {
+  #app[data-step="family"] .wheel .hub-specimen-grid,
+  #app[data-step="family"] .wheel .hub-specimen-grid * {
+    transition: none !important;
+  }
+}
 
 /* 指定四粒胶囊：字本身正着，上下竖排；其余胶囊保持原切向排布。 */
 #app[data-step="family"] .wheel .disc-sector.lvl2.sub-arc-btn.is-upright .zh {
