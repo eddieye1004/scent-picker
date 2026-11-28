@@ -2229,6 +2229,69 @@ function isEmotionScreen() {
 }
 
 /* 原圆盘底部的六情绪选项搬到这里；选项、写入键与互斥规则不变。 */
+/* ---------- 感觉页标本卡（Batch 4 腿 A）----------
+   六种感觉各配一枚 24px 细线标本图样，只走 currentColor；
+   选中描边/浅蓝底/六种动效由 .selection-fx + data-feeling 在 CSS 侧负责。 */
+const FEELING_MARKS = {
+  cold: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M4 7.5l16 9M4 16.5l16-9M9 5.5l3 2 3-2M9 18.5l3-2 3 2"/></svg>',
+  warm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M5 5l1.8 1.8M17.2 17.2 19 19M19 5l-1.8 1.8M6.8 17.2 5 19"/></svg>',
+  clean: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h7l4-3h7M3 12h7l4 3h7M3 17h7l4-3h7"/></svg>',
+  mysterious: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M19 15.5A8 8 0 0 1 8.5 5 7.5 7.5 0 1 0 19 15.5Z"/><circle cx="17.5" cy="5.5" r=".9"/></svg>',
+  bright: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="12" cy="12" r="2.5"/><path d="M12 3v5M12 16v5M3 12h5M16 12h5M5.6 5.6l3.5 3.5M14.9 14.9l3.5 3.5M18.4 5.6l-3.5 3.5M9.1 14.9l-3.5 3.5"/></svg>',
+  lazy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 15c4-6 10-8 18-6M3 19c5-5 11-6 18-4M6 9c3-3 6-4 9-3"/></svg>',
+};
+
+/* 两列三行标本卡。保留 .seg / .seg-item 锚点（既有测试与样式都认它），
+   只把一行等宽分段换成 2×3 网格。选中不整屏重绘：进场只播一次；
+   点选的 160ms 缩放由本地 is-tapped 触发，不会被 render() 抹掉。 */
+function feelingCards(opts, current, onPick, slot) {
+  const box = el('div', { class: 'seg feeling-cards', role: 'radiogroup', 'aria-label': '按感觉选' });
+  const btns = [];
+  const paint = (id) => {
+    btns.forEach((b) => {
+      const mine = String(b.getAttribute('data-id')) === String(id);
+      b.classList.toggle('is-on', mine);
+      b.setAttribute('aria-checked', String(mine));
+      b.setAttribute('tabindex', mine ? '0' : '-1');
+    });
+    updateSegHint(slot, opts, id);
+  };
+  opts.forEach((o, i) => {
+    const on = current != null && String(current) === String(o.id);
+    const b = el('button', {
+      class: 'seg-item feeling-card' + (on ? ' is-on' : ''),
+      type: 'button', role: 'radio', 'aria-checked': String(on),
+      'data-id': o.id, 'data-feeling': o.id,
+      tabindex: on || (current == null && i === 0) ? '0' : '-1',
+      onclick: () => {
+        onPick(o.id);
+        paint(o.id);
+        b.classList.remove('is-tapped');
+        void b.offsetWidth;
+        b.classList.add('is-tapped');
+      },
+      onkeydown: (ev) => {
+        let d = 0;
+        if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') d = 1;
+        else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') d = -1;
+        else return;
+        ev.preventDefault();
+        const to = (i + d + opts.length) % opts.length;
+        onPick(opts[to].id);
+        paint(opts[to].id);
+        btns[to].focus();
+      },
+    },
+      el('span', { class: 'feeling-mark', 'aria-hidden': 'true', html: FEELING_MARKS[o.id] || '' }),
+      el('span', { class: 'feeling-label' }, o.zh),
+      el('span', { class: 'selection-fx', 'aria-hidden': 'true' })
+    );
+    btns.push(b);
+    box.appendChild(b);
+  });
+  return box;
+}
+
 function renderEmotion() {
   const wrap = el('div', { class: 'emotion-screen' },
     el('div', { class: 'stage-lead' },
@@ -2237,20 +2300,19 @@ function renderEmotion() {
       el('p', { class: 'q-help' }, '不用想香调，选最接近的感受'))
   );
   const opts = (TAX.emotionMap || []).map((e) => ({ id: e.id, zh: e.zh, desc: e.desc }));
-  wrap.appendChild(segControl(
-    opts,
-    state.answers.emotion,
-    (id) => {
-      state.answers.emotion = id;
-      state.answers.family = null;
-      state.answers.subfamily = null;
-      state.answers.direction = null;
-      ensurePerfumes().catch(() => {});
-      render();
-    },
-    '按感觉选'
-  ));
-  wrap.appendChild(segHint(opts, state.answers.emotion));
+  /* #1 气味描述槽与 #2-感觉试香标签是同一个节点：只建一次，点击同步换文。 */
+  const slot = el('p', { class: 'seg-hint feeling-label-slot' });
+  wrap.appendChild(feelingCards(opts, state.answers.emotion, (id) => {
+    state.answers.emotion = id;
+    state.answers.family = null;
+    state.answers.subfamily = null;
+    state.answers.direction = null;
+    ensurePerfumes().catch(() => {});
+    applyAmbient();
+    refreshNav('emotion');
+  }, slot));
+  wrap.appendChild(slot);
+  updateSegHint(slot, opts, state.answers.emotion);
   wrap.appendChild(navBar('emotion'));
   return wrap;
 }
@@ -3478,6 +3540,53 @@ function renderSeason() {
     autumn: '干、凉、空气薄 —— 木质和微甜都能上场',
     winter: '冷，要压得住风 —— 需要厚度，不然出门就散',
   };
+  /* ---- #5 物候注记：左 40px 纵排四季小刻度（复用季节图标），右正文随季变 ----
+     候选数一律取自运行时香水库；库未到时先给体感文案，到了再补实数，不编数字。 */
+  const note = el('div', { class: 'phenology-note' });
+  const ticks = el('div', { class: 'phenology-scale', role: 'group', 'aria-label': '四季物候刻度' });
+  const noteBody = el('p', { class: 'phenology-body' });
+  const tickNodes = SEASONS.map((season) => {
+    const tick = el('button', {
+      class: 'phenology-tick', type: 'button',
+      'data-season': season.id, 'aria-label': season.zh + '季物候',
+      onclick: () => choose(season.id),
+    }, el('span', { class: 'phenology-icon', 'aria-hidden': 'true', html: season.icon }));
+    ticks.appendChild(tick);
+    return tick;
+  });
+  note.appendChild(ticks);
+  note.appendChild(noteBody);
+
+  const seasonCountOf = (id) => {
+    if (!DATA || !Array.isArray(DATA.perfumes)) return null;
+    return DATA.perfumes.reduce((n, p) => n + ((p.seasons || []).indexOf(id) >= 0 ? 1 : 0), 0);
+  };
+  const NOTE_ZH = { spring: '春季候选', summer: '夏季候选', autumn: '秋季候选', winter: '冬季候选' };
+  const paintPhenology = (cur) => {
+    const allOn = isNeutralId(cur);
+    tickNodes.forEach((tick, i) => {
+      const on = allOn || SEASONS[i].id === cur;
+      tick.classList.toggle('is-on', on);
+      tick.setAttribute('aria-pressed', String(on));
+    });
+    note.classList.toggle('is-all', allOn);
+    note.dataset.season = allOn ? 'all' : String(cur || '');
+    const it = SEASONS.find((s) => s.id === cur) || null;
+    if (allOn) {
+      const total = DATA && Array.isArray(DATA.perfumes) ? DATA.perfumes.length : null;
+      noteBody.textContent = total == null
+        ? '不限定季节，保留所有适合的香水'
+        : '不限定季节，全部 ' + total + ' 瓶都在候选里';
+    } else if (it) {
+      const n = seasonCountOf(it.id);
+      noteBody.textContent = n == null ? it.desc : NOTE_ZH[it.id] + ' ' + n + ' 瓶 · ' + it.desc;
+    } else {
+      noteBody.textContent = '';
+    }
+  };
+  /* 香水库按需加载：到库后把真实候选数补回注记，不改答案也不改打分。 */
+  ensurePerfumes().then(() => paintPhenology(state.answers.season)).catch(() => {});
+
   const paintSelection = (cur) => {
     const it = SEASONS.find((season) => season.id === cur) || null;
     const allOn = isNeutralId(cur);
@@ -3496,6 +3605,7 @@ function renderSeason() {
     const line = it ? (seasonScene(state.answers.family, it.id) || it.desc) : '';
     scene.hidden = !line;
     scene.textContent = line;
+    paintPhenology(cur);
   };
   const choose = (id) => {
     state.answers.season = id === ALL_SEASON ? null : id;
@@ -3708,10 +3818,7 @@ function renderSeason() {
 
   /* 文案二轮裁决全局问题 4 / 第 45 条：统计数字不指导操作，且会随数据更新过期；
      删掉具体瓶数，只保留不带数字的分布判断。 */
-  wrap.appendChild(el('div', { class: 'term-note' },
-    el('strong', {}, '关于候选多少：'),
-    ' 冬天能选的最少，这是数据分布，不是推荐变差了。'
-  ));
+  wrap.appendChild(note);
 
   wrap.appendChild(navBar('season'));
 

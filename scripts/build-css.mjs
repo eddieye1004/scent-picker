@@ -100,6 +100,8 @@ const PARTS = [
   /* 3-8 全站小提示纸条化：放最后，覆盖前面各层 plain 小字。
      选择器都是既有小提示类 + 结果页三行，不改 DOM/文案/位置。 */
   '103-micro-hints.css',
+  /* Batch 4 腿 A/C：感觉标本卡与季节物候注记。 */
+  '104-batch4-a-c.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');
