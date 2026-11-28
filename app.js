@@ -1483,14 +1483,42 @@ function buildWheel(cfg) {
         + ' ' + tx1.toFixed(2) + ' ' + ty1.toFixed(2),
       fill: 'none', stroke: 'none',
     }));
-    const labelText = svgEl('text', { class: 'fam-arc-text', 'text-anchor': 'middle' });
+    const familyMid = midFamilyDeg(famStart, famStep, i);
+    const familyMidNormalized = ((familyMid + 180) % 360 + 360) % 360 - 180;
+    const isSideFamily = Math.abs(familyMidNormalized) < 75 || Math.abs(familyMidNormalized) > 105;
+    const labelText = svgEl('text', { class: 'fam-arc-text' + (isSideFamily ? ' is-side' : ''), 'text-anchor': 'middle' });
     const tp = svgEl('textPath', { href: '#' + arcTextId, startOffset: '50%' });
     tp.textContent = f.zh;
     labelText.appendChild(tp);
     g.appendChild(labelText);
+    /* 四个侧边大类保持正字竖读；三字沿浅弧微弯，单字切线旋转不超过 8°。
+       顶/底仍使用原有 textPath 横排，文字节点与测试锚点均保留。 */
+    if (isSideFamily && [...f.zh].length === 3) {
+      const uprightGroup = svgEl('g', { class: 'fam-arc-upright', 'aria-hidden': 'true' });
+      const [centerX, centerY] = polar(rText, familyMid);
+      const side = Math.sign(familyMidNormalized);
+      [...f.zh].forEach((char, charIndex) => {
+        const t = charIndex - 1;
+        const x = centerX - side * 1.2 * (1 - t * t);
+        const y = centerY + t * 19;
+        const charText = svgEl('text', {
+          class: 'fam-arc-upright-char',
+          x: x.toFixed(2), y: y.toFixed(2),
+          'text-anchor': 'middle',
+          transform: 'rotate(' + (side * t * 7.5).toFixed(2) + ' ' + x.toFixed(2) + ' ' + y.toFixed(2) + ')',
+        });
+        charText.textContent = char;
+        uprightGroup.appendChild(charText);
+      });
+      g.appendChild(uprightGroup);
+    }
     svg.appendChild(g);
     outerG.push(g);
   });
+
+  function midFamilyDeg(start, step, index) {
+    return start + (index + .5) * step;
+  }
 
   /* 盘口：一圈发丝线 + 六枚定位点（v7 第 1.5 步替换掉 36 道分度刻线）。
      ------------------------------------------------------------
@@ -1782,12 +1810,14 @@ function buildWheel(cfg) {
       const labelR = (SUB_R2I + SUB_R2O) / 2;
       const px = polar(labelR, mid);
       const arcUnits = SUB_R2O * (spanDeg * Math.PI / 180);
-      /* 胶囊长轴沿弧带切线；角度归一化到 [-90°, 90°]，避免下半盘倒字。 */
-      const pillRot = ((mid + 180) % 180) - 90;
+      /* 胶囊长轴沿弧带切线；角度归一化到 [-90°, 90°]，避免下半盘倒字。
+         批 4 指定的四枚侧边胶囊改为正字竖排，不再随切线转 90°。 */
+      const isUprightPill = ['fruity-gourmand', 'vanilla-gourmand', 'green-floral', 'white-floral'].includes(item.id);
+      const pillRot = isUprightPill ? 0 : ((mid + 180) % 180) - 90;
       const fullName = subFullName(item);
       const visibleName = subShortLabel(item);
       const btn = el('button', {
-        class: 'disc-sector lvl2 sub-arc-btn' + (visibleName.length > 2 ? ' is-long' : ''),
+        class: 'disc-sector lvl2 sub-arc-btn' + (visibleName.length > 2 ? ' is-long' : '') + (isUprightPill ? ' is-upright' : ''),
         type: 'button',
         role: 'radio',
         'aria-checked': 'false',
@@ -3794,13 +3824,23 @@ function renderConcentration() {
     particleField.appendChild(particle);
     return particle;
   });
-  /* 人形剪影：头 + 肩的整块形，颜色跟 token（深色档自动翻）。 */
+  /* 人形剪影：头 + 颈 + 肩的整块形，颜色跟 token（深色档自动翻）。
+     颈宽 5、从圆点底部延伸到圆顶顶部，消除头身之间的空段；原有头/肩
+     几何保持不变，圆环仍以同一舞台中轴为圆心。 */
   const figure = el('div', { class: 'conc-figure', html:
     '<svg viewBox="0 0 56 84" focusable="false">'
     + '<circle cx="28" cy="11" r="8.5"/>'
+    + '<rect x="25.5" y="18" width="5" height="26"/>'
     + '<path d="M13 84 L13 68 C13 55 19.5 43 28 43 C36.5 43 43 55 43 68 L43 84 Z"/>'
     + '</svg>' });
-  scene.append(glow, rippleIn, rippleMid, rippleOut, pulse, particleField, figure);
+  /* 偏心蓝雾是独立表现层：画布 116×80，锚点在锁骨中点上方 6px。
+     五档只切换 CSS 变量，拖动与提交都仅动画 transform / opacity。 */
+  const mist = el('div', { class: 'conc-mist', html:
+    '<div class="conc-mist-outer"></div>'
+    + '<div class="conc-mist-inner"></div>'
+    + '<div class="conc-mist-arc conc-mist-arc-a"></div>'
+    + '<div class="conc-mist-arc conc-mist-arc-b"></div>' });
+  scene.append(glow, rippleIn, rippleMid, rippleOut, pulse, particleField, figure, mist);
 
   /* 波纹直径 = 滑块档位 × 类型系数。16%（贴肤）→ 128%（铺过舞台），
      拖动时收连续值（1.00–5.00 都有），不按档跳；松手后再缓动吸附到整数档。
@@ -3809,6 +3849,7 @@ function renderConcentration() {
     const t = Math.min(1, Math.max(0, (Number(v) - 1) / 4));
     const fx = CONCENTRATION_FX[state.answers.concentration];
     const d = Number(((16 + t * (128 - 16)) * (fx ? fx.factor : 1)).toFixed(3));
+    scene.dataset.intensity = String(Math.min(5, Math.max(1, Math.round(Number(v)))));
     glow.style.width = (d * 0.5) + '%';
     rippleIn.style.width = (d * 0.42) + '%';
     rippleMid.style.width = (d * 0.72) + '%';
@@ -3876,12 +3917,14 @@ function renderConcentration() {
     paintTicks();
   };
 
-  /* 松手吸附时的一次轻微波纹扩散：摘掉 is-live 强制重排再挂回去，
-     动画才能重播（0.6s 一次，减少动态偏好下全局规则会把它压到 1ms）。 */
+  /* 松手吸附时的一次轻微波纹与蓝雾扩散：摘掉 is-live 强制重排再挂回去，
+     动画才能重播（0.6s / 0.56s 各一次，减少动态偏好下直接呈现静态雾晕）。 */
   const firePulse = () => {
     pulse.classList.remove('is-live');
+    mist.classList.remove('is-committing');
     void pulse.offsetWidth;
     pulse.classList.add('is-live');
+    mist.classList.add('is-committing');
   };
 
   let dragging = false;

@@ -100,6 +100,9 @@ const PARTS = [
   /* 3-8 全站小提示纸条化：放最后，覆盖前面各层 plain 小字。
      选择器都是既有小提示类 + 结果页三行，不改 DOM/文案/位置。 */
   '103-micro-hints.css',
+  /* Batch 4 腿 B/D：圆盘四侧竖排正字与四粒竖排胶囊；浓度页偏心蓝雾。
+     最后加载，选择器只命中本轮两腿，不触碰问卷逻辑与测试锚点。 */
+  '104-batch4-wheel-concentration.css',
 ];
 
 const read = (p) => fs.readFileSync(p, 'utf8');
