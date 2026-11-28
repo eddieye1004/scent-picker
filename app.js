@@ -4603,7 +4603,20 @@ function renderSpecimenBar() {
     }, el('span', { class: 'specimen-glyph', 'aria-hidden': 'true' }, m.glyph),
        el('span', { class: 'specimen-name' }, m.label));
     if (state.step >= list.length && reasons.length) {
-      btn.setAttribute('data-reason', reasons[idx % reasons.length] || '');
+      const reason = reasons[idx % reasons.length] || '';
+      btn.setAttribute('data-reason', reason);
+      /* ==== 结果页的印记：理由要能被完整读到（Batch 5 腿 B5-4）====
+         屏上那截理由是 CSS 伪元素（96-leg8.css 的 ::after + attr(data-reason)），
+         它在这条 34px 高的横条里必然被省略号截断 —— 截断本身是接受的
+         （条带只放得下一行），但被截掉的那部分不能就此消失：
+           · aria-label 给出「印记名 + 完整理由 + 去处」，读屏拿到的是全句；
+           · title 改成「完整理由」（原来只有「回到 X 修改」—— 那句在
+             aria-label 里已经有了，标题重复一遍反而挤掉了理由）。
+         于是"触屏/键盘能获得完整内容"是结构上成立的，不依赖用户去
+         长按或放大。 */
+      btn.setAttribute('aria-label',
+        `${m.label}：${reason}（点按回到「${m.label}」修改）`);
+      btn.setAttribute('title', reason);
     }
     btn.addEventListener('click', () => {
       if (idx >= 0) { state.step = idx; render(); }
@@ -5650,15 +5663,45 @@ const PD_STAGES = [
   { key: 'is-base', label: '后调', tip: '留在皮肤上的余味' },
 ];
 
+/* 一层的香材 → 上屏用的去重列表（Batch 5 腿 B5-4）。
+   键："有译名就用中文名，否则用英文名"；同一键只出一条，但把落到这个键上的
+   **全部英文原名**都收进 ens —— 中文只写一次，英文一个不漏。
+   为什么英文不许丢：data/note-zh.json 里有 9 组多对一译名
+   （Neroli / Orange Blossom 都译「橙花」）。丢掉一个英文名，读屏与
+   「英文原名保留」这条既有验收就同时失效，而且用户会以为数据里只有一味。
+   两个来源的重复（多对一译名 / 上游同层同名重复）都在这一步收掉，
+   见 renderResult 三调渲染那段的长注释。
+
+   **三段条与三调表必须共用这个函数**：条上的段长要与表里列出的条数逐段相等，
+   而那条相等是 test-render 的既有断言（「条和表同一份数据」）。
+   两处各写一套去重逻辑，迟早会出现一条 4 味、一张表 3 味的假绿。 */
+function pdNotesOf(list) {
+  const byKey = new Map();
+  (Array.isArray(list) ? list : []).forEach((en) => {
+    const zh = NOTE_ZH[en];
+    const key = zh || String(en);
+    const hit = byKey.get(key);
+    if (hit) {
+      if (!hit.ens.includes(String(en))) hit.ens.push(String(en));
+      return;
+    }
+    byKey.set(key, { en: String(en), zh, ens: [String(en)] });
+  });
+  return [...byKey.values()];
+}
+
 /* 三段条本体。aria-hidden：真实信息在下面的 .pyramid 里，
    条只是同一份数据的一张图。让它进无障碍树等于同一个事实念两遍。
 
    段长直接由**香材数量**决定（flex-grow: var(--g)），不在 JS 里算百分比：
    百分比要减掉 gap / 最小宽度这些固定像素才准，而一改 CSS 就得同步改 JS。
    把数量交给 flex 后，"前调 3 味 / 后调 1 味"天然就是 3:1。
-   空段给 --g:0，由 CSS 的 min-width 兜住一块虚线框。 */
+   空段给 --g:0，由 CSS 的 min-width 兜住一块虚线框。
+
+   数量取 pdNotesOf 去重后的长度（与下面那张表同一个数）—— 不去重的话，
+   Calèche 的前调会画出 6 段而表里只有 5 味，「条」和「表」当场对不上。 */
 function pdTrack(p) {
-  const lists = [p.top, p.heart, p.base].map((l) => (Array.isArray(l) ? l : []));
+  const lists = [p.top, p.heart, p.base].map((l) => pdNotesOf(l));
   return el('div', { class: 'pd-track', 'aria-hidden': 'true' },
     ...PD_STAGES.map((s, i) => el('span', {
       class: 'pd-seg ' + s.key + (lists[i].length ? '' : ' is-empty'),
@@ -6290,7 +6333,7 @@ function paintHistoryPanel(panel, toggle) {
   ));
 }
 
-function renderHistoryBlock() {
+function renderHistoryBlock(opts = {}) {
   const box = el('section', { class: 'qw-history', 'aria-label': '我的香水档案' });
   const savedCount = readHistory(localStorageSafe()).length;
   const toggle = el('button', {
@@ -6324,8 +6367,15 @@ function renderHistoryBlock() {
     el('p', { class: 'qw-history-label' }, '我的香水档案'),
     toggle
   ));
-  /* Batch 4 腿 F：档案说明放在左侧入口整行下方，不再与「查看」挤在同一行。 */
-  box.appendChild(el('p', { class: 'qw-history-sub' }, '最近 5 次只存本机，不上传'));
+  /* Batch 4 腿 F：档案说明放在左侧入口整行下方，不再与「查看」挤在同一行。
+     Batch 5 腿 B5-4：结果页已把这句说明搬进 .result-entry-note（与重选那一列
+     对称），所以这里只在**非结果页**的挂载点保留它。resultsPage=true 时不渲染，
+     否则同一句话会在结果页出现两遍（一遍在入口容器里、一遍在这里）。
+     档案区块当前只从结果页挂载，保留这个开关是为了让"搬走一句说明"
+     不会在别处悄悄留下一个孤儿节点。 */
+  if (!opts.resultsPage) {
+    box.appendChild(el('p', { class: 'qw-history-sub' }, '最近 5 次只存本机，不上传'));
+  }
   /* ---- 心仪清单入口曾经挂在这里（见下方 wishEntryRow 的说明）----
      L3（2026-11-23）把它挂在档案区块内：设计稿 §7.4 要求「首页与结果页都够得着」，
      而档案区块是回访用户唯一会先看到的东西。
@@ -6333,7 +6383,7 @@ function renderHistoryBlock() {
      在首屏可达，所以它搬到结果页的吸底操作条（.result-dock）里。
      渲染逻辑一字未改，只换了挂载点 —— 见下面的 wishEntryRow()。 */
   /* 面板由结果页双入口容器单独挂载：展开时横跨整行，收起时不影响左右入口。 */
-  return { box, panel };
+  return { box, panel, toggle };
 }
 
 /**
@@ -6867,20 +6917,33 @@ function renderResult() {
   /* Batch 4 腿 F：双入口紧跟主标题，条件摘要退到入口之后。保留
      .qw-history / .qw-history-toggle 与原面板逻辑，测试锚点不变；
      档案面板作为第三项挂在双入口网格里，展开时占满整行。 */
+  /* Batch 4 腿 F 把双入口提到标题下，但只给了「档案」一侧一句说明：
+     「最近 5 次只存本机，不上传」挂在 .qw-history 里，「会清空全部答案」挂在
+     重选那一列里 —— 两列高度不齐时，两句说明落在不同基线上，
+     读者要自己判断哪句属于哪个入口（390 档实测：左侧说明 top 283、
+     右侧 top 281，看着像两行串排的注释）。
+     Batch 5 腿 B5-4 把两侧结构改成对称的「入口 + 自己的说明」两个容器：
+       .result-entry（标题 + 动作，上）
+       .result-entry-note（这一入口的说明，下）
+     两句说明各自住进自己那一列的容器里，不再共用一个网格行。
+     档案面板挂在这个容器**之外**（展开时横跨整行），它不属于任何一侧。 */
   const quickEntries = el('div', { class: 'result-quick-entries' });
-  const historyEntry = renderHistoryBlock();
-  quickEntries.append(
-    historyEntry.box,
-    el('p', { class: 'result-restart result-quick-restart' },
+  const historyEntry = renderHistoryBlock({ resultsPage: true });
+  const histCol = el('div', { class: 'result-entry', 'data-entry': 'history' },
+    el('div', { class: 'result-entry-head' },
+      el('p', { class: 'qw-history-label' }, '我的香水档案'),
+      historyEntry.toggle),
+    el('p', { class: 'result-entry-note' }, '最近 5 次只存本机，不上传'));
+  const restartCol = el('div', { class: 'result-entry', 'data-entry': 'restart' },
+    el('div', { class: 'result-entry-head' },
+      el('p', { class: 'result-entry-title' }, '重开一局'),
       el('button', {
         class: 'link-btn result-restart-btn',
         type: 'button',
         onclick: restart,
-      }, '从头重新答一遍'),
-      el('span', { class: 'result-restart-warning' }, '会清空全部答案')
-    ),
-    historyEntry.panel
-  );
+      }, '从头重新答一遍')),
+    el('p', { class: 'result-entry-note' }, '会清空全部答案'));
+  quickEntries.append(histCol, restartCol, historyEntry.panel);
   wrap.appendChild(quickEntries);
   wrap.appendChild(head);
 
@@ -7069,15 +7132,33 @@ function renderResult() {
     /* 3-7b：按香调原始英文键查中文表；中文为主、英文作 11px 灰字附注。
        缺键（含 note-zh.pending.json 里的存疑条目）就只显示英文原名，不编译名。
        分隔仍用「、」，提示仍用全角空格开头的 span —— 下游 test-render
-       靠这两个字符切段数，改标点会让「条与表同一份数据」那条断言假红。 */
+       靠这两个字符切段数，改标点会让「条与表同一份数据」那条断言假红。
+
+       ==== Batch 5 腿 B5-4：同一层里的重复香材只显示一次 ====
+       Eddie 真机看到「橙花、橙花」。追查结果（_probe/b5/dupnote.json）：
+       两种来源，都是**数据层的重复**，不是打分或模板拼接的错：
+         ① 同一层里两个不同英文名映射到同一个中文名。
+            data/note-zh.json 里有 9 组这样的多对一（Neroli / Orange Blossom
+            都译「橙花」，Citrus / Mandarin 都译「柑橘」，Oud / Ebony Wood
+            都译「乌木」…）。两个都出中文，读起来就是「橙花、橙花」。
+         ② 同一层里同一个英文名出现两次（全库 60 瓶/层）。
+            上游数据集本身重复，如 ["Rose","Rose"]、["Musk","Musk"]。
+       处理放在**展示层**，打分一行未改：键取「有译名就用中文名，否则用英文名」，
+       同一键只写一次中文，但把落到这个键上的英文原名全部并列在附注里
+       （「橙花Neroli / Orange Blossom」）。这样中文不再重复，英文一个不漏 ——
+       既有验收「有译名显示中文、缺译名回退英文、英文原名保留」照旧成立。
+       见 pdNotesOf()。三段条也用同一个函数，所以"条与表同一份数据"
+       这条既有断言不需要改一个字 —— 两边同时收窄，仍然逐段相等。 */
     rows.forEach(([label, notes, tip]) => {
-      const list = Array.isArray(notes) ? notes : [];
+      const uniq = pdNotesOf(notes);
       const bits = [];
-      list.forEach((en, i) => {
-        const zh = NOTE_ZH[en];
-        if (zh) bits.push(zh);
-        bits.push(el('small', { class: 'note-en' }, en));
-        if (i < list.length - 1) bits.push('、');
+      uniq.forEach((u, i) => {
+        if (u.zh) bits.push(u.zh);
+        /* 同一中文键下的多个英文原名并列在**同一个** small 里，
+           用「 / 」分隔（不是「、」）—— 「、」是香材之间的分隔符，
+           拿它分同义词会让下游按「、」切段的断言把一味读成两味。 */
+        bits.push(el('small', { class: 'note-en' }, u.ens.join(' / ')));
+        if (i < uniq.length - 1) bits.push('、');
       });
       dl.append(
         el('dt', {}, label),

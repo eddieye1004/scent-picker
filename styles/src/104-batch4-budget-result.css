@@ -272,7 +272,47 @@
   color: var(--ink-3);
 }
 
-/* ---------- 腿 F：结果页双入口 ---------- */
+/* ---------- 腿 F + Batch 5 腿 B5-4：结果页双入口 ----------
+   ==== 顺序（自上而下，写死，不许插队）====
+     ① .masthead        页头「你的三瓶候选」+「重选入口」
+     ② .progress        六段进度尺 + 「推荐结果 / 完成 · 共 6 步」
+     ③ .specimen-bar    作答印记（可横向滚）
+     ④ .result-quick-entries   ← 本段
+          ├ .result-entry[data-entry=history]  标题 + 「查看」/ 说明
+          └ .result-entry[data-entry=restart]  标题 + 「从头重新答一遍」/ 说明
+          └ .qw-history-panel                   展开时横跨整行（grid-row 2）
+     ⑤ .result-head     编号 / 基于你的回答 / 「花香调 · 浓郁度 3/5」/ 三瓶说明
+     ⑥ .cmp             首屏三列比较表
+     ⑦ .pick ×3         三张详情卡（含 .pick-basis 药丸，即「你答的 → 所以」对照表）
+
+   ==== 间距（390 档实测值，写死在这里而不是靠各元素自己的 margin 拼）====
+     入口块 margin: -4px 0 24px  → 入口块底到 .result-head 顶 24px
+     两列 gap: 14px（≤620）/ 20px（>620）
+     列内：head 与 note 之间 6px；标题与按钮 8px
+     入口块自身高度 ≈ 89px（标题 18 + 按钮 44 + 说明 18 + 两处 6/8 间距）
+
+   ==== 两条说明各归各的入口 ====
+     「最近 5 次只存本机，不上传」→ 只出现在档案那一列下方
+     「会清空全部答案」           → 只出现在重选那一列下方
+   两句都在自己的 .result-entry-note 容器里（各自独立的块级盒），
+   不再共用同一个网格行 —— 共用行时两列高度不齐会把它们排到不同基线，
+   读起来像两行串排的注释（Batch 4 的实测图就是这样）。
+   两条说明都**完整显示**：不做省略号、不截行（max 两个短句，放得下）。
+
+   ==== 窄屏换行 / 堆叠 ====
+     ≤350px：单列堆叠（grid-template-columns: minmax(0,1fr)），
+             档案在上、重选在下，两列之间 12px + 一条上分隔线；
+             说明仍跟在自己入口下面（不串行）。
+     351–620px：两列并排，左 1.08fr / 右 1fr，gap 14px。
+     >620px：两列并排，左 1.12fr / 右 1fr，gap 20px，整块 max-width 656px 居中。
+   任何一档都不产生横向滚动（文字都允许在容器内折行，按钮 min-width 0）。 */
+/* 入口块上边距：10px（从标本条下沿算起）。
+   Batch 4 写的是 -4px —— 那是为了让标本条与入口"看起来挨着"，
+   而标本条是固定 34px 高、印记本体 30px，盒子本身并不需要被拉进来。
+   -4 的实测后果是两个兄弟盒子**相交**：entries.top 235 / specimen.bottom 239。
+   现在的 10px 让两道内容之间有 10px 的空气，视觉上仍是一组，
+   但盒子上不再相交（实测 entries.top 249 / specimen.bottom 239）。
+   下方 24px 是入口块到 .result-head 的距离，两条一起构成这一段的节奏。 */
 #app[data-step="result"] .result-quick-entries {
   display: grid;
   grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
@@ -280,12 +320,112 @@
   gap: 20px;
   width: 100%;
   max-width: 656px;
-  margin: -4px 0 24px;
+  margin: 10px 0 24px;
+}
+
+/* 一列＝一个入口 + 它自己的说明。min-width:0 是折行的前提：
+   网格项默认 min-width:auto，内容（「从头重新答一遍」六个字）会把
+   列撑过容器，然后在窄屏上产生横向滚动。 */
+#app[data-step="result"] .result-quick-entries .result-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* ==== 结果页的标本条：只留印记本体，不展开理由 ====
+   .specimen-mark[data-reason]::after（96-leg8.css:282）在结果页会追加
+   那一句理由，最长「知名度排名 2，属于相对好买、好试的一类」——
+   而 .specimen-bar 是固定 32px 高、overflow-x:auto（不是 hidden）的横条。
+   后果实测（390 档）：两枚印记被撑到 136 / 200px 宽、38px 高，
+   伪元素里的理由文字**溢出到条带之外**，正压在下方双入口的标题与按钮上
+   （截图里「香型 · 主体就是花…」与「我的香水档案 / 查看（1）」叠在一起）。
+   这不是"挤"，是两块内容真的占据了同一块像素 —— B3 说的「布局一团乱」里
+   最难读的一处。
+
+   修法取"外侧裁掉、内容不丢"：条带改为纵向裁剪（overflow-x:auto 保留横向滚动），
+   伪元素留在条内，超出的部分被裁。理由文字本身并没有消失 —— 它仍完整地
+   写在 .specimen-mark 的 title 上（app.js 里 setAttribute 的那个），
+   键盘与读屏都能拿到；本屏真正要读的理由在下方 .pick-basis 里，一处不漏。
+   条带高度也不再加：32px 是进度尺与入口块之间的既定间距。 */
+#app[data-step="result"] .specimen-bar {
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* 理由伪元素会略超 32px 行高（12px 字 / 1.4 行高 + 上下 2px 内边距），
+     给它 34px 才不上下双双裁到字形。相邻两处布局都不依赖这 2px。 */
+  min-height: 34px;
+  height: 34px;
+}
+
+#app[data-step="result"] .specimen-mark {
+  flex: 0 0 auto;
+  height: 30px;
+  min-height: 30px;
+  /* 不换行：伪元素里的理由一旦折行，印记就会比条带高出一大截。 */
+  white-space: nowrap;
+}
+
+/* 伪元素：留在条带内、单行、超长省略。
+   max-width 收在 16ch —— 印记本体（图标+两字标签）约 60px，
+   理由 16ch 后整枚印记在 342px 条带里两枚并排还留得下滚动余量。 */
+#app[data-step="result"] .specimen-mark[data-reason]::after {
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+#app[data-step="result"] .result-quick-entries .result-entry[data-entry="history"] {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+/* 右列一条竖线把两个入口分开：它们是两件不同的事（看过去 / 重开一局），
+   不该读成一行的两个标签。 */
+#app[data-step="result"] .result-quick-entries .result-entry[data-entry="restart"] {
+  grid-column: 2;
+  grid-row: 1;
+  padding-left: 20px;
+  border-left: 1px solid var(--line);
+}
+
+/* 入口行：标题与动作同一基线。height 44 是触控门槛，标题窄时折行不撑破。 */
+#app[data-step="result"] .result-quick-entries .result-entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 44px;
+  min-width: 0;
+}
+
+#app[data-step="result"] .result-quick-entries .qw-history-label,
+#app[data-step="result"] .result-quick-entries .result-entry-title {
+  margin: 0;
+  color: var(--ink-2);
+  font: 500 13px/1.4 var(--font-ui, system-ui);
+  letter-spacing: .03em;
+  white-space: nowrap;
+}
+
+/* 说明：两条都完整显示，不截断。
+   font 12px 是 test-contrast 的地板；line-height 1.55 让两行之间不至于挤。 */
+#app[data-step="result"] .result-quick-entries .result-entry-note {
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  color: var(--ink-3);
+  font: 400 12px/1.55 var(--font-ui, system-ui);
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 #app[data-step="result"] .result-quick-entries .qw-history {
-  grid-column: 1;
-  grid-row: 1;
   min-width: 0;
   max-width: none;
   margin: 0;
@@ -298,13 +438,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 10px;
-}
-
-#app[data-step="result"] .result-quick-entries .qw-history-label {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.4;
-  letter-spacing: .03em;
+  min-height: 0;
 }
 
 #app[data-step="result"] .result-quick-entries .qw-history-toggle {
@@ -313,12 +447,8 @@
   font-size: 13px;
 }
 
-#app[data-step="result"] .result-quick-entries .qw-history-sub {
-  margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 1.55;
-}
-
+/* 档案面板：展开时横跨整行（grid-row 2），不属于任何一侧。
+   选中态（展开）额外给它一条上边线，与上方入口分开。 */
 #app[data-step="result"] .result-quick-entries .qw-history-panel {
   grid-column: 1 / -1;
   grid-row: 2;
@@ -329,23 +459,10 @@
   padding: 2px 18px 14px;
 }
 
-#app[data-step="result"] .result-quick-restart {
-  grid-column: 2;
-  grid-row: 1;
-  align-self: start;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  min-width: 0;
-  min-height: 44px;
-  margin: 0;
-  padding: 0 0 0 20px;
-  border-left: 1px solid var(--line);
-}
-
 #app[data-step="result"] .result-restart-btn {
   align-self: flex-start;
+  min-width: 0;
+  max-width: 100%;
   min-height: 44px;
   margin: 0;
   padding: 0;
@@ -354,17 +471,13 @@
   border-bottom: 1px solid var(--stroke-l1);
   color: var(--ink-2);
   font: 500 13px/1.4 var(--font-ui, system-ui);
-  white-space: nowrap;
+  /* 不写 nowrap：六个字在 ≤350 档的单列里放得下，但在 320 双列里会被压到
+     折行 —— 允许折行（白字不再溢出），省略号只留给药丸。 */
+  white-space: normal;
 }
 
 #app[data-step="result"] .result-restart-btn:hover {
   color: var(--accent);
-}
-
-#app[data-step="result"] .result-restart-warning {
-  margin: 0;
-  color: var(--ink-3);
-  font: 400 12px/1.5 var(--font-ui, system-ui);
 }
 
 /* 页眉修复：结果页不让装饰章与重选入口争位；标题和按钮都明确禁止裁字。 */
@@ -404,12 +517,12 @@
     margin-bottom: 20px;
   }
 
-  #app[data-step="result"] .result-quick-entries .qw-history-head {
-    gap: 4px;
+  #app[data-step="result"] .result-quick-entries .result-entry-head {
+    gap: 4px 8px;
   }
 
-  #app[data-step="result"] .result-quick-entries .qw-history-label {
-    gap: 4px;
+  #app[data-step="result"] .result-quick-entries .qw-history-label,
+  #app[data-step="result"] .result-quick-entries .result-entry-title {
     font-size: 12px;
     letter-spacing: 0;
   }
@@ -419,11 +532,11 @@
   }
 
   #app[data-step="result"] .result-quick-entries .qw-history-toggle {
-    padding: 0 5px;
+    padding: 0 8px;
     font-size: 12px;
   }
 
-  #app[data-step="result"] .result-quick-restart {
+  #app[data-step="result"] .result-quick-entries .result-entry[data-entry="restart"] {
     padding-left: 14px;
   }
 
@@ -432,16 +545,18 @@
   }
 }
 
+/* ≤350：单列堆叠。档案在上、重选在下，两列之间 12px + 上分隔线。
+   说明仍然跟在自己入口下面（不串行、不合并成一段）。 */
 @media (max-width: 350px) {
   #app[data-step="result"] .result-quick-entries {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
 
-  #app[data-step="result"] .result-quick-restart {
+  #app[data-step="result"] .result-quick-entries .result-entry[data-entry="restart"] {
     grid-column: 1;
     grid-row: 2;
-    padding: 10px 0 0;
+    padding: 12px 0 0;
     border-top: 1px solid var(--line);
     border-left: 0;
   }
