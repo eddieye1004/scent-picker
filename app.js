@@ -3829,14 +3829,25 @@ function renderConcentration() {
      几何保持不变，圆环仍以同一舞台中轴为圆心。 */
   const figure = el('div', { class: 'conc-figure', html:
     '<svg viewBox="0 0 56 84" focusable="false">'
+    + '<defs>'
+    + '<linearGradient id="conc-figure-fill" x1="0" y1="0" x2="1" y2="0">'
+    + '<stop offset="0" stop-color="currentColor" stop-opacity=".68"/>'
+    + '<stop offset=".48" stop-color="currentColor" stop-opacity=".96"/>'
+    + '<stop offset="1" stop-color="currentColor" stop-opacity=".72"/>'
+    + '</linearGradient>'
+    + '</defs>'
     + '<circle cx="28" cy="11" r="8.5"/>'
-    + '<rect x="25.5" y="18" width="5" height="26"/>'
-    + '<path d="M13 84 L13 68 C13 55 19.5 43 28 43 C36.5 43 43 55 43 68 L43 84 Z"/>'
+    + '<rect x="25.5" y="18" width="5" height="26" rx="2"/>'
+    + '<path d="M13 84 L13 68 C13 55 19.5 43 28 43 C36.5 43 43 55 43 68 L43 84 Z" fill="url(#conc-figure-fill)"/>'
+    + '<path class="conc-figure-detail" d="M18 50 C22 48.5 25 48.5 28 50 C31 48.5 34 48.5 38 50"/>'
+    + '<path class="conc-figure-detail" d="M21 55 C24 54 26 54 28 55 C30 54 32 54 35 55"/>'
     + '</svg>' });
   /* 偏心蓝雾是独立表现层：画布 116×80，锚点在锁骨中点上方 6px。
      五档只切换 CSS 变量，拖动与提交都仅动画 transform / opacity。 */
   const mist = el('div', { class: 'conc-mist', html:
-    '<div class="conc-mist-outer"></div>'
+    '<div class="conc-mist-halo"></div>'
+    + '<div class="conc-mist-wisp"></div>'
+    + '<div class="conc-mist-outer"></div>'
     + '<div class="conc-mist-inner"></div>'
     + '<div class="conc-mist-arc conc-mist-arc-a"></div>'
     + '<div class="conc-mist-arc conc-mist-arc-b"></div>' });
